@@ -1,6 +1,8 @@
-<h1 align="center">
-  <img src="docs/assets/logo-simplex-viz.png" width="460" alt="SimplexViz — 60° Triangulation Content Atlas" />
-</h1>
+<p align="center">
+  <img src="docs/assets/mark-512.png" width="120" alt="SimplexViz" />
+</p>
+
+<h1 align="center">SimplexViz</h1>
 
 <p align="center">
   <strong>Triangulation-based, strictly overlap-free visualization of tagged content collections on a dynamic 60° equilateral triangle mesh (simplex mesh).</strong>
@@ -11,6 +13,8 @@
   <a href="#local-development--scripts"><img src="https://img.shields.io/badge/CI-Vitest%20%7C%20ESLint%20%7C%20Publint-06b6d4" alt="CI" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-f59e0b.svg" alt="License: MIT" /></a>
 </p>
+
+SimplexViz partitions tagged collections into balanced topic clusters, embeds them onto an adaptive 60° simplex lattice with perceptual OKLab color mixing, and resolves every convex node hull to a guaranteed `0.0 px` overlap layout. It is structured as a modular three-layer TypeScript stack—a zero-dependency headless core (`@simplex-viz/core`), a framework-agnostic SVG engine (`@simplex-viz/svg`), and type-safe React bindings (`@simplex-viz/react`).
 
 ## Live Showcase
 

@@ -572,9 +572,13 @@ async function main(): Promise<void> {
   const markDefsLines = getMarkGradientLines(false);
   const markNodeLines = getMarkGeometryLines();
 
-  // 1. Standalone freestanding mark assets
+  // 1. Standalone freestanding mark assets (transparent SVG + 512px PNG)
   const faviconSvg = renderFaviconSvg();
   if (await syncTextOutput('public/favicon.svg', faviconSvg, checkOnly, diffs)) {
+    updatedCount += 1;
+  }
+  const markPngBuffer = renderPng(faviconSvg, 512);
+  if (await syncBinaryOutput('docs/assets/mark-512.png', markPngBuffer, checkOnly, diffs)) {
     updatedCount += 1;
   }
 
