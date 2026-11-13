@@ -3,14 +3,17 @@ import js from '@eslint/js';
 
 const require = createRequire(import.meta.url);
 const Module = require('node:module');
+const ts6Entry = (() => {
+  try {
+    return require.resolve('@typescript/typescript6');
+  } catch {
+    return null;
+  }
+})();
 const originalLoad = Module._load;
 Module._load = function (request, parent, isMain) {
-  if (request === 'typescript') {
-    try {
-      return originalLoad.call(this, '@typescript/typescript6', parent, isMain);
-    } catch {
-      return originalLoad.call(this, request, parent, isMain);
-    }
+  if (request === 'typescript' && ts6Entry) {
+    return originalLoad.call(this, ts6Entry, parent, isMain);
   }
   return originalLoad.call(this, request, parent, isMain);
 };
