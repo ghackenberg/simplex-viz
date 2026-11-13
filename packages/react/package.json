@@ -1,0 +1,46 @@
+{
+  "name": "@simplex-viz/react",
+  "version": "0.1.0",
+  "description": "End-to-end type-safe React bindings, declarative JSX node renderers, and hooks for @simplex-viz/core and @simplex-viz/svg.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup && tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@simplex-viz/core": "workspace:^",
+    "@simplex-viz/svg": "workspace:^"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "keywords": [
+    "simplex",
+    "react",
+    "svg",
+    "visualization",
+    "typescript"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simplex-viz/simplex-viz.git",
+    "directory": "packages/react"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "jsx": "react-jsx",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./*"],
+      "@simplex-viz/core": ["./packages/core/src/index.ts"],
+      "@simplex-viz/svg": ["./packages/svg/src/index.ts"],
+      "@simplex-viz/react": ["./packages/react/src/index.ts"]
+    }
+  },
+  "include": ["src", "packages/svg/src", "packages/react/src", "packages/core/src"],
+  "exclude": ["dist", "node_modules", "**/dist"]
+}

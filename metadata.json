@@ -1,0 +1,6 @@
+{
+  "name": "SimplexViz — Triangulation Content Atlas",
+  "description": "Interactive triangulation-based visualization for tagged content collections on a dynamic 60-degree simplex mesh with end-to-end type safety, pluggable node views, and guaranteed overlap-free convex hull layout.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

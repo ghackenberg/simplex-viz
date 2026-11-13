@@ -1,0 +1,42 @@
+{
+  "name": "@simplex-viz/svg",
+  "version": "0.1.0",
+  "description": "Framework-agnostic SVG rendering engine, offscreen getBBox() hull measurer, and pluggable SvgNodeView system for @simplex-viz/core.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup && tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@simplex-viz/core": "workspace:^"
+  },
+  "keywords": [
+    "simplex",
+    "svg",
+    "visualization",
+    "dataviz",
+    "framework-agnostic",
+    "plugins"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simplex-viz/simplex-viz.git",
+    "directory": "packages/svg"
+  }
+}
