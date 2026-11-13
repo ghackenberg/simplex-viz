@@ -18,7 +18,7 @@
     "typecheck": "tsc -p packages/core/tsconfig.json --noEmit && tsc -p packages/svg/tsconfig.json --noEmit && tsc -p packages/react/tsconfig.json --noEmit && tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "validate:packages": "npx publint packages/core && npx publint packages/svg && npx publint packages/react"
+    "validate:packages": "node -e \"const { execSync } = require('node:child_process'); const has = (c) => { try { execSync(c + ' --version', { stdio: 'ignore' }); return true; } catch { return false; } }; const pack = has('pnpm') ? 'pnpm' : has('bun') ? 'bun' : 'false'; for (const p of ['packages/core', 'packages/svg', 'packages/react']) execSync('publint ' + p + ' --pack ' + pack, { stdio: 'inherit' });\""
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
