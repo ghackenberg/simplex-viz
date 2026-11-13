@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/logo-svg.png" width="640" alt="SimplexViz / svg — @simplex-viz/svg" />
+</p>
+
 # @simplex-viz/svg
 
 Framework-agnostic SVG rendering engine and pluggable `SvgNodeView` architecture for `@simplex-viz/core`. Zero dependency on React—embeds cleanly into Vanilla TypeScript, Vue, Angular, Svelte, Solid, and Web Components.
@@ -5,6 +9,10 @@ Framework-agnostic SVG rendering engine and pluggable `SvgNodeView` architecture
 - **Live Demo:** <https://hackenberg.tech/simplex-viz/>
 - **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/svg>
 - **Companion Packages:** [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core) · [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react)
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/preview-svg.png" width="840" alt="@simplex-viz/svg rendering showcase showing GeometricShapeSvgView, MultiSectorGlyphSvgView, ClusterAnchorSvgView, and BadgeClusterSvgView" />
+</p>
 
 ---
 

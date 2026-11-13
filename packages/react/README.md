@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/logo-react.png" width="640" alt="SimplexViz / react — @simplex-viz/react" />
+</p>
+
 # @simplex-viz/react
 
 End-to-end type-safe React bindings, declarative JSX node renderers, and imperative controller hooks for `@simplex-viz/core` and `@simplex-viz/svg`.
@@ -5,6 +9,10 @@ End-to-end type-safe React bindings, declarative JSX node renderers, and imperat
 - **Live Demo:** <https://hackenberg.tech/simplex-viz/>
 - **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/react>
 - **Companion Packages:** [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core) · [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg)
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/preview-react.png" width="840" alt="@simplex-viz/react preview showing minimalist renderClusterNode and renderContentNode JSX slot placeholders with automatic getBBox() collision sizing" />
+</p>
 
 ---
 

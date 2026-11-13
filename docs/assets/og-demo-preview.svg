@@ -1,0 +1,279 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="ogBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B111E"/>
+      <stop offset="60%" stop-color="#07090E"/>
+      <stop offset="100%" stop-color="#05070C"/>
+    </linearGradient>
+    <radialGradient id="ogGlow" cx="72%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.18"/>
+      <stop offset="60%" stop-color="#8B5CF6" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#07090E" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="ogStageClip">
+      <rect x="0" y="0" width="620" height="542" rx="16"/>
+    </clipPath>
+    
+    <linearGradient id="svIconTile" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#111C31"/>
+      <stop offset="55%" stop-color="#090E17"/>
+      <stop offset="100%" stop-color="#05070C"/>
+    </linearGradient>
+    <linearGradient id="svTriTop" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.52"/>
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0.20"/>
+    </linearGradient>
+    <linearGradient id="svTriLeft" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.52"/>
+      <stop offset="100%" stop-color="#14B8A6" stop-opacity="0.24"/>
+    </linearGradient>
+    <linearGradient id="svTriRight" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#E879F9" stop-opacity="0.50"/>
+      <stop offset="100%" stop-color="#6366F1" stop-opacity="0.24"/>
+    </linearGradient>
+    <radialGradient id="svTriCenter" cx="50%" cy="45%" r="65%">
+      <stop offset="0%" stop-color="#F8FAFC" stop-opacity="0.25"/>
+      <stop offset="60%" stop-color="#38BDF8" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#A855F7" stop-opacity="0.12"/>
+    </radialGradient>
+    <linearGradient id="svEdgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#67E8F9" stop-opacity="0.9"/>
+      <stop offset="50%" stop-color="#CBD5E1" stop-opacity="0.72"/>
+      <stop offset="100%" stop-color="#E879F9" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#ogBg)"/>
+  <rect width="1200" height="630" fill="url(#ogGlow)"/>
+
+  <!-- Left Demo App Showcase Info Column -->
+  <g transform="translate(56, 72)">
+    <!-- Live Demo Badge -->
+    <rect x="0" y="0" width="212" height="30" rx="6" fill="#06B6D4" fill-opacity="0.14" stroke="#22D3EE" stroke-opacity="0.55" stroke-width="1.2"/>
+    <circle cx="16" cy="15" r="4.2" fill="#34D399"/>
+    <text x="30" y="19.5" font-family="JetBrains Mono, monospace" font-size="12" font-weight="600" fill="#67E8F9">INTERACTIVE LIVE DEMO</text>
+
+    <!-- Icon + Title -->
+    <g transform="translate(0, 56)">
+      <g transform="scale(0.175)">
+        <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#svIconTile)" stroke="#334155" stroke-width="12"/>
+        
+    <polygon points="256.0,114.7 178.9,248.2 333.1,248.2" fill="url(#svTriTop)"/>
+    <polygon points="178.9,248.2 101.8,381.7 256.0,381.7" fill="url(#svTriLeft)"/>
+    <polygon points="333.1,248.2 256.0,381.7 410.2,381.7" fill="url(#svTriRight)"/>
+    <polygon points="178.9,248.2 256.0,381.7 333.1,248.2" fill="url(#svTriCenter)"/>
+    <polygon points="256.0,114.7 101.8,381.7 410.2,381.7" fill="none" stroke="url(#svEdgeGrad)" stroke-width="12" stroke-linejoin="round"/>
+    <polygon points="178.9,248.2 256.0,381.7 333.1,248.2" fill="none" stroke="#CBD5E1" stroke-opacity="0.6" stroke-width="8" stroke-linejoin="round"/>
+    <circle cx="178.9" cy="248.2" r="9" fill="#0B0F17" stroke="#2DD4BF" stroke-width="4.5"/>
+    <circle cx="256.0" cy="381.7" r="9" fill="#0B0F17" stroke="#FB923C" stroke-width="4.5"/>
+    <circle cx="333.1" cy="248.2" r="9" fill="#0B0F17" stroke="#A78BFA" stroke-width="4.5"/>
+    <circle cx="256.0" cy="203.7" r="13.5" fill="#38BDF8" stroke="#07090E" stroke-width="4"/>
+    <polygon points="178.9,321.7 192.4,337.2 178.9,352.7 165.4,337.2" fill="#34D399" stroke="#07090E" stroke-width="3.5"/>
+    <circle cx="333.1" cy="337.2" r="13.5" fill="#F472B6" stroke="#07090E" stroke-width="4"/>
+    <circle cx="256.0" cy="292.7" r="16.875" fill="#F8FAFC" stroke="#22D3EE" stroke-width="4.5"/>
+    
+      <circle cx="256.0" cy="114.7" r="29" fill="#07090E" stroke="#22D3EE" stroke-width="6.5"/>
+      <circle cx="256.0" cy="114.7" r="17.5" fill="#22D3EE" fill-opacity="0.32" stroke="#22D3EE" stroke-width="4"/>
+      <circle cx="256.0" cy="114.7" r="7" fill="#F8FAFC"/>
+      <circle cx="101.8" cy="381.7" r="29" fill="#07090E" stroke="#F59E0B" stroke-width="6.5"/>
+      <circle cx="101.8" cy="381.7" r="17.5" fill="#F59E0B" fill-opacity="0.32" stroke="#F59E0B" stroke-width="4"/>
+      <circle cx="101.8" cy="381.7" r="7" fill="#F8FAFC"/>
+      <circle cx="410.2" cy="381.7" r="29" fill="#07090E" stroke="#E879F9" stroke-width="6.5"/>
+      <circle cx="410.2" cy="381.7" r="17.5" fill="#E879F9" fill-opacity="0.32" stroke="#E879F9" stroke-width="4"/>
+      <circle cx="410.2" cy="381.7" r="7" fill="#F8FAFC"/>
+  
+      </g>
+      <text x="106" y="59" font-family="Noto Sans, sans-serif" font-size="50" font-weight="700" letter-spacing="-1">
+        <tspan fill="#F8FAFC">Simplex</tspan><tspan fill="#22D3EE">Viz</tspan>
+      </text>
+    </g>
+
+    <text x="0" y="192" font-family="Noto Sans, sans-serif" font-size="25" font-weight="600" fill="#F1F5F9">
+      Explore Tagged Knowledge
+    </text>
+    <text x="0" y="224" font-family="Noto Sans, sans-serif" font-size="25" font-weight="600" fill="#F1F5F9">
+      on a Dynamic 60° Mesh
+    </text>
+
+    <text x="0" y="268" font-family="Noto Sans, sans-serif" font-size="16" fill="#94A3B8">
+      Switch live between SVG shapes, multi-sector topic
+    </text>
+    <text x="0" y="292" font-family="Noto Sans, sans-serif" font-size="16" fill="#94A3B8">
+      glyphs, and React JSX cards with 60 fps crossfades.
+    </text>
+
+    <!-- Mini Telemetry Panel matching the Demo Sidebar -->
+    <g transform="translate(0, 336)">
+      <rect x="0" y="0" width="424" height="98" rx="10" fill="#0B0F17" stroke="#1E293B" stroke-width="1.4"/>
+      <line x1="141" y1="14" x2="141" y2="84" stroke="#1E293B"/>
+      <line x1="282" y1="14" x2="282" y2="84" stroke="#1E293B"/>
+
+      <text x="20" y="34" font-family="Noto Sans, sans-serif" font-size="12" fill="#94A3B8">Overlaps</text>
+      <text x="20" y="68" font-family="JetBrains Mono, monospace" font-size="24" font-weight="700" fill="#34D399">0.0 px</text>
+
+      <text x="161" y="34" font-family="Noto Sans, sans-serif" font-size="12" fill="#94A3B8">Clusters K</text>
+      <text x="161" y="68" font-family="JetBrains Mono, monospace" font-size="24" font-weight="700" fill="#FCD34D">6</text>
+
+      <text x="302" y="34" font-family="Noto Sans, sans-serif" font-size="12" fill="#94A3B8">Items</text>
+      <text x="302" y="68" font-family="JetBrains Mono, monospace" font-size="24" font-weight="700" fill="#67E8F9">74</text>
+    </g>
+
+    <text x="0" y="476" font-family="JetBrains Mono, monospace" font-size="13.5" fill="#64748B">
+      https://hackenberg.tech/simplex-viz/
+    </text>
+  </g>
+
+  <!-- Right Stylized Live Demo Canvas Card -->
+  <g transform="translate(532, 44)">
+    <rect x="0" y="0" width="620" height="542" rx="16" fill="#07090E" stroke="#1E293B" stroke-width="2"/>
+    <g clip-path="url(#ogStageClip)">
+      <!-- Mini Top App Bar inside card -->
+      <rect x="0" y="0" width="620" height="38" fill="#0B0F17"/>
+      <line x1="0" y1="38" x2="620" y2="38" stroke="#1E293B"/>
+      <text x="16" y="24" font-family="Noto Sans, sans-serif" font-size="12" font-weight="600" fill="#F8FAFC">Atlas</text>
+      <line x1="14" y1="31" x2="46" y2="31" stroke="#22D3EE" stroke-width="1.5"/>
+      <text x="66" y="24" font-family="Noto Sans, sans-serif" font-size="12" fill="#94A3B8">A · Geometric Encoding</text>
+      <text x="604" y="24" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="11" fill="#34D399">α = 1.000 · 60 fps</text>
+
+      <g transform="translate(0, 24)">
+        <polygon points="64.0,176.3 64.0,365.7 228.0,271.0" fill="#bc9bd1" fill-opacity="0.15"/>
+        <polygon points="228.0,271.0 392.0,365.7 392.0,176.3" fill="#dc9377" fill-opacity="0.15"/>
+        <polygon points="392.0,176.3 392.0,365.7 556.0,271.0" fill="#bba170" fill-opacity="0.15"/>
+        <line x1="64.0" y1="176.3" x2="64.0" y2="365.7" stroke="#334155" stroke-opacity="0.6" stroke-width="1.3"/>
+        <line x1="64.0" y1="365.7" x2="228.0" y2="271.0" stroke="#334155" stroke-opacity="0.6" stroke-width="1.3"/>
+        <line x1="64.0" y1="176.3" x2="228.0" y2="271.0" stroke="#334155" stroke-opacity="0.6" stroke-width="1.3"/>
+        <line x1="228.0" y1="271.0" x2="392.0" y2="365.7" stroke="#334155" stroke-opacity="0.6" stroke-width="1.3"/>
+        <line x1="392.0" y1="176.3" x2="392.0" y2="365.7" stroke="#334155" stroke-opacity="0.6" stroke-width="1.3"/>
+        <line x1="228.0" y1="271.0" x2="392.0" y2="176.3" stroke="#334155" stroke-opacity="0.6" stroke-width="1.3"/>
+        <line x1="392.0" y1="365.7" x2="556.0" y2="271.0" stroke="#334155" stroke-opacity="0.6" stroke-width="1.3"/>
+        <line x1="392.0" y1="176.3" x2="556.0" y2="271.0" stroke="#334155" stroke-opacity="0.6" stroke-width="1.3"/>
+
+        <polygon points="269.8,232.1 280.2,243.6 269.8,255.1 259.5,243.6" fill="#ad8dfd" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="189.8" cy="307.2" r="11.0" fill="#ad8dfd" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="221.2,217.2 224.1,224.4 231.8,224.9 225.8,229.8 227.8,237.4 221.2,233.2 214.6,237.4 216.6,229.8 210.6,224.9 218.3,224.4" fill="#ad8dfd" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="273.7,259.3 284.0,270.8 273.7,282.3 263.3,270.8" fill="#ad8dfd" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="183.9" cy="277.2" r="12.0" fill="#ad8dfd" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="352.1" cy="193.6" r="11.0" fill="#8dbc65" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="331.8" cy="232.7" r="14.0" fill="none" stroke="#22D3EE" stroke-width="2"/><polygon points="331.8,221.5 334.6,228.8 342.4,229.2 336.4,234.2 338.3,241.7 331.8,237.6 325.2,241.7 327.2,234.2 321.2,229.2 328.9,228.8" fill="#8dbc65" stroke="#F8FAFC" stroke-width="2.2"/>
+        <polygon points="327.0,165.4 338.3,178.1 327.0,190.7 315.6,178.1" fill="#8dbc65" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="354.4" cy="221.0" r="9.0" fill="#8dbc65" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="326.7,194.2 329.9,202.2 338.5,202.7 331.8,208.2 334.0,216.6 326.7,212.0 319.4,216.6 321.6,208.2 314.9,202.7 323.5,202.2" fill="#8dbc65" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="102.7,143.1 105.9,151.1 114.5,151.7 107.9,157.2 110.0,165.5 102.7,160.9 95.4,165.5 97.6,157.2 90.9,151.7 99.5,151.1" fill="#ff8083" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="40.1,203.2 51.5,215.9 40.1,228.5 28.7,215.9" fill="#ff8083" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="56.1" cy="135.3" r="9.0" fill="#ff8083" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="95.1,196.0 98.3,204.0 106.9,204.5 100.3,210.0 102.4,218.4 95.1,213.8 87.8,218.4 90.0,210.0 83.3,204.5 92.0,204.0" fill="#ff8083" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="30.0,137.1 41.4,149.8 30.0,162.4 18.6,149.8" fill="#ff8083" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="103.3,330.9 114.7,343.6 103.3,356.2 91.9,343.6" fill="#0dcaad" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="45.4" cy="409.3" r="9.0" fill="#0dcaad" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="54.4,307.1 57.6,315.1 66.2,315.7 59.5,321.2 61.7,329.5 54.4,324.9 47.1,329.5 49.2,321.2 42.6,315.7 51.2,315.1" fill="#0dcaad" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="96.6,386.9 107.9,399.5 96.6,412.2 85.2,399.5" fill="#0dcaad" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="29.0" cy="351.0" r="10.0" fill="#0dcaad" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="424.4" cy="150.2" r="9.0" fill="#97bf3f" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="380.7,204.9 383.8,212.9 392.5,213.4 385.8,218.9 388.0,227.3 380.7,222.7 373.4,227.3 375.5,218.9 368.9,213.4 377.5,212.9" fill="#97bf3f" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="374.2,121.7 386.7,135.5 374.2,149.3 361.8,135.5" fill="#97bf3f" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="423.3" cy="205.2" r="10.0" fill="#97bf3f" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="351.2,147.6 354.7,156.4 364.2,157.0 356.8,163.1 359.2,172.3 351.2,167.2 343.2,172.3 345.5,163.1 338.2,157.0 347.7,156.4" fill="#97bf3f" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="82.4,309.9 85.9,318.7 95.4,319.3 88.1,325.4 90.4,334.6 82.4,329.5 74.4,334.6 76.8,325.4 69.4,319.3 78.9,318.7" fill="#0dcaad" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="70.9,398.8 80.2,409.2 70.9,419.5 61.6,409.2" fill="#0dcaad" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="29.0" cy="325.3" r="10.0" fill="#0dcaad" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="108.6,358.9 112.1,367.8 121.6,368.4 114.3,374.4 116.6,383.6 108.6,378.5 100.6,383.6 103.0,374.4 95.6,368.4 105.1,367.8" fill="#0dcaad" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="29.0,377.5 39.4,389.0 29.0,400.5 18.6,389.0" fill="#0dcaad" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="246.4,221.0 255.8,231.3 246.4,241.7 237.1,231.3" fill="#ad8dfd" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="217.4" cy="314.0" r="10.0" fill="#ad8dfd" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="196.8,227.1 200.3,235.9 209.7,236.5 202.4,242.5 204.8,251.7 196.8,246.6 188.7,251.7 191.1,242.5 183.8,236.5 193.3,235.9" fill="#ad8dfd" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="265.7,285.6 276.1,297.1 265.7,308.6 255.4,297.1" fill="#ad8dfd" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="236.6" cy="205.5" r="11.0" fill="#ad8dfd" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="82.6" cy="136.8" r="10.0" fill="#ff8083" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="69.1,206.3 72.6,215.1 82.1,215.7 74.8,221.8 77.1,231.0 69.1,225.9 61.1,231.0 63.5,221.8 56.2,215.7 65.6,215.1" fill="#ff8083" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="30.9,110.2 41.3,121.7 30.9,133.2 20.6,121.7" fill="#ff8083" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="108.7" cy="183.3" r="11.0" fill="#ff8083" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="28.0,181.4 30.9,188.7 38.6,189.2 32.6,194.1 34.6,201.6 28.0,197.5 21.4,201.6 23.4,194.1 17.4,189.2 25.1,188.7" fill="#ff8083" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="589.0,226.2 592.8,235.8 603.2,236.5 595.2,243.1 597.7,253.1 589.0,247.6 580.3,253.1 582.8,243.1 574.8,236.5 585.2,235.8" fill="#6d99f0" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="530.6,293.6 540.9,305.1 530.6,316.6 520.2,305.1" fill="#6d99f0" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="537.6" cy="231.5" r="11.0" fill="#6d99f0" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="585.9,288.9 589.1,296.9 597.7,297.4 591.0,302.9 593.2,311.3 585.9,306.7 578.6,311.3 580.8,302.9 574.1,297.4 582.7,296.9" fill="#6d99f0" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="512.7,263.1 524.1,275.7 512.7,288.4 501.3,275.7" fill="#6d99f0" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="353.0,309.6 363.4,321.1 353.0,332.6 342.7,321.1" fill="#ee7c8e" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="323.5" cy="360.0" r="11.0" fill="#ee7c8e" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="329.1,294.3 332.3,302.3 340.9,302.8 334.2,308.3 336.4,316.7 329.1,312.1 321.8,316.7 324.0,308.3 317.3,302.8 325.9,302.3" fill="#ee7c8e" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="351.4,337.0 362.8,349.6 351.4,362.3 340.0,349.6" fill="#ee7c8e" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="329.3" cy="333.2" r="9.0" fill="#ee7c8e" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="396.2" cy="283.9" r="11.0" fill="#d1a31a" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="367.8,266.2 371.0,274.3 379.6,274.8 372.9,280.3 375.1,288.7 367.8,284.0 360.5,288.7 362.7,280.3 356.0,274.8 364.6,274.3" fill="#d1a31a" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="403.0,222.3 414.4,234.9 403.0,247.6 391.7,234.9" fill="#d1a31a" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="411.6" cy="261.1" r="9.0" fill="#d1a31a" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="385.2,244.9 388.3,252.9 397.0,253.5 390.3,259.0 392.5,267.3 385.2,262.7 377.9,267.3 380.0,259.0 373.4,253.5 382.0,252.9" fill="#d1a31a" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="89.3,227.7 92.4,235.8 101.1,236.3 94.4,241.8 96.6,250.2 89.3,245.5 82.0,250.2 84.1,241.8 77.5,236.3 86.1,235.8" fill="#ea9472" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="46.8,256.6 58.2,269.2 46.8,281.9 35.4,269.2" fill="#ea9472" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="38.0" cy="243.2" r="9.0" fill="#ea9472" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="79.4,255.6 82.9,264.4 92.3,265.0 85.0,271.1 87.4,280.3 79.4,275.2 71.3,280.3 73.7,271.1 66.4,265.0 75.9,264.4" fill="#ea9472" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="63.4,236.5 72.7,246.8 63.4,257.2 54.1,246.8" fill="#ea9472" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="200.6,197.4 212.0,210.1 200.6,222.7 189.2,210.1" fill="#cf87e0" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="152.0" cy="271.6" r="10.0" fill="#cf87e0" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="172.4,179.3 175.9,188.1 185.4,188.7 178.1,194.8 180.5,204.0 172.4,198.9 164.4,204.0 166.8,194.8 159.5,188.7 169.0,188.1" fill="#cf87e0" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="134.1,314.1 145.4,326.8 134.1,339.4 122.7,326.8" fill="#18c1d2" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="128.9" cy="353.8" r="9.0" fill="#18c1d2" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="109.0,301.0 112.2,309.0 120.8,309.5 114.1,315.0 116.3,323.4 109.0,318.8 101.7,323.4 103.9,315.0 97.2,309.5 105.8,309.0" fill="#18c1d2" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="170.3,239.6 180.6,251.1 170.3,262.6 159.9,251.1" fill="#cf87e0" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="120.6" cy="225.6" r="12.0" fill="#cf87e0" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="143.7,231.6 146.9,239.6 155.5,240.1 148.9,245.6 151.0,254.0 143.7,249.4 136.4,254.0 138.6,245.6 131.9,240.1 140.5,239.6" fill="#cf87e0" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="244.9,302.6 248.0,310.6 256.6,311.2 250.0,316.7 252.1,325.0 244.9,320.4 237.6,325.0 239.7,316.7 233.1,311.2 241.7,310.6" fill="#ad8dfd" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="161.6,285.8 172.9,298.5 161.6,311.1 150.2,298.5" fill="#7fa6fa" stroke="#07090E" stroke-width="1.3"/>
+        <circle cx="162.6" cy="327.0" r="10.0" fill="#7fa6fa" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="173.8,208.8 177.3,217.6 186.8,218.2 179.4,224.3 181.8,233.5 173.8,228.4 165.8,233.5 168.1,224.3 160.8,218.2 170.3,217.6" fill="#cf87e0" stroke="#07090E" stroke-width="1.3"/>
+        <polygon points="147.2,205.0 156.5,215.4 147.2,225.7 137.9,215.4" fill="#cf87e0" stroke="#07090E" stroke-width="1.3"/>
+
+        
+          <g transform="translate(64.0, 176.3)">
+            <circle r="26.0" fill="#07090E" fill-opacity="0.92" stroke="#ff8083" stroke-width="1.6" stroke-dasharray="4 2.5"/>
+            <circle r="21.0" fill="#ff8083" fill-opacity="0.2" stroke="#ff8083" stroke-width="1.3"/>
+            <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#F8FAFC">T1</text>
+            <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#ff8083">23n</text>
+          </g>
+        
+          <g transform="translate(64.0, 365.7)">
+            <circle r="26.0" fill="#07090E" fill-opacity="0.92" stroke="#0dcaad" stroke-width="1.6" stroke-dasharray="4 2.5"/>
+            <circle r="21.0" fill="#0dcaad" fill-opacity="0.2" stroke="#0dcaad" stroke-width="1.3"/>
+            <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#F8FAFC">T2</text>
+            <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#0dcaad">20n</text>
+          </g>
+        
+          <g transform="translate(228.0, 271.0)">
+            <circle r="26.0" fill="#07090E" fill-opacity="0.92" stroke="#ad8dfd" stroke-width="1.6" stroke-dasharray="4 2.5"/>
+            <circle r="21.0" fill="#ad8dfd" fill-opacity="0.2" stroke="#ad8dfd" stroke-width="1.3"/>
+            <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#F8FAFC">T3</text>
+            <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#ad8dfd">34n</text>
+          </g>
+        
+          <g transform="translate(392.0, 176.3)">
+            <circle r="26.0" fill="#07090E" fill-opacity="0.92" stroke="#97bf3f" stroke-width="1.6" stroke-dasharray="4 2.5"/>
+            <circle r="21.0" fill="#97bf3f" fill-opacity="0.2" stroke="#97bf3f" stroke-width="1.3"/>
+            <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#F8FAFC">T4</text>
+            <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#97bf3f">15n</text>
+          </g>
+        
+          <g transform="translate(392.0, 365.7)">
+            <circle r="26.0" fill="#07090E" fill-opacity="0.92" stroke="#f67d51" stroke-width="1.6" stroke-dasharray="4 2.5"/>
+            <circle r="21.0" fill="#f67d51" fill-opacity="0.2" stroke="#f67d51" stroke-width="1.3"/>
+            <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#F8FAFC">T5</text>
+            <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#f67d51">10n</text>
+          </g>
+        
+          <g transform="translate(556.0, 271.0)">
+            <circle r="26.0" fill="#07090E" fill-opacity="0.92" stroke="#6d99f0" stroke-width="1.6" stroke-dasharray="4 2.5"/>
+            <circle r="21.0" fill="#6d99f0" fill-opacity="0.2" stroke="#6d99f0" stroke-width="1.3"/>
+            <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#F8FAFC">T6</text>
+            <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#6d99f0">5n</text>
+          </g>
+
+        <!-- Floating Hover Inspection Tooltip -->
+        <g transform="translate(347.8, 206.7)">
+          <rect width="248" height="66" rx="7" fill="#0B0F17" fill-opacity="0.96" stroke="#334155" stroke-width="1.3"/>
+          <text x="12" y="21" font-family="Noto Sans, sans-serif" font-size="11.5" font-weight="600" fill="#F1F5F9">Separating Axis Theorem for Con…</text>
+          <text x="12" y="39" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#94A3B8">project · 8 min · 2025</text>
+          <text x="12" y="55" font-family="Noto Sans, sans-serif" font-size="10.5" fill="#67E8F9">Convex Hulls · SAT Collision</text>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

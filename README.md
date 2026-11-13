@@ -1,9 +1,22 @@
-# SimplexViz
+<p align="center">
+  <img src="docs/assets/logo-simplex-viz.png" width="680" alt="SimplexViz — 60° Triangulation Content Atlas" />
+</p>
 
-**Triangulation-based, strictly overlap-free visualization of tagged content collections on a dynamic 60° equilateral triangle mesh (simplex mesh).**
+<p align="center">
+  <strong>Triangulation-based, strictly overlap-free visualization of tagged content collections on a dynamic 60° equilateral triangle mesh (simplex mesh).</strong>
+</p>
 
-[![CI](https://img.shields.io/badge/CI-Vitest%20%7C%20ESLint%20%7C%20Publint-06b6d4)](#local-development--scripts)
-[![License: MIT](https://img.shields.io/badge/License-MIT-f59e0b.svg)](./LICENSE)
+<p align="center">
+  <a href="https://hackenberg.tech/simplex-viz/"><img src="https://img.shields.io/badge/Live%20Demo-hackenberg.tech-22d3ee" alt="Live Demo" /></a>
+  <a href="#local-development--scripts"><img src="https://img.shields.io/badge/CI-Vitest%20%7C%20ESLint%20%7C%20Publint-06b6d4" alt="CI" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-f59e0b.svg" alt="License: MIT" /></a>
+</p>
+
+<p align="center">
+  <a href="https://hackenberg.tech/simplex-viz/">
+    <img src="docs/assets/preview-demo.png" width="880" alt="SimplexViz Interactive Demo App featuring 60° simplex triangulation, geometric content nodes, vertex cluster anchors, and hover inspection" />
+  </a>
+</p>
 
 ---
 
