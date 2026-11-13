@@ -46,7 +46,7 @@
   <line x1="0" y1="600" x2="1200" y2="600" stroke="#64748B" stroke-opacity="0.16" stroke-width="1"/>
 
   <!-- Header Schematic Legend -->
-  <text x="28" y="34" font-family="JetBrains Mono, monospace" font-size="13" font-weight="700" fill="#06B6D4">SIMPLEX MESH · TWO-STAGE CLUSTERING · SAT CONVEX HULL SOLVER</text>
+  <text x="28" y="34" font-family="JetBrains Mono, monospace" font-size="13" font-weight="700" fill="#0891B2">SIMPLEX MESH · TWO-STAGE CLUSTERING · SAT CONVEX HULL SOLVER</text>
   <text x="1172" y="34" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="12" font-weight="600" fill="#64748B">K=8  |  s=207px (60°)  |  overlapCount=0  |  α=0.820</text>
 
   <g transform="translate(0, 62)">
@@ -80,239 +80,238 @@
     <!-- Content item convex hulls + schematic centroids -->
     
         <circle cx="652.4" cy="322.5" r="9.4" fill="#8cb57b" fill-opacity="0.22" stroke="#8cb57b" stroke-width="1.3"/>
-        <circle cx="652.4" cy="322.5" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="652.4" cy="322.5" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="639.6" cy="367.2" r="9.4" fill="#8cb57b" fill-opacity="0.22" stroke="#8cb57b" stroke-width="1.3"/>
-        <circle cx="639.6" cy="367.2" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="639.6" cy="367.2" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="651.6" y="338.8" width="29.5" height="18.0" rx="3" fill="#8cb57b" fill-opacity="0.22" stroke="#8cb57b" stroke-width="1.3"/>
-        <circle cx="666.3" cy="347.8" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="666.3" cy="347.8" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="664.9" cy="373.2" r="9.4" fill="#8cb57b" fill-opacity="0.22" stroke="#8cb57b" stroke-width="1.3"/>
-        <circle cx="664.9" cy="373.2" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="664.9" cy="373.2" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="635.1" cy="341.8" r="9.4" fill="#F59E0B" fill-opacity="0.22" stroke="#F59E0B" stroke-width="2.2"/>
-        <circle cx="635.1" cy="341.8" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="635.1" cy="341.8" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="563.4" cy="213.0" r="9.4" fill="#c98ddb" fill-opacity="0.22" stroke="#c98ddb" stroke-width="1.3"/>
-        <circle cx="563.4" cy="213.0" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="563.4" cy="213.0" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="562.9" y="298.8" width="29.5" height="18.0" rx="3" fill="#c98ddb" fill-opacity="0.22" stroke="#c98ddb" stroke-width="1.3"/>
-        <circle cx="577.7" cy="307.8" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="577.7" cy="307.8" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="581.5" cy="231.5" r="9.4" fill="#c98ddb" fill-opacity="0.22" stroke="#c98ddb" stroke-width="1.3"/>
-        <circle cx="581.5" cy="231.5" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="581.5" cy="231.5" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="579.1" cy="282.4" r="9.4" fill="#c98ddb" fill-opacity="0.22" stroke="#c98ddb" stroke-width="1.3"/>
-        <circle cx="579.1" cy="282.4" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="579.1" cy="282.4" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="569.7" y="247.9" width="29.5" height="18.0" rx="3" fill="#c98ddb" fill-opacity="0.22" stroke="#c98ddb" stroke-width="1.3"/>
-        <circle cx="584.5" cy="256.9" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="584.5" cy="256.9" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="776.5" y="481.1" width="29.5" height="18.0" rx="3" fill="#e27fb4" fill-opacity="0.22" stroke="#e27fb4" stroke-width="1.3"/>
-        <circle cx="791.3" cy="490.1" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="791.3" cy="490.1" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="822.5" cy="490.5" r="9.4" fill="#e27fb4" fill-opacity="0.22" stroke="#e27fb4" stroke-width="1.3"/>
-        <circle cx="822.5" cy="490.5" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="822.5" cy="490.5" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="812.4" cy="364.5" r="9.4" fill="#e27fb4" fill-opacity="0.22" stroke="#e27fb4" stroke-width="1.3"/>
-        <circle cx="812.4" cy="364.5" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="812.4" cy="364.5" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="800.2" y="380.9" width="29.5" height="18.0" rx="3" fill="#e27fb4" fill-opacity="0.22" stroke="#e27fb4" stroke-width="1.3"/>
-        <circle cx="815.0" cy="390.0" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="815.0" cy="390.0" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="724.2" cy="439.6" r="9.4" fill="#e27fb4" fill-opacity="0.22" stroke="#e27fb4" stroke-width="1.3"/>
-        <circle cx="724.2" cy="439.6" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="724.2" cy="439.6" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="729.2" cy="41.7" r="9.4" fill="#a492ea" fill-opacity="0.22" stroke="#a492ea" stroke-width="1.3"/>
-        <circle cx="729.2" cy="41.7" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="729.2" cy="41.7" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="727.6" cy="118.2" r="9.4" fill="#a492ea" fill-opacity="0.22" stroke="#a492ea" stroke-width="1.3"/>
-        <circle cx="727.6" cy="118.2" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="727.6" cy="118.2" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="704.1" y="58.1" width="29.5" height="18.0" rx="3" fill="#a492ea" fill-opacity="0.22" stroke="#a492ea" stroke-width="1.3"/>
-        <circle cx="718.9" cy="67.1" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="718.9" cy="67.1" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="698.4" cy="92.4" r="9.4" fill="#a492ea" fill-opacity="0.22" stroke="#a492ea" stroke-width="1.3"/>
-        <circle cx="698.4" cy="92.4" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="698.4" cy="92.4" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="724.3" cy="92.6" r="9.4" fill="#a492ea" fill-opacity="0.22" stroke="#a492ea" stroke-width="1.3"/>
-        <circle cx="724.3" cy="92.6" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="724.3" cy="92.6" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="406.2" cy="31.5" r="9.4" fill="#ff8083" fill-opacity="0.22" stroke="#ff8083" stroke-width="1.3"/>
-        <circle cx="406.2" cy="31.5" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="406.2" cy="31.5" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="378.5" y="148.0" width="29.5" height="18.0" rx="3" fill="#ff8083" fill-opacity="0.22" stroke="#ff8083" stroke-width="1.3"/>
-        <circle cx="393.3" cy="157.1" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="393.3" cy="157.1" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="380.3" cy="31.5" r="9.4" fill="#ff8083" fill-opacity="0.22" stroke="#ff8083" stroke-width="1.3"/>
-        <circle cx="380.3" cy="31.5" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="380.3" cy="31.5" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="473.4" cy="115.2" r="9.4" fill="#ff8083" fill-opacity="0.22" stroke="#ff8083" stroke-width="1.3"/>
-        <circle cx="473.4" cy="115.2" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="473.4" cy="115.2" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="378.3" y="123.0" width="29.5" height="18.0" rx="3" fill="#ff8083" fill-opacity="0.22" stroke="#ff8083" stroke-width="1.3"/>
-        <circle cx="393.1" cy="132.0" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="393.1" cy="132.0" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="767.9" y="123.0" width="29.5" height="18.0" rx="3" fill="#d77eba" fill-opacity="0.22" stroke="#d77eba" stroke-width="1.3"/>
-        <circle cx="782.7" cy="132.0" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="782.7" cy="132.0" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="772.1" cy="204.8" r="9.4" fill="#d77eba" fill-opacity="0.22" stroke="#d77eba" stroke-width="1.3"/>
-        <circle cx="772.1" cy="204.8" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="772.1" cy="204.8" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="779.3" cy="154.9" r="9.4" fill="#d77eba" fill-opacity="0.22" stroke="#d77eba" stroke-width="1.3"/>
-        <circle cx="779.3" cy="154.9" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="779.3" cy="154.9" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="758.7" y="171.4" width="29.5" height="18.0" rx="3" fill="#d77eba" fill-opacity="0.22" stroke="#d77eba" stroke-width="1.3"/>
-        <circle cx="773.4" cy="180.4" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="773.4" cy="180.4" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="753.6" cy="146.8" r="9.4" fill="#d77eba" fill-opacity="0.22" stroke="#d77eba" stroke-width="1.3"/>
-        <circle cx="753.6" cy="146.8" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="753.6" cy="146.8" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="661.8" cy="150.4" r="9.4" fill="#75c382" fill-opacity="0.22" stroke="#75c382" stroke-width="1.3"/>
-        <circle cx="661.8" cy="150.4" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="661.8" cy="150.4" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="610.3" cy="153.3" r="9.4" fill="#75c382" fill-opacity="0.22" stroke="#75c382" stroke-width="1.3"/>
-        <circle cx="610.3" cy="153.3" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="610.3" cy="153.3" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="619.5" y="123.0" width="29.5" height="18.0" rx="3" fill="#75c382" fill-opacity="0.22" stroke="#75c382" stroke-width="1.3"/>
-        <circle cx="634.3" cy="132.0" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="634.3" cy="132.0" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="628.9" cy="181.9" r="9.4" fill="#75c382" fill-opacity="0.22" stroke="#75c382" stroke-width="1.3"/>
-        <circle cx="628.9" cy="181.9" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="628.9" cy="181.9" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="636.9" cy="157.3" r="9.4" fill="#75c382" fill-opacity="0.22" stroke="#75c382" stroke-width="1.3"/>
-        <circle cx="636.9" cy="157.3" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="636.9" cy="157.3" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="786.6" cy="362.9" r="9.4" fill="#eb8591" fill-opacity="0.22" stroke="#eb8591" stroke-width="1.3"/>
-        <circle cx="786.6" cy="362.9" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="786.6" cy="362.9" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="737.8" y="380.9" width="29.5" height="18.0" rx="3" fill="#eb8591" fill-opacity="0.22" stroke="#eb8591" stroke-width="1.3"/>
-        <circle cx="752.6" cy="390.0" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="752.6" cy="390.0" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="768.9" cy="339.8" r="9.4" fill="#eb8591" fill-opacity="0.22" stroke="#eb8591" stroke-width="1.3"/>
-        <circle cx="768.9" cy="339.8" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="768.9" cy="339.8" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="783.8" cy="388.6" r="9.4" fill="#eb8591" fill-opacity="0.22" stroke="#eb8591" stroke-width="1.3"/>
-        <circle cx="783.8" cy="388.6" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="783.8" cy="388.6" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="740.5" y="356.1" width="29.5" height="18.0" rx="3" fill="#eb8591" fill-opacity="0.22" stroke="#eb8591" stroke-width="1.3"/>
-        <circle cx="755.3" cy="365.1" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="755.3" cy="365.1" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="363.2" y="481.1" width="29.5" height="18.0" rx="3" fill="#97bf3f" fill-opacity="0.22" stroke="#97bf3f" stroke-width="1.3"/>
-        <circle cx="377.9" cy="490.1" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="377.9" cy="490.1" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="409.2" cy="490.5" r="9.4" fill="#97bf3f" fill-opacity="0.22" stroke="#97bf3f" stroke-width="1.3"/>
-        <circle cx="409.2" cy="490.5" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="409.2" cy="490.5" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="393.4" cy="364.5" r="9.4" fill="#97bf3f" fill-opacity="0.22" stroke="#97bf3f" stroke-width="1.3"/>
-        <circle cx="393.4" cy="364.5" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="393.4" cy="364.5" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="378.6" y="380.9" width="29.5" height="18.0" rx="3" fill="#97bf3f" fill-opacity="0.22" stroke="#97bf3f" stroke-width="1.3"/>
-        <circle cx="393.3" cy="390.0" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="393.3" cy="390.0" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="310.8" cy="439.6" r="9.4" fill="#97bf3f" fill-opacity="0.22" stroke="#97bf3f" stroke-width="1.3"/>
-        <circle cx="310.8" cy="439.6" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="310.8" cy="439.6" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="600.1" cy="490.5" r="9.4" fill="#00b4d2" fill-opacity="0.22" stroke="#00b4d2" stroke-width="1.3"/>
-        <circle cx="600.1" cy="490.5" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="600.1" cy="490.5" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="517.5" cy="439.9" r="9.4" fill="#00b4d2" fill-opacity="0.22" stroke="#00b4d2" stroke-width="1.3"/>
-        <circle cx="517.5" cy="439.9" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="517.5" cy="439.9" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="600.5" y="380.9" width="29.5" height="18.0" rx="3" fill="#00b4d2" fill-opacity="0.22" stroke="#00b4d2" stroke-width="1.3"/>
-        <circle cx="615.2" cy="389.9" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="615.2" cy="389.9" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="682.5" cy="440.4" r="9.4" fill="#00b4d2" fill-opacity="0.22" stroke="#00b4d2" stroke-width="1.3"/>
-        <circle cx="682.5" cy="440.4" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="682.5" cy="440.4" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="584.0" cy="389.5" r="9.4" fill="#00b4d2" fill-opacity="0.22" stroke="#00b4d2" stroke-width="1.3"/>
-        <circle cx="584.0" cy="389.5" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="584.0" cy="389.5" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="452.7" cy="175.7" r="9.4" fill="#cf87e0" fill-opacity="0.22" stroke="#cf87e0" stroke-width="1.3"/>
-        <circle cx="452.7" cy="175.7" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="452.7" cy="175.7" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <rect x="460.3" y="201.9" width="29.5" height="18.0" rx="3" fill="#cf87e0" fill-opacity="0.22" stroke="#cf87e0" stroke-width="1.3"/>
-        <circle cx="475.0" cy="211.0" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="475.0" cy="211.0" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="444.5" cy="200.3" r="9.4" fill="#cf87e0" fill-opacity="0.22" stroke="#cf87e0" stroke-width="1.3"/>
-        <circle cx="444.5" cy="200.3" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="444.5" cy="200.3" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
     
         <circle cx="476.6" cy="185.5" r="9.4" fill="#cf87e0" fill-opacity="0.22" stroke="#cf87e0" stroke-width="1.3"/>
-        <circle cx="476.6" cy="185.5" r="2.4" fill="#0F172A" stroke="#F8FAFC" stroke-width="0.9"/>
+        <circle cx="476.6" cy="185.5" r="2.4" fill="#FFFFFF" stroke="#475569" stroke-width="1.05"/>
 
     <!-- Cluster convex hulls & vertex coordinate annotations -->
-    
       <g transform="translate(393.3, 82.0) scale(1.000)">
-        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#ff8083" stroke-opacity="0.32" stroke-width="1" stroke-dasharray="3 3"/>
-        <circle cy="-10" r="24" fill="#0F172A" fill-opacity="0.96" stroke="#ff8083" stroke-width="2"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T1</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#ff8083">V0 (0,0)</text>
-        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#0F172A" fill-opacity="0.96" stroke="#475569"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#CBD5E1">[typescript, ast]</text>
+        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#ff8083" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
+        <circle cy="-10" r="24" fill="#ff8083" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
+        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T1</text>
+        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V0 (0,0)</text>
+        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
+        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[typescript, ast]</text>
       </g>
-    
+
       <g transform="translate(600.0, 82.0) scale(1.000)">
-        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#0dcaad" stroke-opacity="0.32" stroke-width="1" stroke-dasharray="3 3"/>
-        <circle cy="-10" r="24" fill="#0F172A" fill-opacity="0.96" stroke="#0dcaad" stroke-width="2"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T2</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#0dcaad">V1 (0,1)</text>
-        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#0F172A" fill-opacity="0.96" stroke="#475569"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#CBD5E1">[rust, springs]</text>
+        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#0dcaad" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
+        <circle cy="-10" r="24" fill="#0dcaad" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
+        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T2</text>
+        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V1 (0,1)</text>
+        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
+        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[rust, springs]</text>
       </g>
-    
+
       <g transform="translate(806.7, 82.0) scale(1.000)">
-        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#c079de" stroke-opacity="0.32" stroke-width="1" stroke-dasharray="3 3"/>
-        <circle cy="-10" r="24" fill="#0F172A" fill-opacity="0.96" stroke="#c079de" stroke-width="2"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T3</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#c079de">V2 (0,2)</text>
-        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#0F172A" fill-opacity="0.96" stroke="#475569"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#CBD5E1">[svg, accessibility]</text>
+        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#c079de" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
+        <circle cy="-10" r="24" fill="#c079de" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
+        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T3</text>
+        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V2 (0,2)</text>
+        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
+        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[svg, accessibility]</text>
       </g>
-    
+
       <g transform="translate(496.7, 261.0) scale(1.000)">
-        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#ad8dfd" stroke-opacity="0.32" stroke-width="1" stroke-dasharray="3 3"/>
-        <circle cy="-10" r="24" fill="#0F172A" fill-opacity="0.96" stroke="#ad8dfd" stroke-width="2"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T4</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#ad8dfd">V3 (1,0)</text>
-        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#0F172A" fill-opacity="0.96" stroke="#475569"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#CBD5E1">[sat, convex-hull]</text>
+        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#ad8dfd" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
+        <circle cy="-10" r="24" fill="#ad8dfd" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
+        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T4</text>
+        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V3 (1,0)</text>
+        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
+        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[sat, convex-hull]</text>
       </g>
-    
+
       <g transform="translate(703.3, 261.0) scale(1.000)">
-        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#e29e3c" stroke-opacity="0.32" stroke-width="1" stroke-dasharray="3 3"/>
-        <circle cy="-10" r="24" fill="#0F172A" fill-opacity="0.96" stroke="#e29e3c" stroke-width="2"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T5</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#e29e3c">V4 (1,1)</text>
-        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#0F172A" fill-opacity="0.96" stroke="#475569"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#CBD5E1">[geometry, react]</text>
+        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#e29e3c" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
+        <circle cy="-10" r="24" fill="#e29e3c" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
+        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T5</text>
+        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V4 (1,1)</text>
+        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
+        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[geometry, react]</text>
       </g>
-    
+
       <g transform="translate(393.3, 440.0) scale(1.000)">
-        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#97bf3f" stroke-opacity="0.32" stroke-width="1" stroke-dasharray="3 3"/>
-        <circle cy="-10" r="24" fill="#0F172A" fill-opacity="0.96" stroke="#97bf3f" stroke-width="2"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T6</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#97bf3f">V5 (2,0)</text>
-        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#0F172A" fill-opacity="0.96" stroke="#475569"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#CBD5E1">[consensus, crdt]</text>
+        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#97bf3f" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
+        <circle cy="-10" r="24" fill="#97bf3f" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
+        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T6</text>
+        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V5 (2,0)</text>
+        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
+        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[consensus, crdt]</text>
       </g>
-    
+
       <g transform="translate(600.0, 440.0) scale(1.000)">
-        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#00b4d2" stroke-opacity="0.32" stroke-width="1" stroke-dasharray="3 3"/>
-        <circle cy="-10" r="24" fill="#0F172A" fill-opacity="0.96" stroke="#00b4d2" stroke-width="2"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T7</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#00b4d2">V6 (2,1)</text>
-        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#0F172A" fill-opacity="0.96" stroke="#475569"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#CBD5E1">[triangulation, clu…]</text>
+        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#00b4d2" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
+        <circle cy="-10" r="24" fill="#00b4d2" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
+        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T7</text>
+        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V6 (2,1)</text>
+        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
+        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[triangulation, clu…]</text>
       </g>
-    
+
       <g transform="translate(806.7, 440.0) scale(1.000)">
-        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#e27fb4" stroke-opacity="0.32" stroke-width="1" stroke-dasharray="3 3"/>
-        <circle cy="-10" r="24" fill="#0F172A" fill-opacity="0.96" stroke="#e27fb4" stroke-width="2"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T8</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#e27fb4">V7 (2,2)</text>
-        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#0F172A" fill-opacity="0.96" stroke="#475569"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#CBD5E1">[oklab, color-scien…]</text>
+        <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#e27fb4" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
+        <circle cy="-10" r="24" fill="#e27fb4" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
+        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T8</text>
+        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V7 (2,2)</text>
+        <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
+        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[oklab, color-scien…]</text>
       </g>
 
     <!-- Foreground CAD dimension bracket + barycentric weight pills (always legible on top) -->
@@ -320,21 +319,21 @@
     <line x1="600.0" y1="40.0" x2="600.0" y2="23.0" stroke="#06B6D4" stroke-opacity="0.65" stroke-width="1.2"/>
     <line x1="393.3" y1="28.0" x2="600.0" y2="28.0" stroke="#06B6D4" stroke-opacity="0.75" stroke-width="1.4"/>
     <g transform="translate(496.7, 28.0)">
-      <rect x="-102" y="-10" width="204" height="20" rx="4" fill="#0F172A" stroke="#06B6D4" stroke-opacity="0.75"/>
-      <text y="3.5" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#22D3EE">60° equilateral · s = 207 px</text>
+      <rect x="-102" y="-10" width="204" height="20" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#06B6D4" stroke-width="1.3"/>
+      <text y="3.5" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" font-weight="600" fill="#0E7490">60° equilateral · s = 207 px</text>
     </g>
 
 
-      <rect x="640.1" y="297.2" width="50" height="18" rx="4" fill="#0F172A" stroke="#F59E0B" stroke-width="1.2"/>
-      <text x="665.1" y="309.7" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#FBBF24">w=0.50</text>
+      <rect x="640.1" y="297.2" width="50" height="18" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#F59E0B" stroke-width="1.3"/>
+      <text x="665.1" y="309.7" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" font-weight="600" fill="#92400E">w=0.50</text>
 
-      <rect x="594.6" y="376.0" width="50" height="18" rx="4" fill="#0F172A" stroke="#F59E0B" stroke-width="1.2"/>
-      <text x="619.6" y="388.5" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#FBBF24">w=0.50</text>
+      <rect x="594.6" y="376.0" width="50" height="18" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#F59E0B" stroke-width="1.3"/>
+      <text x="619.6" y="388.5" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" font-weight="600" fill="#92400E">w=0.50</text>
   </g>
 
   <!-- Bottom Schematic Footer Callout -->
   <rect x="28" y="594" width="1144" height="28" rx="6" fill="#64748B" fill-opacity="0.10" stroke="#64748B" stroke-opacity="0.34"/>
   <text x="44" y="612" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#6B7F99">
-    <tspan fill="#06B6D4">● Dashed Outer Bounds:</tspan> clusterGapPx=16px   <tspan fill="#F59E0B">● Dashed Tethers:</tspan> barycentric weights (w_ik) → OKLab mix   <tspan fill="#D946EF">● Solid Outlines:</tspan> ConvexGeometry SAT/MTV bounds
+    <tspan fill="#0891B2">● Dashed Outer Bounds:</tspan> clusterGapPx=16px   <tspan fill="#D97706">● Dashed Tethers:</tspan> barycentric weights (w_ik) → OKLab mix   <tspan fill="#D946EF">● Solid Outlines:</tspan> ConvexGeometry SAT/MTV bounds
   </text>
 </svg>
