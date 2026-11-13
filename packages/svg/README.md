@@ -30,23 +30,90 @@ While `@simplex-viz/core` computes pure spatial coordinates, `@simplex-viz/svg` 
 
 ## Installation
 
-Install `@simplex-viz/core` alongside `@simplex-viz/svg` in any browser or TypeScript project:
+Install `@simplex-viz/svg` alone (`@simplex-viz/core` is installed automatically and key utilities and types are re-exported directly from `@simplex-viz/svg`):
 
 ```bash
-npm install @simplex-viz/core @simplex-viz/svg
+npm install @simplex-viz/svg
 ```
 
-## Quickstart (Vanilla TypeScript)
+## Quickstart (Zero-Config)
+
+### One-Liner Mount (`createSimplexSvg`)
+
+Pass a container `HTMLElement` or CSS selector together with an array of `{ id, tags }` items to `createSimplexSvg`. Drag-to-pan, cursor wheel zoom, cluster click-focus, and floating hover tooltips are enabled automatically:
+
+```ts
+import { createSimplexSvg } from '@simplex-viz/svg';
+
+const items = [
+  { id: '1', label: 'Simplex Mesh', tags: ['geometry', 'triangulation', 'math'] },
+  { id: '2', label: 'OKLab Mixing', tags: ['color', 'geometry', 'perception'] },
+  { id: '3', label: 'SAT Solver', tags: ['collision', 'geometry'] },
+];
+
+const controller = createSimplexSvg('#graph', items);
+```
+
+### Presets, Labels & Custom Domain Records (`SimplexSvgController`)
+
+When you want to pick a built-in visual preset (`'geometric'`, `'glyphs'`, or `'badges'`), display custom labels, or connect records without `{ id, tags }`, pass an options object to `createSimplexSvg` or `new SimplexSvgController(...)`:
+
+```ts
+import { SimplexSvgController } from '@simplex-viz/svg';
+
+interface Article {
+  readonly slug: string;
+  readonly headline: string;
+  readonly topics: readonly string[];
+}
+
+const controller = new SimplexSvgController('#graph', {
+  items: articles,
+  getId: (a) => a.slug,
+  getTags: (a) => a.topics,
+  getLabel: (a) => a.headline,
+  preset: 'glyphs', // 'geometric' | 'glyphs' | 'badges'
+  tooltip: true, // Built-in hover tooltip (or custom formatter)
+});
+```
+
+You can also format hover tooltips yourself without building separate DOM overlays:
+
+```ts
+const controller = new SimplexSvgController('#graph', {
+  items: articles,
+  getId: (a) => a.slug,
+  getTags: (a) => a.topics,
+  preset: 'badges',
+  tooltip: (target) =>
+    target.kind === 'content'
+      ? `${target.item.headline} (${target.layoutContext.tags.length} tags)`
+      : `${target.cluster.defaultLabel}: ${target.cluster.members.length} articles`,
+});
+```
+
+Switch presets or mutate data smoothly at runtime—camera pan/zoom stays intact while springs retarget mid-flight:
+
+```ts
+controller.setPreset('badges');
+controller.addItems({ slug: 'new-1', headline: 'Dual-Layer Crossfade', topics: ['svg', 'animation'] });
+controller.removeItems('old-slug');
+controller.camera.reset();
+```
+
+## Progressive Customization: Custom `VisualResolver` & `SvgNodeView`
+
+Whenever built-in presets are not specific enough, swap in your own `VisualResolver`, view plugins, or root-SVG event handlers without rewriting the container lifecycle.
 
 ### Step 1 — Define Your Domain Record & `VisualResolver`
 
-Start by describing your data model (`Bookmark`) and mapping each item and topic cluster into visual descriptors for `GeometricShapeSvgView` and `ClusterAnchorSvgView`. `ctx.mixedColorHex` provides the item's barycentric OKLab color blend automatically:
+Map each item and topic cluster into typed descriptors for any `SvgNodeView` plugin. Notice that `VisualResolver` and descriptor types can be imported directly from `@simplex-viz/svg`:
 
 ```ts
-import type { VisualResolver } from '@simplex-viz/core';
 import type {
   ClusterAnchorVisual,
   GeometricShapeVisual,
+  VisualResolver,
 } from '@simplex-viz/svg';
 
 interface Bookmark {
@@ -82,9 +149,9 @@ const visualResolver: VisualResolver<
 };
 ```
 
-### Step 2 — Mount `SimplexSvgController`
+### Step 2 — Mount `SimplexSvgController` with Custom Views
 
-Pass any container `HTMLElement` to `SimplexSvgController` along with `getId`, `getTags`, `visualResolver`, and the built-in views. The controller creates the root `<svg>`, attaches a `ResizeObserver`, computes the initial triangulation, and begins the 60 fps spring loop:
+Pass `visualResolver` together with `contentView` and `clusterView` plugins. You can omit `interactions` to keep default cluster click-focus and cursor zoom, or override individual handlers below:
 
 ```ts
 import {
@@ -93,9 +160,7 @@ import {
   ClusterAnchorSvgView,
 } from '@simplex-viz/svg';
 
-const container = document.getElementById('graph')!;
-
-const controller = new SimplexSvgController(container, {
+const controller = new SimplexSvgController('#graph', {
   items: myBookmarks,
   getId: (b) => b.url,
   getTags: (b) => b.topics,
@@ -110,9 +175,9 @@ const controller = new SimplexSvgController(container, {
 });
 ```
 
-### Step 3 — Wire Hover, Click & Wheel Interactions
+### Step 3 — Override Hover, Click & Wheel Interactions
 
-Attach centralized pointer, click, context-menu, and wheel handlers via `setInteractions` (or pass `interactions` directly in the constructor). Listeners live exclusively on the root `<svg>`, while hit-testing uses exact convex hulls:
+Attach custom click, context-menu, and wheel policies at any time via `setInteractions`. Setting `interactions.onLeftClick` overrides the default cluster click-focus toggle:
 
 ```ts
 controller.setInteractions({
@@ -136,23 +201,7 @@ controller.setInteractions({
 });
 ```
 
-### Step 4 — Apply Live Mutations & Clean Up
-
-Mutate items or reset the camera smoothly at runtime without interrupting user navigation. Call `controller.destroy()` on unmount to stop animations and disconnect observers:
-
-```ts
-controller.addItems({
-  url: 'https://example.com/oklab',
-  title: 'Perceptual Color Mixing',
-  topics: ['oklab', 'color-science'],
-  minutes: 12,
-});
-controller.removeItems('https://example.com/old');
-controller.camera.reset();
-
-// Call on component unmount / teardown:
-// controller.destroy();
-```
+Always call `controller.destroy()` when tearing down your component or view to cancel animations, clean up tooltips, and disconnect `ResizeObserver`.
 
 ## Built-In `SvgNodeView` Plugins
 
@@ -162,7 +211,6 @@ Renders `'circle' | 'diamond' | 'star' | 'hexagon'` with analytical convex hulls
 ```ts
 import type { GeometricShapeVisual } from '@simplex-viz/svg';
 
-// Descriptor shape:
 const visual: GeometricShapeVisual = {
   shape: 'hexagon', // 'circle' | 'diamond' | 'star' | 'hexagon'
   radius: 11,
@@ -222,11 +270,10 @@ const visual: ClusterAnchorVisual = {
 
 Implement `SvgNodeView<TVisual>` centered around local origin `(0, 0)`. `SvgRendererAdapter` handles world positioning `(x, y)`, solver scale `α`, opacity, and crossfading on the parent `<g>`.
 
-First, define your visual descriptor and an optional analytical hull via `measureConvexHull` (if omitted, `@simplex-viz/svg` automatically measures the rendered SVG via offscreen `getBBox()`):
+First, define your visual descriptor and an optional analytical hull via `measureConvexHull` (re-exporting `rectToConvexPolygon` straight from `@simplex-viz/svg`, or omit `measureConvexHull` to measure automatically via offscreen `getBBox()`):
 
 ```ts
-import type { SvgNodeView } from '@simplex-viz/svg';
-import { rectToConvexPolygon } from '@simplex-viz/core';
+import { rectToConvexPolygon, type SvgNodeView } from '@simplex-viz/svg';
 
 interface CardVisual {
   readonly title: string;
@@ -280,10 +327,15 @@ export const CustomCardSvgView: SvgNodeView<CardVisual> = {
 };
 ```
 
-## `SimplexSvgController` API Summary
+## API Reference (`createSimplexSvg` & `SimplexSvgController`)
 
-| Method / Property | Description |
+`SimplexSvgController(target, options)` accepts an `HTMLElement` or CSS selector string. `createSimplexSvg(target, itemsOrOptions)` accepts either a `{ id, tags }` array directly (with `tooltip: true`, cursor zoom, and cluster click-focus enabled) or any `SimplexSvgControllerOptions` object. `@simplex-viz/svg` also re-exports `solveSimplexSnapshot`, geometry hull helpers (`computeConvexHull`, `rectToConvexPolygon`, `regularPolygon`, `starConvexHull`), and core TypeScript types for single-import setups.
+
+| Method / Option | Description |
 | --- | --- |
+| `preset` / `setPreset(preset, getLabel?)` | Switches between `'geometric'`, `'glyphs'`, and `'badges'` with smooth transitions. |
+| `tooltip` / `setTooltip(tooltip)` | Enables a floating DOM hover tooltip (`boolean` or `(target) => string` formatter). |
+| `focusOnClusterClick` | Option (default `true`): toggles cluster focus on click when no custom `interactions.onLeftClick` is provided. |
 | `addItems(items)` | Appends one or more items and triggers an interruptible transition. |
 | `removeItems(ids)` | Removes items by ID and smoothly fades out exiting nodes. |
 | `setItems(items)` | Replaces the entire corpus while preserving matching clusters & items. |
@@ -293,12 +345,12 @@ export const CustomCardSvgView: SvgNodeView<CardVisual> = {
 | `setShowHulls(show)` | Toggles convex bounding hull wireframe overlays. |
 | `setPinnedIds(ids)` / `setHighlightedIds(ids)` | Controls pinned and highlighted visual emphasis states. |
 | `setFocusedClusterUid(uid \| null)` | Isolates a cluster and its members, dimming unrelated nodes. |
-| `setInteractions(handlers)` | Replaces pointer, click, and wheel callbacks dynamically. |
+| `setInteractions(handlers)` | Replaces pointer, click, and wheel callbacks dynamically (`onWheel` defaults to `'zoom-to-cursor'`). |
 | `camera` | Exposes `CameraController` (`zoomToCursor`, `panBy`, `reset`, `getState`, `setState`). |
 | `getMetrics()` / `getClusters()` / `getItems()` | Reads live solver telemetry, clusters, and items. |
 | `getSvgElement()` | Returns the managed root `<svg>` element. |
 | `stepForTest(dtMs)` | Deterministically advances simulation time in unit/DOM tests. |
-| `destroy()` | Cancels `requestAnimationFrame`, disconnects `ResizeObserver`, and removes the `<svg>`. |
+| `destroy()` | Cancels `requestAnimationFrame`, disconnects `ResizeObserver`, removes tooltips and `<svg>`. |
 
 ## License
 

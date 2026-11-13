@@ -55,128 +55,124 @@ flowchart LR
 | [`@simplex-viz/svg`](./packages/svg) | Framework-agnostic SVG engine (`Vanilla TS`, `Vue`, `Angular`, `Svelte`, Web Components) with root-SVG hit-testing, offscreen `getBBox()` hull measurement, built-in `SvgNodeView` plugins, and dual-layer crossfading. | [SVG README](./packages/svg/README.md) |
 | [`@simplex-viz/react`](./packages/react) | Thin, end-to-end type-safe React bindings (`<SimplexTopicGraph />`, `useSimplexGraphController`) supporting both portable `SvgNodeView` plugins and declarative JSX node renderers. | [React README](./packages/react/README.md) |
 
-## Quickstart
+## Quickstart (Zero-Config)
+
+Each package re-exports the helpers and types you need from lower layers—install just the single package matching your stack and pass `{ id, tags }` items directly. Pan, cursor zoom, cluster click-focus, and hover tooltips work out of the box.
 
 ### React (`@simplex-viz/react`)
 
-**Step 1 — Install the packages.** Install all three workspace packages in your React project so `<SimplexTopicGraph />` can connect headless layout solving (`core`) and DOM scene management (`svg`) to your React tree:
+Install `@simplex-viz/react` (it installs `@simplex-viz/core` and `@simplex-viz/svg` automatically):
 
 ```bash
-npm install @simplex-viz/core @simplex-viz/svg @simplex-viz/react
+npm install @simplex-viz/react
 ```
 
-**Step 2 — Define your domain type and `VisualResolver`.** SimplexViz does not require `{ id, tags }` properties on your records. Define your own interface (such as `Article` below) and create a `VisualResolver` that converts each solved item and topic cluster into descriptors for the built-in `GeometricShapeSvgView` and `ClusterAnchorSvgView` plugins:
-
-```tsx
-import type { VisualResolver } from '@simplex-viz/core';
-import type {
-  ClusterAnchorVisual,
-  GeometricShapeVisual,
-} from '@simplex-viz/svg';
-
-interface Article {
-  readonly slug: string;
-  readonly hashtags: readonly string[];
-  readonly readingMinutes: number;
-}
-
-interface ClusterStats {
-  readonly count: number;
-  readonly avgMin: number;
-}
-
-const articleResolver: VisualResolver<
-  Article,
-  GeometricShapeVisual,
-  ClusterAnchorVisual,
-  undefined,
-  ClusterStats
-> = {
-  resolveContentVisual: (a, ctx) => ({
-    shape: a.readingMinutes > 12 ? 'star' : 'circle',
-    radius: 10,
-    fillHex: ctx.mixedColorHex,
-  }),
-  resolveClusterVisual: (cluster) => ({
-    code: cluster.code,
-    label: cluster.defaultLabel,
-    memberCount: cluster.meta.count,
-    colorHex: cluster.colorHex,
-    radius: 22,
-  }),
-  getVisualCacheKey: (v) =>
-    'shape' in v ? `${v.shape}:${v.fillHex}` : `${v.code}:${v.memberCount}`,
-};
-```
-
-**Step 3 — Render `<SimplexTopicGraph />`.** Pass your `articles` array together with `getId`, `getTags`, `deriveClusterMeta`, `visualResolver`, and the two built-in view plugins:
+Render `<SimplexTopicGraph />` with built-in presets (`'geometric'`, `'glyphs'`, or `'badges'`) and optional hover tooltips in one component call:
 
 ```tsx
 import { SimplexTopicGraph } from '@simplex-viz/react';
-import { GeometricShapeSvgView, ClusterAnchorSvgView } from '@simplex-viz/svg';
 
-const contentView = new GeometricShapeSvgView();
-const clusterView = new ClusterAnchorSvgView();
+const items = [
+  { id: '1', label: 'Simplex Mesh', tags: ['geometry', 'triangulation', 'math'] },
+  { id: '2', label: 'OKLab Mixing', tags: ['color', 'geometry', 'perception'] },
+  { id: '3', label: 'SAT Solver', tags: ['collision', 'geometry'] },
+];
 
-export function KnowledgeMap({ articles }: { articles: readonly Article[] }) {
+export function TopicMap() {
   return (
-    <SimplexTopicGraph
-      items={articles}
-      getId={(a) => a.slug}
-      getTags={(a) => a.hashtags}
-      deriveClusterMeta={(ctx) => ({
-        count: ctx.members.length,
-        avgMin:
-          ctx.members.reduce((sum, m) => sum + m.item.readingMinutes, 0) /
-          Math.max(1, ctx.members.length),
-      })}
-      visualResolver={articleResolver}
-      contentView={contentView}
-      clusterView={clusterView}
-    />
+    <div style={{ width: '100%', height: 560 }}>
+      <SimplexTopicGraph items={items} preset="glyphs" tooltip />
+    </div>
   );
 }
 ```
 
 ### Vanilla TypeScript / Vue / Angular / Svelte (`@simplex-viz/svg`)
 
-For non-React frameworks or custom web components, install only `@simplex-viz/core` and `@simplex-viz/svg`:
+For non-React apps or Web Components, install `@simplex-viz/svg` alone:
 
 ```bash
-npm install @simplex-viz/core @simplex-viz/svg
+npm install @simplex-viz/svg
 ```
 
-Instantiate `SimplexSvgController` with any container `HTMLElement` to mount the SVG scene graph, observe container resizing automatically, and start the spring animation loop:
+Pass a DOM element or CSS selector together with your items array to `createSimplexSvg`. Built-in presets, drag-to-pan, cursor zoom, cluster click-focus, and floating hover tooltips start immediately:
 
 ```ts
-import {
-  SimplexSvgController,
-  GeometricShapeSvgView,
-  ClusterAnchorSvgView,
-} from '@simplex-viz/svg';
+import { createSimplexSvg } from '@simplex-viz/svg';
 
-const controller = new SimplexSvgController(document.getElementById('graph')!, {
-  items: myItems,
-  visualResolver: myResolver,
-  contentView: new GeometricShapeSvgView(),
-  clusterView: new ClusterAnchorSvgView(),
+const controller = createSimplexSvg('#graph', items);
+```
+
+To choose a preset explicitly, customize tooltips, or subscribe to metrics, pass an options object instead of a bare array:
+
+```ts
+const controller = createSimplexSvg('#graph', {
+  items,
+  preset: 'badges',
+  tooltip: true,
 });
+
+// Mutate data live without resetting camera pan/zoom:
+controller.addItems({ id: '4', label: 'SVG Morphing', tags: ['svg', 'geometry'] });
+controller.setPreset('glyphs');
 ```
 
-Once mounted, you can append or remove items at any time without resetting camera pan/zoom—existing springs smoothly retarget mid-flight:
+## Progressive Customization Path
 
-```ts
-controller.addItems({ id: 'new-1', tags: ['geometry', 'svg'] });
-controller.removeItems('old-1');
+Zero-config defaults never lock you in—you can opt into deeper control one layer at a time as your application grows:
+
+1. **Level 1 — Built-in Presets & Interactivity (`preset`, `tooltip`, `focusOnClusterClick`)**: Switch between `'geometric'`, `'glyphs'`, and `'badges'`, toggle `tooltip` (`boolean` or custom formatter), and rely on built-in drag-to-pan, wheel zoom, and cluster focus toggles.
+2. **Level 2 — Custom Domain Schemas (`getId`, `getTags`, `getLabel`, `deriveClusterMeta`)**: Keep your existing domain records (`Article`, `Bookmark`, `Document`) without mapping them to `{ id, tags }`. TypeScript enforces `getId` and `getTags` whenever your type lacks `id` or `tags`.
+3. **Level 3 — Keyless React JSX or Portable `SvgNodeView` Plugins**: Supply `renderContentNode` / `renderClusterNode` in React *without* writing a `VisualResolver` (auto-measured via offscreen `getBBox()`), or pass any `SvgNodeView` plugin for 60 fps imperative SVG updates.
+4. **Level 4 — Full `VisualResolver` & Headless `solveSimplexSnapshot` / `SimplexGraphEngine`**: Define typed visual descriptors and crossfade keys, compute one-shot static layouts with `solveSimplexSnapshot(items)` in Node.js/SSR/Canvas, or drive custom WebGL engines frame by frame with `SimplexGraphEngine`.
+
+### Example: Custom Domain Record with Keyless React JSX
+
+Notice that you do not need to install `@simplex-viz/core` or write a `VisualResolver`—import `SimplexTopicGraph` from `@simplex-viz/react` and return standard SVG JSX centered at `(0, 0)`:
+
+```tsx
+import { SimplexTopicGraph } from '@simplex-viz/react';
+
+interface Article {
+  readonly slug: string;
+  readonly title: string;
+  readonly hashtags: readonly string[];
+}
+
+export function ArticleAtlas({ articles }: { articles: readonly Article[] }) {
+  return (
+    <SimplexTopicGraph
+      items={articles}
+      getId={(a) => a.slug}
+      getTags={(a) => a.hashtags}
+      renderContentNode={(article, ctx, state) => (
+        <g>
+          <rect
+            x={-52}
+            y={-14}
+            width={104}
+            height={28}
+            rx={6}
+            fill="#0f172a"
+            stroke={state.interaction.isHovered ? '#f8fafc' : ctx.mixedColorHex}
+            strokeWidth={state.interaction.isHovered ? 2 : 1.2}
+          />
+          <text textAnchor="middle" y={4} fill="#f8fafc" fontSize={10}>
+            {article.title.slice(0, 14)}
+          </text>
+        </g>
+      )}
+    />
+  );
+}
 ```
 
-## Writing Custom `SvgNodeView` Plugins
+### Example: Portable Custom `SvgNodeView` Plugin
 
-To render bespoke SVG shapes or cards, implement the `SvgNodeView<TVisual>` interface centered at local origin `(0, 0)`. You can supply an analytical hull via `measureConvexHull` (as shown below with `rectToConvexPolygon`) or omit it completely to let `@simplex-viz/svg` measure the rendered `<g>` element automatically via offscreen `getBBox()`:
+When you need reusable imperative SVG shapes across React, Vue, or Vanilla TypeScript, implement `SvgNodeView<TVisual>` centered at `(0, 0)`. Supply an analytical hull via `measureConvexHull` (below using `rectToConvexPolygon` re-exported from `@simplex-viz/svg`) or omit it completely to measure via offscreen `getBBox()`:
 
 ```ts
-import type { SvgNodeView } from '@simplex-viz/svg';
-import { rectToConvexPolygon } from '@simplex-viz/core';
+import { rectToConvexPolygon, type SvgNodeView } from '@simplex-viz/svg';
 
 interface PillVisual {
   readonly text: string;
@@ -184,13 +180,30 @@ interface PillVisual {
 }
 
 export const CustomPillView: SvgNodeView<PillVisual> = {
-  // Optional: omit measureConvexHull to let @simplex-viz/svg measure via offscreen getBBox()
   measureConvexHull: (visual) =>
     rectToConvexPolygon(visual.text.length * 7 + 20, 26, 6),
   mountOrUpdate: (groupEl, visual) => {
     // Build pure SVG elements centered around local origin (0, 0)
   },
 };
+```
+
+### Example: Headless One-Shot Layout (`solveSimplexSnapshot`)
+
+For static SVG generation, server-side rendering, or HTML5 `<canvas>` prototypes without setting up a full renderer adapter, compute solved `(x, y)` coordinates and OKLab colors in a single synchronous call:
+
+```ts
+import { solveSimplexSnapshot } from '@simplex-viz/core';
+
+const snapshot = solveSimplexSnapshot(
+  [
+    { id: '1', tags: ['geometry', 'math'] },
+    { id: '2', tags: ['geometry', 'color'] },
+  ],
+  { width: 960, height: 600 },
+);
+
+console.log(snapshot.metrics.overlapCount); // 0
 ```
 
 ## Local Development & Scripts

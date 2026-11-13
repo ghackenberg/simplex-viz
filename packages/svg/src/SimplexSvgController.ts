@@ -3,7 +3,9 @@ import {
   type CameraController,
   type ClusterDerivationContext,
   type ClusterDescriptor,
+  type ClusterHoverEvent,
   type ClusterMetaConfig,
+  type ContentHoverEvent,
   type DefaultTaggedItem,
   type InteractionHandlers,
   type ItemIdentityConfig,
@@ -13,35 +15,81 @@ import {
   type VisualResolver,
 } from '@simplex-viz/core';
 import { SVG_NS } from './hullMeasure';
+import {
+  createPresetViews,
+  createPresetVisualResolver,
+  extractDefaultItemLabel,
+  type DefaultClusterPresetVisual,
+  type DefaultContentPresetVisual,
+  type SimplexVisualPreset,
+} from './presets';
 import { SvgRendererAdapter, type SvgRendererOptions } from './SvgRendererAdapter';
+import type { SvgNodeView } from './types';
+
+export type SimplexTooltipFormatter<
+  TItem = DefaultTaggedItem,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> = (
+  target:
+    | ({ readonly kind: 'content' } & ContentHoverEvent<
+        TItem,
+        TContentVisual,
+        TTagMeta,
+        TClusterMeta
+      >)
+    | ({ readonly kind: 'cluster' } & ClusterHoverEvent<
+        TItem,
+        TClusterVisual,
+        TTagMeta,
+        TClusterMeta
+      >),
+) => string;
 
 export interface SimplexSvgControllerResolvedOptions<
   TItem = DefaultTaggedItem,
-  TContentVisual = unknown,
-  TClusterVisual = unknown,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
   TTagMeta = undefined,
   TClusterMeta = undefined,
 > {
   readonly items: readonly TItem[];
   readonly getId?: (item: TItem) => string;
   readonly getTags?: (item: TItem) => readonly string[];
+  readonly getLabel?: (item: TItem) => string;
   readonly deriveClusterMeta?: (
     ctx: ClusterDerivationContext<TItem, TTagMeta>,
   ) => TClusterMeta;
-  readonly visualResolver: VisualResolver<
+  /** Built-in visual preset used when `visualResolver` / views are omitted. Default: `'geometric'`. */
+  readonly preset?: SimplexVisualPreset;
+  /** Optional custom visual resolver (defaults to the active `preset` resolver). */
+  readonly visualResolver?: VisualResolver<
     TItem,
     TContentVisual,
     TClusterVisual,
     TTagMeta,
     TClusterMeta
   >;
-  readonly contentView: SvgRendererOptions<TContentVisual, TClusterVisual>['contentView'];
-  readonly clusterView: SvgRendererOptions<TContentVisual, TClusterVisual>['clusterView'];
+  /** Optional custom content `SvgNodeView` (defaults to the active `preset` view). */
+  readonly contentView?: SvgRendererOptions<TContentVisual, TClusterVisual>['contentView'];
+  /** Optional custom cluster `SvgNodeView` (defaults to the active `preset` view). */
+  readonly clusterView?: SvgRendererOptions<TContentVisual, TClusterVisual>['clusterView'];
   readonly normalizeTag?: (rawTag: string) => string;
   readonly resolveTagMeta?: (normalizedTag: string) => TTagMeta | undefined;
   readonly meshOptions?: MeshOptions;
   readonly layoutOptions?: LayoutSolverOptions;
   readonly showHulls?: boolean;
+  /**
+   * Automatically toggles cluster focus when clicking a topic cluster (and clears on background click)
+   * unless a custom `interactions.onLeftClick` handler is provided. Default: `true`.
+   */
+  readonly focusOnClusterClick?: boolean;
+  /** Enables a built-in floating DOM hover tooltip (or supply a custom text formatter). Default: `false`. */
+  readonly tooltip?:
+    | boolean
+    | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
   readonly interactions?: InteractionHandlers<
     TItem,
     TContentVisual,
@@ -58,8 +106,8 @@ export interface SimplexSvgControllerResolvedOptions<
 
 export type SimplexSvgControllerOptions<
   TItem = DefaultTaggedItem,
-  TContentVisual = unknown,
-  TClusterVisual = unknown,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
   TTagMeta = undefined,
   TClusterMeta = undefined,
 > = ItemIdentityConfig<TItem> &
@@ -75,17 +123,35 @@ export type SimplexSvgControllerOptions<
     'getId' | 'getTags' | 'deriveClusterMeta'
   >;
 
+function resolveContainerElement(target: HTMLElement | string): HTMLElement {
+  if (typeof target !== 'string') {
+    return target;
+  }
+  if (typeof document === 'undefined') {
+    throw new Error(
+      `SimplexSvgController: cannot resolve selector "${target}" outside a DOM environment.`,
+    );
+  }
+  const el = document.querySelector<HTMLElement>(target);
+  if (!el) {
+    throw new Error(
+      `SimplexSvgController: no element matched container selector "${target}".`,
+    );
+  }
+  return el;
+}
+
 /**
  * High-level framework-agnostic SVG graph controller for Vanilla TypeScript, Vue, Angular,
  * Svelte, Web Components, and `@simplex-viz/react`.
  *
- * Attaches centralized pointer, click, contextmenu, wheel, and drag-pan handlers solely on the
- * root `<svg>` element and delegates hit-testing to `@simplex-viz/core`'s convex geometry solver.
+ * Works zero-config with `{ items }` via built-in presets, default zoom/pan/focus interactions,
+ * and optional tooltips, while remaining 100% customizable through `VisualResolver` and `SvgNodeView`.
  */
 export class SimplexSvgController<
   TItem = DefaultTaggedItem,
-  TContentVisual = unknown,
-  TClusterVisual = unknown,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
   TTagMeta = undefined,
   TClusterMeta = undefined,
 > {
@@ -101,6 +167,14 @@ export class SimplexSvgController<
   >;
   private readonly resizeObserver: ResizeObserver | null = null;
   private readonly onFpsUpdate?: (fps: number) => void;
+  private readonly focusOnClusterClick: boolean;
+  private readonly getIdExtractor: (item: TItem) => string;
+  private getLabelExtractor?: (item: TItem) => string;
+  private tooltipOption:
+    | boolean
+    | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
+  private tooltipEl: HTMLDivElement | null = null;
+  private focusedClusterUidState: string | null = null;
 
   private rafId: number | null = null;
   private lastFrameTs = 0;
@@ -115,7 +189,7 @@ export class SimplexSvgController<
   private dragMoved = false;
 
   constructor(
-    containerEl: HTMLElement,
+    containerEl: HTMLElement | string,
     options: SimplexSvgControllerOptions<
       TItem,
       TContentVisual,
@@ -125,7 +199,7 @@ export class SimplexSvgController<
     >,
   );
   constructor(
-    containerEl: HTMLElement,
+    containerEl: HTMLElement | string,
     options: SimplexSvgControllerResolvedOptions<
       TItem,
       TContentVisual,
@@ -134,25 +208,52 @@ export class SimplexSvgController<
       TClusterMeta
     >,
   ) {
-    this.containerEl = containerEl;
+    this.containerEl = resolveContainerElement(containerEl);
     this.onFpsUpdate = options.onFpsUpdate;
+    this.focusOnClusterClick = options.focusOnClusterClick ?? true;
+    this.getLabelExtractor = options.getLabel;
+    this.tooltipOption = options.tooltip ?? false;
+    this.getIdExtractor =
+      options.getId ??
+      ((item: TItem) =>
+        typeof item === 'object' && item !== null && 'id' in item
+          ? String((item as { readonly id: unknown }).id)
+          : '');
 
-    const doc = containerEl.ownerDocument;
+    const activePreset: SimplexVisualPreset = options.preset ?? 'geometric';
+    const presetViews = createPresetViews(activePreset);
+    const contentView = (options.contentView ??
+      presetViews.contentView) as SvgNodeView<TContentVisual>;
+    const clusterView = (options.clusterView ??
+      presetViews.clusterView) as SvgNodeView<TClusterVisual>;
+    const visualResolver = (options.visualResolver ??
+      createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
+        activePreset,
+        this.getLabelExtractor,
+      )) as VisualResolver<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >;
+
+    const doc = this.containerEl.ownerDocument;
     this.svgEl = doc.createElementNS(SVG_NS, 'svg');
     this.svgEl.setAttribute('width', '100%');
     this.svgEl.setAttribute('height', '100%');
     this.svgEl.style.display = 'block';
     this.svgEl.style.touchAction = 'none';
     this.svgEl.style.userSelect = 'none';
-    containerEl.appendChild(this.svgEl);
+    this.containerEl.appendChild(this.svgEl);
 
-    const rect = containerEl.getBoundingClientRect();
+    const rect = this.containerEl.getBoundingClientRect();
     const initialW = rect.width > 40 ? rect.width : 960;
     const initialH = rect.height > 40 ? rect.height : 620;
 
     this.adapter = new SvgRendererAdapter(this.svgEl, {
-      contentView: options.contentView,
-      clusterView: options.clusterView,
+      contentView,
+      clusterView,
     });
 
     this.engine = SimplexGraphEngine.createFromResolved({
@@ -160,7 +261,7 @@ export class SimplexSvgController<
       getId: options.getId,
       getTags: options.getTags,
       deriveClusterMeta: options.deriveClusterMeta,
-      visualResolver: options.visualResolver,
+      visualResolver,
       renderer: this.adapter,
       viewportWidth: initialW,
       viewportHeight: initialH,
@@ -169,7 +270,7 @@ export class SimplexSvgController<
       meshOptions: options.meshOptions,
       layoutOptions: options.layoutOptions,
       showHulls: options.showHulls,
-      interactions: options.interactions,
+      interactions: this.wrapInteractions(options.interactions),
       onMetricsChange: options.onMetricsChange,
       onClustersChange: options.onClustersChange,
     });
@@ -187,7 +288,7 @@ export class SimplexSvgController<
           }
         }
       });
-      this.resizeObserver.observe(containerEl);
+      this.resizeObserver.observe(this.containerEl);
     }
 
     this.ensureLoopRunning();
@@ -195,12 +296,12 @@ export class SimplexSvgController<
 
   static createFromResolved<
     TItem = DefaultTaggedItem,
-    TContentVisual = unknown,
-    TClusterVisual = unknown,
+    TContentVisual = DefaultContentPresetVisual,
+    TClusterVisual = DefaultClusterPresetVisual,
     TTagMeta = undefined,
     TClusterMeta = undefined,
   >(
-    containerEl: HTMLElement,
+    containerEl: HTMLElement | string,
     options: SimplexSvgControllerResolvedOptions<
       TItem,
       TContentVisual,
@@ -216,7 +317,7 @@ export class SimplexSvgController<
     TClusterMeta
   > {
     return new (SimplexSvgController as unknown as new (
-      el: HTMLElement,
+      el: HTMLElement | string,
       opts: SimplexSvgControllerResolvedOptions<
         TItem,
         TContentVisual,
@@ -231,6 +332,144 @@ export class SimplexSvgController<
       TTagMeta,
       TClusterMeta
     >)(containerEl, options);
+  }
+
+  private wrapInteractions(
+    userInteractions?: InteractionHandlers<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): InteractionHandlers<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  > {
+    return {
+      onContentHover: (ev) => {
+        userInteractions?.onContentHover?.(ev);
+        if (ev) {
+          this.showTooltip(
+            ev.screenPosition.x,
+            ev.screenPosition.y,
+            this.formatContentTooltip(ev),
+          );
+        } else {
+          this.hideTooltip();
+        }
+      },
+      onClusterHover: (ev) => {
+        userInteractions?.onClusterHover?.(ev);
+        if (ev) {
+          this.showTooltip(
+            ev.screenPosition.x,
+            ev.screenPosition.y,
+            this.formatClusterTooltip(ev),
+          );
+        } else {
+          this.hideTooltip();
+        }
+      },
+      onLeftClick: (target, rawEvent) => {
+        if (userInteractions?.onLeftClick) {
+          userInteractions.onLeftClick(target, rawEvent);
+          return;
+        }
+        if (!this.focusOnClusterClick) return;
+        if (target.kind === 'cluster') {
+          const next =
+            this.focusedClusterUidState === target.cluster.clusterUid
+              ? null
+              : target.cluster.clusterUid;
+          this.setFocusedClusterUid(next);
+        } else if (target.kind === 'background' && this.focusedClusterUidState !== null) {
+          this.setFocusedClusterUid(null);
+        }
+      },
+      onRightClick: userInteractions?.onRightClick,
+      onWheel: userInteractions?.onWheel ?? 'zoom-to-cursor',
+    };
+  }
+
+  private formatContentTooltip(
+    ev: ContentHoverEvent<TItem, TContentVisual, TTagMeta, TClusterMeta>,
+  ): string {
+    if (typeof this.tooltipOption === 'function') {
+      return this.tooltipOption({ kind: 'content', ...ev });
+    }
+    const label = extractDefaultItemLabel(
+      ev.item,
+      ev.layoutContext.id,
+      this.getLabelExtractor,
+    );
+    const tagList = ev.layoutContext.tags.map((t) => `#${t.tag}`).slice(0, 5).join(' · ');
+    return tagList ? `${label}\n${tagList}` : label;
+  }
+
+  private formatClusterTooltip(
+    ev: ClusterHoverEvent<TItem, TClusterVisual, TTagMeta, TClusterMeta>,
+  ): string {
+    if (typeof this.tooltipOption === 'function') {
+      return this.tooltipOption({ kind: 'cluster', ...ev });
+    }
+    const count = ev.cluster.members.length;
+    return `${ev.cluster.code} · ${ev.cluster.defaultLabel}\n${count} ${count === 1 ? 'item' : 'items'}`;
+  }
+
+  private ensureTooltipElement(): HTMLDivElement | null {
+    if (!this.tooltipOption) return null;
+    if (this.tooltipEl) return this.tooltipEl;
+
+    const doc = this.containerEl.ownerDocument;
+    const computedPos =
+      typeof getComputedStyle !== 'undefined'
+        ? getComputedStyle(this.containerEl).position
+        : this.containerEl.style.position;
+    if (!computedPos || computedPos === 'static') {
+      this.containerEl.style.position = 'relative';
+    }
+
+    const el = doc.createElement('div');
+    el.className = 'sv-tooltip';
+    el.style.position = 'absolute';
+    el.style.pointerEvents = 'none';
+    el.style.zIndex = '20';
+    el.style.display = 'none';
+    el.style.maxWidth = '240px';
+    el.style.padding = '7px 10px';
+    el.style.borderRadius = '8px';
+    el.style.background = 'rgba(9, 13, 22, 0.94)';
+    el.style.border = '1px solid rgba(51, 65, 85, 0.85)';
+    el.style.color = '#f1f5f9';
+    el.style.fontFamily = 'Plus Jakarta Sans, ui-sans-serif, system-ui, sans-serif';
+    el.style.fontSize = '12px';
+    el.style.lineHeight = '1.4';
+    el.style.whiteSpace = 'pre-line';
+    el.style.boxShadow = '0 10px 24px rgba(0, 0, 0, 0.45)';
+    this.containerEl.appendChild(el);
+    this.tooltipEl = el;
+    return el;
+  }
+
+  private showTooltip(screenX: number, screenY: number, text: string): void {
+    const el = this.ensureTooltipElement();
+    if (!el || !text) return;
+    el.textContent = text;
+    el.style.display = 'block';
+    const maxLeft = Math.max(8, (this.containerEl.clientWidth || 960) - 256);
+    const maxTop = Math.max(8, (this.containerEl.clientHeight || 600) - 72);
+    el.style.left = `${Math.min(Math.max(8, Math.round(screenX + 14)), maxLeft)}px`;
+    el.style.top = `${Math.min(Math.max(8, Math.round(screenY + 14)), maxTop)}px`;
+  }
+
+  private hideTooltip(): void {
+    if (this.tooltipEl) {
+      this.tooltipEl.style.display = 'none';
+    }
   }
 
   get camera(): CameraController {
@@ -266,6 +505,46 @@ export class SimplexSvgController<
   setItems(items: readonly TItem[]): void {
     this.engine.setItems(items);
     this.ensureLoopRunning();
+  }
+
+  /**
+   * Switches between built-in presets (`'geometric'`, `'glyphs'`, `'badges'`) with smooth
+   * morph/crossfade transitions.
+   */
+  setPreset(preset: SimplexVisualPreset, getLabel?: (item: TItem) => string): void {
+    if (getLabel !== undefined) {
+      this.getLabelExtractor = getLabel;
+    }
+    const views = createPresetViews(preset);
+    const resolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
+      preset,
+      this.getLabelExtractor,
+    );
+    this.adapter.setViews({
+      contentView: views.contentView as unknown as SvgNodeView<TContentVisual>,
+      clusterView: views.clusterView as unknown as SvgNodeView<TClusterVisual>,
+    });
+    this.engine.setVisualResolver(
+      resolver as unknown as VisualResolver<
+        TItem,
+        TContentVisual,
+        TClusterVisual,
+        TTagMeta,
+        TClusterMeta
+      >,
+    );
+    this.ensureLoopRunning();
+  }
+
+  setTooltip(
+    tooltip:
+      | boolean
+      | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
+  ): void {
+    this.tooltipOption = tooltip;
+    if (!tooltip) {
+      this.hideTooltip();
+    }
   }
 
   setVisualResolver(
@@ -306,7 +585,7 @@ export class SimplexSvgController<
       TClusterMeta
     >,
   ): void {
-    this.engine.setInteractions(interactions);
+    this.engine.setInteractions(this.wrapInteractions(interactions));
   }
 
   setPinnedIds(ids: ReadonlySet<string> | readonly string[]): void {
@@ -320,6 +599,7 @@ export class SimplexSvgController<
   }
 
   setFocusedClusterUid(clusterUid: string | null): void {
+    this.focusedClusterUidState = clusterUid;
     this.engine.setFocusedClusterUid(clusterUid);
     this.ensureLoopRunning();
   }
@@ -365,6 +645,7 @@ export class SimplexSvgController<
         this.dragStartX = e.clientX;
         this.dragStartY = e.clientY;
         this.engine.camera.panBy(dx, dy);
+        this.hideTooltip();
         this.ensureLoopRunning();
       }
       return;
@@ -384,6 +665,7 @@ export class SimplexSvgController<
 
   private readonly onPointerLeave = (): void => {
     this.isDraggingPan = false;
+    this.hideTooltip();
     this.engine.handlePointerLeave();
     this.ensureLoopRunning();
   };
@@ -490,6 +772,11 @@ export class SimplexSvgController<
     this.rafId = requestAnimationFrame(tick);
   }
 
+  /** Helper accessor matching `getId` when external callers inspect items. */
+  getItemId(item: TItem): string {
+    return this.getIdExtractor(item);
+  }
+
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
@@ -500,8 +787,75 @@ export class SimplexSvgController<
     this.resizeObserver?.disconnect();
     this.detachSvgListeners();
     this.engine.destroy();
+    if (this.tooltipEl && this.tooltipEl.parentElement === this.containerEl) {
+      this.containerEl.removeChild(this.tooltipEl);
+      this.tooltipEl = null;
+    }
     if (this.svgEl.parentElement === this.containerEl) {
       this.containerEl.removeChild(this.svgEl);
     }
   }
+}
+
+/**
+ * Convenience one-liner factory for mounting `@simplex-viz/svg` in Vanilla TypeScript,
+ * Vue, Angular, Svelte, or Web Components.
+ *
+ * Accepts either an array of `{ id, tags }` items directly (with built-in presets,
+ * cursor zoom, and cluster click-focus enabled) or a full options object.
+ */
+export function createSimplexSvg<TItem extends DefaultTaggedItem = DefaultTaggedItem>(
+  target: HTMLElement | string,
+  items: readonly TItem[],
+): SimplexSvgController<TItem, DefaultContentPresetVisual, DefaultClusterPresetVisual>;
+export function createSimplexSvg<
+  TItem = DefaultTaggedItem,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+>(
+  target: HTMLElement | string,
+  options: SimplexSvgControllerOptions<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >,
+): SimplexSvgController<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
+export function createSimplexSvg<
+  TItem = DefaultTaggedItem,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+>(
+  target: HTMLElement | string,
+  itemsOrOptions:
+    | readonly TItem[]
+    | SimplexSvgControllerOptions<
+        TItem,
+        TContentVisual,
+        TClusterVisual,
+        TTagMeta,
+        TClusterMeta
+      >,
+): SimplexSvgController<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta> {
+  if (Array.isArray(itemsOrOptions)) {
+    return SimplexSvgController.createFromResolved(target, {
+      items: itemsOrOptions,
+      tooltip: true,
+    });
+  }
+  return new SimplexSvgController(
+    target,
+    itemsOrOptions as SimplexSvgControllerOptions<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  );
 }

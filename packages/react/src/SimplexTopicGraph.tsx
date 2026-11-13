@@ -17,11 +17,18 @@ import type {
 } from '@simplex-viz/core';
 import {
   SimplexSvgController,
+  createPresetViews,
+  createPresetVisualResolver,
+  extractDefaultItemLabel,
+  type DefaultClusterPresetVisual,
+  type DefaultContentPresetVisual,
+  type SimplexVisualPreset,
   type SvgNodeView,
 } from '@simplex-viz/svg';
 import {
   useEffect,
   useRef,
+  useState,
   type CSSProperties,
   type MutableRefObject,
   type ReactNode,
@@ -32,25 +39,69 @@ import {
 } from './ReactJsxSvgView';
 
 /**
+ * Union payload passed to a custom React `tooltip` formatter on `<SimplexTopicGraph />`.
+ */
+export type SimplexReactTooltipTarget<
+  TItem = DefaultTaggedItem,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> =
+  | ({ readonly kind: 'content' } & ContentHoverEvent<
+      TItem,
+      TContentVisual,
+      TTagMeta,
+      TClusterMeta
+    >)
+  | ({ readonly kind: 'cluster' } & ClusterHoverEvent<
+      TItem,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >);
+
+/**
  * Props for `<SimplexTopicGraph />`, preserving end-to-end generic inference across
  * `TItem`, `TContentVisual`, `TClusterVisual`, `TTagMeta`, and `TClusterMeta`.
+ *
+ * Works zero-config with `<SimplexTopicGraph items={items} />` via built-in presets,
+ * or with keyless declarative JSX renderers (`renderContentNode` / `renderClusterNode`),
+ * or with full `VisualResolver` + `SvgNodeView` customization.
  */
 export type SimplexTopicGraphProps<
   TItem = DefaultTaggedItem,
-  TContentVisual = unknown,
-  TClusterVisual = unknown,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
   TTagMeta = undefined,
   TClusterMeta = undefined,
 > = ItemIdentityConfig<TItem> &
   ClusterMetaConfig<TItem, TTagMeta, TClusterMeta> & {
     readonly items: readonly TItem[];
-    readonly visualResolver: VisualResolver<
+    /** Built-in visual preset used when custom views / `visualResolver` are omitted. Default: `'geometric'`. */
+    readonly preset?: SimplexVisualPreset;
+    /** Optional label extractor for built-in presets and default hover tooltips. */
+    readonly getLabel?: (item: TItem) => string;
+    /**
+     * Optional `VisualResolver` mapping items and clusters to pure visual descriptors.
+     * Optional in both zero-config preset mode and declarative JSX renderer mode.
+     */
+    readonly visualResolver?: VisualResolver<
       TItem,
       TContentVisual,
       TClusterVisual,
       TTagMeta,
       TClusterMeta
     >;
+    /** Optional cache key override when using `renderContentNode` without `visualResolver`. */
+    readonly getContentCacheKey?: (
+      item: TItem,
+      ctx: ContentLayoutContext<TItem, TTagMeta, TClusterMeta>,
+    ) => string;
+    /** Optional cache key override when using `renderClusterNode` without `visualResolver`. */
+    readonly getClusterCacheKey?: (
+      cluster: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>,
+    ) => string;
     /** Portable `@simplex-viz/svg` view plugin for content items. */
     readonly contentView?: SvgNodeView<TContentVisual>;
     /** Portable `@simplex-viz/svg` view plugin for topic clusters. */
@@ -75,6 +126,26 @@ export type SimplexTopicGraphProps<
     readonly pinnedIds?: ReadonlySet<string> | readonly string[];
     readonly highlightedIds?: ReadonlySet<string> | readonly string[];
     readonly focusedClusterUid?: string | null;
+    /**
+     * Enables built-in cluster focus toggle on click when `focusedClusterUid` and `onLeftClick`
+     * are not controlled externally. Default: `true`.
+     */
+    readonly focusOnClusterClick?: boolean;
+    /**
+     * Enables a built-in floating hover tooltip, or accepts a custom `(target) => ReactNode` formatter.
+     * Default: `false`.
+     */
+    readonly tooltip?:
+      | boolean
+      | ((
+          target: SimplexReactTooltipTarget<
+            TItem,
+            TContentVisual,
+            TClusterVisual,
+            TTagMeta,
+            TClusterMeta
+          >,
+        ) => ReactNode);
     readonly onContentHover?: (
       event: ContentHoverEvent<TItem, TContentVisual, TTagMeta, TClusterMeta> | null,
     ) => void;
@@ -106,13 +177,26 @@ export type SimplexTopicGraphProps<
     readonly style?: CSSProperties;
   };
 
+interface AutoKeyVisual {
+  readonly __svAutoKey: string;
+}
+
+function isAutoKeyVisual(v: unknown): v is AutoKeyVisual {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    '__svAutoKey' in v &&
+    typeof (v as AutoKeyVisual).__svAutoKey === 'string'
+  );
+}
+
 /**
  * Type-safe React visualization component wrapping `@simplex-viz/core` and `@simplex-viz/svg`.
  */
 export function SimplexTopicGraph<
   TItem = DefaultTaggedItem,
-  TContentVisual = unknown,
-  TClusterVisual = unknown,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
   TTagMeta = undefined,
   TClusterMeta = undefined,
 >(
@@ -133,6 +217,16 @@ export function SimplexTopicGraph<
     TClusterMeta
   > | null>(null);
 
+  const [hoveredTarget, setHoveredTarget] = useState<SimplexReactTooltipTarget<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  > | null>(null);
+
+  const internalFocusedUidRef = useRef<string | null>(null);
+
   const contentDomainByKeyRef = useRef(
     new Map<string, ContentDomainRecord<TItem, TTagMeta, TClusterMeta>>(),
   );
@@ -151,29 +245,104 @@ export function SimplexTopicGraph<
   const latestPropsRef = useRef(props);
   latestPropsRef.current = props;
 
-  const buildWrappedResolver = (
-    base: VisualResolver<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
-  ): VisualResolver<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta> => ({
-    resolveContentVisual: (item, ctx) => {
-      const visual = base.resolveContentVisual(item, ctx);
-      const key = base.getVisualCacheKey(visual);
-      contentDomainByKeyRef.current.set(key, { item, ctx });
-      return visual;
-    },
-    resolveClusterVisual: (cluster) => {
-      const visual = base.resolveClusterVisual(cluster);
-      const key = base.getVisualCacheKey(visual);
-      clusterDomainByKeyRef.current.set(key, cluster);
-      return visual;
-    },
-    getVisualCacheKey: (visual) => base.getVisualCacheKey(visual),
-  });
+  const resolveEffectiveResolver = (): VisualResolver<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  > => {
+    const p = latestPropsRef.current;
+    const preset: SimplexVisualPreset = p.preset ?? 'geometric';
+    const presetResolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
+      preset,
+      (item) => {
+        const curGetLabel = latestPropsRef.current.getLabel;
+        if (curGetLabel) return curGetLabel(item);
+        if (typeof item === 'object' && item !== null) {
+          if ('label' in item && typeof item.label === 'string' && item.label.length > 0) {
+            return item.label;
+          }
+          if ('title' in item && typeof item.title === 'string' && item.title.length > 0) {
+            return item.title;
+          }
+          if ('headline' in item && typeof item.headline === 'string' && item.headline.length > 0) {
+            return item.headline;
+          }
+          if ('name' in item && typeof item.name === 'string' && item.name.length > 0) {
+            return item.name;
+          }
+        }
+        return '';
+      },
+    );
+    const base = p.visualResolver;
 
-  const resolveActiveViews = (): {
+    const getKey = (visual: TContentVisual | TClusterVisual): string => {
+      if (isAutoKeyVisual(visual)) {
+        return visual.__svAutoKey;
+      }
+      if (base) {
+        return base.getVisualCacheKey(visual);
+      }
+      return presetResolver.getVisualCacheKey(
+        visual as unknown as DefaultContentPresetVisual | DefaultClusterPresetVisual,
+      );
+    };
+
+    return {
+      resolveContentVisual: (item, ctx) => {
+        const cur = latestPropsRef.current;
+        let visual: TContentVisual;
+        if (base) {
+          visual = base.resolveContentVisual(item, ctx);
+        } else if (cur.renderContentNode) {
+          const autoKey = cur.getContentCacheKey
+            ? cur.getContentCacheKey(item, ctx)
+            : `${ctx.id}:${ctx.mixedColorHex}:${ctx.tags.map((t) => t.tag).join(',')}`;
+          visual = { __svAutoKey: autoKey } as unknown as TContentVisual;
+        } else {
+          visual = presetResolver.resolveContentVisual(item, ctx) as unknown as TContentVisual;
+        }
+        const key = getKey(visual);
+        contentDomainByKeyRef.current.set(key, { item, ctx });
+        return visual;
+      },
+      resolveClusterVisual: (cluster) => {
+        const cur = latestPropsRef.current;
+        let visual: TClusterVisual;
+        if (base) {
+          visual = base.resolveClusterVisual(cluster);
+        } else if (cur.renderClusterNode) {
+          const autoKey = cur.getClusterCacheKey
+            ? cur.getClusterCacheKey(cluster)
+            : `${cluster.clusterUid}:${cluster.defaultLabel}:${cluster.members.length}:${cluster.colorHex}`;
+          visual = { __svAutoKey: autoKey } as unknown as TClusterVisual;
+        } else {
+          visual = presetResolver.resolveClusterVisual(cluster) as unknown as TClusterVisual;
+        }
+        const key = getKey(visual);
+        clusterDomainByKeyRef.current.set(key, cluster);
+        return visual;
+      },
+      getVisualCacheKey: getKey,
+    };
+  };
+
+  const resolveActiveViews = (
+    activeResolver: VisualResolver<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): {
     contentView: SvgNodeView<TContentVisual>;
     clusterView: SvgNodeView<TClusterVisual>;
   } => {
     const p = latestPropsRef.current;
+    const presetViews = createPresetViews(p.preset ?? 'geometric');
 
     let contentView: SvgNodeView<TContentVisual>;
     if (p.renderContentNode) {
@@ -184,7 +353,7 @@ export function SimplexTopicGraph<
         ContentDomainRecord<TItem, TTagMeta, TClusterMeta>
       >({
         renderFn: (domain, state) => renderFn(domain.item, domain.ctx, state),
-        getKey: (v) => p.visualResolver.getVisualCacheKey(v),
+        getKey: (v) => activeResolver.getVisualCacheKey(v),
         domainByKey: contentDomainByKeyRef.current,
       });
       jsxContentViewRef.current = jsxView;
@@ -194,19 +363,9 @@ export function SimplexTopicGraph<
       jsxContentViewRef.current = null;
       contentView = p.contentView;
     } else {
-      contentView = {
-        measureConvexHull: () => ({ kind: 'circle', radius: 10 }),
-        mountOrUpdate: (groupEl, _visual, state) => {
-          const doc = groupEl.ownerDocument;
-          let circle = groupEl.querySelector('circle');
-          if (!circle) {
-            circle = doc.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            circle.setAttribute('r', '9');
-            groupEl.appendChild(circle);
-          }
-          circle.setAttribute('fill', state.interaction.isHovered ? '#22d3ee' : '#64748b');
-        },
-      };
+      jsxContentViewRef.current?.dispose();
+      jsxContentViewRef.current = null;
+      contentView = presetViews.contentView as unknown as SvgNodeView<TContentVisual>;
     }
 
     let clusterView: SvgNodeView<TClusterVisual>;
@@ -218,7 +377,7 @@ export function SimplexTopicGraph<
         ClusterDescriptor<TItem, TTagMeta, TClusterMeta>
       >({
         renderFn: (cluster, state) => renderFn(cluster, state),
-        getKey: (v) => p.visualResolver.getVisualCacheKey(v),
+        getKey: (v) => activeResolver.getVisualCacheKey(v),
         domainByKey: clusterDomainByKeyRef.current,
       });
       jsxClusterViewRef.current = jsxView;
@@ -228,21 +387,9 @@ export function SimplexTopicGraph<
       jsxClusterViewRef.current = null;
       clusterView = p.clusterView;
     } else {
-      clusterView = {
-        measureConvexHull: () => ({ kind: 'circle', radius: 22 }),
-        mountOrUpdate: (groupEl, _visual, state) => {
-          const doc = groupEl.ownerDocument;
-          let circle = groupEl.querySelector('circle');
-          if (!circle) {
-            circle = doc.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            circle.setAttribute('r', '20');
-            circle.setAttribute('fill', '#0f172a');
-            circle.setAttribute('stroke-width', '1.5');
-            groupEl.appendChild(circle);
-          }
-          circle.setAttribute('stroke', state.interaction.isHovered ? '#f8fafc' : '#38bdf8');
-        },
-      };
+      jsxClusterViewRef.current?.dispose();
+      jsxClusterViewRef.current = null;
+      clusterView = presetViews.clusterView as unknown as SvgNodeView<TClusterVisual>;
     }
 
     return { contentView, clusterView };
@@ -254,14 +401,17 @@ export function SimplexTopicGraph<
     if (!el) return;
 
     const p = latestPropsRef.current;
-    const { contentView, clusterView } = resolveActiveViews();
+    const effectiveResolver = resolveEffectiveResolver();
+    const { contentView, clusterView } = resolveActiveViews(effectiveResolver);
 
     const ctrl = SimplexSvgController.createFromResolved(el, {
       items: p.items,
       getId: p.getId,
       getTags: p.getTags,
+      getLabel: p.getLabel,
       deriveClusterMeta: p.deriveClusterMeta,
-      visualResolver: buildWrappedResolver(p.visualResolver),
+      preset: p.preset,
+      visualResolver: effectiveResolver,
       contentView,
       clusterView,
       normalizeTag: p.normalizeTag,
@@ -272,10 +422,43 @@ export function SimplexTopicGraph<
         sizeMultiplier: p.sizeMultiplier ?? p.layoutOptions?.sizeMultiplier ?? 1,
       },
       showHulls: p.showHulls,
+      focusOnClusterClick: false,
       interactions: {
-        onContentHover: (ev) => latestPropsRef.current.onContentHover?.(ev),
-        onClusterHover: (ev) => latestPropsRef.current.onClusterHover?.(ev),
-        onLeftClick: (t, raw) => latestPropsRef.current.onLeftClick?.(t, raw),
+        onContentHover: (ev) => {
+          latestPropsRef.current.onContentHover?.(ev);
+          if (latestPropsRef.current.tooltip) {
+            setHoveredTarget(ev ? { kind: 'content', ...ev } : null);
+          }
+        },
+        onClusterHover: (ev) => {
+          latestPropsRef.current.onClusterHover?.(ev);
+          if (latestPropsRef.current.tooltip) {
+            setHoveredTarget(ev ? { kind: 'cluster', ...ev } : null);
+          }
+        },
+        onLeftClick: (target, raw) => {
+          const cur = latestPropsRef.current;
+          if (cur.onLeftClick) {
+            cur.onLeftClick(target, raw);
+            return;
+          }
+          if (cur.focusedClusterUid === undefined && (cur.focusOnClusterClick ?? true)) {
+            if (target.kind === 'cluster') {
+              const next =
+                internalFocusedUidRef.current === target.cluster.clusterUid
+                  ? null
+                  : target.cluster.clusterUid;
+              internalFocusedUidRef.current = next;
+              ctrlRef.current?.setFocusedClusterUid(next);
+            } else if (
+              target.kind === 'background' &&
+              internalFocusedUidRef.current !== null
+            ) {
+              internalFocusedUidRef.current = null;
+              ctrlRef.current?.setFocusedClusterUid(null);
+            }
+          }
+        },
         onRightClick: (t, raw) => latestPropsRef.current.onRightClick?.(t, raw),
         onWheel: (ev, cam) => {
           const policy = latestPropsRef.current.onWheel ?? 'zoom-to-cursor';
@@ -319,14 +502,16 @@ export function SimplexTopicGraph<
     ctrlRef.current?.setItems(props.items);
   }, [props.items]);
 
-  // Sync views & visual resolver (triggers smooth crossfade / morph!)
+  // Sync views, presets & visual resolver (triggers smooth crossfade / morph!)
   useEffect(() => {
     const ctrl = ctrlRef.current;
     if (!ctrl) return;
-    const { contentView, clusterView } = resolveActiveViews();
+    const effectiveResolver = resolveEffectiveResolver();
+    const { contentView, clusterView } = resolveActiveViews(effectiveResolver);
     ctrl.setViews({ contentView, clusterView });
-    ctrl.setVisualResolver(buildWrappedResolver(props.visualResolver));
+    ctrl.setVisualResolver(effectiveResolver);
   }, [
+    props.preset,
     props.visualResolver,
     props.contentView,
     props.clusterView,
@@ -363,9 +548,90 @@ export function SimplexTopicGraph<
 
   useEffect(() => {
     if (props.focusedClusterUid !== undefined) {
+      internalFocusedUidRef.current = props.focusedClusterUid;
       ctrlRef.current?.setFocusedClusterUid(props.focusedClusterUid);
     }
   }, [props.focusedClusterUid]);
+
+  // Clear built-in tooltip if prop toggled off
+  useEffect(() => {
+    if (!props.tooltip) {
+      setHoveredTarget(null);
+    }
+  }, [props.tooltip]);
+
+  const renderBuiltInTooltip = () => {
+    if (!props.tooltip || !hoveredTarget) return null;
+
+    const containerW = containerRef.current?.clientWidth || 960;
+    const containerH = containerRef.current?.clientHeight || 600;
+    const left = Math.min(
+      Math.max(8, Math.round(hoveredTarget.screenPosition.x + 14)),
+      Math.max(8, containerW - 256),
+    );
+    const top = Math.min(
+      Math.max(8, Math.round(hoveredTarget.screenPosition.y + 14)),
+      Math.max(8, containerH - 80),
+    );
+
+    const content =
+      typeof props.tooltip === 'function' ? (
+        props.tooltip(hoveredTarget)
+      ) : hoveredTarget.kind === 'content' ? (
+        <div>
+          <div style={{ fontWeight: 600, color: '#f8fafc' }}>
+            {extractDefaultItemLabel(
+              hoveredTarget.item,
+              hoveredTarget.layoutContext.id,
+              props.getLabel,
+            )}
+          </div>
+          {hoveredTarget.layoutContext.tags.length > 0 && (
+            <div style={{ marginTop: 3, fontSize: 11, color: '#94a3b8' }}>
+              {hoveredTarget.layoutContext.tags
+                .map((t) => `#${t.tag}`)
+                .slice(0, 5)
+                .join(' · ')}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontWeight: 600, color: hoveredTarget.cluster.colorHex }}>
+            {`${hoveredTarget.cluster.code} · ${hoveredTarget.cluster.defaultLabel}`}
+          </div>
+          <div style={{ marginTop: 3, fontSize: 11, color: '#94a3b8' }}>
+            {`${hoveredTarget.cluster.members.length} ${
+              hoveredTarget.cluster.members.length === 1 ? 'item' : 'items'
+            }`}
+          </div>
+        </div>
+      );
+
+    return (
+      <div
+        role="tooltip"
+        style={{
+          position: 'absolute',
+          left,
+          top,
+          zIndex: 20,
+          maxWidth: 244,
+          padding: '7px 10px',
+          borderRadius: 8,
+          background: 'rgba(9, 13, 22, 0.94)',
+          border: '1px solid rgba(51, 65, 85, 0.85)',
+          color: '#f1f5f9',
+          fontSize: 12,
+          lineHeight: 1.4,
+          pointerEvents: 'none',
+          boxShadow: '0 10px 24px rgba(0, 0, 0, 0.45)',
+        }}
+      >
+        {content}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -378,6 +644,8 @@ export function SimplexTopicGraph<
         overflow: 'hidden',
         ...props.style,
       }}
-    />
+    >
+      {renderBuiltInTooltip()}
+    </div>
   );
 }

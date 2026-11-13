@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- Add project brand logo and schematic preview graphics, contextual lead-in prose, and step-by-step code walkthroughs in `@simplex-viz/core` README.
+- Add zero-config stateless `solveSimplexSnapshot(items, options?)` helper alongside brand logo, schematic preview graphics, and progressive quickstart documentation in `@simplex-viz/core`.
 
 ## 0.1.2
 

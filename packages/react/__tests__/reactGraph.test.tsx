@@ -78,4 +78,47 @@ describe('@simplex-viz/react integration', () => {
 
     unmount();
   });
+
+  it('supports zero-config preset rendering and keyless renderContentNode without visualResolver', () => {
+    const simpleItems = Array.from({ length: 6 }, (_, i) => ({
+      id: `simple-${i}`,
+      tags: [`group-${i % 3}`, `group-${(i + 1) % 3}`],
+    }));
+
+    const zeroConfig = render(
+      <div style={{ width: 800, height: 600 }}>
+        <SimplexTopicGraph items={simpleItems} preset="glyphs" tooltip />
+      </div>,
+    );
+    expect(zeroConfig.container.querySelectorAll('g.sv-node-item').length).toBe(6);
+    zeroConfig.unmount();
+
+    const docs: readonly CustomDoc[] = Array.from({ length: 6 }, (_, i) => ({
+      slug: `doc-${i}`,
+      headline: `Doc ${i}`,
+      tags: [`alpha-${i % 3}`, `beta-${(i + 1) % 3}`],
+    }));
+
+    const keyless = render(
+      <div style={{ width: 800, height: 600 }}>
+        <SimplexTopicGraph
+          items={docs}
+          getId={(d) => d.slug}
+          getTags={(d) => d.tags}
+          preset="badges"
+          renderContentNode={(doc, ctx) => (
+            <g>
+              <rect x={-36} y={-12} width={72} height={24} rx={4} fill={ctx.mixedColorHex} />
+              <text x={0} y={4} textAnchor="middle">
+                {doc.headline}
+              </text>
+            </g>
+          )}
+        />
+      </div>,
+    );
+    expect(keyless.container.querySelectorAll('g.sv-node-item').length).toBe(6);
+    expect(keyless.container.querySelectorAll('g.sv-node-cluster').length).toBeGreaterThanOrEqual(3);
+    keyless.unmount();
+  });
 });

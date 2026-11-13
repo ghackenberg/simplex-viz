@@ -1,4 +1,5 @@
 import { describe, expectTypeOf, it } from 'vitest';
+import { solveSimplexSnapshot } from '../src/snapshot';
 import type {
   ClusterDescriptor,
   ContentHoverEvent,
@@ -86,5 +87,18 @@ describe('End-to-end compile-time type safety', () => {
       CustomClusterMeta
     >;
     expectTypeOf<Cfg['deriveClusterMeta']>().not.toBeUndefined();
+  });
+
+  it('supports zero-config solveSimplexSnapshot on DefaultTaggedItem and preserves custom item types', () => {
+    const quick = solveSimplexSnapshot([] as readonly DefaultTaggedItem[]);
+    expectTypeOf(quick.items[0]!.item).toEqualTypeOf<DefaultTaggedItem>();
+
+    const custom = solveSimplexSnapshot([] as readonly CustomArticle[], {
+      getId: (a) => a.slug,
+      getTags: (a) => a.hashtags,
+      deriveClusterMeta: () => ({ avgMinutes: 5 }),
+    });
+    expectTypeOf(custom.items[0]!.item).toEqualTypeOf<CustomArticle>();
+    expectTypeOf(custom.clusters[0]!.cluster.meta).toEqualTypeOf<CustomClusterMeta>();
   });
 });

@@ -40,9 +40,47 @@ Install the headless package standalone when integrating into a custom Canvas/We
 npm install @simplex-viz/core
 ```
 
-## Quickstart: Using `SimplexGraphEngine` Step by Step
+## Quickstart: One-Shot Layout with `solveSimplexSnapshot`
 
-`SimplexGraphEngine` is completely decoupled from the DOM. You connect your data to any rendering target in five small steps.
+If you want solved `(x, y)` coordinates, mesh triangles, topic clusters, and perceptual OKLab colors in a single synchronous call—without setting up a `SimplexRendererAdapter` or animation loop—call `solveSimplexSnapshot(items)`:
+
+```ts
+import { solveSimplexSnapshot } from '@simplex-viz/core';
+
+const snapshot = solveSimplexSnapshot([
+  { id: 'mesh', tags: ['geometry', 'triangulation', 'math'] },
+  { id: 'oklab', tags: ['color', 'perception', 'geometry'] },
+  { id: 'sat', tags: ['collision', 'geometry'] },
+]);
+
+console.log(snapshot.metrics.overlapCount); // 0
+console.log(snapshot.clusters); // Solved vertex clusters + OKLab hex colors
+console.log(snapshot.items); // Non-overlapping content coordinates & weights
+```
+
+For custom domain records that do not use `{ id, tags }`, supply `getId`, `getTags`, canvas dimensions, or custom hull callbacks in the second argument:
+
+```ts
+import { solveSimplexSnapshot, rectToConvexPolygon } from '@simplex-viz/core';
+
+interface Paper {
+  readonly doi: string;
+  readonly keywords: readonly string[];
+  readonly title: string;
+}
+
+const snapshot = solveSimplexSnapshot(papers, {
+  getId: (p) => p.doi,
+  getTags: (p) => p.keywords,
+  width: 1200,
+  height: 760,
+  measureContentHull: (p) => rectToConvexPolygon(p.title.length * 7 + 16, 24, 6),
+});
+```
+
+## Full Engine Control: Using `SimplexGraphEngine` Step by Step
+
+When building an interactive Canvas/WebGL surface with live mutations, hit-testing, camera pan/zoom, and 60 fps critically damped springs, use `SimplexGraphEngine` across the five steps below.
 
 ### Step 1 — Define Domain & Visual Descriptor Types
 

@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- Add project brand logo and JSX slot architecture preview graphics, contextual lead-in prose, and step-by-step React walkthroughs in `@simplex-viz/react` README.
+- Add zero-config `<SimplexTopicGraph items={items} />` support via built-in presets, keyless declarative JSX renderers (`renderContentNode`/`renderClusterNode` without requiring `visualResolver`), default cursor-zoom & cluster click-focus interactions, optional React `tooltip` overlay, single-import re-exports from `@simplex-viz/svg` and `@simplex-viz/core`, and progressive quickstart documentation.
 - Updated dependencies
   - @simplex-viz/core@0.1.3
   - @simplex-viz/svg@0.1.3

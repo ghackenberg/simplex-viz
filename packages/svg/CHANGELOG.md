@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- Add project brand logo and built-in plugin showcase preview graphics, contextual lead-in prose, and step-by-step Vanilla TypeScript walkthroughs in `@simplex-viz/svg` README.
+- Add zero-config `createSimplexSvg(target, itemsOrOptions)`, built-in visual presets (`'geometric'`, `'glyphs'`, `'badges'`), default zoom/cluster-focus interactions, optional floating DOM hover tooltips, core utility/type re-exports, and progressive quickstart documentation.
 - Updated dependencies
   - @simplex-viz/core@0.1.3
 

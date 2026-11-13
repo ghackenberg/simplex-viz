@@ -5,6 +5,7 @@ import {
   BadgeClusterSvgView,
   GeometricShapeSvgView,
   SimplexSvgController,
+  createSimplexSvg,
   type BadgeClusterVisual,
   type GeometricShapeVisual,
 } from '../src/index';
@@ -87,6 +88,35 @@ describe('@simplex-viz/svg integration', () => {
     }
     expect(firstCluster.querySelector('g.sv-layer-from')).toBeNull();
     expect(firstCluster.querySelector('g.sv-layer-main')).not.toBeNull();
+    expect(controller.getMetrics().overlapCount).toBe(0);
+
+    controller.destroy();
+    container.remove();
+  });
+
+  it('supports zero-config createSimplexSvg(selector, items) and live setPreset() switching', () => {
+    const container = document.createElement('div');
+    container.id = 'quick-graph';
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+    document.body.appendChild(container);
+
+    const items: DefaultTaggedItem[] = Array.from({ length: 8 }, (_, i) => ({
+      id: `q-${i}`,
+      tags: [`k-${i % 3}`, `k-${(i + 1) % 3}`],
+    }));
+
+    const controller = createSimplexSvg('#quick-graph', items);
+    expect(controller.getSvgElement().querySelectorAll('g.sv-node-item').length).toBe(8);
+    expect(controller.getMetrics().overlapCount).toBe(0);
+
+    controller.setPreset('glyphs');
+    for (let i = 0; i < 30; i++) controller.stepForTest(20);
+    expect(controller.getMetrics().overlapCount).toBe(0);
+
+    controller.setPreset('badges');
+    for (let i = 0; i < 30; i++) controller.stepForTest(20);
     expect(controller.getMetrics().overlapCount).toBe(0);
 
     controller.destroy();

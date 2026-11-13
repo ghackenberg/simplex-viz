@@ -31,13 +31,105 @@ In React, `<SimplexTopicGraph />` lets you drop custom JSX directly into cluster
 
 ## Installation
 
-Install the React wrapper together with its core engine and SVG scene-graph peer packages (`react >= 18.0.0` and `react-dom >= 18.0.0`):
+Install `@simplex-viz/react` (`@simplex-viz/core` and `@simplex-viz/svg` are bundled as dependencies, and their views, helpers, and TypeScript types are re-exported directly from `@simplex-viz/react`; requires `react >= 18.0.0` and `react-dom >= 18.0.0`):
 
 ```bash
-npm install @simplex-viz/core @simplex-viz/svg @simplex-viz/react
+npm install @simplex-viz/react
 ```
 
-## Quickstart: Declarative JSX Node Renderers
+## Quickstart (Zero-Config)
+
+Render `<SimplexTopicGraph />` with any array of `{ id, tags }` objects. Drag-to-pan, cursor wheel zoom (`onWheel="zoom-to-cursor"`), cluster click-focus (`focusOnClusterClick`), and optional hover tooltips (`tooltip`) work immediately without a `VisualResolver` or view plugins:
+
+```tsx
+import { SimplexTopicGraph } from '@simplex-viz/react';
+
+const items = [
+  { id: '1', label: 'Simplex Mesh', tags: ['geometry', 'triangulation', 'math'] },
+  { id: '2', label: 'OKLab Mixing', tags: ['color', 'geometry', 'perception'] },
+  { id: '3', label: 'SAT Solver', tags: ['collision', 'geometry'] },
+];
+
+export function QuickTopicMap() {
+  return (
+    <div style={{ width: '100%', height: 560 }}>
+      <SimplexTopicGraph items={items} preset="geometric" tooltip />
+    </div>
+  );
+}
+```
+
+### Switch Visual Presets & Customize Tooltips
+
+Swap between the three built-in presets (`'geometric'`, `'glyphs'`, or `'badges'`) with live animated morphing/crossfading, pass `getLabel` for custom records, or supply a React JSX `tooltip` renderer:
+
+```tsx
+<SimplexTopicGraph
+  items={articles}
+  getId={(a) => a.slug}
+  getTags={(a) => a.hashtags}
+  getLabel={(a) => a.title}
+  preset="glyphs"
+  tooltip={(target) =>
+    target.kind === 'content' ? (
+      <div>
+        <strong>{target.item.title}</strong>
+        <div>{`${target.item.readingMinutes} min read`}</div>
+      </div>
+    ) : (
+      <strong>{`${target.cluster.defaultLabel} (${target.cluster.members.length})`}</strong>
+    )
+  }
+/>
+```
+
+## Level 2 — Keyless Declarative JSX Renderers
+
+Want bespoke React SVG cards without writing a `VisualResolver`? Pass `renderContentNode` and/or `renderClusterNode` directly—`@simplex-viz/react` manages cache keys automatically (customizable via optional `getContentCacheKey` / `getClusterCacheKey`) and measures your JSX via offscreen `getBBox()`:
+
+```tsx
+import { SimplexTopicGraph } from '@simplex-viz/react';
+
+interface Article {
+  readonly slug: string;
+  readonly title: string;
+  readonly hashtags: readonly string[];
+}
+
+export function CardMap({ articles }: { articles: readonly Article[] }) {
+  return (
+    <SimplexTopicGraph
+      items={articles}
+      getId={(a) => a.slug}
+      getTags={(a) => a.hashtags}
+      tooltip
+      renderContentNode={(article, ctx, state) => (
+        <g>
+          <rect
+            x={-54}
+            y={-15}
+            width={108}
+            height={30}
+            rx={6}
+            fill="#0f172a"
+            stroke={state.interaction.isHovered ? '#f8fafc' : ctx.mixedColorHex}
+            strokeWidth={state.interaction.isHovered ? 2 : 1.2}
+          />
+          <text textAnchor="middle" y={4} fill="#f8fafc" fontSize={9}>
+            {article.title.slice(0, 16)}
+          </text>
+        </g>
+      )}
+    />
+  );
+}
+```
+
+Notice that you can even customize only `renderContentNode` while letting `preset="badges"` handle cluster cards automatically.
+
+## Level 3 — Full Custom `VisualResolver`, Controlled State & Imperative Hook
+
+For full control over cluster aggregation (`deriveClusterMeta`), explicit visual cache keys, pinned items, controlled cluster focus, and external camera toolbars, combine `<SimplexTopicGraph />` with `useSimplexGraphController`.
 
 ### Step 1 — Define Domain, Visual, and Cluster Metadata Types
 
@@ -71,7 +163,7 @@ interface ClusterStats {
 }
 ```
 
-### Step 2 — Define Declarative JSX Node Renderers
+### Step 2 — Define Typed Declarative JSX Node Renderers
 
 Write standard SVG JSX centered around `(0, 0)` for individual items and topic clusters. `@simplex-viz/react` measures the resulting `<g>` subtree automatically via offscreen `getBBox()` whenever `getVisualCacheKey` changes, guaranteeing collision-free card placement:
 
@@ -80,7 +172,7 @@ import type {
   ClusterDescriptor,
   ContentLayoutContext,
   NodeRenderState,
-} from '@simplex-viz/core';
+} from '@simplex-viz/react';
 
 const renderArticleNode = (
   article: Article,
@@ -138,8 +230,8 @@ import { useMemo, useState } from 'react';
 import {
   SimplexTopicGraph,
   useSimplexGraphController,
+  type VisualResolver,
 } from '@simplex-viz/react';
-import type { VisualResolver } from '@simplex-viz/core';
 
 export function KnowledgeAtlas({ articles }: { articles: readonly Article[] }) {
   const [focusedClusterUid, setFocusedClusterUid] = useState<string | null>(null);
@@ -226,25 +318,33 @@ Finally, wire the camera toolbar (`handle.zoomBy`, `handle.resetCamera`), pass t
 }
 ```
 
-## Using Portable `SvgNodeView` Plugins (60 fps Without JSX Re-Renders)
+## Level 4 — Portable `SvgNodeView` Plugins (60 fps Without JSX Re-Renders)
 
-For larger graphs or built-in shape morphing without per-frame JSX overhead, instantiate `GeometricShapeSvgView` and `ClusterAnchorSvgView` once outside the component and pass them via `contentView` and `clusterView` instead of `renderContentNode` / `renderClusterNode`:
+For larger graphs or custom 64-point shape morphing without per-frame JSX overhead, instantiate `GeometricShapeSvgView` and `ClusterAnchorSvgView` (both re-exported directly from `@simplex-viz/react`) once outside the component and pass them via `contentView` and `clusterView`:
 
 ```tsx
-import { SimplexTopicGraph } from '@simplex-viz/react';
 import {
+  SimplexTopicGraph,
   GeometricShapeSvgView,
   ClusterAnchorSvgView,
   type GeometricShapeVisual,
   type ClusterAnchorVisual,
-} from '@simplex-viz/svg';
+  type VisualResolver,
+  type DefaultTaggedItem,
+} from '@simplex-viz/react';
 
 const contentView = new GeometricShapeSvgView();
 const clusterView = new ClusterAnchorSvgView();
 
-export function FastGraph({ items, visualResolver }) {
+export function FastGraph({
+  items,
+  visualResolver,
+}: {
+  items: readonly DefaultTaggedItem[];
+  visualResolver: VisualResolver<DefaultTaggedItem, GeometricShapeVisual, ClusterAnchorVisual>;
+}) {
   return (
-    <SimplexTopicGraph<MyItem, GeometricShapeVisual, ClusterAnchorVisual>
+    <SimplexTopicGraph<DefaultTaggedItem, GeometricShapeVisual, ClusterAnchorVisual>
       items={items}
       visualResolver={visualResolver}
       contentView={contentView}
@@ -254,7 +354,7 @@ export function FastGraph({ items, visualResolver }) {
 }
 ```
 
-> **Tip:** Memoize `visualResolver` (e.g., via `useMemo`) and keep `contentView` / `clusterView` instances stable outside render to avoid unnecessary crossfades. Changing `visualResolver` or switching view props intentionally triggers a smooth crossfade/morph transition.
+> **Tip:** Memoize `visualResolver` (e.g., via `useMemo`) and keep `contentView` / `clusterView` instances stable outside render to avoid unnecessary crossfades. Changing `preset`, `visualResolver`, or switching view props intentionally triggers a smooth crossfade/morph transition.
 
 ## `<SimplexTopicGraph />` Props Reference
 
@@ -264,18 +364,22 @@ export function FastGraph({ items, visualResolver }) {
 | `items` | Yes | `readonly TItem[]` — Domain items to cluster and lay out. |
 | `getId` | If `TItem` lacks `id` | `(item: TItem) => string` — Extracts a unique ID per item. |
 | `getTags` | If `TItem` lacks `tags` | `(item: TItem) => readonly string[]` — Extracts raw tag strings per item. |
+| `getLabel` | No | `(item: TItem) => string` — Optional label extractor used by presets and default hover tooltips. |
 | `normalizeTag` | No | `(rawTag: string) => string` — Custom tag normalizer (defaults to lowercase trim + `#` strip). |
 | `resolveTagMeta` | No | `(normalizedTag: string) => TTagMeta \| undefined` — Attaches domain metadata to each tag. |
 | `deriveClusterMeta` | If `TClusterMeta` is defined | `(ctx) => TClusterMeta` — Derives aggregate metadata once per cluster update. |
 
-### Visuals & Renderers
-| Prop | Description |
-| --- | --- |
-| `visualResolver` | Required `VisualResolver` mapping domain items and clusters to pure visual descriptors and cache keys. |
-| `renderContentNode` | Declarative React JSX renderer `(item, ctx, state) => ReactNode` (auto-measured via `getBBox()`). |
-| `renderClusterNode` | Declarative React JSX renderer `(cluster, state) => ReactNode` (auto-measured via `getBBox()`). |
-| `contentView` | Portable `SvgNodeView<TContentVisual>` plugin from `@simplex-viz/svg` (used when `renderContentNode` is omitted). |
-| `clusterView` | Portable `SvgNodeView<TClusterVisual>` plugin from `@simplex-viz/svg` (used when `renderClusterNode` is omitted). |
+### Visuals, Presets & Renderers
+| Prop | Default | Description |
+| --- | --- | --- |
+| `preset` | `'geometric'` | Built-in visual preset (`'geometric' \| 'glyphs' \| 'badges'`) used when custom views or `visualResolver` are omitted. |
+| `visualResolver` | Built-in preset resolver | Optional `VisualResolver` mapping items and clusters to custom descriptors and cache keys. |
+| `renderContentNode` | — | Declarative React JSX renderer `(item, ctx, state) => ReactNode` (works with or without `visualResolver`, auto-measured via `getBBox()`). |
+| `renderClusterNode` | — | Declarative React JSX renderer `(cluster, state) => ReactNode` (works with or without `visualResolver`, auto-measured via `getBBox()`). |
+| `getContentCacheKey` | Auto-generated | Optional cache key callback `(item, ctx) => string` for keyless `renderContentNode`. |
+| `getClusterCacheKey` | Auto-generated | Optional cache key callback `(cluster) => string` for keyless `renderClusterNode`. |
+| `contentView` | Preset view | Portable `SvgNodeView<TContentVisual>` plugin (used when `renderContentNode` is omitted). |
+| `clusterView` | Preset view | Portable `SvgNodeView<TClusterVisual>` plugin (used when `renderClusterNode` is omitted). |
 
 ### Mesh, Solver & Visual Emphasis
 | Prop | Default | Description |
@@ -286,21 +390,23 @@ export function FastGraph({ items, visualResolver }) {
 | `showHulls` | `false` | Renders convex bounding hull wireframes over nodes. |
 | `pinnedIds` | — | `ReadonlySet<string> \| readonly string[]` of pinned item IDs. |
 | `highlightedIds` | — | `ReadonlySet<string> \| readonly string[]` of highlighted item IDs (dims others). |
-| `focusedClusterUid` | `null` | Isolates a cluster and its members, dimming unrelated nodes. |
+| `focusedClusterUid` | `null` | Controlled cluster focus UID. When omitted (`undefined`), clicking clusters toggles focus automatically. |
 | `className` / `style` | — | Styling forwarded to the outer container `<div>` (defaults to `width: 100%; height: 100%`). |
 
-### Interactions, Telemetry & Controller
-| Prop | Description |
-| --- | --- |
-| `onContentHover` | `(event: ContentHoverEvent \| null) => void` |
-| `onClusterHover` | `(event: ClusterHoverEvent \| null) => void` |
-| `onLeftClick` | `(target: HitTarget, rawEvent: NormalizedPointerEvent) => void` |
-| `onRightClick` | `(target: HitTarget, rawEvent: NormalizedPointerEvent) => boolean \| void` (return `true` to suppress browser menu) |
-| `onWheel` | `'zoom-to-cursor' \| 'pan-vertical' \| 'none' \| ((event, camera) => void)` |
-| `onMetricsChange` | `(metrics: LayoutMetrics) => void` — Reports cluster count, scales `α`, `overlapCount`, `meshSideLength`, `areaEfficiency`. |
-| `onClustersChange` | `(clusters: readonly ClusterDescriptor[]) => void` |
-| `onFpsUpdate` | `(fps: number) => void` |
-| `controllerRef` | Ref populated with the underlying `SimplexSvgController` instance. |
+### Interactions, Tooltips, Telemetry & Controller
+| Prop | Default / Signature | Description |
+| --- | --- | --- |
+| `tooltip` | `false` | `boolean \| ((target) => ReactNode)` — Renders a built-in floating React `role="tooltip"` overlay. |
+| `focusOnClusterClick` | `true` | Automatically toggles cluster focus on click when `focusedClusterUid` and `onLeftClick` are omitted. |
+| `onContentHover` | — | `(event: ContentHoverEvent \| null) => void` |
+| `onClusterHover` | — | `(event: ClusterHoverEvent \| null) => void` |
+| `onLeftClick` | — | `(target: HitTarget, rawEvent: NormalizedPointerEvent) => void` |
+| `onRightClick` | — | `(target: HitTarget, rawEvent: NormalizedPointerEvent) => boolean \| void` (return `true` to suppress browser menu) |
+| `onWheel` | `'zoom-to-cursor'` | `'zoom-to-cursor' \| 'pan-vertical' \| 'none' \| ((event, camera) => void)` |
+| `onMetricsChange` | — | `(metrics: LayoutMetrics) => void` — Reports cluster count, scales `α`, `overlapCount`, `meshSideLength`, `areaEfficiency`. |
+| `onClustersChange` | — | `(clusters: readonly ClusterDescriptor[]) => void` |
+| `onFpsUpdate` | — | `(fps: number) => void` |
+| `controllerRef` | — | Ref populated with the underlying `SimplexSvgController` instance. |
 
 ## `useSimplexGraphController()` Hook
 

@@ -8,3 +8,4 @@ export * from './layout';
 export * from './animation';
 export * from './camera';
 export * from './engine';
+export * from './snapshot';
