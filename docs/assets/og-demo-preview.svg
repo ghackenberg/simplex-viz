@@ -14,32 +14,27 @@
       <rect x="0" y="0" width="620" height="542" rx="16"/>
     </clipPath>
     
-    <linearGradient id="svIconTile" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#111C31"/>
+    <linearGradient id="svTile" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#111B2E"/>
       <stop offset="55%" stop-color="#090E17"/>
       <stop offset="100%" stop-color="#05070C"/>
     </linearGradient>
-    <linearGradient id="svTriTop" x1="50%" y1="0%" x2="50%" y2="100%">
-      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.52"/>
-      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0.20"/>
-    </linearGradient>
-    <linearGradient id="svTriLeft" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.52"/>
-      <stop offset="100%" stop-color="#14B8A6" stop-opacity="0.24"/>
-    </linearGradient>
-    <linearGradient id="svTriRight" x1="100%" y1="100%" x2="0%" y2="0%">
-      <stop offset="0%" stop-color="#E879F9" stop-opacity="0.50"/>
-      <stop offset="100%" stop-color="#6366F1" stop-opacity="0.24"/>
-    </linearGradient>
-    <radialGradient id="svTriCenter" cx="50%" cy="45%" r="65%">
-      <stop offset="0%" stop-color="#F8FAFC" stop-opacity="0.25"/>
-      <stop offset="60%" stop-color="#38BDF8" stop-opacity="0.18"/>
-      <stop offset="100%" stop-color="#A855F7" stop-opacity="0.12"/>
+    <radialGradient id="svCyan" cx="50%" cy="22%" r="72%">
+      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#22D3EE" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="svEdgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#67E8F9" stop-opacity="0.9"/>
-      <stop offset="50%" stop-color="#CBD5E1" stop-opacity="0.72"/>
-      <stop offset="100%" stop-color="#E879F9" stop-opacity="0.9"/>
+    <radialGradient id="svAmber" cx="20%" cy="78%" r="70%">
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.52"/>
+      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="svMagenta" cx="80%" cy="78%" r="70%">
+      <stop offset="0%" stop-color="#E879F9" stop-opacity="0.52"/>
+      <stop offset="100%" stop-color="#E879F9" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="svEdge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#67E8F9" stop-opacity="0.95"/>
+      <stop offset="50%" stop-color="#CBD5E1" stop-opacity="0.82"/>
+      <stop offset="100%" stop-color="#E879F9" stop-opacity="0.95"/>
     </linearGradient>
   </defs>
 
@@ -56,31 +51,26 @@
     <!-- Icon + Title -->
     <g transform="translate(0, 56)">
       <g transform="scale(0.175)">
-        <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#svIconTile)" stroke="#334155" stroke-width="12"/>
-        
-    <polygon points="256.0,114.7 178.9,248.2 333.1,248.2" fill="url(#svTriTop)"/>
-    <polygon points="178.9,248.2 101.8,381.7 256.0,381.7" fill="url(#svTriLeft)"/>
-    <polygon points="333.1,248.2 256.0,381.7 410.2,381.7" fill="url(#svTriRight)"/>
-    <polygon points="178.9,248.2 256.0,381.7 333.1,248.2" fill="url(#svTriCenter)"/>
-    <polygon points="256.0,114.7 101.8,381.7 410.2,381.7" fill="none" stroke="url(#svEdgeGrad)" stroke-width="12" stroke-linejoin="round"/>
-    <polygon points="178.9,248.2 256.0,381.7 333.1,248.2" fill="none" stroke="#CBD5E1" stroke-opacity="0.6" stroke-width="8" stroke-linejoin="round"/>
-    <circle cx="178.9" cy="248.2" r="9" fill="#0B0F17" stroke="#2DD4BF" stroke-width="4.5"/>
-    <circle cx="256.0" cy="381.7" r="9" fill="#0B0F17" stroke="#FB923C" stroke-width="4.5"/>
-    <circle cx="333.1" cy="248.2" r="9" fill="#0B0F17" stroke="#A78BFA" stroke-width="4.5"/>
-    <circle cx="256.0" cy="203.7" r="13.5" fill="#38BDF8" stroke="#07090E" stroke-width="4"/>
-    <polygon points="178.9,321.7 192.4,337.2 178.9,352.7 165.4,337.2" fill="#34D399" stroke="#07090E" stroke-width="3.5"/>
-    <circle cx="333.1" cy="337.2" r="13.5" fill="#F472B6" stroke="#07090E" stroke-width="4"/>
-    <circle cx="256.0" cy="292.7" r="16.875" fill="#F8FAFC" stroke="#22D3EE" stroke-width="4.5"/>
-    
-      <circle cx="256.0" cy="114.7" r="29" fill="#07090E" stroke="#22D3EE" stroke-width="6.5"/>
-      <circle cx="256.0" cy="114.7" r="17.5" fill="#22D3EE" fill-opacity="0.32" stroke="#22D3EE" stroke-width="4"/>
-      <circle cx="256.0" cy="114.7" r="7" fill="#F8FAFC"/>
-      <circle cx="101.8" cy="381.7" r="29" fill="#07090E" stroke="#F59E0B" stroke-width="6.5"/>
-      <circle cx="101.8" cy="381.7" r="17.5" fill="#F59E0B" fill-opacity="0.32" stroke="#F59E0B" stroke-width="4"/>
-      <circle cx="101.8" cy="381.7" r="7" fill="#F8FAFC"/>
-      <circle cx="410.2" cy="381.7" r="29" fill="#07090E" stroke="#E879F9" stroke-width="6.5"/>
-      <circle cx="410.2" cy="381.7" r="17.5" fill="#E879F9" fill-opacity="0.32" stroke="#E879F9" stroke-width="4"/>
-      <circle cx="410.2" cy="381.7" r="7" fill="#F8FAFC"/>
+        <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#svTile)" stroke="#334155" stroke-width="14"/>
+
+    <!-- Single large equilateral 60-degree triangle with 3-vertex color wash -->
+    <polygon points="256,108 102,375 410,375" fill="#0E1729"/>
+    <polygon points="256,108 102,375 410,375" fill="url(#svCyan)"/>
+    <polygon points="256,108 102,375 410,375" fill="url(#svAmber)"/>
+    <polygon points="256,108 102,375 410,375" fill="url(#svMagenta)"/>
+    <polygon points="256,108 102,375 410,375" fill="none" stroke="url(#svEdge)" stroke-width="26" stroke-linejoin="round"/>
+
+    <!-- 3 Topic Vertex Nodes -->
+    <circle cx="256" cy="108" r="54" fill="#070A12"/>
+    <circle cx="256" cy="108" r="37" fill="#22D3EE"/>
+
+    <circle cx="102" cy="375" r="54" fill="#070A12"/>
+    <circle cx="102" cy="375" r="37" fill="#F59E0B"/>
+
+    <circle cx="410" cy="375" r="54" fill="#070A12"/>
+    <circle cx="410" cy="375" r="37" fill="#E879F9"/>
+  
+  
   
       </g>
       <text x="106" y="59" font-family="Noto Sans, sans-serif" font-size="50" font-weight="700" letter-spacing="-1">

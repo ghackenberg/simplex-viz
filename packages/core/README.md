@@ -13,10 +13,10 @@ Headless, zero-dependency TypeScript engine for triangulation-based visualizatio
 > Most browser apps should start with [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react) (for React) or [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg) (for Vanilla TypeScript, Vue, Angular, Svelte, or Web Components). Use `@simplex-viz/core` directly when building a custom Canvas/WebGL renderer, running layout calculations in a Web Worker or Node.js, or using low-level geometry, OKLab, and clustering primitives.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/preview-core.png" width="840" alt="Schematic diagram of the @simplex-viz/core 60-degree simplex mesh, vertex coordinates, barycentric OKLab weights, and convex SAT collision bounds" />
+  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/preview-core.png" width="100%" alt="Schematic diagram of the @simplex-viz/core 60-degree simplex mesh, vertex coordinates, barycentric OKLab weights, and convex SAT collision bounds" />
 </p>
 
----
+*Figure: Schematic geometry view of the headless `@simplex-viz/core` pipeline. Dashed blueprint lines mark the adaptive 60° equilateral triangle lattice (`s = 207 px`) anchored at grid coordinates `V0`–`V7` (`row, col`), with each cluster displaying its top core tags and dashed `clusterGapPx` clearance envelope. The highlighted amber tethers (`w = 0.50`) illustrate how the explaining-away step computes barycentric weights along a shared simplex edge to blend perceptual OKLab colors, while solid circular and rounded-rectangle outlines show exact `ConvexGeometry` bounds separated by the SAT/MTV solver (`overlapCount = 0`).*
 
 ## Key Capabilities
 
@@ -28,15 +28,13 @@ Headless, zero-dependency TypeScript engine for triangulation-based visualizatio
 - **Interruptible C1-continuous animation**: Critically damped scalar springs and retargetable dual-layer transition state machines.
 - **Mathematical hit-testing**: Resolution-independent convex-hull pointer hit-testing in world coordinates.
 
----
-
 ## Installation
+
+Install the headless package standalone when integrating into a custom Canvas/WebGL renderer, worker thread, or Node.js process:
 
 ```bash
 npm install @simplex-viz/core
 ```
-
----
 
 ## Quickstart: Using `SimplexGraphEngine` with a Custom Renderer
 
@@ -45,6 +43,8 @@ npm install @simplex-viz/core
 1. Your domain items (`items`) + optional `getId`, `getTags`, `resolveTagMeta`, and `deriveClusterMeta`.
 2. A `VisualResolver` converting domain items/clusters into pure serializable visual descriptors.
 3. A `SimplexRendererAdapter` implementing `measureContentHull`, `measureClusterHull`, `renderFrame`, and `destroy`.
+
+The full example below puts all three pieces together: it defines a domain type `Article`, maps each article and topic cluster to pure serializable descriptors via `VisualResolver`, supplies analytical bounding shapes (`circle` or `rectToConvexPolygon`) inside a custom `SimplexRendererAdapter`, configures the mesh and SAT solver parameters, and advances the spring simulation through `engine.step(dtMs)` until settled:
 
 ```ts
 import {
@@ -176,6 +176,8 @@ function tick(dtMs: number) {
 
 ### Live Mutations & Interactions
 
+Once running, `SimplexGraphEngine` accepts live dataset mutations (`addItems`, `removeItems`, `setItems`), viewport resizes, scaling updates, cluster isolation (`setFocusedClusterUid`), and normalized pointer/wheel events that delegate exact hit-testing and cursor-centered camera zooming back to your custom renderer:
+
 ```ts
 // Interruptible item updates (critically damped springs smoothly retarget mid-flight)
 engine.addItems({
@@ -208,8 +210,6 @@ engine.handleLeftClick({
 engine.camera.zoomToCursor(screenX, screenY, 1.15);
 ```
 
----
-
 ## Configuration Reference
 
 ### `ItemIdentityConfig<TItem>` & `ClusterMetaConfig`
@@ -237,8 +237,6 @@ engine.camera.zoomToCursor(screenX, screenY, 1.15);
 | `sizeMultiplier` | `number` | `1.0` | Uniform scale multiplier applied before solving. |
 | `seed` | `number` | `undefined` | Optional deterministic PRNG seed for reproducible QAP embedding and tie-breaking. |
 
----
-
 ## Low-Level Pure Utilities
 
 Every algorithmic building block can also be imported standalone:
@@ -249,8 +247,6 @@ Every algorithmic building block can also be imported standalone:
 - **Geometry & Collision**: `computeConvexHull`, `rectToConvexPolygon`, `regularPolygon`, `starConvexHull`, `computeConvexMtv`, `computeCirclePolygonMtv`, `hitTestConvexGeometry`, `UniformSpatialHashGrid`
 - **Color Science**: `hexToOklab`, `oklabToHex`, `mixOklabColors`, `lerpOklabHex`, `generatePerceptualClusterPalette`
 - **Animation & Camera**: `stepCriticallyDampedSpring`, `retargetVisualTransition`, `stepVisualTransition`, `SimplexCamera`
-
----
 
 ## License
 

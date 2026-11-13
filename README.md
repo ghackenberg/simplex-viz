@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/logo-simplex-viz.png" width="680" alt="SimplexViz — 60° Triangulation Content Atlas" />
+  <img src="docs/assets/logo-simplex-viz.png" width="460" alt="SimplexViz — 60° Triangulation Content Atlas" />
 </p>
 
 <p align="center">
@@ -14,17 +14,15 @@
 
 <p align="center">
   <a href="https://hackenberg.tech/simplex-viz/">
-    <img src="docs/assets/preview-demo.png" width="880" alt="SimplexViz Interactive Demo App featuring 60° simplex triangulation, geometric content nodes, vertex cluster anchors, and hover inspection" />
+    <img src="docs/assets/preview-demo.png" width="100%" alt="SimplexViz Interactive Demo App featuring 60° simplex triangulation, geometric content nodes, vertex cluster anchors, and hover inspection" />
   </a>
 </p>
 
----
+*Figure: The interactive SimplexViz showcase (`src/demo`) in Geometric Encoding mode. Topic clusters (`T1`–`T8`) sit as dashed double-ring vertex anchors on the adaptive 60° equilateral triangle lattice, while content items render inside their covering vertices, edges, or triangles as colored circles, diamonds, and stars blended in perceptual OKLab space. The left inspector allows live switching between rendering plugins, real-time dataset mutations, size scaling, and live solver telemetry (`0` overlaps at `60 fps`), while hovering any node opens a contextual inspection tooltip.*
 
 ## Live Demo
 
 Explore the interactive showcase at **<https://hackenberg.tech/simplex-viz/>**.
-
----
 
 ## Project Vision & Mathematical Principle
 
@@ -37,9 +35,9 @@ Classical force-directed layouts often turn tagged knowledge collections into un
 3. **Explaining-Away & OKLab Color Mixing**: Each item is assigned to the smallest covering simplex unit (`vertex ≺ edge ≺ triangle`) with normalized barycentric weights and perceptual OKLab color mixing (preserving chroma).
 4. **Hierarchical Two-Phase Collision Solver (`solveTwoPhaseLayout`)**: Fixes scaled topic clusters first (Priority 1), then solves all content hulls via binary search over `α_content`, position-based relaxation, and exact SAT / circle-polygon Minimum Translation Vector (MTV) separation — guaranteeing **0.0 px overlap**.
 
----
-
 ## Architecture (Strict 3-Package Separation)
+
+The diagram and package table below summarize how domain logic, SVG DOM rendering, and framework bindings are strictly decoupled across layers so the core math engine runs anywhere while renderers remain hot-swappable:
 
 ```mermaid
 flowchart LR
@@ -55,15 +53,17 @@ flowchart LR
 | [`@simplex-viz/svg`](./packages/svg) | Framework-agnostic SVG engine (`Vanilla TS`, `Vue`, `Angular`, `Svelte`, Web Components) with root-SVG hit-testing, offscreen `getBBox()` hull measurement, built-in `SvgNodeView` plugins, and dual-layer crossfading. | [SVG README](./packages/svg/README.md) |
 | [`@simplex-viz/react`](./packages/react) | Thin, end-to-end type-safe React bindings (`<SimplexTopicGraph />`, `useSimplexGraphController`) supporting both portable `SvgNodeView` plugins and declarative JSX node renderers. | [React README](./packages/react/README.md) |
 
----
-
 ## Quickstart
 
 ### React (`@simplex-viz/react`)
 
+Install all three packages in a React project so the component can connect headless graph solving (`core`) and DOM scene management (`svg`) to your React tree:
+
 ```bash
 npm install @simplex-viz/core @simplex-viz/svg @simplex-viz/react
 ```
+
+The component below wires a custom `Article` domain model—without requiring `{ id, tags }` properties on the source records—into `<SimplexTopicGraph />`. `getId` and `getTags` map your domain fields, `deriveClusterMeta` aggregates reading statistics per topic cluster, and `visualResolver` turns each solved item and cluster into descriptors consumed by the built-in `GeometricShapeSvgView` and `ClusterAnchorSvgView` plugins:
 
 ```tsx
 import { SimplexTopicGraph } from '@simplex-viz/react';
@@ -112,9 +112,13 @@ export function KnowledgeMap({ articles }: { articles: readonly Article[] }) {
 
 ### Vanilla TypeScript / Vue / Angular / Svelte (`@simplex-viz/svg`)
 
+For non-React frameworks or custom web components, install only `@simplex-viz/core` and `@simplex-viz/svg`:
+
 ```bash
 npm install @simplex-viz/core @simplex-viz/svg
 ```
+
+Instantiate `SimplexSvgController` with any container `HTMLElement` to mount the SVG scene graph, observe container resizing automatically, and start the spring animation loop. Calling `addItems` or `removeItems` incrementally re-clusters and retargets existing nodes mid-flight without resetting camera pan/zoom:
 
 ```ts
 import {
@@ -135,9 +139,9 @@ controller.addItems({ id: 'new-1', tags: ['geometry', 'svg'] });
 controller.removeItems('old-1');
 ```
 
----
-
 ## Writing Custom `SvgNodeView` Plugins
+
+To render bespoke SVG shapes or cards, implement the `SvgNodeView<TVisual>` interface centered at local origin `(0, 0)`. You can supply an analytical hull via `measureConvexHull` (as shown below with `rectToConvexPolygon`) or omit it completely to let `@simplex-viz/svg` measure the rendered `<g>` element automatically via offscreen `getBBox()`:
 
 ```ts
 import type { SvgNodeView } from '@simplex-viz/svg';
@@ -158,9 +162,9 @@ export const CustomPillView: SvgNodeView<PillVisual> = {
 };
 ```
 
----
-
 ## Local Development & Scripts
+
+Use these pnpm workspace scripts to run the interactive demo locally, enforce module boundaries, execute unit and integration tests, build package artifacts, and verify package exports:
 
 ```bash
 pnpm install
@@ -170,8 +174,6 @@ pnpm test               # Vitest invariant, type-level, and DOM integration test
 pnpm build:packages     # Builds dist/ + .d.ts for all three packages
 pnpm validate:packages  # Validates package exports with publint
 ```
-
----
 
 ## License
 

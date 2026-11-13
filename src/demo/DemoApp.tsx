@@ -20,6 +20,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { SimplexLogoMark } from './components/SimplexLogoMark';
 import {
   buildInitialKnowledgeCatalog,
   createDynamicEntry,
@@ -385,9 +386,12 @@ export function DemoApp() {
             e.preventDefault();
             scrollControlSection('atlas');
           }}
-          className="text-base font-bold tracking-tight text-slate-50 whitespace-nowrap shrink-0"
+          className="flex items-center gap-2.5 text-base font-bold tracking-tight text-slate-50 whitespace-nowrap shrink-0"
         >
-          SimplexViz
+          <SimplexLogoMark className="h-7 w-7 shrink-0" />
+          <span>
+            Simplex<span className="text-cyan-400">Viz</span>
+          </span>
         </a>
 
         <nav

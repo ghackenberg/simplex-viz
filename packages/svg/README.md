@@ -11,10 +11,10 @@ Framework-agnostic SVG rendering engine and pluggable `SvgNodeView` architecture
 - **Companion Packages:** [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core) · [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/preview-svg.png" width="840" alt="@simplex-viz/svg rendering showcase showing GeometricShapeSvgView, MultiSectorGlyphSvgView, ClusterAnchorSvgView, and BadgeClusterSvgView" />
+  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/preview-svg.png" width="100%" alt="@simplex-viz/svg rendering showcase showing GeometricShapeSvgView, MultiSectorGlyphSvgView, ClusterAnchorSvgView, and BadgeClusterSvgView" />
 </p>
 
----
+*Figure: Visual showcase of the four built-in `SvgNodeView` plugins rendered on an OKLab-tinted 60° simplex mesh. Content items mix `GeometricShapeSvgView` (circles, diamonds, hexagons, and stars that morph smoothly via 64-point paths) with `MultiSectorGlyphSvgView` (proportional donut glyphs whose sector arcs encode barycentric topic weights). Topic clusters alternate between compact `ClusterAnchorSvgView` vertex rings and auto-measured `BadgeClusterSvgView` cards sized via offscreen `getBBox()`.*
 
 ## Features
 
@@ -24,17 +24,17 @@ Framework-agnostic SVG rendering engine and pluggable `SvgNodeView` architecture
 - **Centralized root-SVG interactions**: Attaches pointer, click, right-click, wheel, drag-to-pan, and `ResizeObserver` listeners solely on the root `<svg>` element and delegates hit-testing to `@simplex-viz/core`'s exact convex geometry solver.
 - **Four built-in view plugins**: Ready-to-use views for geometric shape morphing, multi-sector topic glyphs, vertex anchors, and dynamic text badges.
 
----
-
 ## Installation
+
+Install `@simplex-viz/core` alongside `@simplex-viz/svg` in any browser or TypeScript project:
 
 ```bash
 npm install @simplex-viz/core @simplex-viz/svg
 ```
 
----
-
 ## Quickstart (Vanilla TypeScript)
+
+This setup mounts `SimplexSvgController` into a DOM container using custom `Bookmark` records mapped via `getId` and `getTags`. `visualResolver` emits descriptors for `GeometricShapeSvgView` and `ClusterAnchorSvgView`, `interactions` wires hover tooltips, cluster focusing on left-click, custom context menus, and cursor-centered wheel zoom, and the final lines show live dataset mutations and camera reset:
 
 ```ts
 import {
@@ -135,12 +135,10 @@ controller.camera.reset();
 // controller.destroy();
 ```
 
----
-
 ## Built-In `SvgNodeView` Plugins
 
 ### 1. `GeometricShapeSvgView`
-Renders `'circle' | 'diamond' | 'star' | 'hexagon'` with analytical convex hulls and **64-point parametric SVG path morphing** between shapes and colors.
+Renders `'circle' | 'diamond' | 'star' | 'hexagon'` with analytical convex hulls and **64-point parametric SVG path morphing** between shapes and colors. Pass a `GeometricShapeVisual` descriptor from `resolveContentVisual` to control polygon kind, radius, fill, and outline stroke:
 
 ```ts
 import type { GeometricShapeVisual } from '@simplex-viz/svg';
@@ -156,7 +154,7 @@ const visual: GeometricShapeVisual = {
 ```
 
 ### 2. `MultiSectorGlyphSvgView`
-Renders a multi-colored donut glyph whose sector arc angles match an item's exact barycentric weights across its active simplex unit (vertex, edge, or triangle).
+Renders a multi-colored donut glyph whose sector arc angles match an item's exact barycentric weights across its active simplex unit (vertex, edge, or triangle). Map `ctx.unitClusters` directly into `sectors` as shown below to reflect multi-topic membership visually:
 
 ```ts
 import type { MultiSectorGlyphVisual } from '@simplex-viz/svg';
@@ -173,7 +171,7 @@ const visual: MultiSectorGlyphVisual = {
 ```
 
 ### 3. `BadgeClusterSvgView`
-Renders dynamic pill/card cluster badges sized to their title and metadata line. Intentionally omits `measureConvexHull` so `@simplex-viz/svg` measures the rendered SVG element via `getBBox()`.
+Renders dynamic pill/card cluster badges sized to their title and metadata line. Because it intentionally omits `measureConvexHull`, `@simplex-viz/svg` measures the rendered `<svg>` elements via `getBBox()` so varying title lengths remain strictly overlap-free:
 
 ```ts
 import type { BadgeClusterVisual } from '@simplex-viz/svg';
@@ -187,7 +185,7 @@ const visual: BadgeClusterVisual = {
 ```
 
 ### 4. `ClusterAnchorSvgView`
-Renders calibrated double-ring vertex anchors showing the cluster code and member count.
+Renders calibrated double-ring vertex anchors showing the cluster code and member count. Supply a `ClusterAnchorVisual` descriptor when you want compact circular topic anchors on mesh vertices:
 
 ```ts
 import type { ClusterAnchorVisual } from '@simplex-viz/svg';
@@ -201,11 +199,9 @@ const visual: ClusterAnchorVisual = {
 };
 ```
 
----
-
 ## Writing Custom `SvgNodeView` Plugins
 
-Implement `SvgNodeView<TVisual>` centered around local origin `(0, 0)`. `SvgRendererAdapter` handles world positioning `(x, y)`, solver scale `α`, opacity, and crossfading on the parent `<g>`.
+Implement `SvgNodeView<TVisual>` centered around local origin `(0, 0)`. `SvgRendererAdapter` handles world positioning `(x, y)`, solver scale `α`, opacity, and crossfading on the parent `<g>`. The plugin below constructs an adaptive dark card whose border reacts to hover state, using `rectToConvexPolygon` for fast analytical hull bounds (or omitting `measureConvexHull` to measure arbitrary SVG content dynamically):
 
 ```ts
 import type { SvgNodeView } from '@simplex-viz/svg';
@@ -257,8 +253,6 @@ export const CustomCardSvgView: SvgNodeView<CardVisual> = {
 };
 ```
 
----
-
 ## `SimplexSvgController` API Summary
 
 | Method / Property | Description |
@@ -278,8 +272,6 @@ export const CustomCardSvgView: SvgNodeView<CardVisual> = {
 | `getSvgElement()` | Returns the managed root `<svg>` element. |
 | `stepForTest(dtMs)` | Deterministically advances simulation time in unit/DOM tests. |
 | `destroy()` | Cancels `requestAnimationFrame`, disconnects `ResizeObserver`, and removes the `<svg>`. |
-
----
 
 ## License
 

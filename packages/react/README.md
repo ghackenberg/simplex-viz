@@ -11,10 +11,10 @@ End-to-end type-safe React bindings, declarative JSX node renderers, and imperat
 - **Companion Packages:** [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core) · [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/preview-react.png" width="840" alt="@simplex-viz/react preview showing minimalist renderClusterNode and renderContentNode JSX slot placeholders with automatic getBBox() collision sizing" />
+  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/preview-react.png" width="100%" alt="@simplex-viz/react preview showing minimalist renderClusterNode and renderContentNode JSX slot placeholders with automatic getBBox() collision sizing" />
 </p>
 
----
+*Figure: Architectural slot layout rendered with `@simplex-viz/react`. Dashed topic cards illustrate the `renderClusterNode` JSX slot positioned on a subtle 60° simplex mesh, while minimalist skeleton content cards represent `renderContentNode` slots complete with color accents, type/time metadata, and interactive selection highlights (amber for pinned, cyan for hovered). Every JSX element is measured automatically via offscreen `getBBox()` so custom React SVG cards remain strictly overlap-free.*
 
 ## Features
 
@@ -25,19 +25,17 @@ End-to-end type-safe React bindings, declarative JSX node renderers, and imperat
 - **Full generic type inference**: Infers `<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>` end-to-end across `items`, `getId`, `getTags`, `deriveClusterMeta`, `visualResolver`, `renderContentNode`, `renderClusterNode`, hover events, and click targets.
 - **`useSimplexGraphController`**: Imperative hook for live item mutations (`addItems`, `removeItems`, `setItems`), camera controls (`zoomBy`, `resetCamera`), and telemetry getters.
 
----
-
 ## Installation
+
+Install the React wrapper together with its core engine and SVG scene-graph peer packages (`react >= 18.0.0` and `react-dom >= 18.0.0`):
 
 ```bash
 npm install @simplex-viz/core @simplex-viz/svg @simplex-viz/react
 ```
 
-Peer dependencies: `react >= 18.0.0` and `react-dom >= 18.0.0`.
-
----
-
 ## Quickstart: Declarative JSX Node Renderers
+
+The component below showcases declarative JSX node rendering combined with imperative camera buttons. `useSimplexGraphController` provides a typed `controllerRef` and `handle` for zoom/reset actions, `useMemo` stabilizes `visualResolver` across renders, `renderContentNode` and `renderClusterNode` return SVG `<g>` elements centered at `(0, 0)` (automatically measured via `getBBox()`), and `onLeftClick` toggles item pinning or isolates a clicked topic cluster:
 
 ```tsx
 import { useMemo, useState } from 'react';
@@ -192,11 +190,9 @@ export function KnowledgeAtlas({ articles }: { articles: readonly Article[] }) {
 }
 ```
 
----
-
 ## Using Portable `SvgNodeView` Plugins (60 fps Without JSX Re-Renders)
 
-For larger graphs or built-in shape morphing, pass `contentView` and `clusterView` from `@simplex-viz/svg` instead of `renderContentNode` / `renderClusterNode`:
+For larger graphs or built-in shape morphing without per-frame JSX overhead, instantiate `GeometricShapeSvgView` and `ClusterAnchorSvgView` once outside the component and pass them via `contentView` and `clusterView` instead of `renderContentNode` / `renderClusterNode`:
 
 ```tsx
 import { SimplexTopicGraph } from '@simplex-viz/react';
@@ -223,8 +219,6 @@ export function FastGraph({ items, visualResolver }) {
 ```
 
 > **Tip:** Memoize `visualResolver` (e.g., via `useMemo`) and keep `contentView` / `clusterView` instances stable outside render to avoid unnecessary crossfades. Changing `visualResolver` or switching view props intentionally triggers a smooth crossfade/morph transition.
-
----
 
 ## `<SimplexTopicGraph />` Props Reference
 
@@ -272,8 +266,6 @@ export function FastGraph({ items, visualResolver }) {
 | `onFpsUpdate` | `(fps: number) => void` |
 | `controllerRef` | Ref populated with the underlying `SimplexSvgController` instance. |
 
----
-
 ## `useSimplexGraphController()` Hook
 
 Returns `{ controllerRef, handle }`:
@@ -286,8 +278,6 @@ Returns `{ controllerRef, handle }`:
 - `handle.getMetrics()` — Returns the latest `LayoutMetrics | null`.
 - `handle.getClusters()` — Returns current `ClusterDescriptor[]`.
 - `handle.getRawController()` — Returns the underlying `SimplexSvgController | null`.
-
----
 
 ## License
 
