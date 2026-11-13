@@ -211,7 +211,7 @@ export function createDemoVisualResolver(
           badge: {
             code: cluster.code,
             title: shortTitle,
-            metaLine: `${cluster.meta.memberCount}n · ${cluster.coreTags.length} Tags · Ø ${cluster.meta.avgReadingMinutes.toFixed(0)}m`,
+            metaLine: `${cluster.meta.memberCount} items · ${cluster.coreTags.length} tags · avg ${cluster.meta.avgReadingMinutes.toFixed(0)}m`,
             colorHex: cluster.colorHex,
           },
         };
@@ -368,7 +368,7 @@ export function renderDemoClusterCard(
         fontSize={9}
         fontFamily="IBM Plex Mono, monospace"
       >
-        {`${cluster.meta.memberCount}n · Ø ${cluster.meta.avgReadingMinutes.toFixed(0)}m · ${cluster.meta.dominantType}`}
+        {`${cluster.meta.memberCount} items · avg ${cluster.meta.avgReadingMinutes.toFixed(0)}m · ${cluster.meta.dominantType}`}
       </text>
     </g>
   );

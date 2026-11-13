@@ -1,5 +1,13 @@
 # @simplex-viz/svg
 
+## 0.1.2
+
+### Patch Changes
+
+- Expand `@simplex-viz/svg` README with a full Vanilla TypeScript quickstart, built-in `SvgNodeView` plugin docs, custom plugin guide, and `SimplexSvgController` API reference.
+- Updated dependencies
+  - @simplex-viz/core@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes

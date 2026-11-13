@@ -1,5 +1,11 @@
 # @simplex-viz/core
 
+## 0.1.2
+
+### Patch Changes
+
+- Expand `@simplex-viz/core` README with complete headless quickstart examples, `MeshOptions` & `LayoutSolverOptions` configuration tables, and standalone utility API documentation.
+
 ## 0.1.1
 
 ### Patch Changes

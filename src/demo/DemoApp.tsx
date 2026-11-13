@@ -83,7 +83,7 @@ export function DemoApp() {
   const [showHulls, setShowHulls] = useState<boolean>(false);
   const [rapidFireActive, setRapidFireActive] = useState<boolean>(false);
   const [activeNavSection, setActiveNavSection] = useState<
-    'atlas' | 'darstellung' | 'geometrie' | 'interaktion'
+    'atlas' | 'rendering' | 'geometry' | 'interaction'
   >('atlas');
 
   // Interaction configurator policies
@@ -367,7 +367,7 @@ export function DemoApp() {
   const wheelBehavior: WheelBehavior = wheelPolicy;
 
   const scrollControlSection = (
-    section: 'atlas' | 'darstellung' | 'geometrie' | 'interaktion',
+    section: 'atlas' | 'rendering' | 'geometry' | 'interaction',
   ) => {
     setActiveNavSection(section);
     if (section !== 'atlas') {
@@ -391,15 +391,15 @@ export function DemoApp() {
         </a>
 
         <nav
-          aria-label="Arbeitsbereich"
+          aria-label="Workspace"
           className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-400"
         >
           {(
             [
               ['atlas', 'Atlas'],
-              ['darstellung', 'Darstellung'],
-              ['geometrie', 'Geometrie'],
-              ['interaktion', 'Interaktion'],
+              ['rendering', 'Rendering'],
+              ['geometry', 'Geometry'],
+              ['interaction', 'Interaction'],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -424,14 +424,14 @@ export function DemoApp() {
             className="lg:hidden rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-800 whitespace-nowrap shrink-0"
           >
             <SlidersHorizontal className="inline h-3.5 w-3.5 mr-1.5" />
-            Steuerung
+            Controls
           </button>
           <button
             type="button"
             onClick={() => handle.resetCamera()}
             className="cursor-pointer rounded-md border border-cyan-500/40 bg-cyan-500/10 px-3.5 py-1.5 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20 transition-colors whitespace-nowrap shrink-0"
           >
-            Kamera zurücksetzen
+            Reset Camera
           </button>
         </div>
       </header>
@@ -447,12 +447,12 @@ export function DemoApp() {
           {/* Section 1: Visual Preset Switcher */}
           <section
             className={`p-4 border-b border-slate-800/80 ${
-              activeNavSection === 'darstellung' ? 'bg-slate-900/40' : ''
+              activeNavSection === 'rendering' ? 'bg-slate-900/40' : ''
             }`}
           >
             <div className="mb-2.5 flex items-center justify-between">
               <h2 className="text-xs font-semibold tracking-wide text-slate-300">
-                Darstellungs-Plugin
+                Rendering Plugin
               </h2>
               <span className="font-mono text-[11px] text-slate-400">
                 Live Crossfade
@@ -463,18 +463,18 @@ export function DemoApp() {
                 [
                   [
                     'geometric',
-                    'A · Geometrische Kodierung',
-                    'SvgNodeView mit 64-Punkt-Morphing',
+                    'A · Geometric Encoding',
+                    'SvgNodeView with 64-point morphing',
                   ],
                   [
                     'multisector',
-                    'B · Themen-Glyphen & Badges',
-                    'Multi-Sektor Donut + getBBox() Pills',
+                    'B · Topic Glyphs & Badges',
+                    'Multi-sector donut + getBBox() pills',
                   ],
                   [
                     'react-cards',
-                    'C · React-JSX Mini-Cards',
-                    'Deklaratives JSX + Auto-Skalierung',
+                    'C · React JSX Mini-Cards',
+                    'Declarative JSX + auto-scaling',
                   ],
                 ] as const
               ).map(([id, title, sub]) => {
@@ -502,14 +502,14 @@ export function DemoApp() {
           <section className="p-4 border-b border-slate-800/80">
             <div className="mb-2.5 flex items-center justify-between">
               <h2 className="text-xs font-semibold tracking-wide text-slate-300">
-                Dynamische Mutationen
+                Dynamic Mutations
               </h2>
               <button
                 type="button"
                 onClick={handleResetCatalog}
                 className="cursor-pointer text-[11px] text-slate-400 hover:text-cyan-300 transition-colors"
               >
-                Zurücksetzen
+                Reset
               </button>
             </div>
             <div className="grid grid-cols-2 gap-1.5 mb-2">
@@ -518,28 +518,28 @@ export function DemoApp() {
                 onClick={() => handleAddItems(1)}
                 className="cursor-pointer rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs font-medium text-slate-200 hover:border-cyan-500/50 hover:text-cyan-200 transition-colors whitespace-nowrap"
               >
-                + 1 Inhalt
+                + 1 Item
               </button>
               <button
                 type="button"
                 onClick={() => handleAddItems(10)}
                 className="cursor-pointer rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs font-medium text-slate-200 hover:border-cyan-500/50 hover:text-cyan-200 transition-colors whitespace-nowrap"
               >
-                + 10 Inhalte
+                + 10 Items
               </button>
               <button
                 type="button"
                 onClick={() => handleRemoveItems(1)}
                 className="cursor-pointer rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs font-medium text-slate-200 hover:border-amber-500/50 hover:text-amber-200 transition-colors whitespace-nowrap"
               >
-                - 1 Inhalt
+                - 1 Item
               </button>
               <button
                 type="button"
                 onClick={() => handleRemoveItems(10)}
                 className="cursor-pointer rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs font-medium text-slate-200 hover:border-amber-500/50 hover:text-amber-200 transition-colors whitespace-nowrap"
               >
-                - 10 Inhalte
+                - 10 Items
               </button>
             </div>
             <button
@@ -553,7 +553,7 @@ export function DemoApp() {
             >
               <Zap className="h-3.5 w-3.5" />
               {rapidFireActive
-                ? 'Rapid-Fire läuft (250 ms)… Stoppen'
+                ? 'Rapid-Fire Running (250 ms)… Stop'
                 : 'Rapid-Fire Mutation Test'}
             </button>
           </section>
@@ -561,16 +561,16 @@ export function DemoApp() {
           {/* Section 3: Collision & Geometry Inspector */}
           <section
             className={`p-4 border-b border-slate-800/80 ${
-              activeNavSection === 'geometrie' ? 'bg-slate-900/40' : ''
+              activeNavSection === 'geometry' ? 'bg-slate-900/40' : ''
             }`}
           >
             <h2 className="mb-3 text-xs font-semibold tracking-wide text-slate-300">
-              Kollisions- & Geometrie-Inspektor
+              Collision &amp; Geometry Inspector
             </h2>
 
             <label className="block mb-3">
               <div className="flex items-center justify-between text-xs text-slate-300 mb-1.5">
-                <span>Größen-Multiplikator</span>
+                <span>Size Multiplier</span>
                 <span className="font-mono text-cyan-300">
                   {sizeMultiplier.toFixed(2)}×
                 </span>
@@ -587,7 +587,7 @@ export function DemoApp() {
             </label>
 
             <label className="flex cursor-pointer items-center justify-between rounded-md border border-slate-800 bg-[#0E131D] px-3 py-2 text-xs text-slate-200 mb-3">
-              <span>Konvexe Bounding-Hüllen einblenden</span>
+              <span>Show Convex Bounding Hulls</span>
               <input
                 type="checkbox"
                 checked={showHulls}
@@ -598,13 +598,13 @@ export function DemoApp() {
 
             <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-slate-800 bg-slate-800/70">
               <div className="bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-400">Cluster K</div>
+                <div className="text-[11px] text-slate-400">Clusters K</div>
                 <div className="font-mono text-base font-semibold text-slate-100">
                   {metrics.clusterCount}
                 </div>
               </div>
               <div className="bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-400">Inhalte</div>
+                <div className="text-[11px] text-slate-400">Items</div>
                 <div className="font-mono text-base font-semibold text-slate-100">
                   {metrics.itemCount}
                 </div>
@@ -622,7 +622,7 @@ export function DemoApp() {
                 </div>
               </div>
               <div className="bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-400">Überlappungen</div>
+                <div className="text-[11px] text-slate-400">Overlaps</div>
                 <div
                   className={`font-mono text-base font-semibold ${
                     metrics.overlapCount === 0 ? 'text-emerald-400' : 'text-rose-400'
@@ -632,7 +632,7 @@ export function DemoApp() {
                 </div>
               </div>
               <div className="bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-400">Bildrate</div>
+                <div className="text-[11px] text-slate-400">Frame Rate</div>
                 <div className="font-mono text-base font-semibold text-slate-100">
                   {fps} <span className="text-[11px] text-slate-400 font-normal">fps</span>
                 </div>
@@ -643,11 +643,11 @@ export function DemoApp() {
           {/* Section 4: Interaction Configurator */}
           <section
             className={`p-4 ${
-              activeNavSection === 'interaktion' ? 'bg-slate-900/40' : ''
+              activeNavSection === 'interaction' ? 'bg-slate-900/40' : ''
             }`}
           >
             <h2 className="mb-3 text-xs font-semibold tracking-wide text-slate-300">
-              Interaktions-Konfigurator
+              Interaction Configurator
             </h2>
             <div className="space-y-2.5 text-xs">
               <label className="block">
@@ -659,9 +659,9 @@ export function DemoApp() {
                   }
                   className="w-full rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs text-slate-200"
                 >
-                  <option value="tooltip">Tooltip-Karte anzeigen</option>
-                  <option value="highlight-unit">Simplex-Nachbarn hervorheben</option>
-                  <option value="none">Deaktiviert</option>
+                  <option value="tooltip">Show Tooltip Card</option>
+                  <option value="highlight-unit">Highlight Simplex Neighbors</option>
+                  <option value="none">Disabled</option>
                 </select>
               </label>
 
@@ -674,9 +674,9 @@ export function DemoApp() {
                   }
                   className="w-full rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs text-slate-200"
                 >
-                  <option value="tooltip">Cluster-Statistik einblenden</option>
-                  <option value="focus-members">Mitglieder isolieren</option>
-                  <option value="none">Deaktiviert</option>
+                  <option value="tooltip">Show Cluster Stats</option>
+                  <option value="focus-members">Isolate Members</option>
+                  <option value="none">Disabled</option>
                 </select>
               </label>
 
@@ -687,9 +687,9 @@ export function DemoApp() {
                   onChange={(e) => setLeftClickPolicy(e.target.value as LeftClickPolicy)}
                   className="w-full rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs text-slate-200"
                 >
-                  <option value="inspect">Anpinnen & Details inspizieren</option>
-                  <option value="focus-toggle">Einheit / Cluster fokussieren</option>
-                  <option value="remove">Inhalt direkt entfernen</option>
+                  <option value="inspect">Pin &amp; Inspect Details</option>
+                  <option value="focus-toggle">Focus Unit / Cluster</option>
+                  <option value="remove">Remove Item Directly</option>
                 </select>
               </label>
 
@@ -700,8 +700,8 @@ export function DemoApp() {
                   onChange={(e) => setRightClickPolicy(e.target.value as RightClickPolicy)}
                   className="w-full rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs text-slate-200"
                 >
-                  <option value="context-menu">Eigenes Kontextmenü öffnen</option>
-                  <option value="browser-default">Browser-Standardmenü</option>
+                  <option value="context-menu">Open Custom Context Menu</option>
+                  <option value="browser-default">Browser Default Menu</option>
                 </select>
               </label>
 
@@ -716,9 +716,9 @@ export function DemoApp() {
                   }
                   className="w-full rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs text-slate-200"
                 >
-                  <option value="zoom-to-cursor">Zoom auf Mausposition</option>
-                  <option value="pan-vertical">Vertikal / Horizontal schwenken</option>
-                  <option value="none">Deaktiviert</option>
+                  <option value="zoom-to-cursor">Zoom to Cursor</option>
+                  <option value="pan-vertical">Pan Vertical / Horizontal</option>
+                  <option value="none">Disabled</option>
                 </select>
               </label>
             </div>
@@ -786,7 +786,7 @@ export function DemoApp() {
           <div className="absolute bottom-4 right-4 flex items-center gap-1 rounded-md border border-slate-800 bg-[#0B0F17]/95 p-1">
             <button
               type="button"
-              aria-label="Hineinzoomen"
+              aria-label="Zoom in"
               onClick={() => handle.zoomBy(1.22)}
               className="cursor-pointer rounded p-1.5 text-slate-300 hover:bg-slate-800 hover:text-slate-50 transition-colors"
             >
@@ -794,7 +794,7 @@ export function DemoApp() {
             </button>
             <button
               type="button"
-              aria-label="Herauszoomen"
+              aria-label="Zoom out"
               onClick={() => handle.zoomBy(0.82)}
               className="cursor-pointer rounded p-1.5 text-slate-300 hover:bg-slate-800 hover:text-slate-50 transition-colors"
             >
@@ -802,7 +802,7 @@ export function DemoApp() {
             </button>
             <button
               type="button"
-              aria-label="Ansicht zurücksetzen"
+              aria-label="Reset view"
               onClick={() => handle.resetCamera()}
               className="cursor-pointer rounded p-1.5 text-slate-300 hover:bg-slate-800 hover:text-slate-50 transition-colors"
             >
@@ -859,10 +859,10 @@ export function DemoApp() {
                 <span>{hoveredCluster.cluster.meta.title}</span>
               </div>
               <div className="mt-1 flex items-center gap-1.5 font-mono text-[11px] text-slate-400">
-                <span>{hoveredCluster.cluster.meta.memberCount} Inhalte</span>
+                <span>{hoveredCluster.cluster.meta.memberCount} items</span>
                 <span aria-hidden="true">·</span>
                 <span>
-                  Ø {hoveredCluster.cluster.meta.avgReadingMinutes.toFixed(1)} min
+                  avg {hoveredCluster.cluster.meta.avgReadingMinutes.toFixed(1)} min
                 </span>
                 <span aria-hidden="true">·</span>
                 <span>{hoveredCluster.cluster.meta.dominantType}</span>
@@ -911,8 +911,8 @@ export function DemoApp() {
                   >
                     <Pin className="h-3.5 w-3.5 text-amber-400" />
                     {pinnedIds.has(contextMenu.target.item.slug)
-                      ? 'Pin lösen'
-                      : 'Knoten anpinnen'}
+                      ? 'Unpin node'
+                      : 'Pin node'}
                   </button>
                   <button
                     type="button"
@@ -929,7 +929,7 @@ export function DemoApp() {
                     className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-rose-300 hover:bg-slate-800"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    Inhalt entfernen
+                    Remove item
                   </button>
                 </>
               )}
@@ -952,7 +952,7 @@ export function DemoApp() {
                     className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-slate-200 hover:bg-slate-800"
                   >
                     <Crosshair className="h-3.5 w-3.5 text-cyan-400" />
-                    Cluster-Mitglieder fokussieren
+                    Focus cluster members
                   </button>
                 </>
               )}
@@ -969,7 +969,7 @@ export function DemoApp() {
                   className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-slate-200 hover:bg-slate-800"
                 >
                   <RotateCcw className="h-3.5 w-3.5 text-cyan-400" />
-                  Kamera & Fokus zurücksetzen
+                  Reset camera &amp; focus
                 </button>
               )}
             </div>
@@ -995,7 +995,7 @@ export function DemoApp() {
                 </div>
                 <button
                   type="button"
-                  aria-label="Inspektor schließen"
+                  aria-label="Close inspector"
                   onClick={() => {
                     setInspected(null);
                     setFocusedClusterUid(null);
@@ -1016,7 +1016,7 @@ export function DemoApp() {
                     <span>{inspected.item.readingMinutes} min</span>
                   </div>
                   <div className="text-[11px] text-slate-300">
-                    <span className="text-slate-400">Einheit: </span>
+                    <span className="text-slate-400">Unit: </span>
                     {inspected.clusterTitles.join(', ')}
                   </div>
                   <div className="text-[11px] text-cyan-300">
@@ -1028,23 +1028,23 @@ export function DemoApp() {
               ) : (
                 <div className="mt-2.5 space-y-2">
                   <div className="flex items-center gap-2 font-mono text-[11px] text-slate-400">
-                    <span>{inspected.cluster.meta.memberCount} Mitglieder</span>
+                    <span>{inspected.cluster.meta.memberCount} members</span>
                     <span aria-hidden="true">·</span>
-                    <span>{inspected.cluster.meta.exclusiveCount} exklusiv</span>
+                    <span>{inspected.cluster.meta.exclusiveCount} exclusive</span>
                     <span aria-hidden="true">·</span>
                     <span>
-                      Ø {inspected.cluster.meta.avgReadingMinutes.toFixed(1)} min
+                      avg {inspected.cluster.meta.avgReadingMinutes.toFixed(1)} min
                     </span>
                   </div>
                   <div className="text-[11px] text-slate-300">
-                    <span className="text-slate-400">Core-Tags: </span>
+                    <span className="text-slate-400">Core Tags: </span>
                     {inspected.cluster.coreTags
                       .map((t) => t.meta?.displayTitle ?? t.tag)
                       .join(', ')}
                   </div>
                   {inspected.cluster.sharedTags.length > 0 && (
                     <div className="text-[11px] text-amber-300">
-                      <span className="text-slate-400">Shared-Tags: </span>
+                      <span className="text-slate-400">Shared Tags: </span>
                       {inspected.cluster.sharedTags
                         .map((t) => t.meta?.displayTitle ?? t.tag)
                         .join(', ')}

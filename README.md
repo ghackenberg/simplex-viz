@@ -1,50 +1,56 @@
 # SimplexViz
 
-**Triangulations-basierte, streng überlappungsfreie Visualisierung getaggter Inhaltssammlungen auf einem dynamischen $60^\circ$-Dreiecksgitter (Simplex-Mesh).**
+**Triangulation-based, strictly overlap-free visualization of tagged content collections on a dynamic 60° equilateral triangle mesh (simplex mesh).**
 
-[![CI](https://img.shields.io/badge/CI-Vitest%20%7C%20ESLint%20%7C%20Publint-06b6d4)](#ci-cd)
+[![CI](https://img.shields.io/badge/CI-Vitest%20%7C%20ESLint%20%7C%20Publint-06b6d4)](#local-development--scripts)
 [![License: MIT](https://img.shields.io/badge/License-MIT-f59e0b.svg)](./LICENSE)
 
 ---
 
-## Projektvision & Mathematisches Prinzip
+## Live Demo
 
-Klassische Force-Directed-Layouts erzeugen bei getaggten Wissenssammlungen häufig unleserliche Haarball-Graphen mit kreuzenden Kanten und zufälligen Überlappungen. **SimplexViz** bettet Themen-Schwerpunkte stattdessen in ein **gezahntes gleichseitiges $60^\circ$-Dreiecksgitter**:
-
-1. **Adaptives Simplex-Mesh (`buildSimplexMesh`)**: Bestimmt aus Viewport-Fläche $(B, H)$, Padding und Seitenlängen-Intervall $[s_{\min}, s_{\max}]$ die flächeneffizienteste Gitter-Orientierung ($0^\circ$ oder $90^\circ$) und Zeilenparität (`wideFirst`), sodass jedes Dreieck exakt $60^\circ$-Innenwinkel besitzt.
-2. **Zweistufiges Themen-Clustering (`computeSimplexClustering`)**:
-   - *Phase 1*: Regularisierte Jaccard-Co-Occurrence partitioniert alle Tags $H_{\text{tags}}$ balanciert in $K$ disjunkte Kernmengen $T_k^{\text{core}}$ und bettet sie per Simulated Annealing (QAP) auf benachbarte Gitterpunkte ein.
-   - *Phase 2*: Ein Weighted-Hitting-Set-Algorithmus plus Rückwärts-Pruning ergänzt minimale `sharedTags`, bis $100\%$ aller Inhalte planar durch mindestens ein Gitter-Dreieck $f=\{a,b,c\}$ überdeckt sind ($C_i \subseteq T_a \cup T_b \cup T_c$).
-3. **Explaining-Away & OKLab-Farbmischung**: Jeder Inhalt erhält die kleinste abdeckende Einheit (Ecke $\prec$ Kante $\prec$ Dreieck) mit baryzentrischen Gewichten $\tilde{w}_{ik}$ und perzeptueller OKLab-Mischung inklusive Chroma-Erhaltung.
-4. **Hierarchischer Zwei-Phasen-Kollisionslöser (`solveTwoPhaseLayout`)**: Fixiert zunächst skalierte Themen-Cluster (Priorität 1) und löst anschließend alle Inhalts-Hüllen via Binärsuche über $\alpha_{\text{content}}$, Position-Based-Dynamics und SAT/Kreis-MTV-Hard-Separation garantiert auf **exakt $0{,}0\text{ px}$ Überlappung**.
+Explore the interactive showcase at **<https://hackenberg.tech/simplex-viz/>**.
 
 ---
 
-## Architektur (Strikte 3-Paket-Trennung)
+## Project Vision & Mathematical Principle
+
+Classical force-directed layouts often turn tagged knowledge collections into unreadable hairball graphs with crossing edges and overlapping labels. **SimplexViz** embeds topic centroids onto an adaptive **toothed equilateral 60° triangle lattice**:
+
+1. **Adaptive Simplex Mesh (`buildSimplexMesh`)**: From viewport dimensions `(W, H)`, padding, and a target edge-length interval `[minSideLength, maxSideLength]`, selects the most area-efficient lattice orientation (`horizontal` or `vertical`) and row parity (`wideFirst`) so every mesh triangle has exact 60° interior angles.
+2. **Two-Stage Topic Clustering (`computeSimplexClustering`)**:
+   - **Stage 1**: Regularized Jaccard co-occurrence partitions all tags into `K` balanced disjoint core sets `T_k^core` and embeds them onto adjacent mesh vertices via Simulated Annealing (Quadratic Assignment Problem).
+   - **Stage 2**: A Weighted Hitting-Set pass plus backward pruning adds minimal `sharedTags` until 100% of items are planar-covered by at least one mesh triangle `f = {a, b, c}` (`C_i ⊆ T_a ∪ T_b ∪ T_c`).
+3. **Explaining-Away & OKLab Color Mixing**: Each item is assigned to the smallest covering simplex unit (`vertex ≺ edge ≺ triangle`) with normalized barycentric weights and perceptual OKLab color mixing (preserving chroma).
+4. **Hierarchical Two-Phase Collision Solver (`solveTwoPhaseLayout`)**: Fixes scaled topic clusters first (Priority 1), then solves all content hulls via binary search over `α_content`, position-based relaxation, and exact SAT / circle-polygon Minimum Translation Vector (MTV) separation — guaranteeing **0.0 px overlap**.
+
+---
+
+## Architecture (Strict 3-Package Separation)
 
 ```mermaid
 flowchart LR
-  Core["@simplex-viz/core\n(Headless, 0 Dependencies, NO DOM)"] --> Svg["@simplex-viz/svg\n(Framework-agnostic SVG Scene Graph)"]
+  Core["@simplex-viz/core\n(Headless, 0 Dependencies, NO DOM)"] --> Svg["@simplex-viz/svg\n(Framework-Agnostic SVG Scene Graph)"]
   Svg --> React["@simplex-viz/react\n(React Bindings & JSX Node Renderers)"]
   Core --> React
   React --> Demo["src/demo\n(Interactive Showcase & GitHub Pages)"]
 ```
 
-- **`@simplex-viz/core`**: Reiner TypeScript-Kern ohne DOM-, React- oder SVG-Abhängigkeiten (`lib: ["ES2022"]`).
-- **`@simplex-viz/svg`**: Framework-unabhängige SVG-Engine (`Vanilla TS`, `Vue`, `Angular`, `Svelte`) mit zentralisiertem Root-SVG-Hit-Testing, Offscreen-`getBBox()`-Vermessung und Dual-Layer-Crossfade.
-- **`@simplex-viz/react`**: Dünne React-Schicht (`<SimplexTopicGraph />`, `useSimplexGraphController`) mit Ende-zu-Ende-Typsicherheit über `<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>`.
-
----
-
-## Live-Demo
-
-Die interaktive Showcase-App ist unter **<https://hackenberg.tech/simplex-viz/>** verfügbar.
+| Package | Role | Documentation |
+| --- | --- | --- |
+| [`@simplex-viz/core`](./packages/core) | Pure TypeScript triangulation, clustering, OKLab color science, 2-phase convex SAT solver, spring animation, and hit-testing. Zero DOM/SVG/React dependencies (`ES2022`). | [Core README](./packages/core/README.md) |
+| [`@simplex-viz/svg`](./packages/svg) | Framework-agnostic SVG engine (`Vanilla TS`, `Vue`, `Angular`, `Svelte`, Web Components) with root-SVG hit-testing, offscreen `getBBox()` hull measurement, built-in `SvgNodeView` plugins, and dual-layer crossfading. | [SVG README](./packages/svg/README.md) |
+| [`@simplex-viz/react`](./packages/react) | Thin, end-to-end type-safe React bindings (`<SimplexTopicGraph />`, `useSimplexGraphController`) supporting both portable `SvgNodeView` plugins and declarative JSX node renderers. | [React README](./packages/react/README.md) |
 
 ---
 
 ## Quickstart
 
 ### React (`@simplex-viz/react`)
+
+```bash
+npm install @simplex-viz/core @simplex-viz/svg @simplex-viz/react
+```
 
 ```tsx
 import { SimplexTopicGraph } from '@simplex-viz/react';
@@ -64,7 +70,9 @@ export function KnowledgeMap({ articles }: { articles: readonly Article[] }) {
       getTags={(a) => a.hashtags}
       deriveClusterMeta={(ctx) => ({
         count: ctx.members.length,
-        avgMin: ctx.members.reduce((s, m) => s + m.item.readingMinutes, 0) / Math.max(1, ctx.members.length),
+        avgMin:
+          ctx.members.reduce((sum, m) => sum + m.item.readingMinutes, 0) /
+          Math.max(1, ctx.members.length),
       })}
       visualResolver={{
         resolveContentVisual: (a, ctx) => ({
@@ -79,7 +87,8 @@ export function KnowledgeMap({ articles }: { articles: readonly Article[] }) {
           colorHex: cluster.colorHex,
           radius: 22,
         }),
-        getVisualCacheKey: (v) => ('shape' in v ? `${v.shape}:${v.fillHex}` : `${v.code}:${v.memberCount}`),
+        getVisualCacheKey: (v) =>
+          'shape' in v ? `${v.shape}:${v.fillHex}` : `${v.code}:${v.memberCount}`,
       }}
       contentView={new GeometricShapeSvgView()}
       clusterView={new ClusterAnchorSvgView()}
@@ -88,7 +97,11 @@ export function KnowledgeMap({ articles }: { articles: readonly Article[] }) {
 }
 ```
 
-### Vanilla TypeScript / Vue / Angular (`@simplex-viz/svg`)
+### Vanilla TypeScript / Vue / Angular / Svelte (`@simplex-viz/svg`)
+
+```bash
+npm install @simplex-viz/core @simplex-viz/svg
+```
 
 ```ts
 import {
@@ -104,14 +117,14 @@ const controller = new SimplexSvgController(document.getElementById('graph')!, {
   clusterView: new ClusterAnchorSvgView(),
 });
 
-// Unterbrechbare Echtzeit-Mutationen
+// Interruptible real-time mutations
 controller.addItems({ id: 'new-1', tags: ['geometry', 'svg'] });
 controller.removeItems('old-1');
 ```
 
 ---
 
-## Eigene `SvgNodeView`-Plugins schreiben
+## Writing Custom `SvgNodeView` Plugins
 
 ```ts
 import type { SvgNodeView } from '@simplex-viz/svg';
@@ -123,22 +136,30 @@ interface PillVisual {
 }
 
 export const CustomPillView: SvgNodeView<PillVisual> = {
-  // Optional: Wenn weggelassen, vermisst @simplex-viz/svg automatisch via getBBox()!
-  measureConvexHull: (visual) => rectToConvexPolygon(visual.text.length * 7 + 20, 26, 6),
+  // Optional: omit measureConvexHull to let @simplex-viz/svg measure via offscreen getBBox()
+  measureConvexHull: (visual) =>
+    rectToConvexPolygon(visual.text.length * 7 + 20, 26, 6),
   mountOrUpdate: (groupEl, visual) => {
-    // Reines SVG DOM um lokalen Ursprung (0,0) aufbauen
+    // Build pure SVG elements centered around local origin (0, 0)
   },
 };
 ```
 
 ---
 
-## Lokale Entwicklung & Skripte
+## Local Development & Scripts
 
 ```bash
 pnpm install
-pnpm dev              # Startet die interaktive Demo-App unter http://localhost:3000
-pnpm lint             # ESLint (Modulgrenzen) + TypeScript Typecheck (inkl. DOM-freiem Core)
-pnpm test             # Vitest Invarianten-, Type- und DOM-Integrationstests
-pnpm build:packages   # Baut dist/ + .d.ts für alle drei Pakete und prüft mit publint
+pnpm dev                # Starts the interactive demo app at http://localhost:3000
+pnpm lint               # ESLint (module boundary checks) + TypeScript typecheck
+pnpm test               # Vitest invariant, type-level, and DOM integration tests
+pnpm build:packages     # Builds dist/ + .d.ts for all three packages
+pnpm validate:packages  # Validates package exports with publint
 ```
+
+---
+
+## License
+
+[MIT](./LICENSE)

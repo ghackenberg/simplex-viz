@@ -1,6 +1,6 @@
 {
   "name": "@simplex-viz/core",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Headless, zero-dependency 60-degree simplex mesh triangulation, tag clustering, OKLab mixing, convex SAT collision solver, and interruptible spring engine.",
   "license": "MIT",
   "type": "module",

@@ -1,5 +1,14 @@
 # @simplex-viz/react
 
+## 0.1.2
+
+### Patch Changes
+
+- Expand `@simplex-viz/react` README with declarative JSX and `SvgNodeView` quickstarts, full `<SimplexTopicGraph />` props reference, and `useSimplexGraphController()` docs.
+- Updated dependencies
+  - @simplex-viz/core@0.1.2
+  - @simplex-viz/svg@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes
