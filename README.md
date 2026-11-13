@@ -1,8 +1,6 @@
-<p align="center">
+<h1 align="center">
   <img src="docs/assets/logo-simplex-viz.png" width="460" alt="SimplexViz — 60° Triangulation Content Atlas" />
-</p>
-
-<h1 align="center">SimplexViz</h1>
+</h1>
 
 <p align="center">
   <strong>Triangulation-based, strictly overlap-free visualization of tagged content collections on a dynamic 60° equilateral triangle mesh (simplex mesh).</strong>
