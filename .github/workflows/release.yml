@@ -3,6 +3,7 @@ name: Release Packages
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -38,7 +39,20 @@ jobs:
       - name: Build and validate workspace packages
         run: pnpm build:packages && pnpm validate:packages
 
+      - name: Check npm publishing configuration
+        id: npm_config
+        env:
+          HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+        run: |
+          if [ "$HAS_NPM_TOKEN" = "true" ] || [ "${{ vars.NPM_TRUSTED_PUBLISHING }}" = "true" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::npm publish skipped: add NPM_TOKEN secret (or publish v0.1.0 once, configure npm Trusted Publishing for this repo/workflow, and set repository variable NPM_TRUSTED_PUBLISHING=true)."
+          fi
+
       - name: Create Release PR or Publish to npmjs.org
+        if: steps.npm_config.outputs.enabled == 'true'
         uses: changesets/action@v1
         with:
           publish: pnpm -r publish --access public --no-git-checks
@@ -47,4 +61,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
+
+      - name: Create Release PR (npm publish skipped until configured)
+        if: steps.npm_config.outputs.enabled != 'true'
+        uses: changesets/action@v1
+        with:
+          title: 'chore(release): Version Packages'
+          commit: 'chore(release): Version Packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
