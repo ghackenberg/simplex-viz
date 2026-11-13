@@ -2,6 +2,8 @@
   <img src="docs/assets/logo-simplex-viz.png" width="460" alt="SimplexViz — 60° Triangulation Content Atlas" />
 </p>
 
+<h1 align="center">SimplexViz</h1>
+
 <p align="center">
   <strong>Triangulation-based, strictly overlap-free visualization of tagged content collections on a dynamic 60° equilateral triangle mesh (simplex mesh).</strong>
 </p>
@@ -12,17 +14,17 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-f59e0b.svg" alt="License: MIT" /></a>
 </p>
 
+## Live Showcase
+
+Explore the interactive demo at **<https://hackenberg.tech/simplex-viz/>**. It brings together the headless layout solver (`@simplex-viz/core`), SVG scene graph (`@simplex-viz/svg`), and React bindings (`@simplex-viz/react`) in a browser workbench built from `src/demo`:
+
 <p align="center">
   <a href="https://hackenberg.tech/simplex-viz/">
     <img src="docs/assets/preview-demo.png" width="100%" alt="SimplexViz Interactive Demo App featuring 60° simplex triangulation, geometric content nodes, vertex cluster anchors, and hover inspection" />
   </a>
 </p>
 
-*Figure: The interactive SimplexViz showcase (`src/demo`) in Geometric Encoding mode. Topic clusters (`T1`–`T8`) sit as dashed double-ring vertex anchors on the adaptive 60° equilateral triangle lattice, while content items render inside their covering vertices, edges, or triangles as colored circles, diamonds, and stars blended in perceptual OKLab space. The left inspector allows live switching between rendering plugins, real-time dataset mutations, size scaling, and live solver telemetry (`0` overlaps at `60 fps`), while hovering any node opens a contextual inspection tooltip.*
-
-## Live Demo
-
-Explore the interactive showcase at **<https://hackenberg.tech/simplex-viz/>**.
+*Figure: The interactive SimplexViz showcase in Geometric Encoding mode. Topic clusters (`T1`–`T8`) sit as dashed double-ring vertex anchors on the adaptive 60° equilateral triangle lattice, while content items render inside their covering vertices, edges, or triangles as colored circles, diamonds, and stars blended in perceptual OKLab space. The left inspector provides live controls for plugin switching, dataset mutations, size scaling, and solver telemetry (`0` overlaps at `60 fps`), while hovering any node opens a contextual inspection tooltip.*
 
 ## Project Vision & Mathematical Principle
 
@@ -57,23 +59,64 @@ flowchart LR
 
 ### React (`@simplex-viz/react`)
 
-Install all three packages in a React project so the component can connect headless graph solving (`core`) and DOM scene management (`svg`) to your React tree:
+**Step 1 — Install the packages.** Install all three workspace packages in your React project so `<SimplexTopicGraph />` can connect headless layout solving (`core`) and DOM scene management (`svg`) to your React tree:
 
 ```bash
 npm install @simplex-viz/core @simplex-viz/svg @simplex-viz/react
 ```
 
-The component below wires a custom `Article` domain model—without requiring `{ id, tags }` properties on the source records—into `<SimplexTopicGraph />`. `getId` and `getTags` map your domain fields, `deriveClusterMeta` aggregates reading statistics per topic cluster, and `visualResolver` turns each solved item and cluster into descriptors consumed by the built-in `GeometricShapeSvgView` and `ClusterAnchorSvgView` plugins:
+**Step 2 — Define your domain type and `VisualResolver`.** SimplexViz does not require `{ id, tags }` properties on your records. Define your own interface (such as `Article` below) and create a `VisualResolver` that converts each solved item and topic cluster into descriptors for the built-in `GeometricShapeSvgView` and `ClusterAnchorSvgView` plugins:
 
 ```tsx
-import { SimplexTopicGraph } from '@simplex-viz/react';
-import { GeometricShapeSvgView, ClusterAnchorSvgView } from '@simplex-viz/svg';
+import type { VisualResolver } from '@simplex-viz/core';
+import type {
+  ClusterAnchorVisual,
+  GeometricShapeVisual,
+} from '@simplex-viz/svg';
 
 interface Article {
   readonly slug: string;
   readonly hashtags: readonly string[];
   readonly readingMinutes: number;
 }
+
+interface ClusterStats {
+  readonly count: number;
+  readonly avgMin: number;
+}
+
+const articleResolver: VisualResolver<
+  Article,
+  GeometricShapeVisual,
+  ClusterAnchorVisual,
+  undefined,
+  ClusterStats
+> = {
+  resolveContentVisual: (a, ctx) => ({
+    shape: a.readingMinutes > 12 ? 'star' : 'circle',
+    radius: 10,
+    fillHex: ctx.mixedColorHex,
+  }),
+  resolveClusterVisual: (cluster) => ({
+    code: cluster.code,
+    label: cluster.defaultLabel,
+    memberCount: cluster.meta.count,
+    colorHex: cluster.colorHex,
+    radius: 22,
+  }),
+  getVisualCacheKey: (v) =>
+    'shape' in v ? `${v.shape}:${v.fillHex}` : `${v.code}:${v.memberCount}`,
+};
+```
+
+**Step 3 — Render `<SimplexTopicGraph />`.** Pass your `articles` array together with `getId`, `getTags`, `deriveClusterMeta`, `visualResolver`, and the two built-in view plugins:
+
+```tsx
+import { SimplexTopicGraph } from '@simplex-viz/react';
+import { GeometricShapeSvgView, ClusterAnchorSvgView } from '@simplex-viz/svg';
+
+const contentView = new GeometricShapeSvgView();
+const clusterView = new ClusterAnchorSvgView();
 
 export function KnowledgeMap({ articles }: { articles: readonly Article[] }) {
   return (
@@ -87,24 +130,9 @@ export function KnowledgeMap({ articles }: { articles: readonly Article[] }) {
           ctx.members.reduce((sum, m) => sum + m.item.readingMinutes, 0) /
           Math.max(1, ctx.members.length),
       })}
-      visualResolver={{
-        resolveContentVisual: (a, ctx) => ({
-          shape: a.readingMinutes > 12 ? 'star' : 'circle',
-          radius: 10,
-          fillHex: ctx.mixedColorHex,
-        }),
-        resolveClusterVisual: (cluster) => ({
-          code: cluster.code,
-          label: cluster.defaultLabel,
-          memberCount: cluster.meta.count,
-          colorHex: cluster.colorHex,
-          radius: 22,
-        }),
-        getVisualCacheKey: (v) =>
-          'shape' in v ? `${v.shape}:${v.fillHex}` : `${v.code}:${v.memberCount}`,
-      }}
-      contentView={new GeometricShapeSvgView()}
-      clusterView={new ClusterAnchorSvgView()}
+      visualResolver={articleResolver}
+      contentView={contentView}
+      clusterView={clusterView}
     />
   );
 }
@@ -118,7 +146,7 @@ For non-React frameworks or custom web components, install only `@simplex-viz/co
 npm install @simplex-viz/core @simplex-viz/svg
 ```
 
-Instantiate `SimplexSvgController` with any container `HTMLElement` to mount the SVG scene graph, observe container resizing automatically, and start the spring animation loop. Calling `addItems` or `removeItems` incrementally re-clusters and retargets existing nodes mid-flight without resetting camera pan/zoom:
+Instantiate `SimplexSvgController` with any container `HTMLElement` to mount the SVG scene graph, observe container resizing automatically, and start the spring animation loop:
 
 ```ts
 import {
@@ -133,8 +161,11 @@ const controller = new SimplexSvgController(document.getElementById('graph')!, {
   contentView: new GeometricShapeSvgView(),
   clusterView: new ClusterAnchorSvgView(),
 });
+```
 
-// Interruptible real-time mutations
+Once mounted, you can append or remove items at any time without resetting camera pan/zoom—existing springs smoothly retarget mid-flight:
+
+```ts
 controller.addItems({ id: 'new-1', tags: ['geometry', 'svg'] });
 controller.removeItems('old-1');
 ```

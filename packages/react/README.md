@@ -10,6 +10,10 @@ End-to-end type-safe React bindings, declarative JSX node renderers, and imperat
 - **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/react>
 - **Companion Packages:** [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core) · [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg)
 
+## Declarative JSX Slot Architecture
+
+In React, `<SimplexTopicGraph />` lets you drop custom JSX directly into cluster and content slots instead of hand-writing imperative SVG DOM code. The wireframe preview below illustrates how those two component slots populate a single visualization:
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/preview-react.png" width="100%" alt="@simplex-viz/react preview showing minimalist renderClusterNode and renderContentNode JSX slot placeholders with automatic getBBox() collision sizing" />
 </p>
@@ -35,16 +39,11 @@ npm install @simplex-viz/core @simplex-viz/svg @simplex-viz/react
 
 ## Quickstart: Declarative JSX Node Renderers
 
-The component below showcases declarative JSX node rendering combined with imperative camera buttons. `useSimplexGraphController` provides a typed `controllerRef` and `handle` for zoom/reset actions, `useMemo` stabilizes `visualResolver` across renders, `renderContentNode` and `renderClusterNode` return SVG `<g>` elements centered at `(0, 0)` (automatically measured via `getBBox()`), and `onLeftClick` toggles item pinning or isolates a clicked topic cluster:
+### Step 1 — Define Domain, Visual, and Cluster Metadata Types
+
+Describe your domain item (`Article`), visual cache descriptors (`ArticleVisual`, `ClusterVisual`), and aggregate cluster stats (`ClusterStats`). TypeScript preserves these types across every callback prop on `<SimplexTopicGraph />`:
 
 ```tsx
-import { useMemo, useState } from 'react';
-import {
-  SimplexTopicGraph,
-  useSimplexGraphController,
-} from '@simplex-viz/react';
-import type { VisualResolver } from '@simplex-viz/core';
-
 interface Article {
   readonly slug: string;
   readonly title: string;
@@ -70,6 +69,77 @@ interface ClusterStats {
   readonly count: number;
   readonly avgMinutes: number;
 }
+```
+
+### Step 2 — Define Declarative JSX Node Renderers
+
+Write standard SVG JSX centered around `(0, 0)` for individual items and topic clusters. `@simplex-viz/react` measures the resulting `<g>` subtree automatically via offscreen `getBBox()` whenever `getVisualCacheKey` changes, guaranteeing collision-free card placement:
+
+```tsx
+import type {
+  ClusterDescriptor,
+  ContentLayoutContext,
+  NodeRenderState,
+} from '@simplex-viz/core';
+
+const renderArticleNode = (
+  article: Article,
+  ctx: ContentLayoutContext<Article, undefined, ClusterStats>,
+  state: NodeRenderState<ArticleVisual>,
+) => (
+  <g>
+    <rect
+      x={-54}
+      y={-15}
+      width={108}
+      height={30}
+      rx={6}
+      fill="#0f172a"
+      stroke={state.interaction.isPinned ? '#f59e0b' : ctx.mixedColorHex}
+      strokeWidth={state.interaction.isHovered ? 2 : 1.2}
+    />
+    <text textAnchor="middle" y={4} fill="#f8fafc" fontSize={9}>
+      {article.title.slice(0, 16)}
+    </text>
+  </g>
+);
+
+const renderTopicCluster = (
+  cluster: ClusterDescriptor<Article, undefined, ClusterStats>,
+  state: NodeRenderState<ClusterVisual>,
+) => (
+  <g>
+    <rect
+      x={-68}
+      y={-20}
+      width={136}
+      height={40}
+      rx={8}
+      fill="#090d16"
+      stroke={state.interaction.isHovered ? '#f8fafc' : cluster.colorHex}
+      strokeWidth={1.6}
+    />
+    <text textAnchor="middle" y={-2} fill="#f8fafc" fontSize={10} fontWeight={600}>
+      {`${cluster.code} · ${cluster.defaultLabel}`}
+    </text>
+    <text textAnchor="middle" y={12} fill="#94a3b8" fontSize={8.5}>
+      {`${cluster.meta.count} items · avg ${cluster.meta.avgMinutes.toFixed(0)}m`}
+    </text>
+  </g>
+);
+```
+
+### Step 3 — Initialize State, Controller Hook & Memoized `VisualResolver`
+
+Inside your React component, set up selection state, create a typed controller handle with `useSimplexGraphController`, and memoize `visualResolver` with `useMemo` so re-renders never trigger unintended crossfade transitions:
+
+```tsx
+import { useMemo, useState } from 'react';
+import {
+  SimplexTopicGraph,
+  useSimplexGraphController,
+} from '@simplex-viz/react';
+import type { VisualResolver } from '@simplex-viz/core';
 
 export function KnowledgeAtlas({ articles }: { articles: readonly Article[] }) {
   const [focusedClusterUid, setFocusedClusterUid] = useState<string | null>(null);
@@ -103,7 +173,13 @@ export function KnowledgeAtlas({ articles }: { articles: readonly Article[] }) {
     }),
     [],
   );
+```
 
+### Step 4 — Render `<SimplexTopicGraph />` with Camera Toolbar & Click Handling
+
+Finally, wire the camera toolbar (`handle.zoomBy`, `handle.resetCamera`), pass the JSX renderers from Step 2, and handle left-clicks to toggle pinned items or isolate clicked topic clusters:
+
+```tsx
   return (
     <div style={{ width: '100%', height: '640px', position: 'relative' }}>
       <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10 }}>
@@ -126,48 +202,8 @@ export function KnowledgeAtlas({ articles }: { articles: readonly Article[] }) {
         visualResolver={visualResolver}
         pinnedIds={pinnedIds}
         focusedClusterUid={focusedClusterUid}
-        renderContentNode={(article, ctx, state) => (
-          <g>
-            <rect
-              x={-54}
-              y={-15}
-              width={108}
-              height={30}
-              rx={6}
-              fill="#0f172a"
-              stroke={state.interaction.isPinned ? '#f59e0b' : ctx.mixedColorHex}
-              strokeWidth={state.interaction.isHovered ? 2 : 1.2}
-            />
-            <text
-              textAnchor="middle"
-              y={4}
-              fill="#f8fafc"
-              fontSize={9}
-            >
-              {article.title.slice(0, 16)}
-            </text>
-          </g>
-        )}
-        renderClusterNode={(cluster, state) => (
-          <g>
-            <rect
-              x={-68}
-              y={-20}
-              width={136}
-              height={40}
-              rx={8}
-              fill="#090d16"
-              stroke={state.interaction.isHovered ? '#f8fafc' : cluster.colorHex}
-              strokeWidth={1.6}
-            />
-            <text textAnchor="middle" y={-2} fill="#f8fafc" fontSize={10} fontWeight={600}>
-              {`${cluster.code} · ${cluster.defaultLabel}`}
-            </text>
-            <text textAnchor="middle" y={12} fill="#94a3b8" fontSize={8.5}>
-              {`${cluster.meta.count} items · avg ${cluster.meta.avgMinutes.toFixed(0)}m`}
-            </text>
-          </g>
-        )}
+        renderContentNode={renderArticleNode}
+        renderClusterNode={renderTopicCluster}
         onLeftClick={(target) => {
           if (target.kind === 'content') {
             setPinnedIds((prev) => {

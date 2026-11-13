@@ -10,6 +10,10 @@ Framework-agnostic SVG rendering engine and pluggable `SvgNodeView` architecture
 - **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/svg>
 - **Companion Packages:** [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core) · [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react)
 
+## Visual Rendering Showcase
+
+While `@simplex-viz/core` computes pure spatial coordinates, `@simplex-viz/svg` turns each frame into live DOM `<svg>` elements inside any browser container or UI framework. The preview below renders its built-in views together in a single viewport:
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/preview-svg.png" width="100%" alt="@simplex-viz/svg rendering showcase showing GeometricShapeSvgView, MultiSectorGlyphSvgView, ClusterAnchorSvgView, and BadgeClusterSvgView" />
 </p>
@@ -34,17 +38,16 @@ npm install @simplex-viz/core @simplex-viz/svg
 
 ## Quickstart (Vanilla TypeScript)
 
-This setup mounts `SimplexSvgController` into a DOM container using custom `Bookmark` records mapped via `getId` and `getTags`. `visualResolver` emits descriptors for `GeometricShapeSvgView` and `ClusterAnchorSvgView`, `interactions` wires hover tooltips, cluster focusing on left-click, custom context menus, and cursor-centered wheel zoom, and the final lines show live dataset mutations and camera reset:
+### Step 1 — Define Your Domain Record & `VisualResolver`
+
+Start by describing your data model (`Bookmark`) and mapping each item and topic cluster into visual descriptors for `GeometricShapeSvgView` and `ClusterAnchorSvgView`. `ctx.mixedColorHex` provides the item's barycentric OKLab color blend automatically:
 
 ```ts
-import {
-  SimplexSvgController,
-  GeometricShapeSvgView,
-  ClusterAnchorSvgView,
-  type GeometricShapeVisual,
-  type ClusterAnchorVisual,
-} from '@simplex-viz/svg';
 import type { VisualResolver } from '@simplex-viz/core';
+import type {
+  ClusterAnchorVisual,
+  GeometricShapeVisual,
+} from '@simplex-viz/svg';
 
 interface Bookmark {
   readonly url: string;
@@ -77,6 +80,18 @@ const visualResolver: VisualResolver<
       ? `${visual.shape}:${visual.radius}:${visual.fillHex}`
       : `${visual.code}:${visual.memberCount}:${visual.colorHex}`,
 };
+```
+
+### Step 2 — Mount `SimplexSvgController`
+
+Pass any container `HTMLElement` to `SimplexSvgController` along with `getId`, `getTags`, `visualResolver`, and the built-in views. The controller creates the root `<svg>`, attaches a `ResizeObserver`, computes the initial triangulation, and begins the 60 fps spring loop:
+
+```ts
+import {
+  SimplexSvgController,
+  GeometricShapeSvgView,
+  ClusterAnchorSvgView,
+} from '@simplex-viz/svg';
 
 const container = document.getElementById('graph')!;
 
@@ -87,41 +102,45 @@ const controller = new SimplexSvgController(container, {
   visualResolver,
   contentView: new GeometricShapeSvgView(),
   clusterView: new ClusterAnchorSvgView(),
-  meshOptions: {
-    innerPadding: 48,
-    minSideLength: 140,
-    maxSideLength: 280,
-    maxClusters: 10,
-  },
-  layoutOptions: {
-    clusterGapPx: 14,
-    itemGapPx: 5,
-  },
-  interactions: {
-    onContentHover: (ev) => {
-      if (ev) console.log('Hovered item:', ev.item.title, ev.screenPosition);
-    },
-    onLeftClick: (target) => {
-      if (target.kind === 'content') {
-        console.log('Clicked:', target.item.title);
-      } else if (target.kind === 'cluster') {
-        controller.setFocusedClusterUid(target.cluster.clusterUid);
-      } else {
-        controller.setFocusedClusterUid(null);
-      }
-    },
-    onRightClick: (target) => {
-      console.log('Context menu target:', target.kind);
-      return true; // Suppress browser default context menu
-    },
-    onWheel: 'zoom-to-cursor',
-  },
+  meshOptions: { innerPadding: 48, minSideLength: 140, maxSideLength: 280, maxClusters: 10 },
+  layoutOptions: { clusterGapPx: 14, itemGapPx: 5 },
   onMetricsChange: (metrics) => {
     console.log(`Clusters: ${metrics.clusterCount}, Overlaps: ${metrics.overlapCount}`);
   },
 });
+```
 
-// Live mutations & camera controls
+### Step 3 — Wire Hover, Click & Wheel Interactions
+
+Attach centralized pointer, click, context-menu, and wheel handlers via `setInteractions` (or pass `interactions` directly in the constructor). Listeners live exclusively on the root `<svg>`, while hit-testing uses exact convex hulls:
+
+```ts
+controller.setInteractions({
+  onContentHover: (ev) => {
+    if (ev) console.log('Hovered item:', ev.item.title, ev.screenPosition);
+  },
+  onLeftClick: (target) => {
+    if (target.kind === 'content') {
+      console.log('Clicked:', target.item.title);
+    } else if (target.kind === 'cluster') {
+      controller.setFocusedClusterUid(target.cluster.clusterUid);
+    } else {
+      controller.setFocusedClusterUid(null);
+    }
+  },
+  onRightClick: (target) => {
+    console.log('Context menu target:', target.kind);
+    return true; // Suppress browser default context menu
+  },
+  onWheel: 'zoom-to-cursor',
+});
+```
+
+### Step 4 — Apply Live Mutations & Clean Up
+
+Mutate items or reset the camera smoothly at runtime without interrupting user navigation. Call `controller.destroy()` on unmount to stop animations and disconnect observers:
+
+```ts
 controller.addItems({
   url: 'https://example.com/oklab',
   title: 'Perceptual Color Mixing',
@@ -131,7 +150,7 @@ controller.addItems({
 controller.removeItems('https://example.com/old');
 controller.camera.reset();
 
-// Clean up DOM, ResizeObserver, and animation loop on unmount
+// Call on component unmount / teardown:
 // controller.destroy();
 ```
 
@@ -201,7 +220,9 @@ const visual: ClusterAnchorVisual = {
 
 ## Writing Custom `SvgNodeView` Plugins
 
-Implement `SvgNodeView<TVisual>` centered around local origin `(0, 0)`. `SvgRendererAdapter` handles world positioning `(x, y)`, solver scale `α`, opacity, and crossfading on the parent `<g>`. The plugin below constructs an adaptive dark card whose border reacts to hover state, using `rectToConvexPolygon` for fast analytical hull bounds (or omitting `measureConvexHull` to measure arbitrary SVG content dynamically):
+Implement `SvgNodeView<TVisual>` centered around local origin `(0, 0)`. `SvgRendererAdapter` handles world positioning `(x, y)`, solver scale `α`, opacity, and crossfading on the parent `<g>`.
+
+First, define your visual descriptor and an optional analytical hull via `measureConvexHull` (if omitted, `@simplex-viz/svg` automatically measures the rendered SVG via offscreen `getBBox()`):
 
 ```ts
 import type { SvgNodeView } from '@simplex-viz/svg';
@@ -212,18 +233,24 @@ interface CardVisual {
   readonly colorHex: string;
 }
 
+const getCardWidth = (title: string) => Math.max(80, title.length * 7 + 20);
+```
+
+Next, populate `mountOrUpdate` to construct pure SVG nodes inside `groupEl`, reacting to `state.interaction.isHovered` for instant border emphasis:
+
+```ts
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 export const CustomCardSvgView: SvgNodeView<CardVisual> = {
   // Optional: omit to measure automatically via offscreen getBBox()
   measureConvexHull: (visual) =>
-    rectToConvexPolygon(Math.max(80, visual.title.length * 7 + 20), 28, 6),
+    rectToConvexPolygon(getCardWidth(visual.title), 28, 6),
 
   mountOrUpdate: (groupEl, visual, state) => {
     const doc = groupEl.ownerDocument;
     while (groupEl.firstChild) groupEl.removeChild(groupEl.firstChild);
 
-    const width = Math.max(80, visual.title.length * 7 + 20);
+    const width = getCardWidth(visual.title);
     const rect = doc.createElementNS(SVG_NS, 'rect');
     rect.setAttribute('x', String(-width / 2));
     rect.setAttribute('y', '-14');

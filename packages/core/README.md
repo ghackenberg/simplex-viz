@@ -12,6 +12,10 @@ Headless, zero-dependency TypeScript engine for triangulation-based visualizatio
 
 > Most browser apps should start with [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react) (for React) or [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg) (for Vanilla TypeScript, Vue, Angular, Svelte, or Web Components). Use `@simplex-viz/core` directly when building a custom Canvas/WebGL renderer, running layout calculations in a Web Worker or Node.js, or using low-level geometry, OKLab, and clustering primitives.
 
+## Spatial Pipeline Overview
+
+Before diving into the TypeScript API, the schematic diagram below traces a single tagged corpus through the engine's internal coordinate system—from raw lattice cells to final collision envelopes:
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/preview-core.png" width="100%" alt="Schematic diagram of the @simplex-viz/core 60-degree simplex mesh, vertex coordinates, barycentric OKLab weights, and convex SAT collision bounds" />
 </p>
@@ -36,15 +40,13 @@ Install the headless package standalone when integrating into a custom Canvas/We
 npm install @simplex-viz/core
 ```
 
-## Quickstart: Using `SimplexGraphEngine` with a Custom Renderer
+## Quickstart: Using `SimplexGraphEngine` Step by Step
 
-`SimplexGraphEngine` is completely decoupled from the DOM. You provide:
+`SimplexGraphEngine` is completely decoupled from the DOM. You connect your data to any rendering target in five small steps.
 
-1. Your domain items (`items`) + optional `getId`, `getTags`, `resolveTagMeta`, and `deriveClusterMeta`.
-2. A `VisualResolver` converting domain items/clusters into pure serializable visual descriptors.
-3. A `SimplexRendererAdapter` implementing `measureContentHull`, `measureClusterHull`, `renderFrame`, and `destroy`.
+### Step 1 — Define Domain & Visual Descriptor Types
 
-The full example below puts all three pieces together: it defines a domain type `Article`, maps each article and topic cluster to pure serializable descriptors via `VisualResolver`, supplies analytical bounding shapes (`circle` or `rectToConvexPolygon`) inside a custom `SimplexRendererAdapter`, configures the mesh and SAT solver parameters, and advances the spring simulation through `engine.step(dtMs)` until settled:
+SimplexViz imposes no fixed schema on your data. Start by defining your domain record (`Article`), optional cluster metadata (`TopicStats`), and serializable visual descriptor types (`ArticleVisual`, `TopicVisual`) that represent what your renderer needs to draw:
 
 ```ts
 import {
@@ -55,7 +57,6 @@ import {
   type SceneFrameSnapshot,
 } from '@simplex-viz/core';
 
-// 1. Your domain item type (does not need { id, tags }!)
 interface Article {
   readonly slug: string;
   readonly title: string;
@@ -63,7 +64,6 @@ interface Article {
   readonly readingMinutes: number;
 }
 
-// 2. Pure visual descriptor types
 interface ArticleVisual {
   readonly kind: 'circle' | 'pill';
   readonly radius: number;
@@ -82,8 +82,13 @@ interface TopicStats {
   readonly count: number;
   readonly avgMinutes: number;
 }
+```
 
-// 3. VisualResolver decoupled from rendering
+### Step 2 — Map Records to Visuals via `VisualResolver`
+
+Next, implement a `VisualResolver`. Notice how `resolveContentVisual` receives `ctx.mixedColorHex`—already blended in perceptual OKLab space along the item's active simplex weights—and `getVisualCacheKey` tells the engine when a node's geometry needs to be re-measured:
+
+```ts
 const visualResolver: VisualResolver<
   Article,
   ArticleVisual,
@@ -108,8 +113,13 @@ const visualResolver: VisualResolver<
       ? `${v.kind}:${v.colorHex}:${v.label}`
       : `${v.code}:${v.memberCount}`,
 };
+```
 
-// 4. Minimal renderer adapter (e.g., Canvas2D, WebGL, or headless snapshot consumer)
+### Step 3 — Implement a Custom `SimplexRendererAdapter`
+
+The engine asks your renderer adapter for centered convex bounding shapes (`measureContentHull` and `measureClusterHull`) so the SAT solver can guarantee `0.0 px` overlap, then calls `renderFrame(snapshot)` with solved coordinates, camera state, and interpolation weights:
+
+```ts
 const myRenderer: SimplexRendererAdapter<ArticleVisual, TopicVisual> = {
   measureContentHull(visual) {
     return visual.kind === 'circle'
@@ -127,8 +137,13 @@ const myRenderer: SimplexRendererAdapter<ArticleVisual, TopicVisual> = {
     // Release Canvas/WebGL resources
   },
 };
+```
 
-// 5. Instantiate the headless engine
+### Step 4 — Instantiate `SimplexGraphEngine`
+
+Wire your items, accessors (`getId`, `getTags`, `deriveClusterMeta`), resolver, and renderer into `SimplexGraphEngine`. Because `Article` uses `slug` and `hashtags` rather than `{ id, tags }`, TypeScript verifies at compile time that both accessors are provided:
+
+```ts
 const engine = new SimplexGraphEngine<
   Article,
   ArticleVisual,
@@ -149,23 +164,19 @@ const engine = new SimplexGraphEngine<
   renderer: myRenderer,
   viewportWidth: 1200,
   viewportHeight: 800,
-  meshOptions: {
-    innerPadding: 48,
-    minSideLength: 140,
-    maxSideLength: 280,
-    maxClusters: 12,
-  },
-  layoutOptions: {
-    clusterGapPx: 14,
-    itemGapPx: 5,
-    seed: 42,
-  },
+  meshOptions: { innerPadding: 48, minSideLength: 140, maxSideLength: 280, maxClusters: 12 },
+  layoutOptions: { clusterGapPx: 14, itemGapPx: 5, seed: 42 },
   onMetricsChange: (metrics) => {
     console.log('Overlap count:', metrics.overlapCount); // Always 0 when settled
   },
 });
+```
 
-// 6. Drive animation ticks (e.g., inside requestAnimationFrame or a fixed-step loop)
+### Step 5 — Drive the Spring Simulation Loop
+
+Call `engine.step(dtMs)` on each animation frame (or in fixed steps inside a Worker/test). Once all critically damped springs settle, `step` returns `true` so your loop can idle until the next interaction or mutation:
+
+```ts
 function tick(dtMs: number) {
   const settled = engine.step(dtMs);
   if (!settled) {
@@ -176,10 +187,9 @@ function tick(dtMs: number) {
 
 ### Live Mutations & Interactions
 
-Once running, `SimplexGraphEngine` accepts live dataset mutations (`addItems`, `removeItems`, `setItems`), viewport resizes, scaling updates, cluster isolation (`setFocusedClusterUid`), and normalized pointer/wheel events that delegate exact hit-testing and cursor-centered camera zooming back to your custom renderer:
+Once running, `SimplexGraphEngine` supports live dataset updates, viewport resizing, and global node scaling—retargeting active springs smoothly mid-flight:
 
 ```ts
-// Interruptible item updates (critically damped springs smoothly retarget mid-flight)
 engine.addItems({
   slug: 'sat-primer',
   title: 'Separating Axis Theorem',
@@ -191,7 +201,11 @@ engine.setItems(nextArticles);
 engine.setViewport(1440, 900);
 engine.setSizeMultiplier(1.25);
 engine.setShowHulls(true);
+```
 
+To highlight items, isolate a topic cluster, or handle user input in a Canvas/WebGL surface, pass focus IDs and normalized screen coordinates directly to the engine and camera controller:
+
+```ts
 // Focus & highlight states
 engine.setPinnedIds(['sat-primer']);
 engine.setFocusedClusterUid(engine.getClusters()[0]?.clusterUid ?? null);
