@@ -1,5 +1,13 @@
 # @simplex-viz/svg
 
+## 0.1.3
+
+### Patch Changes
+
+- Add project brand logo and built-in plugin showcase preview graphics, contextual lead-in prose, and step-by-step Vanilla TypeScript walkthroughs in `@simplex-viz/svg` README.
+- Updated dependencies
+  - @simplex-viz/core@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @simplex-viz/react
 
+## 0.1.3
+
+### Patch Changes
+
+- Add project brand logo and JSX slot architecture preview graphics, contextual lead-in prose, and step-by-step React walkthroughs in `@simplex-viz/react` README.
+- Updated dependencies
+  - @simplex-viz/core@0.1.3
+  - @simplex-viz/svg@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes
