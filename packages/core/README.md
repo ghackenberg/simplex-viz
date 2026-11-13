@@ -1,6 +1,9 @@
 # @simplex-viz/core
 
-Headless, zero-dependency TypeScript engine for triangulation-based tagged content visualization on a dynamic $60^\circ$ simplex mesh.
+Headless, zero-dependency TypeScript engine for triangulation-based tagged content visualization on a dynamic 60° equilateral simplex mesh.
+
+- **Live Demo:** <https://hackenberg.tech/simplex-viz/>
+- **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/core>
 
 ## Features
 

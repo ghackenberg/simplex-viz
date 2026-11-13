@@ -38,6 +38,10 @@
     "visualization",
     "typescript"
   ],
+  "homepage": "https://hackenberg.tech/simplex-viz/",
+  "bugs": {
+    "url": "https://github.com/ghackenberg/simplex-viz/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ghackenberg/simplex-viz.git",

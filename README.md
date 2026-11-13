@@ -38,7 +38,7 @@ flowchart LR
 
 ## Live-Demo
 
-Nach Aktivierung von GitHub Pages wird die interaktive Showcase-App automatisch unter `https://<org-or-user>.github.io/<repo-name>/` bereitgestellt.
+Die interaktive Showcase-App ist unter **<https://hackenberg.tech/simplex-viz/>** verfügbar.
 
 ---
 

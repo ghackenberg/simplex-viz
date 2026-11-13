@@ -2,6 +2,9 @@
 
 Framework-agnostic SVG rendering engine and pluggable `SvgNodeView` architecture for `@simplex-viz/core`. Zero dependency on React—embeds cleanly into Vanilla TypeScript, Vue, Angular, Svelte, and Web Components.
 
+- **Live Demo:** <https://hackenberg.tech/simplex-viz/>
+- **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/svg>
+
 ## Installation
 
 ```bash

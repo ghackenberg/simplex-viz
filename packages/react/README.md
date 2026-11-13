@@ -2,6 +2,9 @@
 
 End-to-end type-safe React bindings, declarative JSX node renderers, and imperative controller hooks for `@simplex-viz/core` and `@simplex-viz/svg`.
 
+- **Live Demo:** <https://hackenberg.tech/simplex-viz/>
+- **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/react>
+
 ## Installation
 
 ```bash
