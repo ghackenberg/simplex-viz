@@ -7,35 +7,38 @@
     </linearGradient>
     <radialGradient id="ogGlow" cx="72%" cy="50%" r="50%">
       <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.18"/>
-      <stop offset="60%" stop-color="#8B5CF6" stop-opacity="0.06"/>
+      <stop offset="60%" stop-color="#D946EF" stop-opacity="0.06"/>
       <stop offset="100%" stop-color="#07090E" stop-opacity="0"/>
     </radialGradient>
     <clipPath id="ogStageClip">
       <rect x="0" y="0" width="620" height="542" rx="16"/>
     </clipPath>
-    
-    <linearGradient id="svTile" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#111B2E"/>
-      <stop offset="55%" stop-color="#090E17"/>
-      <stop offset="100%" stop-color="#05070C"/>
-    </linearGradient>
+    <!-- @simplex-mark-defs:start -->
     <radialGradient id="svCyan" cx="50%" cy="22%" r="72%">
-      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.55"/>
-      <stop offset="100%" stop-color="#22D3EE" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.44"/>
+      <stop offset="100%" stop-color="#06B6D4" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="svAmber" cx="20%" cy="78%" r="70%">
-      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.52"/>
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.42"/>
       <stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="svMagenta" cx="80%" cy="78%" r="70%">
-      <stop offset="0%" stop-color="#E879F9" stop-opacity="0.52"/>
-      <stop offset="100%" stop-color="#E879F9" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#D946EF" stop-opacity="0.42"/>
+      <stop offset="100%" stop-color="#D946EF" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="svEdge" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#67E8F9" stop-opacity="0.95"/>
-      <stop offset="50%" stop-color="#CBD5E1" stop-opacity="0.82"/>
-      <stop offset="100%" stop-color="#E879F9" stop-opacity="0.95"/>
+    <linearGradient id="svEdgeTopLeft" gradientUnits="userSpaceOnUse" x1="256" y1="95" x2="70" y2="417.2">
+      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#FBBF24" stop-opacity="0.92"/>
     </linearGradient>
+    <linearGradient id="svEdgeTopRight" gradientUnits="userSpaceOnUse" x1="256" y1="95" x2="442" y2="417.2">
+      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#E879F9" stop-opacity="0.92"/>
+    </linearGradient>
+    <linearGradient id="svEdgeBottom" gradientUnits="userSpaceOnUse" x1="70" y1="417.2" x2="442" y2="417.2">
+      <stop offset="0%" stop-color="#FBBF24" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#E879F9" stop-opacity="0.92"/>
+    </linearGradient>
+    <!-- @simplex-mark-defs:end -->
   </defs>
 
   <rect width="1200" height="630" fill="url(#ogBg)"/>
@@ -44,37 +47,35 @@
   <!-- Left Demo App Showcase Info Column -->
   <g transform="translate(56, 72)">
     <!-- Live Demo Badge -->
-    <rect x="0" y="0" width="212" height="30" rx="6" fill="#06B6D4" fill-opacity="0.14" stroke="#22D3EE" stroke-opacity="0.55" stroke-width="1.2"/>
-    <circle cx="16" cy="15" r="4.2" fill="#34D399"/>
-    <text x="30" y="19.5" font-family="JetBrains Mono, monospace" font-size="12" font-weight="600" fill="#67E8F9">INTERACTIVE LIVE DEMO</text>
+    <rect x="0" y="0" width="212" height="30" rx="6" fill="#06B6D4" fill-opacity="0.14" stroke="#06B6D4" stroke-opacity="0.65" stroke-width="1.2"/>
+    <circle cx="16" cy="15" r="4.2" fill="#06B6D4"/>
+    <text x="30" y="19.5" font-family="JetBrains Mono, monospace" font-size="12" font-weight="600" fill="#22D3EE">INTERACTIVE LIVE DEMO</text>
 
     <!-- Icon + Title -->
     <g transform="translate(0, 56)">
       <g transform="scale(0.175)">
-        <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#svTile)" stroke="#334155" stroke-width="14"/>
+        <!-- @simplex-mark-node:start -->
+        <polygon points="256,95 70,417.2 442,417.2" fill="#64748B" fill-opacity="0.08"/>
+        <polygon points="256,95 70,417.2 442,417.2" fill="url(#svCyan)"/>
+        <polygon points="256,95 70,417.2 442,417.2" fill="url(#svAmber)"/>
+        <polygon points="256,95 70,417.2 442,417.2" fill="url(#svMagenta)"/>
+        <line x1="256" y1="95" x2="70" y2="417.2" stroke="url(#svEdgeTopLeft)" stroke-width="28" stroke-linecap="round"/>
+        <line x1="256" y1="95" x2="442" y2="417.2" stroke="url(#svEdgeTopRight)" stroke-width="28" stroke-linecap="round"/>
+        <line x1="70" y1="417.2" x2="442" y2="417.2" stroke="url(#svEdgeBottom)" stroke-width="28" stroke-linecap="round"/>
 
-    <!-- Single large equilateral 60-degree triangle with 3-vertex color wash -->
-    <polygon points="256,108 102,375 410,375" fill="#0E1729"/>
-    <polygon points="256,108 102,375 410,375" fill="url(#svCyan)"/>
-    <polygon points="256,108 102,375 410,375" fill="url(#svAmber)"/>
-    <polygon points="256,108 102,375 410,375" fill="url(#svMagenta)"/>
-    <polygon points="256,108 102,375 410,375" fill="none" stroke="url(#svEdge)" stroke-width="26" stroke-linejoin="round"/>
+        <!-- 3 Topic Vertex Nodes -->
+        <circle cx="256" cy="95" r="54" fill="#155E75"/>
+        <circle cx="256" cy="95" r="37" fill="#06B6D4"/>
 
-    <!-- 3 Topic Vertex Nodes -->
-    <circle cx="256" cy="108" r="54" fill="#070A12"/>
-    <circle cx="256" cy="108" r="37" fill="#22D3EE"/>
+        <circle cx="70" cy="417.2" r="54" fill="#92400E"/>
+        <circle cx="70" cy="417.2" r="37" fill="#F59E0B"/>
 
-    <circle cx="102" cy="375" r="54" fill="#070A12"/>
-    <circle cx="102" cy="375" r="37" fill="#F59E0B"/>
-
-    <circle cx="410" cy="375" r="54" fill="#070A12"/>
-    <circle cx="410" cy="375" r="37" fill="#E879F9"/>
-  
-  
-  
+        <circle cx="442" cy="417.2" r="54" fill="#86198F"/>
+        <circle cx="442" cy="417.2" r="37" fill="#D946EF"/>
+        <!-- @simplex-mark-node:end -->
       </g>
       <text x="106" y="59" font-family="Noto Sans, sans-serif" font-size="50" font-weight="700" letter-spacing="-1">
-        <tspan fill="#F8FAFC">Simplex</tspan><tspan fill="#22D3EE">Viz</tspan>
+        <tspan fill="#F8FAFC">Simplex</tspan><tspan fill="#06B6D4">Viz</tspan>
       </text>
     </g>
 
@@ -99,13 +100,13 @@
       <line x1="282" y1="14" x2="282" y2="84" stroke="#1E293B"/>
 
       <text x="20" y="34" font-family="Noto Sans, sans-serif" font-size="12" fill="#94A3B8">Overlaps</text>
-      <text x="20" y="68" font-family="JetBrains Mono, monospace" font-size="24" font-weight="700" fill="#34D399">0.0 px</text>
+      <text x="20" y="68" font-family="JetBrains Mono, monospace" font-size="24" font-weight="700" fill="#06B6D4">0.0 px</text>
 
       <text x="161" y="34" font-family="Noto Sans, sans-serif" font-size="12" fill="#94A3B8">Clusters K</text>
-      <text x="161" y="68" font-family="JetBrains Mono, monospace" font-size="24" font-weight="700" fill="#FCD34D">6</text>
+      <text x="161" y="68" font-family="JetBrains Mono, monospace" font-size="24" font-weight="700" fill="#F59E0B">6</text>
 
       <text x="302" y="34" font-family="Noto Sans, sans-serif" font-size="12" fill="#94A3B8">Items</text>
-      <text x="302" y="68" font-family="JetBrains Mono, monospace" font-size="24" font-weight="700" fill="#67E8F9">74</text>
+      <text x="302" y="68" font-family="JetBrains Mono, monospace" font-size="24" font-weight="700" fill="#D946EF">74</text>
     </g>
 
     <text x="0" y="476" font-family="JetBrains Mono, monospace" font-size="13.5" fill="#64748B">
@@ -121,9 +122,9 @@
       <rect x="0" y="0" width="620" height="38" fill="#0B0F17"/>
       <line x1="0" y1="38" x2="620" y2="38" stroke="#1E293B"/>
       <text x="16" y="24" font-family="Noto Sans, sans-serif" font-size="12" font-weight="600" fill="#F8FAFC">Atlas</text>
-      <line x1="14" y1="31" x2="46" y2="31" stroke="#22D3EE" stroke-width="1.5"/>
+      <line x1="14" y1="31" x2="46" y2="31" stroke="#06B6D4" stroke-width="1.5"/>
       <text x="66" y="24" font-family="Noto Sans, sans-serif" font-size="12" fill="#94A3B8">A · Geometric Encoding</text>
-      <text x="604" y="24" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="11" fill="#34D399">α = 1.000 · 60 fps</text>
+      <text x="604" y="24" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="11" fill="#06B6D4">α = 1.000 · 60 fps</text>
 
       <g transform="translate(0, 24)">
         <polygon points="64.0,176.3 64.0,365.7 228.0,271.0" fill="#bc9bd1" fill-opacity="0.15"/>
@@ -261,7 +262,7 @@
           <rect width="248" height="66" rx="7" fill="#0B0F17" fill-opacity="0.96" stroke="#334155" stroke-width="1.3"/>
           <text x="12" y="21" font-family="Noto Sans, sans-serif" font-size="11.5" font-weight="600" fill="#F1F5F9">Separating Axis Theorem for Con…</text>
           <text x="12" y="39" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#94A3B8">project · 8 min · 2025</text>
-          <text x="12" y="55" font-family="Noto Sans, sans-serif" font-size="10.5" fill="#67E8F9">Convex Hulls · SAT Collision</text>
+          <text x="12" y="55" font-family="Noto Sans, sans-serif" font-size="10.5" fill="#22D3EE">Convex Hulls · SAT Collision</text>
         </g>
       </g>
     </g>

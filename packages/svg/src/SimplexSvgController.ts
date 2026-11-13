@@ -21,6 +21,7 @@ import {
   extractDefaultItemLabel,
   type DefaultClusterPresetVisual,
   type DefaultContentPresetVisual,
+  type SimplexTheme,
   type SimplexVisualPreset,
 } from './presets';
 import { SvgRendererAdapter, type SvgRendererOptions } from './SvgRendererAdapter';
@@ -64,6 +65,8 @@ export interface SimplexSvgControllerResolvedOptions<
   ) => TClusterMeta;
   /** Built-in visual preset used when `visualResolver` / views are omitted. Default: `'geometric'`. */
   readonly preset?: SimplexVisualPreset;
+  /** Visual color theme (`'dark'` or `'light'`) for built-in presets and tooltips. Default: `'dark'`. */
+  readonly theme?: SimplexTheme;
   /** Optional custom visual resolver (defaults to the active `preset` resolver). */
   readonly visualResolver?: VisualResolver<
     TItem,
@@ -175,6 +178,9 @@ export class SimplexSvgController<
     | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
   private tooltipEl: HTMLDivElement | null = null;
   private focusedClusterUidState: string | null = null;
+  private currentPreset: SimplexVisualPreset;
+  private currentTheme: SimplexTheme;
+  private readonly usesCustomVisualResolver: boolean;
 
   private rafId: number | null = null;
   private lastFrameTs = 0;
@@ -220,16 +226,19 @@ export class SimplexSvgController<
           ? String((item as { readonly id: unknown }).id)
           : '');
 
-    const activePreset: SimplexVisualPreset = options.preset ?? 'geometric';
-    const presetViews = createPresetViews(activePreset);
+    this.currentPreset = options.preset ?? 'geometric';
+    this.currentTheme = options.theme ?? 'dark';
+    this.usesCustomVisualResolver = options.visualResolver !== undefined;
+    const presetViews = createPresetViews(this.currentPreset);
     const contentView = (options.contentView ??
       presetViews.contentView) as SvgNodeView<TContentVisual>;
     const clusterView = (options.clusterView ??
       presetViews.clusterView) as SvgNodeView<TClusterVisual>;
     const visualResolver = (options.visualResolver ??
       createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
-        activePreset,
+        this.currentPreset,
         this.getLabelExtractor,
+        this.currentTheme,
       )) as VisualResolver<
       TItem,
       TContentVisual,
@@ -420,6 +429,18 @@ export class SimplexSvgController<
     return `${ev.cluster.code} · ${ev.cluster.defaultLabel}\n${count} ${count === 1 ? 'item' : 'items'}`;
   }
 
+  private applyTooltipThemeStyles(el: HTMLDivElement): void {
+    const isLight = this.currentTheme === 'light';
+    el.style.background = isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(9, 13, 22, 0.94)';
+    el.style.border = isLight
+      ? '1px solid rgba(203, 213, 225, 0.95)'
+      : '1px solid rgba(51, 65, 85, 0.85)';
+    el.style.color = isLight ? '#0f172a' : '#f1f5f9';
+    el.style.boxShadow = isLight
+      ? '0 10px 24px rgba(15, 23, 42, 0.12)'
+      : '0 10px 24px rgba(0, 0, 0, 0.45)';
+  }
+
   private ensureTooltipElement(): HTMLDivElement | null {
     if (!this.tooltipOption) return null;
     if (this.tooltipEl) return this.tooltipEl;
@@ -442,14 +463,11 @@ export class SimplexSvgController<
     el.style.maxWidth = '240px';
     el.style.padding = '7px 10px';
     el.style.borderRadius = '8px';
-    el.style.background = 'rgba(9, 13, 22, 0.94)';
-    el.style.border = '1px solid rgba(51, 65, 85, 0.85)';
-    el.style.color = '#f1f5f9';
     el.style.fontFamily = 'Plus Jakarta Sans, ui-sans-serif, system-ui, sans-serif';
     el.style.fontSize = '12px';
     el.style.lineHeight = '1.4';
     el.style.whiteSpace = 'pre-line';
-    el.style.boxShadow = '0 10px 24px rgba(0, 0, 0, 0.45)';
+    this.applyTooltipThemeStyles(el);
     this.containerEl.appendChild(el);
     this.tooltipEl = el;
     return el;
@@ -512,6 +530,7 @@ export class SimplexSvgController<
    * morph/crossfade transitions.
    */
   setPreset(preset: SimplexVisualPreset, getLabel?: (item: TItem) => string): void {
+    this.currentPreset = preset;
     if (getLabel !== undefined) {
       this.getLabelExtractor = getLabel;
     }
@@ -519,6 +538,7 @@ export class SimplexSvgController<
     const resolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
       preset,
       this.getLabelExtractor,
+      this.currentTheme,
     );
     this.adapter.setViews({
       contentView: views.contentView as unknown as SvgNodeView<TContentVisual>,
@@ -534,6 +554,34 @@ export class SimplexSvgController<
       >,
     );
     this.ensureLoopRunning();
+  }
+
+  /**
+   * Switches built-in preset & tooltip theme between `'dark'` and `'light'`.
+   */
+  setTheme(theme: SimplexTheme): void {
+    if (this.currentTheme === theme) return;
+    this.currentTheme = theme;
+    if (this.tooltipEl) {
+      this.applyTooltipThemeStyles(this.tooltipEl);
+    }
+    if (!this.usesCustomVisualResolver) {
+      const resolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
+        this.currentPreset,
+        this.getLabelExtractor,
+        theme,
+      );
+      this.engine.setVisualResolver(
+        resolver as unknown as VisualResolver<
+          TItem,
+          TContentVisual,
+          TClusterVisual,
+          TTagMeta,
+          TClusterMeta
+        >,
+      );
+      this.ensureLoopRunning();
+    }
   }
 
   setTooltip(

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/logo-react.png" width="640" alt="SimplexViz / react — @simplex-viz/react" />
+  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/logo-react.png" width="525" alt="SimplexViz / react — @simplex-viz/react" />
 </p>
 
 # @simplex-viz/react

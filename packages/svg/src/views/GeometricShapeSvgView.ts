@@ -21,6 +21,7 @@ export interface GeometricShapeVisual {
   readonly strokeHex?: string;
   readonly strokeWidth?: number;
   readonly label?: string;
+  readonly theme?: 'dark' | 'light';
 }
 
 const MORPH_SAMPLES = 64;
@@ -184,6 +185,10 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
     const { pathEl, ringEl } = this.ensureElements(groupEl);
     const pts = sampleShapePerimeter(visual.shape, visual.radius);
     const d = pointsToSvgPath(pts);
+    const isLight = visual.theme === 'light';
+    const defaultStroke = isLight ? 'rgba(15, 23, 42, 0.25)' : 'rgba(15, 23, 42, 0.8)';
+    const hoverStroke = isLight ? '#0f172a' : '#f8fafc';
+    const accentRing = isLight ? '#0891b2' : '#22d3ee';
 
     pathEl.setAttribute('d', d);
     pathEl.setAttribute('fill', visual.fillHex);
@@ -192,8 +197,8 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
       state.interaction.isPinned
         ? '#f59e0b'
         : state.interaction.isHovered
-          ? '#f8fafc'
-          : (visual.strokeHex ?? 'rgba(15, 23, 42, 0.8)'),
+          ? hoverStroke
+          : (visual.strokeHex ?? defaultStroke),
     );
     pathEl.setAttribute(
       'stroke-width',
@@ -203,7 +208,7 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
     if (state.interaction.isHovered || state.interaction.isPinned || state.interaction.isHighlighted) {
       const outerPts = sampleShapePerimeter(visual.shape, visual.radius + 4.5);
       ringEl.setAttribute('d', pointsToSvgPath(outerPts));
-      ringEl.setAttribute('stroke', state.interaction.isPinned ? '#f59e0b' : '#22d3ee');
+      ringEl.setAttribute('stroke', state.interaction.isPinned ? '#f59e0b' : accentRing);
       ringEl.setAttribute('stroke-width', '1.4');
       ringEl.setAttribute('stroke-opacity', '0.9');
     } else {
@@ -230,11 +235,14 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
         y: a.y + (b.y - a.y) * progress,
       });
     }
+    const isLight = to.theme === 'light';
     pathEl.setAttribute('d', pointsToSvgPath(morphed));
     pathEl.setAttribute('fill', lerpHex(from.fillHex, to.fillHex, progress));
     pathEl.setAttribute(
       'stroke',
-      state.interaction.isHovered ? '#f8fafc' : (to.strokeHex ?? 'rgba(15, 23, 42, 0.8)'),
+      state.interaction.isHovered
+        ? (isLight ? '#0f172a' : '#f8fafc')
+        : (to.strokeHex ?? (isLight ? 'rgba(15, 23, 42, 0.25)' : 'rgba(15, 23, 42, 0.8)')),
     );
     pathEl.setAttribute('stroke-width', String(to.strokeWidth ?? 1.4));
     ringEl.setAttribute('d', '');

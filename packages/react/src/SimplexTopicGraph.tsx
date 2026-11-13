@@ -22,6 +22,7 @@ import {
   extractDefaultItemLabel,
   type DefaultClusterPresetVisual,
   type DefaultContentPresetVisual,
+  type SimplexTheme,
   type SimplexVisualPreset,
   type SvgNodeView,
 } from '@simplex-viz/svg';
@@ -80,6 +81,8 @@ export type SimplexTopicGraphProps<
     readonly items: readonly TItem[];
     /** Built-in visual preset used when custom views / `visualResolver` are omitted. Default: `'geometric'`. */
     readonly preset?: SimplexVisualPreset;
+    /** Visual color theme (`'dark'` or `'light'`) for built-in presets and tooltips. Default: `'dark'`. */
+    readonly theme?: SimplexTheme;
     /** Optional label extractor for built-in presets and default hover tooltips. */
     readonly getLabel?: (item: TItem) => string;
     /**
@@ -254,6 +257,7 @@ export function SimplexTopicGraph<
   > => {
     const p = latestPropsRef.current;
     const preset: SimplexVisualPreset = p.preset ?? 'geometric';
+    const theme: SimplexTheme = p.theme ?? 'dark';
     const presetResolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
       preset,
       (item) => {
@@ -275,6 +279,7 @@ export function SimplexTopicGraph<
         }
         return '';
       },
+      theme,
     );
     const base = p.visualResolver;
 
@@ -411,6 +416,7 @@ export function SimplexTopicGraph<
       getLabel: p.getLabel,
       deriveClusterMeta: p.deriveClusterMeta,
       preset: p.preset,
+      theme: p.theme,
       visualResolver: effectiveResolver,
       contentView,
       clusterView,
@@ -502,16 +508,18 @@ export function SimplexTopicGraph<
     ctrlRef.current?.setItems(props.items);
   }, [props.items]);
 
-  // Sync views, presets & visual resolver (triggers smooth crossfade / morph!)
+  // Sync views, presets, theme & visual resolver (triggers smooth crossfade / morph!)
   useEffect(() => {
     const ctrl = ctrlRef.current;
     if (!ctrl) return;
+    ctrl.setTheme(props.theme ?? 'dark');
     const effectiveResolver = resolveEffectiveResolver();
     const { contentView, clusterView } = resolveActiveViews(effectiveResolver);
     ctrl.setViews({ contentView, clusterView });
     ctrl.setVisualResolver(effectiveResolver);
   }, [
     props.preset,
+    props.theme,
     props.visualResolver,
     props.contentView,
     props.clusterView,
@@ -574,12 +582,13 @@ export function SimplexTopicGraph<
       Math.max(8, containerH - 80),
     );
 
+    const isLight = props.theme === 'light';
     const content =
       typeof props.tooltip === 'function' ? (
         props.tooltip(hoveredTarget)
       ) : hoveredTarget.kind === 'content' ? (
         <div>
-          <div style={{ fontWeight: 600, color: '#f8fafc' }}>
+          <div style={{ fontWeight: 600, color: isLight ? '#0f172a' : '#f8fafc' }}>
             {extractDefaultItemLabel(
               hoveredTarget.item,
               hoveredTarget.layoutContext.id,
@@ -587,7 +596,7 @@ export function SimplexTopicGraph<
             )}
           </div>
           {hoveredTarget.layoutContext.tags.length > 0 && (
-            <div style={{ marginTop: 3, fontSize: 11, color: '#94a3b8' }}>
+            <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
               {hoveredTarget.layoutContext.tags
                 .map((t) => `#${t.tag}`)
                 .slice(0, 5)
@@ -600,7 +609,7 @@ export function SimplexTopicGraph<
           <div style={{ fontWeight: 600, color: hoveredTarget.cluster.colorHex }}>
             {`${hoveredTarget.cluster.code} · ${hoveredTarget.cluster.defaultLabel}`}
           </div>
-          <div style={{ marginTop: 3, fontSize: 11, color: '#94a3b8' }}>
+          <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
             {`${hoveredTarget.cluster.members.length} ${
               hoveredTarget.cluster.members.length === 1 ? 'item' : 'items'
             }`}
@@ -619,13 +628,17 @@ export function SimplexTopicGraph<
           maxWidth: 244,
           padding: '7px 10px',
           borderRadius: 8,
-          background: 'rgba(9, 13, 22, 0.94)',
-          border: '1px solid rgba(51, 65, 85, 0.85)',
-          color: '#f1f5f9',
+          background: isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(9, 13, 22, 0.94)',
+          border: isLight
+            ? '1px solid rgba(203, 213, 225, 0.95)'
+            : '1px solid rgba(51, 65, 85, 0.85)',
+          color: isLight ? '#0f172a' : '#f1f5f9',
           fontSize: 12,
           lineHeight: 1.4,
           pointerEvents: 'none',
-          boxShadow: '0 10px 24px rgba(0, 0, 0, 0.45)',
+          boxShadow: isLight
+            ? '0 10px 24px rgba(15, 23, 42, 0.12)'
+            : '0 10px 24px rgba(0, 0, 0, 0.45)',
         }}
       >
         {content}

@@ -16,6 +16,7 @@ export {
   type DefaultContentPresetVisual,
   type GeometricShapeVisual,
   type MultiSectorGlyphVisual,
+  type SimplexTheme,
   type SimplexVisualPreset,
   type SvgNodeView,
 } from '@simplex-viz/svg';

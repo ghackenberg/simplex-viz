@@ -6,36 +6,39 @@
       <stop offset="100%" stop-color="#05070C"/>
     </linearGradient>
     <radialGradient id="ghGlowCyan" cx="74%" cy="48%" r="48%">
-      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.16"/>
-      <stop offset="55%" stop-color="#6366F1" stop-opacity="0.06"/>
+      <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.16"/>
+      <stop offset="55%" stop-color="#D946EF" stop-opacity="0.06"/>
       <stop offset="100%" stop-color="#07090E" stop-opacity="0"/>
     </radialGradient>
     <clipPath id="ghStageClip">
       <rect x="0" y="0" width="608" height="552" rx="18"/>
     </clipPath>
-    
-    <linearGradient id="svTile" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#111B2E"/>
-      <stop offset="55%" stop-color="#090E17"/>
-      <stop offset="100%" stop-color="#05070C"/>
-    </linearGradient>
+    <!-- @simplex-mark-defs:start -->
     <radialGradient id="svCyan" cx="50%" cy="22%" r="72%">
-      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.55"/>
-      <stop offset="100%" stop-color="#22D3EE" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.44"/>
+      <stop offset="100%" stop-color="#06B6D4" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="svAmber" cx="20%" cy="78%" r="70%">
-      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.52"/>
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.42"/>
       <stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="svMagenta" cx="80%" cy="78%" r="70%">
-      <stop offset="0%" stop-color="#E879F9" stop-opacity="0.52"/>
-      <stop offset="100%" stop-color="#E879F9" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#D946EF" stop-opacity="0.42"/>
+      <stop offset="100%" stop-color="#D946EF" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="svEdge" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#67E8F9" stop-opacity="0.95"/>
-      <stop offset="50%" stop-color="#CBD5E1" stop-opacity="0.82"/>
-      <stop offset="100%" stop-color="#E879F9" stop-opacity="0.95"/>
+    <linearGradient id="svEdgeTopLeft" gradientUnits="userSpaceOnUse" x1="256" y1="95" x2="70" y2="417.2">
+      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#FBBF24" stop-opacity="0.92"/>
     </linearGradient>
+    <linearGradient id="svEdgeTopRight" gradientUnits="userSpaceOnUse" x1="256" y1="95" x2="442" y2="417.2">
+      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#E879F9" stop-opacity="0.92"/>
+    </linearGradient>
+    <linearGradient id="svEdgeBottom" gradientUnits="userSpaceOnUse" x1="70" y1="417.2" x2="442" y2="417.2">
+      <stop offset="0%" stop-color="#FBBF24" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#E879F9" stop-opacity="0.92"/>
+    </linearGradient>
+    <!-- @simplex-mark-defs:end -->
   </defs>
 
   <rect width="1280" height="640" fill="url(#ghBg)"/>
@@ -71,36 +74,34 @@
   <g transform="translate(68, 86)">
     <!-- Repository Eyebrow -->
     <rect x="0" y="0" width="234" height="30" rx="6" fill="#0F172A" stroke="#334155" stroke-width="1.2"/>
-    <circle cx="16" cy="15" r="4" fill="#22D3EE"/>
+    <circle cx="16" cy="15" r="4" fill="#06B6D4"/>
     <text x="29" y="19.5" font-family="JetBrains Mono, monospace" font-size="12.5" font-weight="600" fill="#CBD5E1">ghackenberg/simplex-viz</text>
 
     <!-- Icon + Wordmark -->
     <g transform="translate(0, 56)">
       <g transform="scale(0.185)">
-        <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#svTile)" stroke="#334155" stroke-width="14"/>
+        <!-- @simplex-mark-node:start -->
+        <polygon points="256,95 70,417.2 442,417.2" fill="#64748B" fill-opacity="0.08"/>
+        <polygon points="256,95 70,417.2 442,417.2" fill="url(#svCyan)"/>
+        <polygon points="256,95 70,417.2 442,417.2" fill="url(#svAmber)"/>
+        <polygon points="256,95 70,417.2 442,417.2" fill="url(#svMagenta)"/>
+        <line x1="256" y1="95" x2="70" y2="417.2" stroke="url(#svEdgeTopLeft)" stroke-width="28" stroke-linecap="round"/>
+        <line x1="256" y1="95" x2="442" y2="417.2" stroke="url(#svEdgeTopRight)" stroke-width="28" stroke-linecap="round"/>
+        <line x1="70" y1="417.2" x2="442" y2="417.2" stroke="url(#svEdgeBottom)" stroke-width="28" stroke-linecap="round"/>
 
-    <!-- Single large equilateral 60-degree triangle with 3-vertex color wash -->
-    <polygon points="256,108 102,375 410,375" fill="#0E1729"/>
-    <polygon points="256,108 102,375 410,375" fill="url(#svCyan)"/>
-    <polygon points="256,108 102,375 410,375" fill="url(#svAmber)"/>
-    <polygon points="256,108 102,375 410,375" fill="url(#svMagenta)"/>
-    <polygon points="256,108 102,375 410,375" fill="none" stroke="url(#svEdge)" stroke-width="26" stroke-linejoin="round"/>
+        <!-- 3 Topic Vertex Nodes -->
+        <circle cx="256" cy="95" r="54" fill="#155E75"/>
+        <circle cx="256" cy="95" r="37" fill="#06B6D4"/>
 
-    <!-- 3 Topic Vertex Nodes -->
-    <circle cx="256" cy="108" r="54" fill="#070A12"/>
-    <circle cx="256" cy="108" r="37" fill="#22D3EE"/>
+        <circle cx="70" cy="417.2" r="54" fill="#92400E"/>
+        <circle cx="70" cy="417.2" r="37" fill="#F59E0B"/>
 
-    <circle cx="102" cy="375" r="54" fill="#070A12"/>
-    <circle cx="102" cy="375" r="37" fill="#F59E0B"/>
-
-    <circle cx="410" cy="375" r="54" fill="#070A12"/>
-    <circle cx="410" cy="375" r="37" fill="#E879F9"/>
-  
-  
-  
+        <circle cx="442" cy="417.2" r="54" fill="#86198F"/>
+        <circle cx="442" cy="417.2" r="37" fill="#D946EF"/>
+        <!-- @simplex-mark-node:end -->
       </g>
       <text x="112" y="64" font-family="Noto Sans, sans-serif" font-size="56" font-weight="700" letter-spacing="-1.2">
-        <tspan fill="#F8FAFC">Simplex</tspan><tspan fill="#22D3EE">Viz</tspan>
+        <tspan fill="#F8FAFC">Simplex</tspan><tspan fill="#06B6D4">Viz</tspan>
       </text>
     </g>
 
@@ -115,22 +116,22 @@
       on an adaptive equilateral triangle mesh with OKLab mixing.
     </text>
 
-    <!-- 3-Package Architecture Strip -->
+    <!-- 3-Package Architecture Strip (1:1 synced to 3 vertex colors) -->
     <g transform="translate(0, 308)">
-      <rect x="0" y="0" width="166" height="40" rx="8" fill="#0D1526" stroke="#22D3EE" stroke-opacity="0.5"/>
-      <text x="83" y="25" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600" fill="#67E8F9">@simplex-viz/core</text>
+      <rect x="0" y="0" width="166" height="40" rx="8" fill="#0D1526" stroke="#06B6D4" stroke-opacity="0.55"/>
+      <text x="83" y="25" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600" fill="#22D3EE">@simplex-viz/core</text>
 
-      <rect x="178" y="0" width="158" height="40" rx="8" fill="#0B191C" stroke="#34D399" stroke-opacity="0.5"/>
-      <text x="257" y="25" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600" fill="#6EE7B7">@simplex-viz/svg</text>
+      <rect x="178" y="0" width="158" height="40" rx="8" fill="#1C150B" stroke="#F59E0B" stroke-opacity="0.55"/>
+      <text x="257" y="25" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600" fill="#FBBF24">@simplex-viz/svg</text>
 
-      <rect x="348" y="0" width="174" height="40" rx="8" fill="#0C1729" stroke="#38BDF8" stroke-opacity="0.5"/>
-      <text x="435" y="25" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600" fill="#7DD3FC">@simplex-viz/react</text>
+      <rect x="348" y="0" width="174" height="40" rx="8" fill="#1A0E24" stroke="#D946EF" stroke-opacity="0.55"/>
+      <text x="435" y="25" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600" fill="#E879F9">@simplex-viz/react</text>
     </g>
 
     <!-- Key Properties Footer -->
     <g transform="translate(0, 392)">
       <text x="0" y="20" font-family="JetBrains Mono, monospace" font-size="13.5" fill="#94A3B8">
-        <tspan fill="#34D399">0.0px</tspan> SAT Overlap  ·  <tspan fill="#FCD34D">OKLab</tspan> Barycentric Blend  ·  <tspan fill="#22D3EE">60fps</tspan> Springs
+        <tspan fill="#06B6D4">0.0px</tspan> SAT Overlap  ·  <tspan fill="#F59E0B">OKLab</tspan> Barycentric Blend  ·  <tspan fill="#D946EF">60fps</tspan> Springs
       </text>
       <text x="0" y="48" font-family="JetBrains Mono, monospace" font-size="13.5" fill="#64748B">
         TypeScript · Zero-Dependency Core · hackenberg.tech/simplex-viz

@@ -13,9 +13,11 @@
     "build:packages": "npm run build --prefix packages/core && npm run build --prefix packages/svg && npm run build --prefix packages/react",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js packages/*/dist",
-    "lint": "eslint packages src && npm run typecheck",
-    "lint:eslint": "eslint packages src",
-    "typecheck": "tsc -p packages/core/tsconfig.json --noEmit && tsc -p packages/svg/tsconfig.json --noEmit && tsc -p packages/react/tsconfig.json --noEmit && tsc -p tsconfig.json --noEmit",
+    "lint": "eslint packages src scripts && npm run typecheck",
+    "lint:eslint": "eslint packages src scripts",
+    "sync:brand": "tsx scripts/sync-brand.ts",
+    "sync:brand:check": "tsx scripts/sync-brand.ts --check",
+    "typecheck": "tsc -p packages/core/tsconfig.json --noEmit && tsc -p packages/svg/tsconfig.json --noEmit && tsc -p packages/react/tsconfig.json --noEmit && tsc -p tsconfig.json --noEmit && tsc -p scripts/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "validate:packages": "node -e \"const { execSync } = require('node:child_process'); const has = (c) => { try { execSync(c + ' --version', { stdio: 'ignore' }); return true; } catch { return false; } }; const pack = has('pnpm') ? 'pnpm' : has('bun') ? 'bun' : 'false'; for (const p of ['packages/core', 'packages/svg', 'packages/react']) execSync('publint ' + p + ' --pack ' + pack, { stdio: 'inherit' });\""
@@ -37,6 +39,7 @@
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
     "@eslint/js": "^10.0.1",
+    "@resvg/resvg-js": "^2.6.2",
     "@testing-library/react": "^16.3.3",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",

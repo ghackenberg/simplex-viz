@@ -13,6 +13,7 @@ import {
   type ClusterAnchorVisual,
   type GeometricShapeVisual,
   type MultiSectorGlyphVisual,
+  type SimplexTheme,
   type SvgNodeView,
 } from '@simplex-viz/svg';
 import type { ReactNode } from 'react';
@@ -33,6 +34,7 @@ export type DemoContentVisual =
   | { readonly preset: 'multisector'; readonly glyph: MultiSectorGlyphVisual }
   | {
       readonly preset: 'react-cards';
+      readonly theme: SimplexTheme;
       readonly key: string;
       readonly colorHex: string;
       readonly headline: string;
@@ -48,6 +50,7 @@ export type DemoClusterVisual =
   | { readonly preset: 'multisector'; readonly badge: BadgeClusterVisual }
   | {
       readonly preset: 'react-cards';
+      readonly theme: SimplexTheme;
       readonly key: string;
       readonly colorHex: string;
       readonly code: string;
@@ -135,6 +138,7 @@ export const demoBadgeClusterView: SvgNodeView<DemoClusterVisual> = {
 
 export function createDemoVisualResolver(
   preset: PresetId,
+  theme: SimplexTheme = 'dark',
 ): VisualResolver<
   KnowledgeEntry,
   DemoContentVisual,
@@ -157,8 +161,9 @@ export function createDemoVisualResolver(
             shape,
             radius: 9 + Math.min(4, Math.floor(item.readingMinutes / 8)),
             fillHex: ctx.mixedColorHex,
-            strokeHex: '#07090E',
+            strokeHex: theme === 'light' ? '#FFFFFF' : '#07090E',
             strokeWidth: 1.4,
+            theme,
           },
         };
       }
@@ -173,6 +178,7 @@ export function createDemoVisualResolver(
               weight: uc.weight,
             })),
             centerColorHex: ctx.mixedColorHex,
+            theme,
           },
         };
       }
@@ -180,7 +186,8 @@ export function createDemoVisualResolver(
         item.headline.length > 18 ? `${item.headline.slice(0, 17)}…` : item.headline;
       return {
         preset: 'react-cards',
-        key: `card:${item.slug}:${ctx.mixedColorHex}:${item.readingMinutes}`,
+        theme,
+        key: `card:${theme}:${item.slug}:${ctx.mixedColorHex}:${item.readingMinutes}`,
         colorHex: ctx.mixedColorHex,
         headline: snippet,
         minutes: item.readingMinutes,
@@ -198,6 +205,7 @@ export function createDemoVisualResolver(
             memberCount: cluster.meta.memberCount,
             colorHex: cluster.colorHex,
             radius: 23,
+            theme,
           },
         };
       }
@@ -213,6 +221,7 @@ export function createDemoVisualResolver(
             title: shortTitle,
             metaLine: `${cluster.meta.memberCount} items · ${cluster.coreTags.length} tags · avg ${cluster.meta.avgReadingMinutes.toFixed(0)}m`,
             colorHex: cluster.colorHex,
+            theme,
           },
         };
       }
@@ -222,7 +231,8 @@ export function createDemoVisualResolver(
           : cluster.meta.title;
       return {
         preset: 'react-cards',
-        key: `rc:${cluster.clusterUid}:${shortTitle}:${cluster.meta.memberCount}:${cluster.meta.dominantType}`,
+        theme,
+        key: `rc:${theme}:${cluster.clusterUid}:${shortTitle}:${cluster.meta.memberCount}:${cluster.meta.dominantType}`,
         colorHex: cluster.colorHex,
         code: cluster.code,
         title: shortTitle,
@@ -235,18 +245,18 @@ export function createDemoVisualResolver(
     getVisualCacheKey: (visual) => {
       if (visual.preset === 'geometric') {
         if ('shape' in visual) {
-          return `g:${visual.shape.shape}:${visual.shape.radius}:${visual.shape.fillHex}`;
+          return `g:${visual.shape.theme ?? 'dark'}:${visual.shape.shape}:${visual.shape.radius}:${visual.shape.fillHex}`;
         }
-        return `ga:${visual.anchor.code}:${visual.anchor.memberCount}:${visual.anchor.colorHex}`;
+        return `ga:${visual.anchor.theme ?? 'dark'}:${visual.anchor.code}:${visual.anchor.memberCount}:${visual.anchor.colorHex}`;
       }
       if (visual.preset === 'multisector') {
         if ('glyph' in visual) {
           const secKey = visual.glyph.sectors
             .map((s) => `${s.colorHex}:${s.weight.toFixed(2)}`)
             .join('|');
-          return `m:${visual.glyph.outerRadius}:${secKey}`;
+          return `m:${visual.glyph.theme ?? 'dark'}:${visual.glyph.outerRadius}:${secKey}`;
         }
-        return `mb:${visual.badge.code}:${visual.badge.title}:${visual.badge.metaLine}:${visual.badge.colorHex}`;
+        return `mb:${visual.badge.theme ?? 'dark'}:${visual.badge.code}:${visual.badge.title}:${visual.badge.metaLine}:${visual.badge.colorHex}`;
       }
       return visual.key;
     },
@@ -262,14 +272,19 @@ export function renderDemoContentCard(
   ctx: ContentLayoutContext<KnowledgeEntry, TagTaxonomyInfo, TopicClusterSummary>,
   state: NodeRenderState<DemoContentVisual>,
 ): ReactNode {
+  const isLight = state.visual.preset === 'react-cards' && state.visual.theme === 'light';
   const snippet =
     entry.headline.length > 17 ? `${entry.headline.slice(0, 16)}…` : entry.headline;
   const typeMark =
     entry.contentType === 'article' ? 'ART' : entry.contentType === 'video' ? 'VID' : 'PRJ';
   const stroke = state.interaction.isPinned
-    ? '#f59e0b'
+    ? isLight
+      ? '#d97706'
+      : '#f59e0b'
     : state.interaction.isHovered
-      ? '#f8fafc'
+      ? isLight
+        ? '#0f172a'
+        : '#f8fafc'
       : ctx.mixedColorHex;
 
   return (
@@ -280,16 +295,16 @@ export function renderDemoContentCard(
         width={104}
         height={30}
         rx={5}
-        fill="#0d1320"
-        fillOpacity={0.95}
+        fill={isLight ? '#ffffff' : '#0d1320'}
+        fillOpacity={isLight ? 0.97 : 0.95}
         stroke={stroke}
-        strokeWidth={state.interaction.isHovered ? 1.8 : 1.1}
+        strokeWidth={state.interaction.isHovered ? 1.8 : 1.15}
       />
       <circle cx={-42} cy={-4} r={3.2} fill={ctx.mixedColorHex} />
       <text
         x={-35}
         y={-1}
-        fill="#f1f5f9"
+        fill={isLight ? '#0f172a' : '#f1f5f9'}
         fontSize={8.5}
         fontWeight={600}
         fontFamily="Plus Jakarta Sans, sans-serif"
@@ -299,7 +314,7 @@ export function renderDemoContentCard(
       <text
         x={-45}
         y={10}
-        fill="#94a3b8"
+        fill={isLight ? '#475569' : '#94a3b8'}
         fontSize={7.5}
         fontFamily="IBM Plex Mono, monospace"
       >
@@ -318,13 +333,16 @@ export function renderDemoClusterCard(
   cluster: ClusterDescriptor<KnowledgeEntry, TagTaxonomyInfo, TopicClusterSummary>,
   state: NodeRenderState<DemoClusterVisual>,
 ): ReactNode {
+  const isLight = state.visual.preset === 'react-cards' && state.visual.theme === 'light';
   const title =
     cluster.meta.title.length > 22
       ? `${cluster.meta.title.slice(0, 21)}…`
       : cluster.meta.title;
   const stroke =
     state.interaction.isHovered || state.interaction.isHighlighted
-      ? '#f8fafc'
+      ? isLight
+        ? '#0f172a'
+        : '#f8fafc'
       : cluster.colorHex;
 
   return (
@@ -335,8 +353,8 @@ export function renderDemoClusterCard(
         width={168}
         height={48}
         rx={7}
-        fill="#0a0f1a"
-        fillOpacity={0.96}
+        fill={isLight ? '#ffffff' : '#0a0f1a'}
+        fillOpacity={isLight ? 0.97 : 0.96}
         stroke={stroke}
         strokeWidth={state.interaction.isHovered ? 2.2 : 1.5}
       />
@@ -344,7 +362,7 @@ export function renderDemoClusterCard(
       <text
         x={-61}
         y={-5}
-        fill={cluster.colorHex}
+        fill={isLight ? '#0f172a' : cluster.colorHex}
         fontSize={10}
         fontWeight={600}
         fontFamily="IBM Plex Mono, monospace"
@@ -354,7 +372,7 @@ export function renderDemoClusterCard(
       <text
         x={-40}
         y={-5}
-        fill="#f8fafc"
+        fill={isLight ? '#0f172a' : '#f8fafc'}
         fontSize={10.5}
         fontWeight={600}
         fontFamily="Plus Jakarta Sans, sans-serif"
@@ -364,7 +382,7 @@ export function renderDemoClusterCard(
       <text
         x={-75}
         y={13}
-        fill="#94a3b8"
+        fill={isLight ? '#475569' : '#94a3b8'}
         fontSize={9}
         fontFamily="IBM Plex Mono, monospace"
       >

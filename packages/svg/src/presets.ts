@@ -31,6 +31,8 @@ import {
  */
 export type SimplexVisualPreset = 'geometric' | 'glyphs' | 'badges';
 
+export type SimplexTheme = 'dark' | 'light';
+
 /**
  * Union of built-in content visual descriptors used by presets.
  */
@@ -102,6 +104,7 @@ export function createPresetVisualResolver<
 >(
   preset: SimplexVisualPreset,
   getLabel?: (item: TItem) => string,
+  theme: SimplexTheme = 'dark',
 ): VisualResolver<
   TItem,
   DefaultContentPresetVisual,
@@ -123,6 +126,7 @@ export function createPresetVisualResolver<
             weight: uc.weight,
           })),
           centerColorHex: ctx.mixedColorHex,
+          theme,
         };
       }
       const rank = ctx.unitClusters.length;
@@ -130,9 +134,10 @@ export function createPresetVisualResolver<
         shape: rank >= 3 ? 'star' : rank === 2 ? 'diamond' : 'circle',
         radius: 9.5,
         fillHex: ctx.mixedColorHex,
-        strokeHex: '#07090E',
+        strokeHex: theme === 'light' ? '#ffffff' : '#07090E',
         strokeWidth: 1.4,
         label: extractDefaultItemLabel(item, ctx.id, getLabel),
+        theme,
       };
     },
     resolveClusterVisual: (
@@ -145,6 +150,7 @@ export function createPresetVisualResolver<
           title: cluster.defaultLabel,
           metaLine: `${count} ${count === 1 ? 'item' : 'items'}`,
           colorHex: cluster.colorHex,
+          theme,
         };
       }
       return {
@@ -153,22 +159,24 @@ export function createPresetVisualResolver<
         memberCount: cluster.members.length,
         colorHex: cluster.colorHex,
         radius: 22,
+        theme,
       };
     },
     getVisualCacheKey: (
       visual: DefaultContentPresetVisual | DefaultClusterPresetVisual,
     ): string => {
+      const t = visual.theme ?? 'dark';
       if ('sectors' in visual) {
         const secKey = visual.sectors.map((s) => `${s.colorHex}:${s.weight.toFixed(2)}`).join('|');
-        return `glyph:${visual.outerRadius}:${visual.centerColorHex}:${secKey}`;
+        return `glyph:${t}:${visual.outerRadius}:${visual.centerColorHex}:${secKey}`;
       }
       if ('shape' in visual) {
-        return `geom:${visual.shape}:${visual.radius}:${visual.fillHex}`;
+        return `geom:${t}:${visual.shape}:${visual.radius}:${visual.fillHex}`;
       }
       if ('metaLine' in visual) {
-        return `badge:${visual.code}:${visual.title}:${visual.metaLine}:${visual.colorHex}`;
+        return `badge:${t}:${visual.code}:${visual.title}:${visual.metaLine}:${visual.colorHex}`;
       }
-      return `anchor:${visual.code}:${visual.memberCount}:${visual.colorHex}`;
+      return `anchor:${t}:${visual.code}:${visual.memberCount}:${visual.colorHex}`;
     },
   };
 }

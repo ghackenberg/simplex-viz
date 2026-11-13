@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -37,7 +37,20 @@
       name="twitter:image:alt"
       content="SimplexViz Interactive Live Demo featuring 60-degree simplex triangulation, OKLab colors, and hover inspection"
     />
-    <meta name="theme-color" content="#07090E" />
+    <meta name="theme-color" content="#F8FAFC" />
+    <script>
+      (function () {
+        var dark =
+          typeof window !== 'undefined' &&
+          window.matchMedia &&
+          window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.classList.toggle('dark', Boolean(dark));
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) {
+          meta.setAttribute('content', dark ? '#07090E' : '#F8FAFC');
+        }
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
@@ -59,7 +72,7 @@
       }
     </script>
   </head>
-  <body class="bg-[#07090E] text-slate-100 antialiased selection:bg-cyan-500/30 selection:text-cyan-100">
+  <body class="bg-slate-50 text-slate-900 dark:bg-[#07090E] dark:text-slate-100 antialiased selection:bg-cyan-500/30 selection:text-cyan-900 dark:selection:text-cyan-100">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

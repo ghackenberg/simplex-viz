@@ -1,71 +1,59 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 160" width="840" height="160">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 580 160" width="580" height="160">
   <defs>
-    <linearGradient id="bannerBg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0C1322"/>
-      <stop offset="100%" stop-color="#07090E"/>
-    </linearGradient>
-    <linearGradient id="svTile" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#111B2E"/>
-      <stop offset="55%" stop-color="#090E17"/>
-      <stop offset="100%" stop-color="#05070C"/>
-    </linearGradient>
     <radialGradient id="svCyan" cx="50%" cy="22%" r="72%">
-      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.55"/>
-      <stop offset="100%" stop-color="#22D3EE" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.44"/>
+      <stop offset="100%" stop-color="#06B6D4" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="svAmber" cx="20%" cy="78%" r="70%">
-      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.52"/>
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.42"/>
       <stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="svMagenta" cx="80%" cy="78%" r="70%">
-      <stop offset="0%" stop-color="#E879F9" stop-opacity="0.52"/>
-      <stop offset="100%" stop-color="#E879F9" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#D946EF" stop-opacity="0.42"/>
+      <stop offset="100%" stop-color="#D946EF" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="svEdge" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#67E8F9" stop-opacity="0.95"/>
-      <stop offset="50%" stop-color="#CBD5E1" stop-opacity="0.82"/>
-      <stop offset="100%" stop-color="#E879F9" stop-opacity="0.95"/>
+    <linearGradient id="svEdgeTopLeft" gradientUnits="userSpaceOnUse" x1="256" y1="95" x2="70" y2="417.2">
+      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#FBBF24" stop-opacity="0.92"/>
+    </linearGradient>
+    <linearGradient id="svEdgeTopRight" gradientUnits="userSpaceOnUse" x1="256" y1="95" x2="442" y2="417.2">
+      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#E879F9" stop-opacity="0.92"/>
+    </linearGradient>
+    <linearGradient id="svEdgeBottom" gradientUnits="userSpaceOnUse" x1="70" y1="417.2" x2="442" y2="417.2">
+      <stop offset="0%" stop-color="#FBBF24" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#E879F9" stop-opacity="0.92"/>
     </linearGradient>
   </defs>
-  <rect x="2" y="2" width="836" height="156" rx="20" fill="url(#bannerBg)" stroke="#1E293B" stroke-width="2"/>
 
-  <!-- Embedded Single-Triangle SimplexViz Mark -->
-  <g transform="translate(22, 16) scale(0.25)">
-    <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#svTile)" stroke="#334155" stroke-width="14"/>
-    
-    <!-- Single large equilateral 60-degree triangle with 3-vertex color wash -->
-    <polygon points="256,108 102,375 410,375" fill="#0E1729"/>
-    <polygon points="256,108 102,375 410,375" fill="url(#svCyan)"/>
-    <polygon points="256,108 102,375 410,375" fill="url(#svAmber)"/>
-    <polygon points="256,108 102,375 410,375" fill="url(#svMagenta)"/>
-    <polygon points="256,108 102,375 410,375" fill="none" stroke="url(#svEdge)" stroke-width="26" stroke-linejoin="round"/>
+  <!-- Freestanding Maximized 60-degree Simplex Mark -->
+  <g transform="translate(16, 16) scale(0.25)">
+    <polygon points="256,95 70,417.2 442,417.2" fill="#64748B" fill-opacity="0.08"/>
+    <polygon points="256,95 70,417.2 442,417.2" fill="url(#svCyan)"/>
+    <polygon points="256,95 70,417.2 442,417.2" fill="url(#svAmber)"/>
+    <polygon points="256,95 70,417.2 442,417.2" fill="url(#svMagenta)"/>
+    <line x1="256" y1="95" x2="70" y2="417.2" stroke="url(#svEdgeTopLeft)" stroke-width="28" stroke-linecap="round"/>
+    <line x1="256" y1="95" x2="442" y2="417.2" stroke="url(#svEdgeTopRight)" stroke-width="28" stroke-linecap="round"/>
+    <line x1="70" y1="417.2" x2="442" y2="417.2" stroke="url(#svEdgeBottom)" stroke-width="28" stroke-linecap="round"/>
 
     <!-- 3 Topic Vertex Nodes -->
-    <circle cx="256" cy="108" r="54" fill="#070A12"/>
-    <circle cx="256" cy="108" r="37" fill="#22D3EE"/>
+    <circle cx="256" cy="95" r="54" fill="#155E75"/>
+    <circle cx="256" cy="95" r="37" fill="#06B6D4"/>
 
-    <circle cx="102" cy="375" r="54" fill="#070A12"/>
-    <circle cx="102" cy="375" r="37" fill="#F59E0B"/>
+    <circle cx="70" cy="417.2" r="54" fill="#92400E"/>
+    <circle cx="70" cy="417.2" r="37" fill="#F59E0B"/>
 
-    <circle cx="410" cy="375" r="54" fill="#070A12"/>
-    <circle cx="410" cy="375" r="37" fill="#E879F9"/>
-  
+    <circle cx="442" cy="417.2" r="54" fill="#86198F"/>
+    <circle cx="442" cy="417.2" r="37" fill="#D946EF"/>
   </g>
 
-  <!-- Wordmark -->
-  <text x="176" y="76" font-family="Noto Sans, sans-serif" font-size="44" font-weight="700" letter-spacing="-0.8">
-    <tspan fill="#F8FAFC">Simplex</tspan><tspan fill="#22D3EE">Viz</tspan><tspan fill="#475569" font-weight="400"> / </tspan><tspan fill="#22D3EE" font-family="JetBrains Mono, monospace" font-size="38" font-weight="700">core</tspan>
+  <!-- Wordmark synced to top vertex Cyan -->
+  <text x="166" y="76" font-family="Noto Sans, sans-serif" font-size="44" font-weight="700" letter-spacing="-0.8">
+    <tspan fill="#6B7F99">SimplexViz</tspan><tspan fill="#64748B" font-weight="400"> / </tspan><tspan fill="#06B6D4" font-family="JetBrains Mono, monospace" font-size="38" font-weight="700">core</tspan>
   </text>
 
   <!-- Subtitle -->
-  <text x="178" y="114" font-family="JetBrains Mono, monospace" font-size="13.5" font-weight="500" letter-spacing="1.2" fill="#94A3B8">
+  <text x="168" y="114" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600" letter-spacing="0.9" fill="#64748B">
     HEADLESS MESH · CLUSTERING · SAT SOLVER
   </text>
-
-  <g transform="translate(624, 60)">
-    <rect x="0" y="0" width="190" height="36" rx="8" fill="#22D3EE" fill-opacity="0.12" stroke="#22D3EE" stroke-opacity="0.55" stroke-width="1.5"/>
-    <text x="95" y="23" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600" fill="#22D3EE">
-      @simplex-viz/core
-    </text>
-  </g>
 </svg>

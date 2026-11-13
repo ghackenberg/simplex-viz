@@ -182,7 +182,7 @@ export class SvgRendererAdapter<TContentVisual, TClusterVisual>
     // 2. Mesh edges
     while (this.edgeLines.length < snapshot.edges.length) {
       const line = this.doc.createElementNS(SVG_NS, 'line');
-      line.setAttribute('stroke', 'rgba(148, 163, 184, 0.16)');
+      line.setAttribute('stroke', 'rgba(100, 116, 139, 0.26)');
       line.setAttribute('stroke-width', '1');
       line.setAttribute('stroke-dasharray', '3 4');
       this.edgesGroup.appendChild(line);

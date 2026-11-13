@@ -16,6 +16,7 @@ export interface MultiSectorGlyphVisual {
   readonly sectors: readonly TopicSectorSlice[];
   readonly centerColorHex: string;
   readonly accentRingHex?: string;
+  readonly theme?: 'dark' | 'light';
 }
 
 function describeDonutSectorPath(
@@ -76,6 +77,11 @@ export class MultiSectorGlyphSvgView implements SvgNodeView<MultiSectorGlyphVisu
       groupEl.removeChild(groupEl.firstChild);
     }
 
+    const isLight = visual.theme === 'light';
+    const dividerStroke = isLight ? '#ffffff' : '#07090E';
+    const hoverStroke = isLight ? '#0f172a' : '#f8fafc';
+    const defaultAccent = isLight ? '#0891b2' : '#22d3ee';
+
     const totalWeight = visual.sectors.reduce((s, sec) => s + Math.max(0, sec.weight), 0) || 1;
     let angle = -Math.PI / 2;
 
@@ -89,7 +95,7 @@ export class MultiSectorGlyphSvgView implements SvgNodeView<MultiSectorGlyphVisu
         describeDonutSectorPath(visual.innerRadius, visual.outerRadius, angle, nextAngle),
       );
       path.setAttribute('fill', sec.colorHex);
-      path.setAttribute('stroke', '#07090E');
+      path.setAttribute('stroke', dividerStroke);
       path.setAttribute('stroke-width', visual.sectors.length > 1 ? '1.1' : '0.8');
       groupEl.appendChild(path);
       angle = nextAngle;
@@ -118,8 +124,8 @@ export class MultiSectorGlyphSvgView implements SvgNodeView<MultiSectorGlyphVisu
         state.interaction.isPinned
           ? '#f59e0b'
           : state.interaction.isHovered
-            ? '#f8fafc'
-            : (visual.accentRingHex ?? '#22d3ee'),
+            ? hoverStroke
+            : (visual.accentRingHex ?? defaultAccent),
       );
       ring.setAttribute('stroke-width', state.interaction.isHovered ? '2' : '1.2');
       groupEl.appendChild(ring);

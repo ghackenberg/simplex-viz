@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/logo-core.png" width="640" alt="SimplexViz / core — @simplex-viz/core" />
+  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/logo-core.png" width="525" alt="SimplexViz / core — @simplex-viz/core" />
 </p>
 
 # @simplex-viz/core

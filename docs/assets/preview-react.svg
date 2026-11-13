@@ -1,32 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="1200" height="640">
-  <rect x="0" y="0" width="1200" height="640" rx="12" fill="#07090E" stroke="#1E293B" stroke-width="2"/>
+  <rect x="1" y="1" width="1198" height="638" rx="12" fill="none" stroke="#64748B" stroke-opacity="0.38" stroke-width="1.5"/>
 
   <g transform="translate(0, 14)">
     <!-- Restrained architectural mesh -->
-    <polygon points="378.3,92.0 600.0,92.0 489.1,284.0" fill="#bc9bd1" fill-opacity="0.06"/>
-    <polygon points="600.0,92.0 710.9,284.0 489.1,284.0" fill="#9cafaf" fill-opacity="0.06"/>
-    <polygon points="600.0,92.0 821.7,92.0 710.9,284.0" fill="#b3a49b" fill-opacity="0.06"/>
-    <polygon points="489.1,284.0 600.0,476.0 378.3,476.0" fill="#3bb8d2" fill-opacity="0.06"/>
-    <polygon points="489.1,284.0 710.9,284.0 600.0,476.0" fill="#9aa4cf" fill-opacity="0.06"/>
-    <polygon points="710.9,284.0 821.7,476.0 600.0,476.0" fill="#c89997" fill-opacity="0.06"/>
-    <line x1="378.3" y1="92.0" x2="600.0" y2="92.0" stroke="#334155" stroke-opacity="0.42" stroke-width="1.2"/>
-    <line x1="600.0" y1="92.0" x2="489.1" y2="284.0" stroke="#334155" stroke-opacity="0.42" stroke-width="1.2"/>
-    <line x1="378.3" y1="92.0" x2="489.1" y2="284.0" stroke="#334155" stroke-opacity="0.42" stroke-width="1.2"/>
-    <line x1="600.0" y1="92.0" x2="710.9" y2="284.0" stroke="#334155" stroke-opacity="0.42" stroke-width="1.2"/>
-    <line x1="489.1" y1="284.0" x2="710.9" y2="284.0" stroke="#334155" stroke-opacity="0.42" stroke-width="1.2"/>
-    <line x1="600.0" y1="92.0" x2="821.7" y2="92.0" stroke="#334155" stroke-opacity="0.42" stroke-width="1.2"/>
-    <line x1="821.7" y1="92.0" x2="710.9" y2="284.0" stroke="#334155" stroke-opacity="0.42" stroke-width="1.2"/>
-    <line x1="489.1" y1="284.0" x2="600.0" y2="476.0" stroke="#334155" stroke-opacity="0.42" stroke-width="1.2"/>
-    <line x1="378.3" y1="476.0" x2="600.0" y2="476.0" stroke="#334155" stroke-opacity="0.42" stroke-width="1.2"/>
-    <line x1="489.1" y1="284.0" x2="378.3" y2="476.0" stroke="#334155" stroke-opacity="0.42" stroke-width="1.2"/>
-    <line x1="710.9" y1="284.0" x2="600.0" y2="476.0" stroke="#334155" stroke-opacity="0.42" stroke-width="1.2"/>
-    <line x1="710.9" y1="284.0" x2="821.7" y2="476.0" stroke="#334155" stroke-opacity="0.42" stroke-width="1.2"/>
-    <line x1="600.0" y1="476.0" x2="821.7" y2="476.0" stroke="#334155" stroke-opacity="0.42" stroke-width="1.2"/>
+    <polygon points="378.3,92.0 600.0,92.0 489.1,284.0" fill="#bc9bd1" fill-opacity="0.11"/>
+    <polygon points="600.0,92.0 710.9,284.0 489.1,284.0" fill="#9cafaf" fill-opacity="0.11"/>
+    <polygon points="600.0,92.0 821.7,92.0 710.9,284.0" fill="#b3a49b" fill-opacity="0.11"/>
+    <polygon points="489.1,284.0 600.0,476.0 378.3,476.0" fill="#3bb8d2" fill-opacity="0.11"/>
+    <polygon points="489.1,284.0 710.9,284.0 600.0,476.0" fill="#9aa4cf" fill-opacity="0.11"/>
+    <polygon points="710.9,284.0 821.7,476.0 600.0,476.0" fill="#c89997" fill-opacity="0.11"/>
+    <line x1="378.3" y1="92.0" x2="600.0" y2="92.0" stroke="#64748B" stroke-opacity="0.38" stroke-width="1.2"/>
+    <line x1="600.0" y1="92.0" x2="489.1" y2="284.0" stroke="#64748B" stroke-opacity="0.38" stroke-width="1.2"/>
+    <line x1="378.3" y1="92.0" x2="489.1" y2="284.0" stroke="#64748B" stroke-opacity="0.38" stroke-width="1.2"/>
+    <line x1="600.0" y1="92.0" x2="710.9" y2="284.0" stroke="#64748B" stroke-opacity="0.38" stroke-width="1.2"/>
+    <line x1="489.1" y1="284.0" x2="710.9" y2="284.0" stroke="#64748B" stroke-opacity="0.38" stroke-width="1.2"/>
+    <line x1="600.0" y1="92.0" x2="821.7" y2="92.0" stroke="#64748B" stroke-opacity="0.38" stroke-width="1.2"/>
+    <line x1="821.7" y1="92.0" x2="710.9" y2="284.0" stroke="#64748B" stroke-opacity="0.38" stroke-width="1.2"/>
+    <line x1="489.1" y1="284.0" x2="600.0" y2="476.0" stroke="#64748B" stroke-opacity="0.38" stroke-width="1.2"/>
+    <line x1="378.3" y1="476.0" x2="600.0" y2="476.0" stroke="#64748B" stroke-opacity="0.38" stroke-width="1.2"/>
+    <line x1="489.1" y1="284.0" x2="378.3" y2="476.0" stroke="#64748B" stroke-opacity="0.38" stroke-width="1.2"/>
+    <line x1="710.9" y1="284.0" x2="600.0" y2="476.0" stroke="#64748B" stroke-opacity="0.38" stroke-width="1.2"/>
+    <line x1="710.9" y1="284.0" x2="821.7" y2="476.0" stroke="#64748B" stroke-opacity="0.38" stroke-width="1.2"/>
+    <line x1="600.0" y1="476.0" x2="821.7" y2="476.0" stroke="#64748B" stroke-opacity="0.38" stroke-width="1.2"/>
 
     <!-- Minimalist Placeholder Content Cards (renderContentNode JSX slots) -->
     
       <g transform="translate(644.3, 349.4) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#5eba9b"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -36,7 +36,7 @@
       </g>
     
       <g transform="translate(644.3, 435.2) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#5eba9b"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -46,7 +46,7 @@
       </g>
     
       <g transform="translate(644.3, 371.9) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#5eba9b"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -56,7 +56,7 @@
       </g>
     
       <g transform="translate(644.4, 392.8) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#38BDF8" stroke-width="1.8"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#22D3EE" stroke-width="1.8"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#5eba9b"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -66,7 +66,7 @@
       </g>
     
       <g transform="translate(644.3, 415.3) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#5eba9b"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -76,7 +76,7 @@
       </g>
     
       <g transform="translate(794.0, 132.8) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#d17dc6"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -86,7 +86,7 @@
       </g>
     
       <g transform="translate(794.0, 212.9) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#d17dc6"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -96,7 +96,7 @@
       </g>
     
       <g transform="translate(794.0, 190.4) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#d17dc6"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -106,7 +106,7 @@
       </g>
     
       <g transform="translate(794.0, 149.1) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#d17dc6"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -116,7 +116,7 @@
       </g>
     
       <g transform="translate(793.9, 171.7) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#d17dc6"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -126,7 +126,7 @@
       </g>
     
       <g transform="translate(378.3, 391.4) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#97bf3f"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -136,7 +136,7 @@
       </g>
     
       <g transform="translate(378.3, 516.8) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#97bf3f"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -156,7 +156,7 @@
       </g>
     
       <g transform="translate(378.3, 539.2) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#97bf3f"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -166,7 +166,7 @@
       </g>
     
       <g transform="translate(378.2, 435.2) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#97bf3f"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -176,7 +176,7 @@
       </g>
     
       <g transform="translate(526.1, 159.0) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#87a2fb"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -186,7 +186,7 @@
       </g>
     
       <g transform="translate(516.5, 243.2) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#87a2fb"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -196,7 +196,7 @@
       </g>
     
       <g transform="translate(524.7, 181.4) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#87a2fb"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -206,7 +206,7 @@
       </g>
     
       <g transform="translate(518.8, 201.8) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#87a2fb"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -216,7 +216,7 @@
       </g>
     
       <g transform="translate(517.0, 224.4) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#87a2fb"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -226,7 +226,7 @@
       </g>
     
       <g transform="translate(376.5, 284.0) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#ff8083"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -236,7 +236,7 @@
       </g>
     
       <g transform="translate(378.3, 132.8) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#ff8083"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -246,7 +246,7 @@
       </g>
     
       <g transform="translate(378.3, 51.2) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#ff8083"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -256,7 +256,7 @@
       </g>
     
       <g transform="translate(378.3, 155.2) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#ff8083"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -266,7 +266,7 @@
       </g>
     
       <g transform="translate(378.2, 28.8) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#ff8083"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -276,7 +276,7 @@
       </g>
     
       <g transform="translate(574.4, 200.1) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#c98ddb"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -286,7 +286,7 @@
       </g>
     
       <g transform="translate(563.0, 324.8) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#c98ddb"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -296,7 +296,7 @@
       </g>
     
       <g transform="translate(570.7, 243.2) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#c98ddb"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -306,7 +306,7 @@
       </g>
     
       <g transform="translate(563.1, 347.2) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#c98ddb"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -316,7 +316,7 @@
       </g>
     
       <g transform="translate(571.2, 222.6) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#c98ddb"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -326,7 +326,7 @@
       </g>
     
       <g transform="translate(794.0, 355.1) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#e9839b"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -336,7 +336,7 @@
       </g>
     
       <g transform="translate(794.0, 377.6) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#e9839b"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -346,7 +346,7 @@
       </g>
     
       <g transform="translate(794.0, 435.2) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#e9839b"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -356,7 +356,7 @@
       </g>
     
       <g transform="translate(794.0, 418.9) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#e9839b"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -366,7 +366,7 @@
       </g>
     
       <g transform="translate(793.9, 396.3) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#e9839b"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -376,7 +376,7 @@
       </g>
     
       <g transform="translate(476.4, 431.2) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#59c185"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -386,7 +386,7 @@
       </g>
     
       <g transform="translate(475.0, 522.6) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#59c185"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -396,7 +396,7 @@
       </g>
     
       <g transform="translate(487.4, 453.7) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#59c185"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -406,7 +406,7 @@
       </g>
     
       <g transform="translate(488.4, 501.6) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#59c185"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -416,7 +416,7 @@
       </g>
     
       <g transform="translate(487.4, 476.1) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#59c185"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -426,7 +426,7 @@
       </g>
     
       <g transform="translate(637.0, 144.8) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#75c382"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -436,7 +436,7 @@
       </g>
     
       <g transform="translate(636.9, 167.3) scale(0.396)">
-        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0B111E" stroke="#334155" stroke-width="1.15"/>
+        <rect x="-57" y="-17" width="114" height="34" rx="6" fill="#0F172A" stroke="#475569" stroke-width="1.15"/>
         <circle cx="-44" cy="-5" r="3.8" fill="#75c382"/>
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#E2E8F0" fill-opacity="0.78"/>
@@ -448,7 +448,7 @@
     <!-- Minimalist Placeholder Cluster Cards (renderClusterNode JSX slots) -->
     
       <g transform="translate(378.3, 92.0) scale(1.000)">
-        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#090D16" stroke="#ff8083" stroke-width="1.6" stroke-dasharray="5 3"/>
+        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#0F172A" stroke="#ff8083" stroke-width="1.6" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#ff8083"/>
         <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#ff8083">T1</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#F8FAFC" fill-opacity="0.85"/>
@@ -456,7 +456,7 @@
       </g>
     
       <g transform="translate(600.0, 92.0) scale(1.000)">
-        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#090D16" stroke="#0dcaad" stroke-width="1.6" stroke-dasharray="5 3"/>
+        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#0F172A" stroke="#0dcaad" stroke-width="1.6" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#0dcaad"/>
         <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#0dcaad">T2</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#F8FAFC" fill-opacity="0.85"/>
@@ -464,7 +464,7 @@
       </g>
     
       <g transform="translate(821.7, 92.0) scale(1.000)">
-        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#090D16" stroke="#c079de" stroke-width="1.6" stroke-dasharray="5 3"/>
+        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#0F172A" stroke="#c079de" stroke-width="1.6" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#c079de"/>
         <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#c079de">T3</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#F8FAFC" fill-opacity="0.85"/>
@@ -472,7 +472,7 @@
       </g>
     
       <g transform="translate(489.1, 284.0) scale(1.000)">
-        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#090D16" stroke="#ad8dfd" stroke-width="1.6" stroke-dasharray="5 3"/>
+        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#0F172A" stroke="#ad8dfd" stroke-width="1.6" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#ad8dfd"/>
         <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#ad8dfd">T4</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#F8FAFC" fill-opacity="0.85"/>
@@ -480,7 +480,7 @@
       </g>
     
       <g transform="translate(710.9, 284.0) scale(1.000)">
-        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#090D16" stroke="#e29e3c" stroke-width="1.6" stroke-dasharray="5 3"/>
+        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#0F172A" stroke="#e29e3c" stroke-width="1.6" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#e29e3c"/>
         <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#e29e3c">T5</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#F8FAFC" fill-opacity="0.85"/>
@@ -488,7 +488,7 @@
       </g>
     
       <g transform="translate(378.3, 476.0) scale(1.000)">
-        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#090D16" stroke="#97bf3f" stroke-width="1.6" stroke-dasharray="5 3"/>
+        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#0F172A" stroke="#97bf3f" stroke-width="1.6" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#97bf3f"/>
         <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#97bf3f">T6</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#F8FAFC" fill-opacity="0.85"/>
@@ -496,7 +496,7 @@
       </g>
     
       <g transform="translate(600.0, 476.0) scale(1.000)">
-        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#090D16" stroke="#00b4d2" stroke-width="1.6" stroke-dasharray="5 3"/>
+        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#0F172A" stroke="#00b4d2" stroke-width="1.6" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#00b4d2"/>
         <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#00b4d2">T7</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#F8FAFC" fill-opacity="0.85"/>
@@ -504,7 +504,7 @@
       </g>
     
       <g transform="translate(821.7, 476.0) scale(1.000)">
-        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#090D16" stroke="#e27fb4" stroke-width="1.6" stroke-dasharray="5 3"/>
+        <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#0F172A" stroke="#e27fb4" stroke-width="1.6" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#e27fb4"/>
         <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#e27fb4">T8</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#F8FAFC" fill-opacity="0.85"/>
@@ -513,8 +513,8 @@
   </g>
 
   <!-- Minimal React Slot Callout Bar -->
-  <rect x="24" y="594" width="1152" height="30" rx="6" fill="#0B0F17" stroke="#1E293B"/>
-  <text x="42" y="613" font-family="JetBrains Mono, monospace" font-size="11" fill="#CBD5E1">
-    <tspan fill="#38BDF8">&lt;SimplexTopicGraph</tspan>  <tspan fill="#94A3B8">renderClusterNode=</tspan><tspan fill="#F8FAFC">{slot}</tspan>  <tspan fill="#94A3B8">renderContentNode=</tspan><tspan fill="#F8FAFC">{slot}</tspan>  <tspan fill="#94A3B8">getBBox()=auto</tspan>  <tspan fill="#38BDF8">/&gt;</tspan>
+  <rect x="24" y="594" width="1152" height="30" rx="6" fill="#64748B" fill-opacity="0.10" stroke="#64748B" stroke-opacity="0.34"/>
+  <text x="42" y="613" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#6B7F99">
+    <tspan fill="#D946EF">&lt;SimplexTopicGraph</tspan>  <tspan fill="#64748B">renderClusterNode=</tspan><tspan fill="#06B6D4">{slot}</tspan>  <tspan fill="#64748B">renderContentNode=</tspan><tspan fill="#06B6D4">{slot}</tspan>  <tspan fill="#64748B">getBBox()=</tspan><tspan fill="#F59E0B">auto</tspan>  <tspan fill="#D946EF">/&gt;</tspan>
   </text>
 </svg>

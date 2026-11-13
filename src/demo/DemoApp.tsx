@@ -7,14 +7,21 @@ import type {
   NormalizedPointerEvent,
   WheelBehavior,
 } from '@simplex-viz/core';
-import { SimplexTopicGraph, useSimplexGraphController } from '@simplex-viz/react';
+import {
+  SimplexTopicGraph,
+  useSimplexGraphController,
+  type SimplexTheme,
+} from '@simplex-viz/react';
 import {
   Crosshair,
   Minus,
+  Monitor,
+  Moon,
   Pin,
   Plus,
   RotateCcw,
   SlidersHorizontal,
+  Sun,
   Trash2,
   X,
   Zap,
@@ -43,6 +50,7 @@ import {
   type PresetId,
 } from './presets';
 
+type ThemePreference = 'auto' | 'light' | 'dark';
 type ContentHoverPolicy = 'tooltip' | 'highlight-unit' | 'none';
 type ClusterHoverPolicy = 'tooltip' | 'focus-members' | 'none';
 type LeftClickPolicy = 'inspect' | 'focus-toggle' | 'remove';
@@ -86,6 +94,38 @@ export function DemoApp() {
   const [activeNavSection, setActiveNavSection] = useState<
     'atlas' | 'rendering' | 'geometry' | 'interaction'
   >('atlas');
+
+  // Privacy-safe in-memory theme state (never persisted to storage or cookies)
+  const [themePreference, setThemePreference] = useState<ThemePreference>('auto');
+  const [systemDark, setSystemDark] = useState<boolean>(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+      : true,
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    setSystemDark(mq.matches);
+    const onChange = (event: MediaQueryListEvent) => {
+      setSystemDark(event.matches);
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  const resolvedTheme: SimplexTheme =
+    themePreference === 'auto' ? (systemDark ? 'dark' : 'light') : themePreference;
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', resolvedTheme === 'dark');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      meta.setAttribute('content', resolvedTheme === 'dark' ? '#07090E' : '#F8FAFC');
+    }
+  }, [resolvedTheme]);
 
   // Interaction configurator policies
   const [contentHoverPolicy, setContentHoverPolicy] =
@@ -143,7 +183,10 @@ export function DemoApp() {
     TopicClusterSummary
   >();
 
-  const visualResolver = useMemo(() => createDemoVisualResolver(preset), [preset]);
+  const visualResolver = useMemo(
+    () => createDemoVisualResolver(preset, resolvedTheme),
+    [preset, resolvedTheme],
+  );
 
   // Mutation handlers
   const handleAddItems = useCallback((count: number) => {
@@ -377,26 +420,26 @@ export function DemoApp() {
   };
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#07090E] text-slate-100">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-50 text-slate-900 dark:bg-[#07090E] dark:text-slate-100">
       {/* Strict 3-Zone Top Bar Contract */}
-      <header className="flex h-13 shrink-0 items-center justify-between gap-8 border-b border-slate-800/80 bg-[#0B0F17] px-5">
+      <header className="flex h-13 shrink-0 items-center justify-between gap-4 border-b border-slate-200/90 bg-white px-5 dark:border-slate-800/80 dark:bg-[#0B0F17]">
         <a
           href="#atlas"
           onClick={(e) => {
             e.preventDefault();
             scrollControlSection('atlas');
           }}
-          className="flex items-center gap-2.5 text-base font-bold tracking-tight text-slate-50 whitespace-nowrap shrink-0"
+          className="flex items-center gap-2.5 text-base font-bold tracking-tight text-slate-900 dark:text-slate-50 whitespace-nowrap shrink-0"
         >
           <SimplexLogoMark className="h-7 w-7 shrink-0" />
           <span>
-            Simplex<span className="text-cyan-400">Viz</span>
+            Simplex<span className="text-[#06B6D4]">Viz</span>
           </span>
         </a>
 
         <nav
           aria-label="Workspace"
-          className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-400"
+          className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-500 dark:text-slate-400"
         >
           {(
             [
@@ -412,8 +455,8 @@ export function DemoApp() {
               onClick={() => scrollControlSection(key)}
               className={`cursor-pointer transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b ${
                 activeNavSection === key
-                  ? 'border-cyan-400 text-slate-100'
-                  : 'border-transparent hover:text-slate-200'
+                  ? 'border-cyan-600 text-slate-950 dark:border-cyan-400 dark:text-slate-100'
+                  : 'border-transparent hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               {label}
@@ -421,11 +464,49 @@ export function DemoApp() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
+          {/* Manual & Auto Theme Switcher (in-memory only, zero persistence) */}
+          <div
+            role="group"
+            aria-label="Color theme"
+            className="flex items-center rounded-md border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-800 dark:bg-[#0E131D]"
+          >
+            {(
+              [
+                ['auto', 'Auto', Monitor],
+                ['light', 'Light', Sun],
+                ['dark', 'Dark', Moon],
+              ] as const
+            ).map(([opt, label, Icon]) => {
+              const active = themePreference === opt;
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  aria-pressed={active}
+                  title={
+                    opt === 'auto'
+                      ? `Auto (system: ${systemDark ? 'Dark' : 'Light'})`
+                      : `${label} mode`
+                  }
+                  onClick={() => setThemePreference(opt)}
+                  className={`cursor-pointer flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
+                    active
+                      ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-cyan-300'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+
           <button
             type="button"
             onClick={() => setMobilePanelOpen((v) => !v)}
-            className="lg:hidden rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-800 whitespace-nowrap shrink-0"
+            className="lg:hidden rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
           >
             <SlidersHorizontal className="inline h-3.5 w-3.5 mr-1.5" />
             Controls
@@ -433,7 +514,7 @@ export function DemoApp() {
           <button
             type="button"
             onClick={() => handle.resetCamera()}
-            className="cursor-pointer rounded-md border border-cyan-500/40 bg-cyan-500/10 px-3.5 py-1.5 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20 transition-colors whitespace-nowrap shrink-0"
+            className="cursor-pointer rounded-md border border-cyan-600/35 bg-cyan-50 px-3.5 py-1.5 text-xs font-semibold text-cyan-800 hover:bg-cyan-100 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-200 dark:hover:bg-cyan-500/20 transition-colors whitespace-nowrap shrink-0"
           >
             Reset Camera
           </button>
@@ -446,19 +527,21 @@ export function DemoApp() {
         <aside
           className={`${
             mobilePanelOpen ? 'flex' : 'hidden'
-          } lg:flex w-[340px] shrink-0 flex-col overflow-y-auto border-r border-slate-800/80 bg-[#0B0F17] z-20`}
+          } lg:flex w-[340px] shrink-0 flex-col overflow-y-auto border-r border-slate-200/90 bg-white dark:border-slate-800/80 dark:bg-[#0B0F17] z-20`}
         >
           {/* Section 1: Visual Preset Switcher */}
           <section
-            className={`p-4 border-b border-slate-800/80 ${
-              activeNavSection === 'rendering' ? 'bg-slate-900/40' : ''
+            className={`p-4 border-b border-slate-200/80 dark:border-slate-800/80 ${
+              activeNavSection === 'rendering'
+                ? 'bg-slate-100/70 dark:bg-slate-900/40'
+                : ''
             }`}
           >
             <div className="mb-2.5 flex items-center justify-between">
-              <h2 className="text-xs font-semibold tracking-wide text-slate-300">
+              <h2 className="text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
                 Rendering Plugin
               </h2>
-              <span className="font-mono text-[11px] text-slate-400">
+              <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
                 Live Crossfade
               </span>
             </div>
@@ -490,12 +573,14 @@ export function DemoApp() {
                     onClick={() => setPreset(id)}
                     className={`cursor-pointer rounded-md border px-3 py-2 text-left transition-colors ${
                       active
-                        ? 'border-cyan-500/60 bg-cyan-500/10 text-slate-50'
-                        : 'border-slate-800 bg-[#0E131D] text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+                        ? 'border-cyan-600/60 bg-cyan-50 text-slate-950 dark:border-cyan-500/60 dark:bg-cyan-500/10 dark:text-slate-50'
+                        : 'border-slate-200 bg-slate-50/70 text-slate-700 hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:bg-[#0E131D] dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900'
                     }`}
                   >
                     <div className="text-xs font-semibold">{title}</div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      {sub}
+                    </div>
                   </button>
                 );
               })}
@@ -503,15 +588,15 @@ export function DemoApp() {
           </section>
 
           {/* Section 2: Dynamic Mutations & Rapid-Fire Stress Test */}
-          <section className="p-4 border-b border-slate-800/80">
+          <section className="p-4 border-b border-slate-200/80 dark:border-slate-800/80">
             <div className="mb-2.5 flex items-center justify-between">
-              <h2 className="text-xs font-semibold tracking-wide text-slate-300">
+              <h2 className="text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
                 Dynamic Mutations
               </h2>
               <button
                 type="button"
                 onClick={handleResetCatalog}
-                className="cursor-pointer text-[11px] text-slate-400 hover:text-cyan-300 transition-colors"
+                className="cursor-pointer text-[11px] text-slate-500 hover:text-cyan-700 dark:text-slate-400 dark:hover:text-cyan-300 transition-colors"
               >
                 Reset
               </button>
@@ -520,28 +605,28 @@ export function DemoApp() {
               <button
                 type="button"
                 onClick={() => handleAddItems(1)}
-                className="cursor-pointer rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs font-medium text-slate-200 hover:border-cyan-500/50 hover:text-cyan-200 transition-colors whitespace-nowrap"
+                className="cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-cyan-600/50 hover:text-cyan-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200 dark:hover:border-cyan-500/50 dark:hover:text-cyan-200 transition-colors whitespace-nowrap"
               >
                 + 1 Item
               </button>
               <button
                 type="button"
                 onClick={() => handleAddItems(10)}
-                className="cursor-pointer rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs font-medium text-slate-200 hover:border-cyan-500/50 hover:text-cyan-200 transition-colors whitespace-nowrap"
+                className="cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-cyan-600/50 hover:text-cyan-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200 dark:hover:border-cyan-500/50 dark:hover:text-cyan-200 transition-colors whitespace-nowrap"
               >
                 + 10 Items
               </button>
               <button
                 type="button"
                 onClick={() => handleRemoveItems(1)}
-                className="cursor-pointer rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs font-medium text-slate-200 hover:border-amber-500/50 hover:text-amber-200 transition-colors whitespace-nowrap"
+                className="cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-amber-600/50 hover:text-amber-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200 dark:hover:border-amber-500/50 dark:hover:text-amber-200 transition-colors whitespace-nowrap"
               >
                 - 1 Item
               </button>
               <button
                 type="button"
                 onClick={() => handleRemoveItems(10)}
-                className="cursor-pointer rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs font-medium text-slate-200 hover:border-amber-500/50 hover:text-amber-200 transition-colors whitespace-nowrap"
+                className="cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-amber-600/50 hover:text-amber-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200 dark:hover:border-amber-500/50 dark:hover:text-amber-200 transition-colors whitespace-nowrap"
               >
                 - 10 Items
               </button>
@@ -551,8 +636,8 @@ export function DemoApp() {
               onClick={() => setRapidFireActive((v) => !v)}
               className={`cursor-pointer flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold transition-colors whitespace-nowrap ${
                 rapidFireActive
-                  ? 'border-amber-500/70 bg-amber-500/15 text-amber-200'
-                  : 'border-slate-700 bg-slate-900/70 text-slate-200 hover:border-cyan-500/50'
+                  ? 'border-amber-500/70 bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200'
+                  : 'border-slate-200 bg-slate-100 text-slate-700 hover:border-cyan-600/50 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-cyan-500/50'
               }`}
             >
               <Zap className="h-3.5 w-3.5" />
@@ -564,18 +649,20 @@ export function DemoApp() {
 
           {/* Section 3: Collision & Geometry Inspector */}
           <section
-            className={`p-4 border-b border-slate-800/80 ${
-              activeNavSection === 'geometry' ? 'bg-slate-900/40' : ''
+            className={`p-4 border-b border-slate-200/80 dark:border-slate-800/80 ${
+              activeNavSection === 'geometry'
+                ? 'bg-slate-100/70 dark:bg-slate-900/40'
+                : ''
             }`}
           >
-            <h2 className="mb-3 text-xs font-semibold tracking-wide text-slate-300">
+            <h2 className="mb-3 text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
               Collision &amp; Geometry Inspector
             </h2>
 
             <label className="block mb-3">
-              <div className="flex items-center justify-between text-xs text-slate-300 mb-1.5">
+              <div className="flex items-center justify-between text-xs text-slate-700 dark:text-slate-300 mb-1.5">
                 <span>Size Multiplier</span>
-                <span className="font-mono text-cyan-300">
+                <span className="font-mono text-cyan-700 dark:text-cyan-300">
                   {sizeMultiplier.toFixed(2)}×
                 </span>
               </div>
@@ -586,59 +673,76 @@ export function DemoApp() {
                 step={0.05}
                 value={sizeMultiplier}
                 onChange={(e) => setSizeMultiplier(parseFloat(e.target.value))}
-                className="w-full accent-cyan-400 cursor-pointer"
+                className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
               />
             </label>
 
-            <label className="flex cursor-pointer items-center justify-between rounded-md border border-slate-800 bg-[#0E131D] px-3 py-2 text-xs text-slate-200 mb-3">
+            <label className="flex cursor-pointer items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 dark:border-slate-800 dark:bg-[#0E131D] dark:text-slate-200 mb-3">
               <span>Show Convex Bounding Hulls</span>
               <input
                 type="checkbox"
                 checked={showHulls}
                 onChange={(e) => setShowHulls(e.target.checked)}
-                className="h-4 w-4 accent-cyan-400 cursor-pointer"
+                className="h-4 w-4 accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
               />
             </label>
 
-            <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-slate-800 bg-slate-800/70">
-              <div className="bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-400">Clusters K</div>
-                <div className="font-mono text-base font-semibold text-slate-100">
+            <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-slate-200 bg-slate-200/80 dark:border-slate-800 dark:bg-slate-800/70">
+              <div className="bg-white dark:bg-[#0B0F17] p-2.5">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Clusters K
+                </div>
+                <div className="font-mono text-base font-semibold text-slate-900 dark:text-slate-100">
                   {metrics.clusterCount}
                 </div>
               </div>
-              <div className="bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-400">Items</div>
-                <div className="font-mono text-base font-semibold text-slate-100">
+              <div className="bg-white dark:bg-[#0B0F17] p-2.5">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Items
+                </div>
+                <div className="font-mono text-base font-semibold text-slate-900 dark:text-slate-100">
                   {metrics.itemCount}
                 </div>
               </div>
-              <div className="bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-400">α Cluster</div>
-                <div className="font-mono text-base font-semibold text-amber-300">
+              <div className="bg-white dark:bg-[#0B0F17] p-2.5">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  α Cluster
+                </div>
+                <div className="font-mono text-base font-semibold text-amber-600 dark:text-amber-300">
                   {metrics.clusterScale.toFixed(3)}
                 </div>
               </div>
-              <div className="bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-400">α Content</div>
-                <div className="font-mono text-base font-semibold text-cyan-300">
+              <div className="bg-white dark:bg-[#0B0F17] p-2.5">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  α Content
+                </div>
+                <div className="font-mono text-base font-semibold text-cyan-700 dark:text-cyan-300">
                   {metrics.contentScale.toFixed(3)}
                 </div>
               </div>
-              <div className="bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-400">Overlaps</div>
+              <div className="bg-white dark:bg-[#0B0F17] p-2.5">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Overlaps
+                </div>
                 <div
                   className={`font-mono text-base font-semibold ${
-                    metrics.overlapCount === 0 ? 'text-emerald-400' : 'text-rose-400'
+                    metrics.overlapCount === 0
+                      ? 'text-[#06B6D4]'
+                      : 'text-fuchsia-600 dark:text-fuchsia-400'
                   }`}
                 >
                   {metrics.overlapCount}
                 </div>
               </div>
-              <div className="bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-400">Frame Rate</div>
-                <div className="font-mono text-base font-semibold text-slate-100">
-                  {fps} <span className="text-[11px] text-slate-400 font-normal">fps</span>
+              <div className="bg-white dark:bg-[#0B0F17] p-2.5">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Frame Rate
+                </div>
+                <div className="font-mono text-base font-semibold text-slate-900 dark:text-slate-100">
+                  {fps}{' '}
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">
+                    fps
+                  </span>
                 </div>
               </div>
             </div>
@@ -647,21 +751,25 @@ export function DemoApp() {
           {/* Section 4: Interaction Configurator */}
           <section
             className={`p-4 ${
-              activeNavSection === 'interaction' ? 'bg-slate-900/40' : ''
+              activeNavSection === 'interaction'
+                ? 'bg-slate-100/70 dark:bg-slate-900/40'
+                : ''
             }`}
           >
-            <h2 className="mb-3 text-xs font-semibold tracking-wide text-slate-300">
+            <h2 className="mb-3 text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
               Interaction Configurator
             </h2>
             <div className="space-y-2.5 text-xs">
               <label className="block">
-                <span className="mb-1 block text-[11px] text-slate-400">Hover Content</span>
+                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                  Hover Content
+                </span>
                 <select
                   value={contentHoverPolicy}
                   onChange={(e) =>
                     setContentHoverPolicy(e.target.value as ContentHoverPolicy)
                   }
-                  className="w-full rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs text-slate-200"
+                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
                 >
                   <option value="tooltip">Show Tooltip Card</option>
                   <option value="highlight-unit">Highlight Simplex Neighbors</option>
@@ -670,13 +778,15 @@ export function DemoApp() {
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-[11px] text-slate-400">Hover Cluster</span>
+                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                  Hover Cluster
+                </span>
                 <select
                   value={clusterHoverPolicy}
                   onChange={(e) =>
                     setClusterHoverPolicy(e.target.value as ClusterHoverPolicy)
                   }
-                  className="w-full rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs text-slate-200"
+                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
                 >
                   <option value="tooltip">Show Cluster Stats</option>
                   <option value="focus-members">Isolate Members</option>
@@ -685,11 +795,13 @@ export function DemoApp() {
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-[11px] text-slate-400">Left Click</span>
+                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                  Left Click
+                </span>
                 <select
                   value={leftClickPolicy}
                   onChange={(e) => setLeftClickPolicy(e.target.value as LeftClickPolicy)}
-                  className="w-full rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs text-slate-200"
+                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
                 >
                   <option value="inspect">Pin &amp; Inspect Details</option>
                   <option value="focus-toggle">Focus Unit / Cluster</option>
@@ -698,11 +810,13 @@ export function DemoApp() {
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-[11px] text-slate-400">Right Click</span>
+                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                  Right Click
+                </span>
                 <select
                   value={rightClickPolicy}
                   onChange={(e) => setRightClickPolicy(e.target.value as RightClickPolicy)}
-                  className="w-full rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs text-slate-200"
+                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
                 >
                   <option value="context-menu">Open Custom Context Menu</option>
                   <option value="browser-default">Browser Default Menu</option>
@@ -710,7 +824,9 @@ export function DemoApp() {
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-[11px] text-slate-400">Mouse Scroll</span>
+                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                  Mouse Scroll
+                </span>
                 <select
                   value={wheelPolicy}
                   onChange={(e) =>
@@ -718,7 +834,7 @@ export function DemoApp() {
                       e.target.value as 'zoom-to-cursor' | 'pan-vertical' | 'none',
                     )
                   }
-                  className="w-full rounded-md border border-slate-700/80 bg-[#0E131D] px-2.5 py-1.5 text-xs text-slate-200"
+                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
                 >
                   <option value="zoom-to-cursor">Zoom to Cursor</option>
                   <option value="pan-vertical">Pan Vertical / Horizontal</option>
@@ -730,7 +846,10 @@ export function DemoApp() {
         </aside>
 
         {/* Main Triangulation Viewport Stage */}
-        <main ref={stageRef} className="relative min-w-0 flex-1 bg-[#07090E]">
+        <main
+          ref={stageRef}
+          className="relative min-w-0 flex-1 bg-slate-50 dark:bg-[#07090E]"
+        >
           <SimplexTopicGraph<
             KnowledgeEntry,
             DemoContentVisual,
@@ -745,6 +864,7 @@ export function DemoApp() {
             resolveTagMeta={resolveDemoTagMeta}
             deriveClusterMeta={deriveDemoClusterMeta}
             visualResolver={visualResolver}
+            theme={resolvedTheme}
             contentView={
               preset === 'geometric'
                 ? demoGeometricContentView
@@ -787,12 +907,12 @@ export function DemoApp() {
           />
 
           {/* Camera Zoom Overlay Controls */}
-          <div className="absolute bottom-4 right-4 flex items-center gap-1 rounded-md border border-slate-800 bg-[#0B0F17]/95 p-1">
+          <div className="absolute bottom-4 right-4 flex items-center gap-1 rounded-md border border-slate-200 bg-white/95 p-1 shadow-sm dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:shadow-none">
             <button
               type="button"
               aria-label="Zoom in"
               onClick={() => handle.zoomBy(1.22)}
-              className="cursor-pointer rounded p-1.5 text-slate-300 hover:bg-slate-800 hover:text-slate-50 transition-colors"
+              className="cursor-pointer rounded p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 transition-colors"
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -800,7 +920,7 @@ export function DemoApp() {
               type="button"
               aria-label="Zoom out"
               onClick={() => handle.zoomBy(0.82)}
-              className="cursor-pointer rounded p-1.5 text-slate-300 hover:bg-slate-800 hover:text-slate-50 transition-colors"
+              className="cursor-pointer rounded p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 transition-colors"
             >
               <Minus className="h-4 w-4" />
             </button>
@@ -808,7 +928,7 @@ export function DemoApp() {
               type="button"
               aria-label="Reset view"
               onClick={() => handle.resetCamera()}
-              className="cursor-pointer rounded p-1.5 text-slate-300 hover:bg-slate-800 hover:text-slate-50 transition-colors"
+              className="cursor-pointer rounded p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 transition-colors"
             >
               <RotateCcw className="h-3.5 w-3.5" />
             </button>
@@ -817,7 +937,7 @@ export function DemoApp() {
           {/* Floating Content Hover Tooltip */}
           {hoveredContent && !contextMenu && (
             <div
-              className="pointer-events-none absolute z-30 max-w-xs rounded-md border border-slate-700/90 bg-[#0B0F17]/95 px-3 py-2 text-xs shadow-lg"
+              className="pointer-events-none absolute z-30 max-w-xs rounded-md border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-lg dark:border-slate-700/90 dark:bg-[#0B0F17]/95"
               style={{
                 left: Math.min(
                   (stageRef.current?.clientWidth ?? 900) - 270,
@@ -826,17 +946,17 @@ export function DemoApp() {
                 top: Math.max(12, hoveredContent.screenPosition.y - 12),
               }}
             >
-              <div className="font-semibold text-slate-100 leading-snug">
+              <div className="font-semibold text-slate-900 dark:text-slate-100 leading-snug">
                 {hoveredContent.item.headline}
               </div>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-slate-400">
+              <div className="mt-1 flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-slate-500 dark:text-slate-400">
                 <span>{hoveredContent.item.contentType}</span>
                 <span aria-hidden="true">·</span>
                 <span>{hoveredContent.item.readingMinutes} min</span>
                 <span aria-hidden="true">·</span>
                 <span>{hoveredContent.item.publishedYear}</span>
               </div>
-              <div className="mt-1 text-[11px] text-cyan-300">
+              <div className="mt-1 text-[11px] text-cyan-700 dark:text-cyan-300">
                 {hoveredContent.layoutContext.tags
                   .map((t) => t.meta?.displayTitle ?? t.tag)
                   .join(' · ')}
@@ -847,7 +967,7 @@ export function DemoApp() {
           {/* Floating Cluster Hover Tooltip */}
           {hoveredCluster && !hoveredContent && !contextMenu && (
             <div
-              className="pointer-events-none absolute z-30 max-w-xs rounded-md border border-slate-700/90 bg-[#0B0F17]/95 px-3 py-2 text-xs shadow-lg"
+              className="pointer-events-none absolute z-30 max-w-xs rounded-md border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-lg dark:border-slate-700/90 dark:bg-[#0B0F17]/95"
               style={{
                 left: Math.min(
                   (stageRef.current?.clientWidth ?? 900) - 270,
@@ -856,13 +976,13 @@ export function DemoApp() {
                 top: Math.max(12, hoveredCluster.screenPosition.y - 12),
               }}
             >
-              <div className="flex items-center gap-2 font-semibold text-slate-100">
-                <span className="font-mono text-cyan-300">
+              <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
+                <span className="font-mono text-cyan-700 dark:text-cyan-300">
                   {hoveredCluster.cluster.code}
                 </span>
                 <span>{hoveredCluster.cluster.meta.title}</span>
               </div>
-              <div className="mt-1 flex items-center gap-1.5 font-mono text-[11px] text-slate-400">
+              <div className="mt-1 flex items-center gap-1.5 font-mono text-[11px] text-slate-500 dark:text-slate-400">
                 <span>{hoveredCluster.cluster.meta.memberCount} items</span>
                 <span aria-hidden="true">·</span>
                 <span>
@@ -871,7 +991,7 @@ export function DemoApp() {
                 <span aria-hidden="true">·</span>
                 <span>{hoveredCluster.cluster.meta.dominantType}</span>
               </div>
-              <div className="mt-1 text-[11px] text-slate-300">
+              <div className="mt-1 text-[11px] text-slate-700 dark:text-slate-300">
                 Core:{' '}
                 {hoveredCluster.cluster.coreTags
                   .map((t) => t.meta?.displayTitle ?? t.tag)
@@ -883,7 +1003,7 @@ export function DemoApp() {
           {/* Custom Right-Click Context Menu */}
           {contextMenu && (
             <div
-              className="absolute z-40 w-52 rounded-md border border-slate-700 bg-[#0B0F17] py-1 text-xs shadow-xl"
+              className="absolute z-40 w-52 rounded-md border border-slate-200 bg-white py-1 text-xs shadow-xl dark:border-slate-700 dark:bg-[#0B0F17]"
               style={{
                 left: Math.min(
                   (stageRef.current?.clientWidth ?? 900) - 216,
@@ -898,7 +1018,7 @@ export function DemoApp() {
             >
               {contextMenu.target.kind === 'content' && (
                 <>
-                  <div className="border-b border-slate-800 px-3 py-1.5 text-[11px] font-semibold text-slate-300 truncate">
+                  <div className="border-b border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-700 dark:border-slate-800 dark:text-slate-300 truncate">
                     {contextMenu.target.item.headline}
                   </div>
                   <button
@@ -911,9 +1031,9 @@ export function DemoApp() {
                       if (slug) togglePinId(slug);
                       setContextMenu(null);
                     }}
-                    className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-slate-200 hover:bg-slate-800"
+                    className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
-                    <Pin className="h-3.5 w-3.5 text-amber-400" />
+                    <Pin className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
                     {pinnedIds.has(contextMenu.target.item.slug)
                       ? 'Unpin node'
                       : 'Pin node'}
@@ -930,7 +1050,7 @@ export function DemoApp() {
                       }
                       setContextMenu(null);
                     }}
-                    className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-rose-300 hover:bg-slate-800"
+                    className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-fuchsia-600 hover:bg-slate-100 dark:text-fuchsia-400 dark:hover:bg-slate-800"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     Remove item
@@ -940,7 +1060,7 @@ export function DemoApp() {
 
               {contextMenu.target.kind === 'cluster' && (
                 <>
-                  <div className="border-b border-slate-800 px-3 py-1.5 text-[11px] font-semibold text-slate-300 truncate">
+                  <div className="border-b border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-700 dark:border-slate-800 dark:text-slate-300 truncate">
                     {contextMenu.target.cluster.code} ·{' '}
                     {contextMenu.target.cluster.meta.title}
                   </div>
@@ -953,9 +1073,9 @@ export function DemoApp() {
                       }
                       setContextMenu(null);
                     }}
-                    className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-slate-200 hover:bg-slate-800"
+                    className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
-                    <Crosshair className="h-3.5 w-3.5 text-cyan-400" />
+                    <Crosshair className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" />
                     Focus cluster members
                   </button>
                 </>
@@ -970,9 +1090,9 @@ export function DemoApp() {
                     setHighlightedIds(new Set());
                     setContextMenu(null);
                   }}
-                  className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-slate-200 hover:bg-slate-800"
+                  className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
-                  <RotateCcw className="h-3.5 w-3.5 text-cyan-400" />
+                  <RotateCcw className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" />
                   Reset camera &amp; focus
                 </button>
               )}
@@ -981,16 +1101,16 @@ export function DemoApp() {
 
           {/* Selected / Inspected Node Detail Panel */}
           {inspected && (
-            <div className="absolute top-4 right-4 z-30 w-80 rounded-md border border-slate-800 bg-[#0B0F17]/95 p-3.5 text-xs">
+            <div className="absolute top-4 right-4 z-30 w-80 rounded-md border border-slate-200 bg-white/95 p-3.5 text-xs shadow-lg dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:shadow-none">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   {inspected.kind === 'content' ? (
-                    <div className="text-sm font-semibold text-slate-100 leading-snug">
+                    <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
                       {inspected.item.headline}
                     </div>
                   ) : (
-                    <div className="text-sm font-semibold text-slate-100 leading-snug">
-                      <span className="font-mono text-cyan-300 mr-1.5">
+                    <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
+                      <span className="font-mono text-cyan-700 dark:text-cyan-300 mr-1.5">
                         {inspected.cluster.code}
                       </span>
                       {inspected.cluster.meta.title}
@@ -1004,7 +1124,7 @@ export function DemoApp() {
                     setInspected(null);
                     setFocusedClusterUid(null);
                   }}
-                  className="cursor-pointer rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                  className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -1012,18 +1132,18 @@ export function DemoApp() {
 
               {inspected.kind === 'content' ? (
                 <div className="mt-2.5 space-y-2">
-                  <div className="flex items-center gap-2 font-mono text-[11px] text-slate-400">
+                  <div className="flex items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
                     <span>{inspected.item.slug}</span>
                     <span aria-hidden="true">·</span>
                     <span>{inspected.item.contentType}</span>
                     <span aria-hidden="true">·</span>
                     <span>{inspected.item.readingMinutes} min</span>
                   </div>
-                  <div className="text-[11px] text-slate-300">
-                    <span className="text-slate-400">Unit: </span>
+                  <div className="text-[11px] text-slate-700 dark:text-slate-300">
+                    <span className="text-slate-500 dark:text-slate-400">Unit: </span>
                     {inspected.clusterTitles.join(', ')}
                   </div>
-                  <div className="text-[11px] text-cyan-300">
+                  <div className="text-[11px] text-cyan-700 dark:text-cyan-300">
                     {inspected.item.hashtags
                       .map((h) => resolveDemoTagMeta(h)?.displayTitle ?? h)
                       .join(' · ')}
@@ -1031,7 +1151,7 @@ export function DemoApp() {
                 </div>
               ) : (
                 <div className="mt-2.5 space-y-2">
-                  <div className="flex items-center gap-2 font-mono text-[11px] text-slate-400">
+                  <div className="flex items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
                     <span>{inspected.cluster.meta.memberCount} members</span>
                     <span aria-hidden="true">·</span>
                     <span>{inspected.cluster.meta.exclusiveCount} exclusive</span>
@@ -1040,30 +1160,32 @@ export function DemoApp() {
                       avg {inspected.cluster.meta.avgReadingMinutes.toFixed(1)} min
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-300">
-                    <span className="text-slate-400">Core Tags: </span>
+                  <div className="text-[11px] text-slate-700 dark:text-slate-300">
+                    <span className="text-slate-500 dark:text-slate-400">Core Tags: </span>
                     {inspected.cluster.coreTags
                       .map((t) => t.meta?.displayTitle ?? t.tag)
                       .join(', ')}
                   </div>
                   {inspected.cluster.sharedTags.length > 0 && (
-                    <div className="text-[11px] text-amber-300">
-                      <span className="text-slate-400">Shared Tags: </span>
+                    <div className="text-[11px] text-amber-700 dark:text-amber-300">
+                      <span className="text-slate-500 dark:text-slate-400">
+                        Shared Tags:{' '}
+                      </span>
                       {inspected.cluster.sharedTags
                         .map((t) => t.meta?.displayTitle ?? t.tag)
                         .join(', ')}
                     </div>
                   )}
-                  <div className="max-h-32 overflow-y-auto border-t border-slate-800 pt-2 space-y-1">
+                  <div className="max-h-32 overflow-y-auto border-t border-slate-200 dark:border-slate-800 pt-2 space-y-1">
                     {inspected.cluster.members.slice(0, 8).map((m) => (
                       <div
                         key={m.itemId}
                         className="flex items-center justify-between gap-2 text-[11px]"
                       >
-                        <span className="truncate text-slate-200">
+                        <span className="truncate text-slate-700 dark:text-slate-200">
                           {m.item.headline}
                         </span>
-                        <span className="font-mono text-slate-400 shrink-0">
+                        <span className="font-mono text-slate-500 dark:text-slate-400 shrink-0">
                           {Math.round(m.normalizedWeight * 100)}%
                         </span>
                       </div>
