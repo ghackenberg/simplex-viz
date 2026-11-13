@@ -2,6 +2,18 @@
 
 Alle relevanten Änderungen an **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`) werden in dieser Datei im Format [Keep a Changelog](https://keepachangelog.com/de/1.1.0/) dokumentiert und über `@changesets/cli` verwaltet.
 
+## [0.2.0] - 2026-11-13
+
+### Hinzugefügt
+- **`@simplex-viz/core`**:
+  - Synchrone One-Shot-Funktion `solveSimplexSnapshot(items, options?)` für überlappungsfreie Layouts ohne `SimplexRendererAdapter` oder Animationsschleife.
+- **`@simplex-viz/svg`**:
+  - Einzeiler-Factory `createSimplexSvg(target, itemsOrOptions)`, CSS-Selektor-Support in `SimplexSvgController`, drei eingebaute Presets (`'geometric'`, `'glyphs'`, `'badges'`), Standard-Interaktivität (`zoom-to-cursor` + `focusOnClusterClick`), optionaler DOM-Hover-Tooltip sowie Re-Exports zentraler Core-Helfer und Typen.
+- **`@simplex-viz/react`**:
+  - Zero-Config `<SimplexTopicGraph items={items} preset="glyphs" tooltip />`, Keyless-JSX-Renderer (`renderContentNode`/`renderClusterNode` ohne `VisualResolver`), eingebautes React-Tooltip-Overlay sowie Re-Exports aus `@simplex-viz/svg` und `@simplex-viz/core`.
+- **Demo-App & Dokumentation**:
+  - Selbst gehostete Fonts via `@fontsource` (ohne Google-Fonts-CDN-Anfragen), vereinfachtes Ein-Dreieck-Logo sowie Quickstart-first-Dokumentation in allen READMEs.
+
 ## [0.1.0] - 2026-11-13
 
 ### Hinzugefügt

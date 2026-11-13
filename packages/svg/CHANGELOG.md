@@ -1,10 +1,18 @@
 # @simplex-viz/svg
 
+## 0.2.0
+
+### Minor Changes
+
+- Add zero-config `createSimplexSvg(target, itemsOrOptions)`, built-in visual presets (`'geometric'`, `'glyphs'`, `'badges'`), default cursor-zoom and cluster click-focus interactions, optional floating DOM hover tooltips, core utility/type re-exports, and progressive quickstart documentation.
+- Updated dependencies
+  - @simplex-viz/core@0.2.0
+
 ## 0.1.3
 
 ### Patch Changes
 
-- Add zero-config `createSimplexSvg(target, itemsOrOptions)`, built-in visual presets (`'geometric'`, `'glyphs'`, `'badges'`), default zoom/cluster-focus interactions, optional floating DOM hover tooltips, core utility/type re-exports, and progressive quickstart documentation.
+- Add project brand logo and built-in plugin showcase preview graphics, contextual lead-in prose, and step-by-step Vanilla TypeScript walkthroughs in `@simplex-viz/svg` README.
 - Updated dependencies
   - @simplex-viz/core@0.1.3
 
