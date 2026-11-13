@@ -2,6 +2,17 @@
 
 Alle relevanten Änderungen an **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`) werden in dieser Datei im Format [Keep a Changelog](https://keepachangelog.com/de/1.1.0/) dokumentiert und über `@changesets/cli` verwaltet.
 
+## [0.2.1] - 2026-11-13
+
+### Geändert
+- **Branding, Logos & README-Vorschaugrafiken**:
+  - Hauptlogo (`SimplexViz`) und Paket-Logos (`core`, `svg`, `react`) auf transparenten Hintergrund, maximiertes Dreieck mit abgestuften Vertex-Ringen, aufgehellte Kantenverläufe sowie durchgängige Brand-Vertexfarben (`#06B6D4`, `#F59E0B`, `#D946EF`) umgestellt.
+  - Alle vier transparenten README-Vorschaugrafiken (`preview-demo`, `preview-core`, `preview-svg`, `preview-react`) für sauberen Kontrast im Light Mode und Dark Mode überarbeitet.
+  - TypeScript-Sync-Pipeline (`scripts/sync-brand.ts`) für einheitliche SVG-, PNG-, Favicon- und Social-Preview-Assets eingeführt.
+- **Demo-App & CI**:
+  - Automatischer und manueller Dark-/Light-Mode-Theme-Switcher in der Demo-App ohne persistente Speicherung ergänzt.
+  - `pnpm-lock.yaml` für `--frozen-lockfile` in GitHub Actions aktualisiert.
+
 ## [0.2.0] - 2026-11-13
 
 ### Hinzugefügt

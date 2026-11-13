@@ -1,5 +1,14 @@
 # @simplex-viz/react
 
+## 0.2.1
+
+### Patch Changes
+
+- Redesign package logos and README preview graphics with transparent dual-theme (Light & Dark mode) contrast, unified brand triangle vertex colors, and automated PNG asset synchronization.
+- Updated dependencies
+  - @simplex-viz/core@0.2.1
+  - @simplex-viz/svg@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes

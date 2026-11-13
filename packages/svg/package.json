@@ -1,6 +1,6 @@
 {
   "name": "@simplex-viz/svg",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Framework-agnostic SVG rendering engine, offscreen getBBox() hull measurer, and pluggable SvgNodeView system for @simplex-viz/core.",
   "license": "MIT",
   "type": "module",
