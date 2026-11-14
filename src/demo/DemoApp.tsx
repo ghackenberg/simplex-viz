@@ -4,6 +4,7 @@ import type {
   ContentHoverEvent,
   HitTarget,
   LayoutMetrics,
+  MeshOptions,
   NormalizedPointerEvent,
   WheelBehavior,
 } from '@simplex-viz/core';
@@ -206,9 +207,62 @@ export function DemoApp() {
   const [controlsOpen, setControlsOpen] = useState<boolean>(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
   );
+  const [stageSize, setStageSize] = useState<{ width: number; height: number }>(() => ({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1280,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800,
+  }));
 
   const dynamicSeqRef = useRef<number>(200);
   const stageRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const updateSize = (w: number, h: number) => {
+      if (w <= 0 || h <= 0) return;
+      setStageSize((prev) =>
+        Math.abs(prev.width - w) < 24 && Math.abs(prev.height - h) < 24
+          ? prev
+          : { width: Math.round(w), height: Math.round(h) },
+      );
+    };
+    const rect = el.getBoundingClientRect();
+    updateSize(rect.width, rect.height);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        updateSize(entry.contentRect.width, entry.contentRect.height);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const responsiveMeshOptions: MeshOptions = useMemo(() => {
+    const minDim = Math.min(stageSize.width, stageSize.height);
+    const maxDim = Math.max(stageSize.width, stageSize.height);
+    if (minDim < 460) {
+      return {
+        innerPadding: 28,
+        minSideLength: 88,
+        maxSideLength: 195,
+        maxClusters: 8,
+      };
+    }
+    if (minDim < 920 && maxDim < 1800) {
+      return {
+        innerPadding: 44,
+        minSideLength: 125,
+        maxSideLength: 280,
+        maxClusters: 10,
+      };
+    }
+    return {
+      innerPadding: 56,
+      minSideLength: 160,
+      maxSideLength: Math.min(440, Math.max(280, Math.round(maxDim * 0.22))),
+      maxClusters: 12,
+    };
+  }, [stageSize.width, stageSize.height]);
 
   const { controllerRef, handle } = useSimplexGraphController<
     KnowledgeEntry,
@@ -640,15 +694,15 @@ export function DemoApp() {
   const wheelBehavior: WheelBehavior = wheelPolicy;
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-50 text-slate-900 dark:bg-[#07090E] dark:text-slate-100">
-      {/* Minimal Header Bar: Brand + Theme Switcher */}
-      <header className="flex h-13 shrink-0 items-center justify-between gap-4 border-b border-slate-200/90 bg-white px-5 dark:border-slate-800/80 dark:bg-[#0B0F17]">
-        <div className="flex items-center gap-2.5 text-base font-bold tracking-tight text-slate-900 dark:text-slate-50 whitespace-nowrap shrink-0">
-          <SimplexLogoMark className="h-7 w-7 shrink-0" />
+    <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-slate-50 text-slate-900 dark:bg-[#07090E] dark:text-slate-100">
+      {/* Minimal Header Bar: Brand + Version + Theme Switcher */}
+      <header className="flex h-12 sm:h-13 shrink-0 items-center justify-between gap-2 sm:gap-4 border-b border-slate-200/90 bg-white px-3 sm:px-5 dark:border-slate-800/80 dark:bg-[#0B0F17]">
+        <div className="flex items-center gap-2 sm:gap-2.5 text-sm sm:text-base font-bold tracking-tight text-slate-900 dark:text-slate-50 whitespace-nowrap shrink-0">
+          <SimplexLogoMark className="h-6 w-6 sm:h-7 sm:w-7 shrink-0" />
           <span>
             Simplex<span className="text-[#06B6D4]">Viz</span>
           </span>
-          <span className="rounded border border-slate-200/90 bg-slate-100/80 px-1.5 py-0.5 font-mono text-[11px] font-medium text-slate-600 dark:border-slate-800 dark:bg-[#0E131D] dark:text-slate-400">
+          <span className="rounded border border-slate-200/90 bg-slate-100/80 px-1.5 py-0.5 font-mono text-[10px] sm:text-[11px] font-medium text-slate-600 dark:border-slate-800 dark:bg-[#0E131D] dark:text-slate-400">
             v{libraryVersion}
           </span>
         </div>
@@ -694,10 +748,19 @@ export function DemoApp() {
 
       {/* Main Split Console */}
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        {/* Tap-outside Backdrop for Mobile/Tablet Fly-Out Drawer */}
+        {controlsOpen && (
+          <div
+            aria-hidden="true"
+            onClick={() => setControlsOpen(false)}
+            className="absolute inset-0 z-20 bg-slate-950/35 backdrop-blur-[1px] lg:hidden"
+          />
+        )}
+
         {/* Left Fly-Out Control & Telemetry Column */}
         {controlsOpen && (
-          <aside className="absolute inset-y-0 left-0 z-30 flex w-[340px] max-w-[88vw] shrink-0 flex-col overflow-y-auto border-r border-slate-200/90 bg-white shadow-xl dark:border-slate-800/80 dark:bg-[#0B0F17] lg:static lg:max-w-none lg:shadow-none">
-            <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-2.5 dark:border-slate-800/80">
+          <aside className="absolute inset-y-0 left-0 z-30 flex w-[min(340px,88vw)] sm:w-[330px] lg:w-[320px] xl:w-[348px] 2xl:w-[372px] shrink-0 flex-col overflow-y-auto border-r border-slate-200/90 bg-white shadow-xl dark:border-slate-800/80 dark:bg-[#0B0F17] lg:static lg:shadow-none">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 py-2.5 backdrop-blur-xs dark:border-slate-800/80 dark:bg-[#0B0F17]/95">
               <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-slate-800 dark:text-slate-200">
                 <SlidersHorizontal className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
                 <span>Controls</span>
@@ -707,7 +770,7 @@ export function DemoApp() {
                 aria-label="Collapse controls"
                 title="Collapse controls"
                 onClick={() => setControlsOpen(false)}
-                className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 transition-colors"
+                className="cursor-pointer rounded p-1.5 sm:p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 transition-colors"
               >
                 <PanelLeftClose className="h-4 w-4" />
               </button>
@@ -1180,7 +1243,7 @@ export function DemoApp() {
               type="button"
               aria-expanded={false}
               onClick={() => setControlsOpen(true)}
-              className="cursor-pointer absolute top-4 left-4 z-20 flex items-center gap-1.5 rounded-md border border-slate-200 bg-white/95 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:text-slate-200 dark:shadow-none dark:hover:border-slate-700 dark:hover:bg-slate-900 transition-colors whitespace-nowrap"
+              className="cursor-pointer absolute top-3 left-3 sm:top-4 sm:left-4 z-20 flex min-h-9 items-center gap-1.5 rounded-md border border-slate-200 bg-white/95 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm backdrop-blur-xs hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:text-slate-200 dark:shadow-none dark:hover:border-slate-700 dark:hover:bg-slate-900 transition-colors whitespace-nowrap"
             >
               <SlidersHorizontal className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
               <span>Controls</span>
@@ -1222,12 +1285,7 @@ export function DemoApp() {
             pinnedIds={effectivePinnedIds}
             highlightedIds={highlightedIds}
             focusedClusterUid={focusedClusterUid}
-            meshOptions={{
-              innerPadding: 54,
-              minSideLength: 140,
-              maxSideLength: 280,
-              maxClusters: 10,
-            }}
+            meshOptions={responsiveMeshOptions}
             layoutOptions={{
               clusterGapPx: 14,
               itemGapPx: 5,
@@ -1247,12 +1305,12 @@ export function DemoApp() {
           />
 
           {/* Camera Zoom Overlay Controls */}
-          <div className="absolute bottom-4 right-4 z-20 flex items-center gap-1 rounded-md border border-slate-200 bg-white/95 p-1 shadow-sm dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:shadow-none">
+          <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-20 flex items-center gap-1 rounded-md border border-slate-200 bg-white/95 p-1 shadow-sm backdrop-blur-xs dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:shadow-none">
             <button
               type="button"
               aria-label="Zoom in"
               onClick={() => handle.zoomBy(1.22)}
-              className="cursor-pointer rounded p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 transition-colors"
+              className="cursor-pointer flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 transition-colors"
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -1260,7 +1318,7 @@ export function DemoApp() {
               type="button"
               aria-label="Zoom out"
               onClick={() => handle.zoomBy(0.82)}
-              className="cursor-pointer rounded p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 transition-colors"
+              className="cursor-pointer flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 transition-colors"
             >
               <Minus className="h-4 w-4" />
             </button>
@@ -1269,13 +1327,22 @@ export function DemoApp() {
           {/* Floating Content Hover Tooltip */}
           {hoveredContent && !contextMenu && (
             <div
-              className="pointer-events-none absolute z-30 max-w-xs rounded-md border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-lg dark:border-slate-700/90 dark:bg-[#0B0F17]/95"
+              className="pointer-events-none absolute z-30 max-w-[min(20rem,calc(100%-1.5rem))] rounded-md border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-lg dark:border-slate-700/90 dark:bg-[#0B0F17]/95"
               style={{
-                left: Math.min(
-                  (stageRef.current?.clientWidth ?? 900) - 270,
-                  hoveredContent.screenPosition.x + 14,
+                left: Math.max(
+                  12,
+                  Math.min(
+                    Math.max(12, stageSize.width - 270),
+                    hoveredContent.screenPosition.x + 14,
+                  ),
                 ),
-                top: Math.max(12, hoveredContent.screenPosition.y - 12),
+                top: Math.max(
+                  12,
+                  Math.min(
+                    Math.max(12, stageSize.height - 110),
+                    hoveredContent.screenPosition.y - 12,
+                  ),
+                ),
               }}
             >
               <div className="font-semibold text-slate-900 dark:text-slate-100 leading-snug">
@@ -1299,13 +1366,22 @@ export function DemoApp() {
           {/* Floating Cluster Hover Tooltip */}
           {hoveredCluster && !hoveredContent && !contextMenu && (
             <div
-              className="pointer-events-none absolute z-30 max-w-xs rounded-md border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-lg dark:border-slate-700/90 dark:bg-[#0B0F17]/95"
+              className="pointer-events-none absolute z-30 max-w-[min(20rem,calc(100%-1.5rem))] rounded-md border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-lg dark:border-slate-700/90 dark:bg-[#0B0F17]/95"
               style={{
-                left: Math.min(
-                  (stageRef.current?.clientWidth ?? 900) - 270,
-                  hoveredCluster.screenPosition.x + 14,
+                left: Math.max(
+                  12,
+                  Math.min(
+                    Math.max(12, stageSize.width - 270),
+                    hoveredCluster.screenPosition.x + 14,
+                  ),
                 ),
-                top: Math.max(12, hoveredCluster.screenPosition.y - 12),
+                top: Math.max(
+                  12,
+                  Math.min(
+                    Math.max(12, stageSize.height - 110),
+                    hoveredCluster.screenPosition.y - 12,
+                  ),
+                ),
               }}
             >
               <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
@@ -1337,14 +1413,8 @@ export function DemoApp() {
             <div
               className="absolute z-40 w-52 rounded-md border border-slate-200 bg-white py-1 text-xs shadow-xl dark:border-slate-700 dark:bg-[#0B0F17]"
               style={{
-                left: Math.min(
-                  (stageRef.current?.clientWidth ?? 900) - 216,
-                  contextMenu.x,
-                ),
-                top: Math.min(
-                  (stageRef.current?.clientHeight ?? 600) - 150,
-                  contextMenu.y,
-                ),
+                left: Math.max(8, Math.min(stageSize.width - 216, contextMenu.x)),
+                top: Math.max(8, Math.min(stageSize.height - 150, contextMenu.y)),
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -1431,113 +1501,112 @@ export function DemoApp() {
             </div>
           )}
 
-          {/* Top-Right Canvas Overlay Stack: Reset Camera + Selected Node Inspector */}
-          <div className="pointer-events-none absolute top-4 right-4 z-30 flex flex-col items-end gap-2.5">
-            <button
-              type="button"
-              onClick={() => handle.resetCamera()}
-              className="pointer-events-auto cursor-pointer flex items-center gap-1.5 rounded-md border border-cyan-600/35 bg-white/95 px-3 py-1.5 text-xs font-semibold text-cyan-800 shadow-sm hover:bg-cyan-50 dark:border-cyan-500/40 dark:bg-[#0B0F17]/95 dark:text-cyan-200 dark:shadow-none dark:hover:bg-cyan-500/15 transition-colors whitespace-nowrap shrink-0"
-            >
-              <RotateCcw className="h-3.5 w-3.5 shrink-0" />
-              <span>Reset Camera</span>
-            </button>
+          {/* Top-Right Reset Camera Button */}
+          <button
+            type="button"
+            onClick={() => handle.resetCamera()}
+            className="cursor-pointer absolute top-3 right-3 sm:top-4 sm:right-4 z-20 flex min-h-9 items-center gap-1.5 rounded-md border border-cyan-600/35 bg-white/95 px-3 py-1.5 text-xs font-semibold text-cyan-800 shadow-sm backdrop-blur-xs hover:bg-cyan-50 dark:border-cyan-500/40 dark:bg-[#0B0F17]/95 dark:text-cyan-200 dark:shadow-none dark:hover:bg-cyan-500/15 transition-colors whitespace-nowrap shrink-0"
+          >
+            <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+            <span>Reset Camera</span>
+          </button>
 
-            {inspected && (
-              <div className="pointer-events-auto w-80 rounded-md border border-slate-200 bg-white/95 p-3.5 text-xs shadow-lg dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:shadow-none">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    {inspected.kind === 'content' ? (
-                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
-                        {inspected.item.headline}
-                      </div>
-                    ) : (
-                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
-                        <span className="font-mono text-cyan-700 dark:text-cyan-300 mr-1.5">
-                          {inspected.cluster.code}
-                        </span>
-                        {inspected.cluster.meta.title}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="Close inspector"
-                    onClick={() => {
-                      setInspected(null);
-                      setFocusedClusterUid(null);
-                    }}
-                    className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-
-                {inspected.kind === 'content' ? (
-                  <div className="mt-2.5 space-y-2">
-                    <div className="flex items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                      <span>{inspected.item.slug}</span>
-                      <span aria-hidden="true">·</span>
-                      <span>{inspected.item.contentType}</span>
-                      <span aria-hidden="true">·</span>
-                      <span>{inspected.item.readingMinutes} min</span>
+          {/* Responsive Selected / Inspected Node Detail Panel */}
+          {inspected && (
+            <div className="absolute bottom-3 left-3 right-24 z-20 max-h-[44dvh] overflow-y-auto rounded-md border border-slate-200 bg-white/95 p-3.5 text-xs shadow-lg backdrop-blur-xs dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:shadow-none sm:bottom-auto sm:left-auto sm:top-14 sm:right-4 sm:w-80 sm:max-h-[calc(100%-7rem)]">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  {inspected.kind === 'content' ? (
+                    <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
+                      {inspected.item.headline}
                     </div>
-                    <div className="text-[11px] text-slate-700 dark:text-slate-300">
-                      <span className="text-slate-500 dark:text-slate-400">Unit: </span>
-                      {inspected.clusterTitles.join(', ')}
-                    </div>
-                    <div className="text-[11px] text-cyan-700 dark:text-cyan-300">
-                      {inspected.item.hashtags
-                        .map((h) => resolveDemoTagMeta(h)?.displayTitle ?? h)
-                        .join(' · ')}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-2.5 space-y-2">
-                    <div className="flex items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                      <span>{inspected.cluster.meta.memberCount} members</span>
-                      <span aria-hidden="true">·</span>
-                      <span>{inspected.cluster.meta.exclusiveCount} exclusive</span>
-                      <span aria-hidden="true">·</span>
-                      <span>
-                        avg {inspected.cluster.meta.avgReadingMinutes.toFixed(1)} min
+                  ) : (
+                    <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
+                      <span className="font-mono text-cyan-700 dark:text-cyan-300 mr-1.5">
+                        {inspected.cluster.code}
                       </span>
+                      {inspected.cluster.meta.title}
                     </div>
-                    <div className="text-[11px] text-slate-700 dark:text-slate-300">
-                      <span className="text-slate-500 dark:text-slate-400">Core Tags: </span>
-                      {inspected.cluster.coreTags
+                  )}
+                </div>
+                <button
+                  type="button"
+                  aria-label="Close inspector"
+                  onClick={() => {
+                    setInspected(null);
+                    setFocusedClusterUid(null);
+                  }}
+                  className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {inspected.kind === 'content' ? (
+                <div className="mt-2.5 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>{inspected.item.slug}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{inspected.item.contentType}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{inspected.item.readingMinutes} min</span>
+                  </div>
+                  <div className="text-[11px] text-slate-700 dark:text-slate-300">
+                    <span className="text-slate-500 dark:text-slate-400">Unit: </span>
+                    {inspected.clusterTitles.join(', ')}
+                  </div>
+                  <div className="text-[11px] text-cyan-700 dark:text-cyan-300">
+                    {inspected.item.hashtags
+                      .map((h) => resolveDemoTagMeta(h)?.displayTitle ?? h)
+                      .join(' · ')}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2.5 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>{inspected.cluster.meta.memberCount} members</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{inspected.cluster.meta.exclusiveCount} exclusive</span>
+                    <span aria-hidden="true">·</span>
+                    <span>
+                      avg {inspected.cluster.meta.avgReadingMinutes.toFixed(1)} min
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-700 dark:text-slate-300">
+                    <span className="text-slate-500 dark:text-slate-400">Core Tags: </span>
+                    {inspected.cluster.coreTags
+                      .map((t) => t.meta?.displayTitle ?? t.tag)
+                      .join(', ')}
+                  </div>
+                  {inspected.cluster.sharedTags.length > 0 && (
+                    <div className="text-[11px] text-amber-700 dark:text-amber-300">
+                      <span className="text-slate-500 dark:text-slate-400">
+                        Shared Tags:{' '}
+                      </span>
+                      {inspected.cluster.sharedTags
                         .map((t) => t.meta?.displayTitle ?? t.tag)
                         .join(', ')}
                     </div>
-                    {inspected.cluster.sharedTags.length > 0 && (
-                      <div className="text-[11px] text-amber-700 dark:text-amber-300">
-                        <span className="text-slate-500 dark:text-slate-400">
-                          Shared Tags:{' '}
+                  )}
+                  <div className="max-h-32 overflow-y-auto border-t border-slate-200 dark:border-slate-800 pt-2 space-y-1">
+                    {inspected.cluster.members.slice(0, 8).map((m) => (
+                      <div
+                        key={m.itemId}
+                        className="flex items-center justify-between gap-2 text-[11px]"
+                      >
+                        <span className="truncate text-slate-700 dark:text-slate-200">
+                          {m.item.headline}
                         </span>
-                        {inspected.cluster.sharedTags
-                          .map((t) => t.meta?.displayTitle ?? t.tag)
-                          .join(', ')}
+                        <span className="font-mono text-slate-500 dark:text-slate-400 shrink-0">
+                          {Math.round(m.normalizedWeight * 100)}%
+                        </span>
                       </div>
-                    )}
-                    <div className="max-h-32 overflow-y-auto border-t border-slate-200 dark:border-slate-800 pt-2 space-y-1">
-                      {inspected.cluster.members.slice(0, 8).map((m) => (
-                        <div
-                          key={m.itemId}
-                          className="flex items-center justify-between gap-2 text-[11px]"
-                        >
-                          <span className="truncate text-slate-700 dark:text-slate-200">
-                            {m.item.headline}
-                          </span>
-                          <span className="font-mono text-slate-500 dark:text-slate-400 shrink-0">
-                            {Math.round(m.normalizedWeight * 100)}%
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                    ))}
                   </div>
-                )}
-              </div>
-            )}
-          </div>
+                </div>
+              )}
+            </div>
+          )}
         </main>
       </div>
     </div>

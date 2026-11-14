@@ -197,11 +197,14 @@ export class SimplexSvgController<
   private fpsAccumMs = 0;
   private destroyed = false;
 
-  // Centralized drag-to-pan state on root <svg>
+  // Centralized drag-to-pan and multi-touch pinch-zoom state on root <svg>
   private isDraggingPan = false;
   private dragStartX = 0;
   private dragStartY = 0;
   private dragMoved = false;
+  private readonly activePointers = new Map<number, { x: number; y: number }>();
+  private lastPinchDist: number | null = null;
+  private lastPinchMid: { x: number; y: number } | null = null;
 
   constructor(
     containerEl: HTMLElement | string,
@@ -753,9 +756,28 @@ export class SimplexSvgController<
     };
   }
 
+  private resetTouchPinchState(): void {
+    this.lastPinchDist = null;
+    this.lastPinchMid = null;
+  }
+
   private readonly onPointerDown = (e: PointerEvent): void => {
-    if (e.button !== 0) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     const { x, y } = this.toLocalCoords(e.clientX, e.clientY);
+    this.activePointers.set(e.pointerId, { x, y });
+
+    if (this.activePointers.size >= 2) {
+      this.isDraggingPan = false;
+      this.dragMoved = true;
+      const pts = [...this.activePointers.values()];
+      const p0 = pts[0]!;
+      const p1 = pts[1]!;
+      this.lastPinchDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+      this.lastPinchMid = { x: (p0.x + p1.x) * 0.5, y: (p0.y + p1.y) * 0.5 };
+      this.hideTooltip();
+      return;
+    }
+
     const hit = this.engine.hitTest(x, y);
     if (hit.kind === 'background') {
       this.isDraggingPan = true;
@@ -771,10 +793,37 @@ export class SimplexSvgController<
 
   private readonly onPointerMove = (e: PointerEvent): void => {
     const { x, y } = this.toLocalCoords(e.clientX, e.clientY);
+    if (this.activePointers.has(e.pointerId)) {
+      this.activePointers.set(e.pointerId, { x, y });
+    }
+
+    if (this.activePointers.size >= 2) {
+      const pts = [...this.activePointers.values()];
+      const p0 = pts[0]!;
+      const p1 = pts[1]!;
+      const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+      const mid = { x: (p0.x + p1.x) * 0.5, y: (p0.y + p1.y) * 0.5 };
+
+      if (this.lastPinchDist !== null && this.lastPinchMid !== null && this.lastPinchDist > 8 && dist > 8) {
+        const dx = mid.x - this.lastPinchMid.x;
+        const dy = mid.y - this.lastPinchMid.y;
+        const zoomFactor = dist / this.lastPinchDist;
+        this.engine.camera.panBy(dx, dy);
+        this.engine.camera.zoomToCursor(mid.x, mid.y, zoomFactor);
+        this.dragMoved = true;
+        this.hideTooltip();
+        this.engine.renderNow();
+      }
+      this.lastPinchDist = dist;
+      this.lastPinchMid = mid;
+      return;
+    }
+
     if (this.isDraggingPan) {
       const dx = e.clientX - this.dragStartX;
       const dy = e.clientY - this.dragStartY;
-      if (Math.hypot(dx, dy) > 3) {
+      const dragThreshold = e.pointerType === 'touch' ? 6 : 3;
+      if (Math.hypot(dx, dy) > dragThreshold) {
         this.dragMoved = true;
       }
       if (this.dragMoved) {
@@ -782,8 +831,12 @@ export class SimplexSvgController<
         this.dragStartY = e.clientY;
         this.engine.camera.panBy(dx, dy);
         this.hideTooltip();
-        this.ensureLoopRunning();
+        this.engine.renderNow();
       }
+      return;
+    }
+
+    if (e.pointerType === 'touch') {
       return;
     }
     this.engine.handlePointerMove(x, y);
@@ -792,15 +845,37 @@ export class SimplexSvgController<
     this.ensureLoopRunning();
   };
 
-  private readonly onPointerUp = (): void => {
-    if (this.isDraggingPan) {
+  private readonly onPointerUp = (e: PointerEvent): void => {
+    this.activePointers.delete(e.pointerId);
+    if (this.activePointers.size < 2) {
+      this.resetTouchPinchState();
+    }
+    if (this.activePointers.size === 0 && this.isDraggingPan) {
       this.isDraggingPan = false;
       this.svgEl.style.cursor = 'grab';
     }
   };
 
-  private readonly onPointerLeave = (): void => {
-    this.isDraggingPan = false;
+  private readonly onPointerCancel = (e: PointerEvent): void => {
+    this.activePointers.delete(e.pointerId);
+    if (this.activePointers.size < 2) {
+      this.resetTouchPinchState();
+    }
+    if (this.activePointers.size === 0) {
+      this.isDraggingPan = false;
+      this.dragMoved = false;
+      this.svgEl.style.cursor = 'grab';
+    }
+  };
+
+  private readonly onPointerLeave = (e: PointerEvent): void => {
+    this.activePointers.delete(e.pointerId);
+    if (this.activePointers.size < 2) {
+      this.resetTouchPinchState();
+    }
+    if (this.activePointers.size === 0) {
+      this.isDraggingPan = false;
+    }
     this.hideTooltip();
     this.engine.handlePointerLeave();
     this.ensureLoopRunning();
@@ -861,6 +936,7 @@ export class SimplexSvgController<
     this.svgEl.addEventListener('pointerdown', this.onPointerDown);
     this.svgEl.addEventListener('pointermove', this.onPointerMove);
     this.svgEl.addEventListener('pointerup', this.onPointerUp);
+    this.svgEl.addEventListener('pointercancel', this.onPointerCancel);
     this.svgEl.addEventListener('pointerleave', this.onPointerLeave);
     this.svgEl.addEventListener('click', this.onClick);
     this.svgEl.addEventListener('contextmenu', this.onContextMenu);
@@ -871,6 +947,7 @@ export class SimplexSvgController<
     this.svgEl.removeEventListener('pointerdown', this.onPointerDown);
     this.svgEl.removeEventListener('pointermove', this.onPointerMove);
     this.svgEl.removeEventListener('pointerup', this.onPointerUp);
+    this.svgEl.removeEventListener('pointercancel', this.onPointerCancel);
     this.svgEl.removeEventListener('pointerleave', this.onPointerLeave);
     this.svgEl.removeEventListener('click', this.onClick);
     this.svgEl.removeEventListener('contextmenu', this.onContextMenu);

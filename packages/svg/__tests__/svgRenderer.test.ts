@@ -153,4 +153,62 @@ describe('@simplex-viz/svg integration', () => {
     controller.destroy();
     container.remove();
   });
+
+  it('supports two-finger touch pinch-to-zoom and cleans up on pointercancel', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+    document.body.appendChild(container);
+
+    const items: DefaultTaggedItem[] = Array.from({ length: 6 }, (_, i) => ({
+      id: `pinch-${i}`,
+      tags: [`p-${i % 3}`, `p-${(i + 1) % 3}`],
+    }));
+
+    const controller = createSimplexSvg(container, items);
+    for (let i = 0; i < 40; i++) controller.stepForTest(20);
+
+    const svg = controller.getSvgElement();
+    Object.defineProperty(svg, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+
+    const firePointer = (
+      type: string,
+      pointerId: number,
+      clientX: number,
+      clientY: number,
+    ) => {
+      svg.dispatchEvent(
+        new PointerEvent(type, {
+          pointerId,
+          pointerType: 'touch',
+          clientX,
+          clientY,
+          bubbles: true,
+        }),
+      );
+    };
+
+    firePointer('pointerdown', 1, 350, 300);
+    firePointer('pointerdown', 2, 450, 300);
+    // Double finger distance from 100px to 200px => ~2.0x zoom
+    firePointer('pointermove', 1, 300, 300);
+    firePointer('pointermove', 2, 500, 300);
+
+    const worldGroup = svg.querySelector('g.sv-world')!;
+    const match = worldGroup.getAttribute('transform')?.match(/scale\(([0-9.]+)\)/);
+    expect(match).not.toBeNull();
+    expect(parseFloat(match![1]!)).toBeGreaterThan(1.5);
+
+    firePointer('pointercancel', 1, 300, 300);
+    firePointer('pointerup', 2, 500, 300);
+
+    controller.camera.reset();
+    expect(worldGroup.getAttribute('transform')).toBe('translate(0.00, 0.00) scale(1.0000)');
+
+    controller.destroy();
+    container.remove();
+  });
 });
