@@ -1,5 +1,6 @@
 import {
   defaultNormalizeTag,
+  extractIdentifiedItems,
   extractNormalizedItems,
 } from './clustering';
 import { hexToOklab, mixOklabColors } from './oklab';
@@ -22,13 +23,13 @@ import type {
   ContentLayoutContext,
   ConvexGeometry,
   DefaultTaggedItem,
-  ItemIdentityConfig,
   LayoutMetrics,
   LayoutSolverOptions,
   MeshEdgeRenderState,
   MeshOptions,
   MeshTriangleRenderState,
   SimplexMesh,
+  StrategyItemIdentityConfig,
 } from './types';
 
 function defaultGetId<TItem>(item: TItem): string {
@@ -54,7 +55,7 @@ export type SimplexSnapshotOptions<
   TItem = DefaultTaggedItem,
   TTagMeta = undefined,
   TClusterMeta = undefined,
-> = ItemIdentityConfig<TItem> &
+> = StrategyItemIdentityConfig<TItem, TTagMeta> &
   ClusterMetaConfig<TItem, TTagMeta, TClusterMeta> & {
     /** Target canvas width in pixels. Default: `960`. */
     readonly width?: number;
@@ -74,8 +75,6 @@ export type SimplexSnapshotOptions<
     readonly layoutOptions?: LayoutSolverOptions;
     /** Optional custom mesh/triangulation strategy. */
     readonly meshStrategy?: SimplexMeshStrategy<TItem>;
-    /** Optional custom topic clustering & vertex assignment strategy. */
-    readonly clusteringStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>;
     /** Optional custom cluster coloring & item mixing strategy. */
     readonly colorStrategy?: SimplexColorStrategy<TItem, TTagMeta>;
     /** Optional custom node positioning & scaling strategy. */
@@ -218,8 +217,7 @@ export function solveSimplexSnapshot<
   const getTags = opts.getTags ?? defaultGetTags;
   const normalizeTag = opts.normalizeTag ?? defaultNormalizeTag;
 
-  const normalized = extractNormalizedItems(items, getId, getTags, normalizeTag);
-  const uniqueTagCount = new Set(normalized.flatMap((n) => n.tags)).size;
+  const identifiedItems = extractIdentifiedItems(items, getId);
   const seed = opts.layoutOptions?.seed ?? 0x51a7c0de;
   const meshStrategy = opts.meshStrategy ?? createAdaptiveHexMeshStrategy<TItem>();
   const clusteringStrategy =
@@ -229,12 +227,32 @@ export function solveSimplexSnapshot<
   const layoutStrategy = opts.layoutStrategy ?? createPbdUniformLayoutStrategy();
   const theme = opts.theme ?? 'dark';
 
+  const requiresTags = clusteringStrategy.requiresTags !== false;
+  const effectiveGetTags = clusteringStrategy.getTags ?? getTags;
+  const effectiveNormalizeTag = clusteringStrategy.normalizeTag ?? normalizeTag;
+  const normalized = requiresTags
+    ? extractNormalizedItems(items, getId, effectiveGetTags, effectiveNormalizeTag)
+    : [];
+  const activeIds = requiresTags
+    ? normalized.map((n) => n.id)
+    : identifiedItems.map((it) => it.id);
+  const uniqueTagCount = requiresTags
+    ? new Set(normalized.flatMap((n) => n.tags)).size
+    : 0;
+  const targetClusterCount = clusteringStrategy.estimateClusterCount?.({
+    items: identifiedItems,
+    normalizedItems: normalized,
+    meshOptions: opts.meshOptions ?? {},
+  });
+
   const mesh = meshStrategy.buildMesh({
     viewportWidth: width,
     viewportHeight: height,
     uniqueTagCount,
-    itemCount: normalized.length,
+    itemCount: activeIds.length,
+    items: identifiedItems,
     normalizedItems: normalized,
+    targetClusterCount,
     meshOptions: opts.meshOptions ?? {},
     previousMesh: null,
     reason: 'initial',
@@ -242,13 +260,17 @@ export function solveSimplexSnapshot<
 
   const seq = { value: 0 };
   const clusteringOutput = clusteringStrategy.initialize({
+    items: identifiedItems,
+    previousItems: [],
     normalizedItems: normalized,
     previousNormalizedItems: [],
-    addedItemIds: new Set(normalized.map((n) => n.id)),
+    addedItemIds: new Set(activeIds),
     removedItemIds: new Set<string>(),
     mesh,
     previousMesh: null,
     previousClusters: [],
+    getTags: effectiveGetTags,
+    normalizeTag: effectiveNormalizeTag,
     resolveTagMeta: opts.resolveTagMeta,
     allocateClusterUid: () => {
       seq.value += 1;
@@ -298,6 +320,9 @@ export function solveSimplexSnapshot<
       anchorX: placement.anchorX,
       anchorY: placement.anchorY,
       hull: itemHulls[idx]!,
+      unitVertexIndices: placement.layoutContext.unitClusters.map(
+        (uc) => uc.cluster.clusterIndex,
+      ),
     })),
     mesh,
     viewportWidth: width,

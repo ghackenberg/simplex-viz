@@ -2,10 +2,11 @@ import {
   computeConvexMtv,
   getHullBoundingBox,
   getHullBoundingRadius,
+  isPointInTriangle,
   scaleConvexGeometry,
   UniformSpatialHashGrid,
 } from './geometry';
-import type { ConvexGeometry, LayoutSolverOptions } from './types';
+import type { ConvexGeometry, LayoutSolverOptions, Point2D, SimplexMesh } from './types';
 
 export interface LayoutClusterInput {
   readonly id: string;
@@ -19,6 +20,129 @@ export interface LayoutItemInput {
   readonly anchorX: number;
   readonly anchorY: number;
   readonly hull: ConvexGeometry;
+  readonly unitVertexIndices?: readonly number[];
+}
+
+type TrianglePoints = readonly [Point2D, Point2D, Point2D];
+
+function closestPointOnSegment(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): Point2D {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const lenSq = abx * abx + aby * aby;
+  if (lenSq <= 1e-12) return { x: ax, y: ay };
+  const t = Math.max(0, Math.min(1, ((px - ax) * abx + (py - ay) * aby) / lenSq));
+  return { x: ax + t * abx, y: ay + t * aby };
+}
+
+function closestPointInTriangle(
+  px: number,
+  py: number,
+  a: Point2D,
+  b: Point2D,
+  c: Point2D,
+): Point2D {
+  if (isPointInTriangle(px, py, a, b, c, 0)) {
+    return { x: px, y: py };
+  }
+  const pAB = closestPointOnSegment(px, py, a.x, a.y, b.x, b.y);
+  const pBC = closestPointOnSegment(px, py, b.x, b.y, c.x, c.y);
+  const pCA = closestPointOnSegment(px, py, c.x, c.y, a.x, a.y);
+
+  const dAB = (px - pAB.x) ** 2 + (py - pAB.y) ** 2;
+  const dBC = (px - pBC.x) ** 2 + (py - pBC.y) ** 2;
+  const dCA = (px - pCA.x) ** 2 + (py - pCA.y) ** 2;
+
+  let best = pAB;
+  let bestD = dAB;
+  if (dBC < bestD) {
+    best = pBC;
+    bestD = dBC;
+  }
+  if (dCA < bestD) {
+    best = pCA;
+  }
+
+  // Nudge microscopically toward the triangle centroid so boundary projections remain
+  // strictly inside the closed triangle under floating-point precision checks.
+  const cx = (a.x + b.x + c.x) / 3;
+  const cy = (a.y + b.y + c.y) / 3;
+  return {
+    x: best.x + (cx - best.x) * 1e-4,
+    y: best.y + (cy - best.y) * 1e-4,
+  };
+}
+
+function clampPointToTriangles(
+  px: number,
+  py: number,
+  tris: readonly TrianglePoints[],
+): Point2D {
+  for (let i = 0; i < tris.length; i++) {
+    const [a, b, c] = tris[i]!;
+    if (isPointInTriangle(px, py, a, b, c, 0)) {
+      return { x: px, y: py };
+    }
+  }
+  let best: Point2D = { x: px, y: py };
+  let bestDistSq = Infinity;
+  for (let i = 0; i < tris.length; i++) {
+    const [a, b, c] = tris[i]!;
+    const candidate = closestPointInTriangle(px, py, a, b, c);
+    const d2 = (px - candidate.x) ** 2 + (py - candidate.y) ** 2;
+    if (d2 < bestDistSq) {
+      bestDistSq = d2;
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+function buildItemCoveringTriangles(
+  items: readonly LayoutItemInput[],
+  mesh?: SimplexMesh,
+): (readonly TrianglePoints[] | null)[] {
+  if (!mesh || mesh.triangles.length === 0) {
+    return items.map(() => null);
+  }
+  return items.map((it) => {
+    const rawIndices = it.unitVertexIndices;
+    if (!rawIndices || rawIndices.length < 2) return null;
+    const uniqueIndices: number[] = [];
+    for (let i = 0; i < rawIndices.length; i++) {
+      const idx = rawIndices[i]!;
+      if (!uniqueIndices.includes(idx)) uniqueIndices.push(idx);
+    }
+    if (uniqueIndices.length < 2) return null;
+
+    const matched: TrianglePoints[] = [];
+    for (let t = 0; t < mesh.triangles.length; t++) {
+      const tv = mesh.triangles[t]!.vertices;
+      let coversAll = true;
+      for (let k = 0; k < uniqueIndices.length; k++) {
+        const req = uniqueIndices[k]!;
+        if (tv[0] !== req && tv[1] !== req && tv[2] !== req) {
+          coversAll = false;
+          break;
+        }
+      }
+      if (coversAll) {
+        const va = mesh.vertices[tv[0]];
+        const vb = mesh.vertices[tv[1]];
+        const vc = mesh.vertices[tv[2]];
+        if (va && vb && vc) {
+          matched.push([va, vb, vc]);
+        }
+      }
+    }
+    return matched.length > 0 ? matched : null;
+  });
 }
 
 export interface PlacedNode {
@@ -300,11 +424,14 @@ function runPerItemPbdRelaxation(params: {
   readonly placedClusters: readonly PlacedNode[];
   readonly placedClusterBoxes: readonly ReturnType<typeof getHullBoundingBox>[];
   readonly itemScales: readonly number[];
+  readonly itemCoveringTriangles?: readonly (readonly TrianglePoints[] | null)[];
   readonly viewportWidth: number;
   readonly viewportHeight: number;
   readonly viewportMargin: number;
   readonly itemGapPx: number;
   readonly relaxationIterations: number;
+  readonly springFactor?: number;
+  readonly springZeroTailRatio?: number;
 }): {
   readonly overlapCount: number;
   readonly maxPenetration: number;
@@ -316,15 +443,18 @@ function runPerItemPbdRelaxation(params: {
     placedClusters,
     placedClusterBoxes,
     itemScales,
+    itemCoveringTriangles,
     viewportWidth,
     viewportHeight,
     viewportMargin,
     itemGapPx,
     relaxationIterations,
+    springFactor = 1.0,
+    springZeroTailRatio = 0.0,
   } = params;
 
   const n = scaledItems.length;
-  const pos = initialStarts.map((s, idx) => {
+  const pos: { x: number; y: number }[] = initialStarts.map((s, idx) => {
     const c = clampNodeInsideViewport(
       s.x,
       s.y,
@@ -334,6 +464,11 @@ function runPerItemPbdRelaxation(params: {
       viewportHeight,
       viewportMargin,
     );
+    const triGroup = itemCoveringTriangles?.[idx];
+    if (triGroup) {
+      const clamped = clampPointToTriangles(c.x, c.y, triGroup);
+      return { x: clamped.x, y: clamped.y };
+    }
     return { x: c.x, y: c.y };
   });
 
@@ -349,13 +484,23 @@ function runPerItemPbdRelaxation(params: {
   const boxes = new Array<ReturnType<typeof getHullBoundingBox>>(n);
   const queryBuf: number[] = [];
 
+  const activeSpringIters = Math.max(
+    1,
+    Math.round(relaxationIterations * (1 - Math.max(0, Math.min(0.8, springZeroTailRatio)))),
+  );
+
   for (let iter = 0; iter < relaxationIterations; iter++) {
-    const springK = 0.18 * (1 - (iter / relaxationIterations) * 0.85);
-    for (let i = 0; i < n; i++) {
-      const it = scaledItems[i]!;
-      const p = pos[i]!;
-      p.x += (it.anchorX - p.x) * springK;
-      p.y += (it.anchorY - p.y) * springK;
+    const springK =
+      iter >= activeSpringIters
+        ? 0
+        : 0.18 * springFactor * (1 - (iter / activeSpringIters) * 0.85);
+    if (springK > 0) {
+      for (let i = 0; i < n; i++) {
+        const it = scaledItems[i]!;
+        const p = pos[i]!;
+        p.x += (it.anchorX - p.x) * springK;
+        p.y += (it.anchorY - p.y) * springK;
+      }
     }
 
     grid.clear();
@@ -441,6 +586,8 @@ function runPerItemPbdRelaxation(params: {
           pA.y += mtv.ny * (mtv.depth + 0.05);
         }
       }
+      const preClampX = pA.x;
+      const preClampY = pA.y;
       const clamped = clampNodeInsideViewport(
         pA.x,
         pA.y,
@@ -452,10 +599,26 @@ function runPerItemPbdRelaxation(params: {
       );
       pA.x = clamped.x;
       pA.y = clamped.y;
+
+      // If clamping pushed the item back against a corner/edge cluster, nudge inward toward viewport center
+      if (Math.abs(clamped.x - preClampX) > 0.1 || Math.abs(clamped.y - preClampY) > 0.1) {
+        const toCx = viewportWidth * 0.5 - pA.x;
+        const toCy = viewportHeight * 0.5 - pA.y;
+        const distC = Math.hypot(toCx, toCy) || 1;
+        pA.x += (toCx / distC) * 1.5;
+        pA.y += (toCy / distC) * 1.5;
+      }
+
+      const triGroup = itemCoveringTriangles?.[i];
+      if (triGroup) {
+        const triClamped = clampPointToTriangles(pA.x, pA.y, triGroup);
+        pA.x = triClamped.x;
+        pA.y = triClamped.y;
+      }
     }
   }
 
-  for (let polish = 0; polish < 14; polish++) {
+  for (let polish = 0; polish < 28; polish++) {
     let stepMax = 0;
     grid.clear();
     for (let i = 0; i < n; i++) {
@@ -536,6 +699,8 @@ function runPerItemPbdRelaxation(params: {
         }
       }
 
+      const preClampX = pA.x;
+      const preClampY = pA.y;
       const clamped = clampNodeInsideViewport(
         pA.x,
         pA.y,
@@ -547,6 +712,60 @@ function runPerItemPbdRelaxation(params: {
       );
       pA.x = clamped.x;
       pA.y = clamped.y;
+
+      if (Math.abs(clamped.x - preClampX) > 0.1 || Math.abs(clamped.y - preClampY) > 0.1) {
+        const boxAfterClamp = getHullBoundingBox(hA, pA.x, pA.y, sA);
+        for (let cIdx = 0; cIdx < placedClusters.length; cIdx++) {
+          const cb = placedClusterBoxes[cIdx]!;
+          if (
+            boxAfterClamp.maxX + itemGapPx <= cb.minX ||
+            cb.maxX + itemGapPx <= boxAfterClamp.minX ||
+            boxAfterClamp.maxY + itemGapPx <= cb.minY ||
+            cb.maxY + itemGapPx <= boxAfterClamp.minY
+          ) {
+            continue;
+          }
+          const c = placedClusters[cIdx]!;
+          const mtv = computeConvexMtv(
+            hA,
+            pA.x,
+            pA.y,
+            sA,
+            c.hull,
+            c.x,
+            c.y,
+            c.scale,
+            itemGapPx,
+          );
+          if (mtv && mtv.depth > 1e-4) {
+            // Slide along cluster perimeter toward viewport center instead of oscillating into the wall
+            const vx = viewportWidth * 0.5 - c.x;
+            const vy = viewportHeight * 0.5 - c.y;
+            const len = Math.hypot(vx, vy) || 1;
+            const push = mtv.depth + 0.5;
+            const shifted = clampNodeInsideViewport(
+              pA.x + (vx / len) * push,
+              pA.y + (vy / len) * push,
+              hA,
+              sA,
+              viewportWidth,
+              viewportHeight,
+              viewportMargin,
+            );
+            pA.x = shifted.x;
+            pA.y = shifted.y;
+          }
+        }
+      }
+
+      const triGroup = itemCoveringTriangles?.[i];
+      if (triGroup) {
+        const triClamped = clampPointToTriangles(pA.x, pA.y, triGroup);
+        const triMove = Math.hypot(triClamped.x - pA.x, triClamped.y - pA.y);
+        if (triMove > stepMax) stepMax = triMove;
+        pA.x = triClamped.x;
+        pA.y = triClamped.y;
+      }
     }
 
     if (stepMax <= 0.02) break;
@@ -587,6 +806,7 @@ function runPerItemPbdRelaxation(params: {
 export function solveTwoPhaseLayout(params: {
   readonly clusters: readonly LayoutClusterInput[];
   readonly items: readonly LayoutItemInput[];
+  readonly mesh?: SimplexMesh;
   readonly viewportWidth: number;
   readonly viewportHeight: number;
   readonly viewportMargin?: number;
@@ -596,6 +816,7 @@ export function solveTwoPhaseLayout(params: {
   const {
     clusters,
     items,
+    mesh,
     viewportWidth,
     viewportHeight,
     viewportMargin = 8,
@@ -648,6 +869,7 @@ export function solveTwoPhaseLayout(params: {
   const placedClusterBoxes = placedClusters.map((c) =>
     getHullBoundingBox(c.hull, c.x, c.y, c.scale),
   );
+  const itemCoveringTriangles = buildItemCoveringTriangles(scaledItems, mesh);
 
   const runUniform = (alpha: number) =>
     runPerItemPbdRelaxation({
@@ -656,6 +878,7 @@ export function solveTwoPhaseLayout(params: {
       placedClusters,
       placedClusterBoxes,
       itemScales: new Array<number>(scaledItems.length).fill(alpha),
+      itemCoveringTriangles,
       viewportWidth,
       viewportHeight,
       viewportMargin,
@@ -731,6 +954,7 @@ export function solveTwoPhaseLayout(params: {
 export function solveLocalAdaptiveLayout(params: {
   readonly clusters: readonly LayoutClusterInput[];
   readonly items: readonly LayoutItemInput[];
+  readonly mesh?: SimplexMesh;
   readonly viewportWidth: number;
   readonly viewportHeight: number;
   readonly viewportMargin?: number;
@@ -742,6 +966,7 @@ export function solveLocalAdaptiveLayout(params: {
   const {
     clusters,
     items,
+    mesh,
     viewportWidth,
     viewportHeight,
     viewportMargin = 8,
@@ -819,6 +1044,7 @@ export function solveLocalAdaptiveLayout(params: {
   const placedClusterBoxes = placedClusters.map((c) =>
     getHullBoundingBox(c.hull, c.x, c.y, c.scale),
   );
+  const itemCoveringTriangles = buildItemCoveringTriangles(scaledItems, mesh);
 
   const runScaled = (globalFactor: number) => {
     const scales = localBaseScales.map((ls) => ls * globalFactor);
@@ -828,6 +1054,7 @@ export function solveLocalAdaptiveLayout(params: {
       placedClusters,
       placedClusterBoxes,
       itemScales: scales,
+      itemCoveringTriangles,
       viewportWidth,
       viewportHeight,
       viewportMargin,
@@ -874,6 +1101,514 @@ export function solveLocalAdaptiveLayout(params: {
       id: it.id,
       x: chosenResult.positions[idx]!.x,
       y: chosenResult.positions[idx]!.y,
+      scale: s * sizeMultiplier,
+      hull: items[idx]!.hull,
+    };
+  });
+  avgItemScale /= Math.max(1, finalItems.length);
+
+  const finalCheck = measureLayoutOverlaps(
+    finalClusters,
+    finalItems,
+    viewportWidth,
+    viewportHeight,
+    viewportMargin,
+  );
+
+  return {
+    clusters: finalClusters,
+    items: finalItems,
+    clusterScale,
+    contentScale: avgItemScale,
+    overlapCount: finalCheck.overlapCount,
+    maxPenetrationPx: finalCheck.maxPenetrationPx,
+  };
+}
+
+function findCollidingItemIndices(params: {
+  readonly scaledItems: readonly LayoutItemInput[];
+  readonly positions: readonly { readonly x: number; readonly y: number }[];
+  readonly itemScales: readonly number[];
+  readonly itemCoveringTriangles?: readonly (readonly TrianglePoints[] | null)[];
+  readonly placedClusters: readonly PlacedNode[];
+  readonly placedClusterBoxes: readonly ReturnType<typeof getHullBoundingBox>[];
+  readonly viewportWidth: number;
+  readonly viewportHeight: number;
+  readonly viewportMargin: number;
+}): Set<number> {
+  const {
+    scaledItems,
+    positions,
+    itemScales,
+    itemCoveringTriangles,
+    placedClusters,
+    placedClusterBoxes,
+    viewportWidth,
+    viewportHeight,
+    viewportMargin,
+  } = params;
+  const colliding = new Set<number>();
+  const n = scaledItems.length;
+  let maxR = 16;
+  const boxes = new Array<ReturnType<typeof getHullBoundingBox>>(n);
+
+  for (let i = 0; i < n; i++) {
+    const s = itemScales[i]!;
+    maxR = Math.max(maxR, getHullBoundingRadius(scaledItems[i]!.hull) * s);
+    boxes[i] = getHullBoundingBox(
+      scaledItems[i]!.hull,
+      positions[i]!.x,
+      positions[i]!.y,
+      s,
+    );
+  }
+
+  const grid = new UniformSpatialHashGrid(Math.max(24, maxR * 2.1));
+  for (let i = 0; i < n; i++) {
+    grid.insert(i, boxes[i]!, 1);
+  }
+  const queryBuf: number[] = [];
+
+  for (let i = 0; i < n; i++) {
+    const box = boxes[i]!;
+    const pA = positions[i]!;
+    const hA = scaledItems[i]!.hull;
+    const sA = itemScales[i]!;
+
+    if (
+      box.minX < viewportMargin - 0.5 ||
+      box.maxX > viewportWidth - viewportMargin + 0.5 ||
+      box.minY < viewportMargin - 0.5 ||
+      box.maxY > viewportHeight - viewportMargin + 0.5
+    ) {
+      colliding.add(i);
+    }
+
+    const triGroup = itemCoveringTriangles?.[i];
+    if (triGroup) {
+      let inside = false;
+      for (let t = 0; t < triGroup.length; t++) {
+        const [a, b, c] = triGroup[t]!;
+        if (isPointInTriangle(pA.x, pA.y, a, b, c, 1e-4)) {
+          inside = true;
+          break;
+        }
+      }
+      if (!inside) {
+        colliding.add(i);
+      }
+    }
+
+    for (let cIdx = 0; cIdx < placedClusters.length; cIdx++) {
+      const cb = placedClusterBoxes[cIdx]!;
+      if (
+        box.maxX <= cb.minX ||
+        cb.maxX <= box.minX ||
+        box.maxY <= cb.minY ||
+        cb.maxY <= box.minY
+      ) {
+        continue;
+      }
+      const c = placedClusters[cIdx]!;
+      const mtv = computeConvexMtv(
+        hA,
+        pA.x,
+        pA.y,
+        sA,
+        c.hull,
+        c.x,
+        c.y,
+        c.scale,
+        0,
+      );
+      if (mtv && mtv.depth > 1e-4) {
+        colliding.add(i);
+      }
+    }
+
+    const candidates = grid.query(box, 1, queryBuf);
+    for (let k = 0; k < candidates.length; k++) {
+      const j = candidates[k]!;
+      if (j <= i) continue;
+      const boxB = boxes[j]!;
+      if (
+        box.maxX <= boxB.minX ||
+        boxB.maxX <= box.minX ||
+        box.maxY <= boxB.minY ||
+        boxB.maxY <= box.minY
+      ) {
+        continue;
+      }
+      const pB = positions[j]!;
+      const mtv = computeConvexMtv(
+        hA,
+        pA.x,
+        pA.y,
+        sA,
+        scaledItems[j]!.hull,
+        pB.x,
+        pB.y,
+        itemScales[j]!,
+        0,
+      );
+      if (mtv && mtv.depth > 1e-4) {
+        colliding.add(i);
+        colliding.add(j);
+      }
+    }
+  }
+
+  return colliding;
+}
+
+function buildMeshAwareStarts(params: {
+  readonly scaledItems: readonly LayoutItemInput[];
+  readonly mesh?: SimplexMesh;
+  readonly itemCoveringTriangles?: readonly (readonly TrianglePoints[] | null)[];
+  readonly previousItemPositions?: ReadonlyMap<string, { readonly x: number; readonly y: number }>;
+}): { x: number; y: number }[] {
+  const { scaledItems, mesh, itemCoveringTriangles, previousItemPositions } = params;
+  const anchorBuckets = new Map<string, number>();
+
+  // Compute centroid of covering or incident triangles for directional inward spreading
+  const resolveInwardDir = (
+    ax: number,
+    ay: number,
+    triGroup: readonly TrianglePoints[] | null | undefined,
+  ): { dx: number; dy: number } => {
+    if (triGroup && triGroup.length > 0) {
+      let sumCx = 0;
+      let sumCy = 0;
+      for (let t = 0; t < triGroup.length; t++) {
+        const [va, vb, vc] = triGroup[t]!;
+        sumCx += (va.x + vb.x + vc.x) / 3;
+        sumCy += (va.y + vb.y + vc.y) / 3;
+      }
+      const tx = sumCx / triGroup.length - ax;
+      const ty = sumCy / triGroup.length - ay;
+      const len = Math.hypot(tx, ty);
+      if (len > 1e-6) return { dx: tx / len, dy: ty / len };
+    }
+    if (!mesh || mesh.triangles.length === 0) {
+      return { dx: 1, dy: 0 };
+    }
+    let nearestV = 0;
+    let bestD2 = Infinity;
+    for (let v = 0; v < mesh.vertices.length; v++) {
+      const pt = mesh.vertices[v]!;
+      const d2 = (pt.x - ax) ** 2 + (pt.y - ay) ** 2;
+      if (d2 < bestD2) {
+        bestD2 = d2;
+        nearestV = v;
+      }
+    }
+    let sumCx = 0;
+    let sumCy = 0;
+    let count = 0;
+    for (const tr of mesh.triangles) {
+      if (tr.vertices[0] === nearestV || tr.vertices[1] === nearestV || tr.vertices[2] === nearestV) {
+        const va = mesh.vertices[tr.vertices[0]]!;
+        const vb = mesh.vertices[tr.vertices[1]]!;
+        const vc = mesh.vertices[tr.vertices[2]]!;
+        sumCx += (va.x + vb.x + vc.x) / 3;
+        sumCy += (va.y + vb.y + vc.y) / 3;
+        count++;
+      }
+    }
+    if (count === 0) {
+      sumCx = mesh.width * 0.5;
+      sumCy = mesh.height * 0.5;
+      count = 1;
+    }
+    const tx = sumCx / count - ax;
+    const ty = sumCy / count - ay;
+    const len = Math.hypot(tx, ty);
+    if (len <= 1e-6) return { dx: 1, dy: 0 };
+    return { dx: tx / len, dy: ty / len };
+  };
+
+  return scaledItems.map((it, itemIdx) => {
+    const triGroup = itemCoveringTriangles?.[itemIdx];
+    const prev = previousItemPositions?.get(it.id);
+    if (prev && Number.isFinite(prev.x) && Number.isFinite(prev.y)) {
+      return triGroup ? clampPointToTriangles(prev.x, prev.y, triGroup) : { x: prev.x, y: prev.y };
+    }
+    const key = `${Math.round(it.anchorX * 0.5)}:${Math.round(it.anchorY * 0.5)}`;
+    const idx = anchorBuckets.get(key) ?? 0;
+    anchorBuckets.set(key, idx + 1);
+    if (idx === 0) {
+      return triGroup
+        ? clampPointToTriangles(it.anchorX, it.anchorY, triGroup)
+        : { x: it.anchorX, y: it.anchorY };
+    }
+
+    const inward = resolveInwardDir(it.anchorX, it.anchorY, triGroup);
+    const baseAngle = Math.atan2(inward.dy, inward.dx);
+    // Fan across an inward cone into covering/incident triangles using golden-angle dithering
+    const offsetAngle = (((idx * 0.61803398875) % 1) - 0.5) * Math.PI * 1.15;
+    const angle = baseAngle + offsetAngle;
+    const radius = 5.5 * Math.sqrt(idx);
+    const fx = it.anchorX + Math.cos(angle) * radius;
+    const fy = it.anchorY + Math.sin(angle) * radius;
+    return triGroup ? clampPointToTriangles(fx, fy, triGroup) : { x: fx, y: fy };
+  });
+}
+
+/**
+ * Collision-driven adaptive layout solver:
+ *
+ * Keeps every content node at `1.0` scale wherever possible, relaxes tightly packed anchors
+ * into open adjacent triangle space, and selectively scales down **only** the locally colliding
+ * pockets until `0.0 px` overlap is reached.
+ */
+export function solveCollisionDrivenLayout(params: {
+  readonly clusters: readonly LayoutClusterInput[];
+  readonly items: readonly LayoutItemInput[];
+  readonly mesh?: SimplexMesh;
+  readonly viewportWidth: number;
+  readonly viewportHeight: number;
+  readonly viewportMargin?: number;
+  readonly options?: LayoutSolverOptions;
+  readonly minLocalScale?: number;
+  readonly shrinkFactor?: number;
+  readonly maxRefinementRounds?: number;
+  readonly previousItemPositions?: ReadonlyMap<string, { readonly x: number; readonly y: number }>;
+}): TwoPhaseLayoutResult {
+  const {
+    clusters,
+    items,
+    mesh,
+    viewportWidth,
+    viewportHeight,
+    viewportMargin = 8,
+    options = {},
+    minLocalScale = 0.32,
+    shrinkFactor = 0.85,
+    maxRefinementRounds = 9,
+    previousItemPositions,
+  } = params;
+
+  const clusterGapPx = options.clusterGapPx ?? 14;
+  const itemGapPx = options.itemGapPx ?? 5;
+  const minContentScale = options.minContentScale ?? 0.16;
+  const relaxationIterations = options.relaxationIterations ?? 46;
+  const sizeMultiplier = Math.max(0.25, options.sizeMultiplier ?? 1.0);
+
+  const scaledClusters = clusters.map((c) => ({
+    ...c,
+    hull: scaleConvexGeometry(c.hull, sizeMultiplier),
+  }));
+  const scaledItems = items.map((it) => ({
+    ...it,
+    hull: scaleConvexGeometry(it.hull, sizeMultiplier),
+  }));
+
+  const { clusterScale, placedClusters } = solveClusterPhase({
+    scaledClusters,
+    viewportWidth,
+    viewportHeight,
+    viewportMargin,
+    clusterGapPx,
+  });
+
+  if (scaledItems.length === 0) {
+    const check = measureLayoutOverlaps(
+      placedClusters,
+      [],
+      viewportWidth,
+      viewportHeight,
+      viewportMargin,
+    );
+    return {
+      clusters: placedClusters,
+      items: [],
+      clusterScale,
+      contentScale: 1.0,
+      overlapCount: check.overlapCount,
+      maxPenetrationPx: check.maxPenetrationPx,
+    };
+  }
+
+  const placedClusterBoxes = placedClusters.map((c) =>
+    getHullBoundingBox(c.hull, c.x, c.y, c.scale),
+  );
+  const itemCoveringTriangles = buildItemCoveringTriangles(scaledItems, mesh);
+  const scales = new Array<number>(scaledItems.length).fill(1.0);
+  const starts = buildMeshAwareStarts({
+    scaledItems,
+    mesh,
+    itemCoveringTriangles,
+    previousItemPositions,
+  });
+
+  let currentResult = runPerItemPbdRelaxation({
+    scaledItems,
+    initialStarts: starts,
+    placedClusters,
+    placedClusterBoxes,
+    itemScales: scales,
+    itemCoveringTriangles,
+    viewportWidth,
+    viewportHeight,
+    viewportMargin,
+    itemGapPx,
+    relaxationIterations,
+    springFactor: 0.7,
+    springZeroTailRatio: 0.35,
+  });
+
+  let colliding = findCollidingItemIndices({
+    scaledItems,
+    positions: currentResult.positions,
+    itemScales: scales,
+    itemCoveringTriangles,
+    placedClusters,
+    placedClusterBoxes,
+    viewportWidth,
+    viewportHeight,
+    viewportMargin,
+  });
+
+  let round = 0;
+  while (colliding.size > 0 && round < maxRefinementRounds) {
+    round += 1;
+    let changed = false;
+    for (const idx of colliding) {
+      const next = Math.max(minLocalScale, scales[idx]! * shrinkFactor);
+      if (next < scales[idx]! - 1e-5) {
+        scales[idx] = next;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+
+    currentResult = runPerItemPbdRelaxation({
+      scaledItems,
+      initialStarts: currentResult.positions,
+      placedClusters,
+      placedClusterBoxes,
+      itemScales: scales,
+      itemCoveringTriangles,
+      viewportWidth,
+      viewportHeight,
+      viewportMargin,
+      itemGapPx,
+      relaxationIterations: Math.max(24, Math.round(relaxationIterations * 0.65)),
+      springFactor: 0.42,
+      springZeroTailRatio: 0.45,
+    });
+
+    colliding = findCollidingItemIndices({
+      scaledItems,
+      positions: currentResult.positions,
+      itemScales: scales,
+      itemCoveringTriangles,
+      placedClusters,
+      placedClusterBoxes,
+      viewportWidth,
+      viewportHeight,
+      viewportMargin,
+    });
+  }
+
+  // Safety fallback: first shrink only items in colliding pockets; only scale globally if viewport is saturated
+  if (colliding.size > 0 || currentResult.overlapCount > 0) {
+    const stuckSet = new Set<number>(colliding);
+    if (stuckSet.size === 0) {
+      // Mark any item near another item or cluster boundary if measureLayoutOverlaps flagged a sub-pixel border issue
+      for (let i = 0; i < scaledItems.length; i++) {
+        if (scales[i]! < 0.999) stuckSet.add(i);
+      }
+      if (stuckSet.size === 0) {
+        for (let i = 0; i < scaledItems.length; i++) stuckSet.add(i);
+      }
+    }
+
+    const fallbackIters = Math.max(relaxationIterations, 56);
+    const buildTrialScales = (factor: number, globalFallback: boolean) =>
+      scales.map((s, idx) => (globalFallback || stuckSet.has(idx) ? s * factor : s));
+
+    const tryFallbackMode = (globalFallback: boolean) => {
+      let lo = Math.min(minContentScale, 0.08);
+      let hi = 1.0;
+      let bestFactor = lo;
+      let bestRes = runPerItemPbdRelaxation({
+        scaledItems,
+        initialStarts: starts,
+        placedClusters,
+        placedClusterBoxes,
+        itemScales: buildTrialScales(lo, globalFallback),
+        itemCoveringTriangles,
+        viewportWidth,
+        viewportHeight,
+        viewportMargin,
+        itemGapPx,
+        relaxationIterations: fallbackIters,
+        springFactor: 0.45,
+        springZeroTailRatio: 0.4,
+      });
+
+      if (bestRes.overlapCount > 0 || bestRes.maxPenetration > 1e-4) {
+        return { ok: false as const, bestFactor, bestRes };
+      }
+
+      for (let step = 0; step < 6; step++) {
+        const mid = (lo + hi) / 2;
+        const attempt = runPerItemPbdRelaxation({
+          scaledItems,
+          initialStarts: starts,
+          placedClusters,
+          placedClusterBoxes,
+          itemScales: buildTrialScales(mid, globalFallback),
+          itemCoveringTriangles,
+          viewportWidth,
+          viewportHeight,
+          viewportMargin,
+          itemGapPx,
+          relaxationIterations: fallbackIters,
+          springFactor: 0.45,
+          springZeroTailRatio: 0.4,
+        });
+        if (attempt.overlapCount === 0 && attempt.maxPenetration <= 1e-4) {
+          bestFactor = mid;
+          bestRes = attempt;
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+      return { ok: true as const, bestFactor, bestRes };
+    };
+
+    const localAttempt = tryFallbackMode(false);
+    if (localAttempt.ok) {
+      const nextScales = buildTrialScales(localAttempt.bestFactor, false);
+      for (let i = 0; i < scales.length; i++) scales[i] = nextScales[i]!;
+      currentResult = localAttempt.bestRes;
+    } else {
+      const globalAttempt = tryFallbackMode(true);
+      const nextScales = buildTrialScales(globalAttempt.bestFactor, true);
+      for (let i = 0; i < scales.length; i++) scales[i] = nextScales[i]!;
+      currentResult = globalAttempt.bestRes;
+    }
+  }
+
+  const finalClusters: PlacedNode[] = placedClusters.map((c, idx) => ({
+    id: c.id,
+    x: c.x,
+    y: c.y,
+    scale: clusterScale * sizeMultiplier,
+    hull: clusters[idx]!.hull,
+  }));
+
+  let avgItemScale = 0;
+  const finalItems: PlacedNode[] = scaledItems.map((it, idx) => {
+    const s = scales[idx]!;
+    avgItemScale += s;
+    return {
+      id: it.id,
+      x: currentResult.positions[idx]!.x,
+      y: currentResult.positions[idx]!.y,
       scale: s * sizeMultiplier,
       hull: items[idx]!.hull,
     };

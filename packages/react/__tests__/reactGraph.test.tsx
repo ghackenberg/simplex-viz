@@ -5,6 +5,7 @@ import {
   BarycentricSectorTriangleSvgView,
   ClusterTintedEdgeSvgView,
   SimplexTopicGraph,
+  createEmbeddingClusteringStrategy,
 } from '../src/index';
 
 interface CustomDoc {
@@ -152,6 +153,51 @@ describe('@simplex-viz/react integration', () => {
     expect(triGroups[0]!.querySelectorAll('polygon').length).toBeGreaterThanOrEqual(3);
     // ClusterTintedEdgeSvgView renders 3 colored segments per edge
     expect(edgeGroups[0]!.querySelectorAll('line').length).toBe(3);
+
+    unmount();
+  });
+
+  it('renders untagged multi-modal embedding models without getTags', () => {
+    interface MediaClip {
+      readonly clipId: string;
+      readonly visualVec: readonly number[];
+      readonly audioVec: readonly number[];
+    }
+
+    const clips: readonly MediaClip[] = [
+      { clipId: 'clip-1', visualVec: [0.95, 0.1, 0], audioVec: [0.9, 0.1] },
+      { clipId: 'clip-2', visualVec: [0.9, 0.15, 0.05], audioVec: [0.85, 0.15] },
+      { clipId: 'clip-3', visualVec: [0.1, 0.95, 0.05], audioVec: [0.15, 0.85] },
+      { clipId: 'clip-4', visualVec: [0.12, 0.9, 0.1], audioVec: [0.1, 0.9] },
+      { clipId: 'clip-5', visualVec: [0.05, 0.1, 0.95], audioVec: [0.5, 0.5] },
+      { clipId: 'clip-6', visualVec: [0.1, 0.08, 0.92], audioVec: [0.55, 0.45] },
+      { clipId: 'clip-7', visualVec: [0.5, 0.5, 0.15], audioVec: [0.5, 0.5] },
+    ];
+
+    let overlaps = -1;
+    const { container, unmount } = render(
+      <div style={{ width: 820, height: 580 }}>
+        <SimplexTopicGraph
+          items={clips}
+          getId={(c) => c.clipId}
+          clusteringStrategy={createEmbeddingClusteringStrategy<MediaClip>({
+            getEmbedding: [
+              { name: 'Visual', getVector: (c) => c.visualVec, weight: 0.7 },
+              { name: 'Audio', getVector: (c) => c.audioVec, weight: 0.3 },
+            ],
+          })}
+          preset="badges"
+          tooltip
+          onMetricsChange={(m) => {
+            overlaps = m.overlapCount;
+          }}
+        />
+      </div>,
+    );
+
+    expect(container.querySelectorAll('g.sv-node-item').length).toBe(7);
+    expect(container.querySelectorAll('g.sv-node-cluster').length).toBeGreaterThanOrEqual(3);
+    expect(overlaps).toBe(0);
 
     unmount();
   });

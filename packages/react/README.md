@@ -365,38 +365,43 @@ export function FastGraph({
 
 > **Tip:** Memoize `visualResolver` (e.g., via `useMemo`) and keep `contentView` / `clusterView` instances stable outside render to avoid unnecessary crossfades. Changing `preset`, `visualResolver`, or switching view props intentionally triggers a smooth crossfade/morph transition.
 
-## Combining Presets & Pluggable Core Strategies
+## Combining Presets & Pluggable Core Strategies (Tags, Embeddings & Similarities)
 
-Every `@simplex-viz/core` strategy factory is re-exported from `@simplex-viz/react` (`createFixedLatticeMeshStrategy`, `createIncrementalAnchorClusteringStrategy`, `createThemeAdaptiveOklabColorStrategy`, `createPaletteColorStrategy`, `createWarmStartPbdLayoutStrategy`, `createLocalAdaptiveLayoutStrategy`, etc.). Memoize strategy instances with `useMemo` and pass them alongside any `preset`, `theme`, or custom JSX renderer:
+Every `@simplex-viz/core` strategy factory is re-exported from `@simplex-viz/react`—including **`createEmbeddingClusteringStrategy`** (single or weighted multi-modal vector spaces on completely untagged items), **`createSimilarityClusteringStrategy`** (arbitrary pairwise similarity kernels), tag strategies (`createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`), and mesh, color, and layout strategies:
 
 ```tsx
 import { useMemo, useState } from 'react';
 import {
   SimplexTopicGraph,
-  createFixedLatticeMeshStrategy,
-  createIncrementalAnchorClusteringStrategy,
+  createEmbeddingClusteringStrategy,
   createLocalAdaptiveLayoutStrategy,
   createThemeAdaptiveOklabColorStrategy,
-  type DefaultTaggedItem,
 } from '@simplex-viz/react';
 
-export function StrategyShowcase({ items }: { items: readonly DefaultTaggedItem[] }) {
-  const [theme, setTheme] = useState<'dark' | 'light'>('light');
+interface VoiceClip {
+  readonly id: string;
+  readonly speaker: string;
+  readonly timbreVec: readonly number[];
+  readonly prosodyVec: readonly number[];
+}
 
-  const meshStrategy = useMemo(
-    () => createFixedLatticeMeshStrategy<DefaultTaggedItem>({ cols: 3, rows: 3 }),
-    [],
-  );
+export function VoiceSignatureMap({ clips }: { clips: readonly VoiceClip[] }) {
+  const [theme] = useState<'dark' | 'light'>('dark');
+
   const clusteringStrategy = useMemo(
     () =>
-      createIncrementalAnchorClusteringStrategy<DefaultTaggedItem>({
-        sharedTagRule: 'planar-hitting-set',
-        anchorRule: 'explaining-away',
+      createEmbeddingClusteringStrategy<VoiceClip>({
+        getEmbedding: [
+          { name: 'Timbre', getVector: (c) => c.timbreVec, weight: 0.7 },
+          { name: 'Prosody', getVector: (c) => c.prosodyVec, weight: 0.3 },
+        ],
+        metric: 'cosine',
+        anchorRule: 'simplex-projection',
       }),
     [],
   );
   const colorStrategy = useMemo(
-    () => createThemeAdaptiveOklabColorStrategy<DefaultTaggedItem>(),
+    () => createThemeAdaptiveOklabColorStrategy<VoiceClip>(),
     [],
   );
   const layoutStrategy = useMemo(
@@ -406,13 +411,14 @@ export function StrategyShowcase({ items }: { items: readonly DefaultTaggedItem[
 
   return (
     <SimplexTopicGraph
-      items={items}
+      items={clips}
+      getLabel={(c) => c.speaker}
       preset="badges"
       theme={theme}
-      meshStrategy={meshStrategy}
       clusteringStrategy={clusteringStrategy}
       colorStrategy={colorStrategy}
       layoutStrategy={layoutStrategy}
+      tooltip
     />
   );
 }
@@ -425,11 +431,11 @@ export function StrategyShowcase({ items }: { items: readonly DefaultTaggedItem[
 | --- | --- | --- |
 | `items` | Yes | `readonly TItem[]` — Domain items to cluster and lay out. |
 | `getId` | If `TItem` lacks `id` | `(item: TItem) => string` — Extracts a unique ID per item. |
-| `getTags` | If `TItem` lacks `tags` | `(item: TItem) => readonly string[]` — Extracts raw tag strings per item. |
+| `getTags` | If `TItem` lacks `tags` and no `clusteringStrategy` is passed | `(item: TItem) => readonly string[]` — Extracts raw tag strings per item (optional when using `createEmbeddingClusteringStrategy` or `createSimilarityClusteringStrategy`). |
 | `getLabel` | No | `(item: TItem) => string` — Optional label extractor used by presets and default hover tooltips. |
 | `normalizeTag` | No | `(rawTag: string) => string` — Custom tag normalizer (defaults to lowercase trim + `#` strip). |
 | `resolveTagMeta` | No | `(normalizedTag: string) => TTagMeta \| undefined` — Attaches domain metadata to each tag. |
-| `deriveClusterMeta` | If `TClusterMeta` is defined | `(ctx) => TClusterMeta` — Derives aggregate metadata once per cluster update. |
+| `deriveClusterMeta` | If `TClusterMeta` is defined | `(ctx) => TClusterMeta` — Derives aggregate metadata once per cluster update (`members`, `representativeItems`, `centroid`, `cohesion`, `featureSummary`, `coreTags`, `sharedTags`). |
 
 ### Visuals, Presets & Renderers
 | Prop | Default | Description |
@@ -452,7 +458,7 @@ export function StrategyShowcase({ items }: { items: readonly DefaultTaggedItem[
 | `meshOptions` | — | `{ innerPadding, minSideLength, maxSideLength, maxClusters }`. |
 | `layoutOptions` | — | `{ clusterGapPx, itemGapPx, minContentScale, relaxationIterations, seed }`. |
 | `meshStrategy` | `createAdaptiveHexMeshStrategy()` | Pluggable `SimplexMeshStrategy<TItem>` controlling 60° triangulation layout. |
-| `clusteringStrategy` | `createJaccardAnnealingClusteringStrategy()` | Pluggable `SimplexClusteringStrategy<TItem, TTagMeta>` (`initialize` + `update`, `sharedTagRule`, `anchorRule`). |
+| `clusteringStrategy` | `createJaccardAnnealingClusteringStrategy()` | Pluggable `SimplexClusteringStrategy<TItem, TTagMeta>` (`createEmbeddingClusteringStrategy`, `createSimilarityClusteringStrategy`, `createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`, or custom). |
 | `colorStrategy` | `createOklabContrastColorStrategy()` | Pluggable `SimplexColorStrategy<TItem, TTagMeta>` (OKLab contrast, theme-adaptive, or custom palette). |
 | `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Pluggable `SimplexLayoutStrategy` (`pbd-uniform`, `pbd-warm-start`, `local-adaptive`, or custom). |
 | `sizeMultiplier` | `1.0` | Uniform node size multiplier (`0.35` – `3.0`). |

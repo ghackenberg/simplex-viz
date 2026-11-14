@@ -6,16 +6,15 @@ import type {
   ContentLayoutContext,
   DefaultTaggedItem,
   HitTarget,
-  ItemIdentityConfig,
   LayoutMetrics,
   LayoutSolverOptions,
   MeshOptions,
   NodeRenderState,
   NormalizedPointerEvent,
-  SimplexClusteringStrategy,
   SimplexColorStrategy,
   SimplexLayoutStrategy,
   SimplexMeshStrategy,
+  StrategyItemIdentityConfig,
   TriangleHoverEvent,
   VisualResolver,
   WheelBehavior,
@@ -88,7 +87,7 @@ export type SimplexTopicGraphProps<
   TClusterVisual = DefaultClusterPresetVisual,
   TTagMeta = undefined,
   TClusterMeta = undefined,
-> = ItemIdentityConfig<TItem> &
+> = StrategyItemIdentityConfig<TItem, TTagMeta> &
   ClusterMetaConfig<TItem, TTagMeta, TClusterMeta> & {
     readonly items: readonly TItem[];
     /** Built-in visual preset used when custom views / `visualResolver` are omitted. Default: `'geometric'`. */
@@ -142,8 +141,6 @@ export type SimplexTopicGraphProps<
     readonly layoutOptions?: LayoutSolverOptions;
     /** Optional custom mesh/triangulation strategy. */
     readonly meshStrategy?: SimplexMeshStrategy<TItem>;
-    /** Optional custom topic clustering & vertex assignment strategy. */
-    readonly clusteringStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>;
     /** Optional custom cluster coloring & item color-mixing strategy. */
     readonly colorStrategy?: SimplexColorStrategy<TItem, TTagMeta>;
     /** Optional custom node positioning & scaling strategy. */
@@ -345,7 +342,9 @@ export function SimplexTopicGraph<
         } else if (cur.renderContentNode) {
           const autoKey = cur.getContentCacheKey
             ? cur.getContentCacheKey(item, ctx)
-            : `${ctx.id}:${ctx.mixedColorHex}:${ctx.tags.map((t) => t.tag).join(',')}`;
+            : `${ctx.id}:${ctx.mixedColorHex}:${ctx.tags.map((t) => t.tag).join(',')}:${ctx.unitClusters
+                .map((u) => `${u.cluster.clusterUid}:${u.weight.toFixed(2)}`)
+                .join(',')}`;
           visual = { __svAutoKey: autoKey } as unknown as TContentVisual;
         } else {
           visual = presetResolver.resolveContentVisual(item, ctx) as unknown as TContentVisual;
@@ -741,14 +740,20 @@ export function SimplexTopicGraph<
               props.getLabel,
             )}
           </div>
-          {hoveredTarget.layoutContext.tags.length > 0 && (
+          {hoveredTarget.layoutContext.tags.length > 0 ? (
             <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
               {hoveredTarget.layoutContext.tags
                 .map((t) => `#${t.tag}`)
                 .slice(0, 5)
                 .join(' · ')}
             </div>
-          )}
+          ) : hoveredTarget.layoutContext.unitClusters.length > 0 ? (
+            <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
+              {hoveredTarget.layoutContext.unitClusters
+                .map((uc) => `${uc.cluster.code} ${Math.round(uc.weight * 100)}%`)
+                .join(' · ')}
+            </div>
+          ) : null}
         </div>
       ) : hoveredTarget.kind === 'cluster' ? (
         <div>

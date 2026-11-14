@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createEmbeddingClusteringStrategy,
   rectToConvexPolygon,
   solveSimplexSnapshot,
   type DefaultTaggedItem,
@@ -51,5 +52,34 @@ describe('solveSimplexSnapshot one-shot helper', () => {
     expect(snapshot.metrics.overlapCount).toBe(0);
     expect(snapshot.clusters.every((c) => c.cluster.meta.totalCitations > 0)).toBe(true);
     expect(snapshot.items[0]?.item.doi).toBe('10.1000/0');
+  });
+
+  it('computes overlap-free snapshots for completely untagged objects with embedding vectors', () => {
+    interface ImageAsset {
+      readonly assetId: string;
+      readonly embedding: readonly number[];
+    }
+
+    const assets: ImageAsset[] = [
+      { assetId: 'img-1', embedding: [1, 0, 0, 0] },
+      { assetId: 'img-2', embedding: [0.95, 0.1, 0, 0] },
+      { assetId: 'img-3', embedding: [0, 1, 0, 0] },
+      { assetId: 'img-4', embedding: [0.05, 0.96, 0.1, 0] },
+      { assetId: 'img-5', embedding: [0, 0, 1, 0] },
+      { assetId: 'img-6', embedding: [0.1, 0, 0.94, 0.05] },
+      { assetId: 'img-7', embedding: [0.45, 0.45, 0.45, 0.1] },
+    ];
+
+    const snapshot = solveSimplexSnapshot(assets, {
+      getId: (a) => a.assetId,
+      clusteringStrategy: createEmbeddingClusteringStrategy<ImageAsset>({
+        getEmbedding: (a) => a.embedding,
+      }),
+    });
+
+    expect(snapshot.metrics.overlapCount).toBe(0);
+    expect(snapshot.items.length).toBe(7);
+    expect(snapshot.clusters.length).toBeGreaterThanOrEqual(3);
+    expect(snapshot.items[0]?.item.assetId).toBe('img-1');
   });
 });

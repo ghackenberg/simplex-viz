@@ -5,6 +5,7 @@ import type {
   ClusterDescriptor,
   ClusterMemberRef,
   ContentLayoutContext,
+  IdentifiedItem,
   Point2D,
   SimplexMesh,
   TagDescriptor,
@@ -36,6 +37,8 @@ export interface PreviousClusterSnapshot {
   readonly clusterUid: string;
   readonly tags: ReadonlySet<string>;
   readonly coreTags?: ReadonlySet<string>;
+  readonly memberIds?: ReadonlySet<string>;
+  readonly centroid?: readonly number[];
   readonly x: number;
   readonly y: number;
   readonly colorHex: string;
@@ -167,7 +170,27 @@ export function defaultNormalizeTag(raw: string): string {
 }
 
 /**
+ * Extracts unique identified domain items without requiring or filtering on tags.
+ * Suitable for embedding, similarity, or arbitrary custom clustering strategies.
+ */
+export function extractIdentifiedItems<TItem>(
+  rawItems: readonly TItem[],
+  getId: (item: TItem) => string,
+): readonly IdentifiedItem<TItem>[] {
+  const seenIds = new Set<string>();
+  const result: IdentifiedItem<TItem>[] = [];
+  for (const item of rawItems) {
+    const id = getId(item).trim();
+    if (!id || seenIds.has(id)) continue;
+    seenIds.add(id);
+    result.push({ id, item });
+  }
+  return result;
+}
+
+/**
  * Normalizes domain items, filters out empty tags and items with 0 valid tags.
+ * Specialized helper used by tag-based clustering strategies.
  */
 export function extractNormalizedItems<TItem>(
   rawItems: readonly TItem[],
@@ -356,56 +379,31 @@ export function computeMeshHopDistances(mesh: SimplexMesh): Int32Array[] {
 }
 
 /**
- * Simulated Annealing QAP solver that maps `K` core tag partitions onto the `K` vertices
- * of `mesh` such that frequently co-occurring partitions sit on adjacent mesh vertices.
+ * Representation-agnostic Simulated Annealing QAP solver that embeds `K` clusters with an
+ * arbitrary symmetric `affinityMatrix[a][b]` onto the `K` vertices of `mesh`, placing strongly
+ * related clusters on adjacent mesh vertices / shared triangles.
+ *
+ * Returns `clusterToVertex[clusterIdx] = vertexIdx`.
  */
-export function embedClustersQapAnnealing<TItem>(params: {
-  readonly normalizedItems: readonly NormalizedContentItem<TItem>[];
-  readonly tagIndexMap: ReadonlyMap<string, number>;
-  readonly tagToCoreCluster: Int32Array;
-  readonly corePartitions: readonly (readonly number[])[];
+export function embedSimilarityMatrixOnMesh(params: {
+  readonly affinityMatrix: readonly Float64Array[];
   readonly mesh: SimplexMesh;
   readonly seed?: number;
-}): Set<number>[] {
-  const {
-    normalizedItems,
-    tagIndexMap,
-    tagToCoreCluster,
-    corePartitions,
-    mesh,
-    seed = 0x51a7c0de,
-  } = params;
+}): number[] {
+  const { affinityMatrix, mesh, seed = 0x51a7c0de } = params;
   const K = mesh.vertices.length;
+  if (K === 0) return [];
   const rng = new DeterministicRng(seed);
-
-  const clusterAffinity = Array.from({ length: K }, () => new Float64Array(K));
-  for (const entry of normalizedItems) {
-    const touched = new Set<number>();
-    for (const tag of entry.tags) {
-      const idx = tagIndexMap.get(tag);
-      if (idx !== undefined) {
-        const c = tagToCoreCluster[idx]!;
-        if (c >= 0) touched.add(c);
-      }
-    }
-    const list = [...touched];
-    for (let i = 0; i < list.length; i++) {
-      for (let j = i + 1; j < list.length; j++) {
-        const a = list[i]!;
-        const b = list[j]!;
-        clusterAffinity[a]![b] = clusterAffinity[a]![b]! + 1;
-        clusterAffinity[b]![a] = clusterAffinity[b]![a]! + 1;
-      }
-    }
-  }
-
   const hopDist = computeMeshHopDistances(mesh);
   const perm = Array.from({ length: K }, (_, i) => i);
+
   const evaluateQap = (p: readonly number[]): number => {
     let cost = 0;
     for (let i = 0; i < K; i++) {
+      const row = affinityMatrix[i];
+      if (!row) continue;
       for (let j = i + 1; j < K; j++) {
-        const aff = clusterAffinity[i]![j]!;
+        const aff = row[j] ?? 0;
         if (aff <= 0) continue;
         const hd = hopDist[p[i]!]![p[j]!]!;
         const penalty = hd <= 1 ? 0 : (hd - 1) * (hd - 1) + 1;
@@ -441,6 +439,58 @@ export function embedClustersQapAnnealing<TItem>(params: {
       perm[a] = tmp;
     }
   }
+
+  return bestPerm;
+}
+
+/**
+ * Simulated Annealing QAP solver that maps `K` core tag partitions onto the `K` vertices
+ * of `mesh` such that frequently co-occurring partitions sit on adjacent mesh vertices.
+ */
+export function embedClustersQapAnnealing<TItem>(params: {
+  readonly normalizedItems: readonly NormalizedContentItem<TItem>[];
+  readonly tagIndexMap: ReadonlyMap<string, number>;
+  readonly tagToCoreCluster: Int32Array;
+  readonly corePartitions: readonly (readonly number[])[];
+  readonly mesh: SimplexMesh;
+  readonly seed?: number;
+}): Set<number>[] {
+  const {
+    normalizedItems,
+    tagIndexMap,
+    tagToCoreCluster,
+    corePartitions,
+    mesh,
+    seed = 0x51a7c0de,
+  } = params;
+  const K = mesh.vertices.length;
+
+  const clusterAffinity = Array.from({ length: K }, () => new Float64Array(K));
+  for (const entry of normalizedItems) {
+    const touched = new Set<number>();
+    for (const tag of entry.tags) {
+      const idx = tagIndexMap.get(tag);
+      if (idx !== undefined) {
+        const c = tagToCoreCluster[idx]!;
+        if (c >= 0) touched.add(c);
+      }
+    }
+    const list = [...touched];
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i]!;
+        const b = list[j]!;
+        clusterAffinity[a]![b] = clusterAffinity[a]![b]! + 1;
+        clusterAffinity[b]![a] = clusterAffinity[b]![a]! + 1;
+      }
+    }
+  }
+
+  const bestPerm = embedSimilarityMatrixOnMesh({
+    affinityMatrix: clusterAffinity,
+    mesh,
+    seed,
+  });
 
   const vertexCoreTags: Set<number>[] = Array.from({ length: K }, () => new Set<number>());
   for (let c = 0; c < K; c++) {
@@ -606,12 +656,46 @@ export function completePlanarSharedTags(params: {
   return vertexSharedTags;
 }
 
+function computeVectorCosineDistance(
+  a: readonly number[],
+  b: readonly number[],
+): number {
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  const len = Math.min(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    const av = a[i]!;
+    const bv = b[i]!;
+    dot += av * bv;
+    na += av * av;
+    nb += bv * bv;
+  }
+  const denom = Math.sqrt(na * nb);
+  if (denom <= 1e-12) return 1;
+  return Math.max(0, Math.min(1, (1 - dot / denom) * 0.5));
+}
+
+function computeSetJaccardDistance(a: ReadonlySet<string>, b: ReadonlySet<string>): number {
+  let intersection = 0;
+  for (const v of a) {
+    if (b.has(v)) intersection++;
+  }
+  const union = a.size + b.size - intersection;
+  return union > 0 ? 1 - intersection / union : 1;
+}
+
 /**
- * Matches current cluster tag sets against previous snapshots using the Hungarian algorithm
+ * Matches current clusters against previous snapshots using the Hungarian algorithm
  * to preserve stable `clusterUid`s and colors across updates.
+ *
+ * Supports tag-set Jaccard (when tags exist) as well as member-ID overlap and centroid vector
+ * similarity for tag-free embedding/similarity strategies.
  */
 export function matchClustersHungarian(params: {
-  readonly currentVertexTagSets: readonly ReadonlySet<string>[];
+  readonly currentVertexTagSets?: readonly ReadonlySet<string>[];
+  readonly currentVertexMemberSets?: readonly ReadonlySet<string>[];
+  readonly currentVertexCentroids?: readonly (readonly number[] | undefined)[];
   readonly mesh: SimplexMesh;
   readonly previousClusters?: readonly PreviousClusterSnapshot[];
   readonly allocateClusterUid: () => string;
@@ -619,7 +703,14 @@ export function matchClustersHungarian(params: {
   readonly matchedUids: readonly string[];
   readonly preservedColors: ReadonlyMap<number, { readonly hex: string; readonly oklab: OklabTuple }>;
 } {
-  const { currentVertexTagSets, mesh, previousClusters, allocateClusterUid } = params;
+  const {
+    currentVertexTagSets,
+    currentVertexMemberSets,
+    currentVertexCentroids,
+    mesh,
+    previousClusters,
+    allocateClusterUid,
+  } = params;
   const K = mesh.vertices.length;
   const matchedUids: string[] = new Array(K).fill('');
   const preservedColors = new Map<number, { readonly hex: string; readonly oklab: OklabTuple }>();
@@ -628,18 +719,45 @@ export function matchClustersHungarian(params: {
     const prevCount = previousClusters.length;
     const maxDiag = Math.max(1, Math.hypot(mesh.width, mesh.height));
     const costMatrix: number[][] = Array.from({ length: K }, (_, newIdx) => {
-      const newTags = currentVertexTagSets[newIdx]!;
+      const newTags = currentVertexTagSets?.[newIdx];
+      const newMembers = currentVertexMemberSets?.[newIdx];
+      const newCentroid = currentVertexCentroids?.[newIdx];
       const newPos = mesh.vertices[newIdx]!;
+
       return Array.from({ length: prevCount }, (__, prevIdx) => {
         const prev = previousClusters[prevIdx]!;
-        let intersection = 0;
-        for (const t of newTags) {
-          if (prev.tags.has(t)) intersection++;
-        }
-        const union = newTags.size + prev.tags.size - intersection;
-        const jaccardDist = union > 0 ? 1 - intersection / union : 1;
         const euclidDist = Math.hypot(newPos.x - prev.x, newPos.y - prev.y) / maxDiag;
-        return jaccardDist * 0.78 + euclidDist * 0.22;
+        const hasTags =
+          (newTags !== undefined && newTags.size > 0) || prev.tags.size > 0;
+        if (hasTags && newTags) {
+          const tagJaccardDist = computeSetJaccardDistance(newTags, prev.tags);
+          return tagJaccardDist * 0.78 + euclidDist * 0.22;
+        }
+
+        const hasMembers =
+          newMembers !== undefined &&
+          prev.memberIds !== undefined &&
+          (newMembers.size > 0 || prev.memberIds.size > 0);
+        const hasCentroids =
+          newCentroid !== undefined &&
+          prev.centroid !== undefined &&
+          newCentroid.length > 0 &&
+          newCentroid.length === prev.centroid.length;
+
+        if (hasCentroids && hasMembers && newMembers && prev.memberIds && newCentroid && prev.centroid) {
+          const cDist = computeVectorCosineDistance(newCentroid, prev.centroid);
+          const mDist = computeSetJaccardDistance(newMembers, prev.memberIds);
+          return cDist * 0.52 + mDist * 0.30 + euclidDist * 0.18;
+        }
+        if (hasCentroids && newCentroid && prev.centroid) {
+          const cDist = computeVectorCosineDistance(newCentroid, prev.centroid);
+          return cDist * 0.72 + euclidDist * 0.28;
+        }
+        if (hasMembers && newMembers && prev.memberIds) {
+          const mDist = computeSetJaccardDistance(newMembers, prev.memberIds);
+          return mDist * 0.72 + euclidDist * 0.28;
+        }
+        return euclidDist;
       });
     });
 

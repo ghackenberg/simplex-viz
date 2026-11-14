@@ -1,5 +1,13 @@
 # @simplex-viz/svg
 
+## 0.5.0
+
+### Minor Changes
+
+- Adopt `StrategyItemIdentityConfig` so `getTags` is optional when passing non-tag clustering strategies (`createEmbeddingClusteringStrategy`, `createSimilarityClusteringStrategy`), add weighted-anchor fallback formatting in built-in hover tooltips for untagged items, and re-export all new core embedding/similarity factories and types.
+- Updated dependencies
+  - @simplex-viz/core@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes

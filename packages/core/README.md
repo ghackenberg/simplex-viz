@@ -4,7 +4,7 @@
 
 # @simplex-viz/core
 
-Headless, zero-dependency TypeScript engine for triangulation-based visualization of tagged content collections on a dynamic 60° equilateral simplex mesh.
+Headless, zero-dependency TypeScript engine for triangulation-based visualization of arbitrary domain collections—single/multi-modal vector embeddings, pairwise similarities, or tagged content—on a dynamic 60° equilateral simplex mesh.
 
 - **Live Demo:** <https://hackenberg.tech/simplex-viz/>
 - **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/core>
@@ -25,9 +25,12 @@ Before diving into the TypeScript API, the schematic diagram below traces a sing
 ## Key Capabilities
 
 - **Zero dependencies & zero DOM**: Compiled strictly against `lib: ["ES2022"]` with `"dependencies": {}`. Runs identically in browsers, Node.js, Deno, Bun, Web Workers, and Edge runtimes.
-- **Schema-free & end-to-end type safe**: Works with arbitrary `<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>` via conditional hybrid accessors (`ItemIdentityConfig<TItem>` and `ClusterMetaConfig`). If your items don't use `{ id, tags }`, TypeScript enforces `getId` and `getTags` at compile time without any `any` casts.
-- **Pluggable 4-stage pipeline**: Swap algorithms cleanly at construction or runtime via `SimplexMeshStrategy`, `SimplexClusteringStrategy` (`initialize` + incremental `update`, plus `sharedTagRule` and `anchorRule`), `SimplexColorStrategy`, and `SimplexLayoutStrategy`.
-- **Two-stage topic clustering**: Regularized Jaccard tag partitioning, Simulated Annealing QAP mesh embedding, Weighted Hitting-Set planar triangle completion, backward tag pruning, and Hungarian bipartite identity matching for stable cluster UIDs across mutations.
+- **Representation-agnostic & end-to-end type safe**: Works with arbitrary `<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>` via conditional hybrid accessors (`StrategyItemIdentityConfig<TItem, TTagMeta>`). Passing a non-tag `clusteringStrategy` (embeddings, pairwise similarity, or custom) makes `getTags` completely optional; using the default tag path enforces `getTags` only when `TItem` lacks `tags`.
+- **Pluggable 4-stage pipeline**: Swap algorithms cleanly at construction or runtime via `SimplexMeshStrategy`, `SimplexClusteringStrategy` (`requiresTags`, `initialize`, incremental `update`), `SimplexColorStrategy`, and `SimplexLayoutStrategy`.
+- **Embeddings, similarities & tag specialization**:
+  - **Multi-modal embeddings** (`createEmbeddingClusteringStrategy`): Single or weighted multi-source feature vectors, k-Means++ / Spherical k-Means, QAP mesh embedding, Hungarian cluster UID stability, and closed-form NNLS barycentric planar simplex projection (`'simplex-projection'`, `'explaining-away'`, `'top-1'`).
+  - **Pairwise similarities** (`createSimilarityClusteringStrategy`): PAM k-Medoids + QAP mesh embedding + simplex projection for arbitrary `(a, b) => [0, 1]` kernels.
+  - **Tag clustering specialization** (`createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`): Regularized Jaccard partitioning, Simulated Annealing QAP, Weighted Hitting-Set planar completion, and backward tag pruning.
 - **Perceptual OKLab palette & mixing**: Edge-contrast-optimized cluster colors (static dark-tuned, theme-adaptive dark/light, or custom hex palettes) and chroma-preserving barycentric OKLab blending.
 - **Guaranteed 0.0 px overlap**: Hierarchical two-phase convex hull solver (`solveTwoPhaseLayout`, optional warm-starting, and `solveLocalAdaptiveLayout`) combining Separating Axis Theorem (SAT), circle-polygon Minimum Translation Vectors (MTV), uniform spatial hash grids, and binary scale search.
 - **Interruptible C1-continuous animation**: Critically damped scalar springs and retargetable dual-layer transition state machines.
@@ -76,6 +79,34 @@ const snapshot = solveSimplexSnapshot(papers, {
   width: 1200,
   height: 760,
   measureContentHull: (p) => rectToConvexPolygon(p.title.length * 7 + 16, 24, 6),
+});
+```
+
+### Quickstart Without Tags (Single or Multi-Modal Embeddings)
+
+Pass arbitrary objects without any `tags` property alongside `createEmbeddingClusteringStrategy` or `createSimilarityClusteringStrategy`:
+
+```ts
+import {
+  solveSimplexSnapshot,
+  createEmbeddingClusteringStrategy,
+} from '@simplex-viz/core';
+
+interface AudioSample {
+  readonly id: string;
+  readonly timbreVec: readonly number[];
+  readonly prosodyVec: readonly number[];
+}
+
+const snapshot = solveSimplexSnapshot(samples as readonly AudioSample[], {
+  clusteringStrategy: createEmbeddingClusteringStrategy<AudioSample>({
+    getEmbedding: [
+      { name: 'Timbre', getVector: (s) => s.timbreVec, weight: 0.75 },
+      { name: 'Prosody', getVector: (s) => s.prosodyVec, weight: 0.25 },
+    ],
+    metric: 'cosine',
+    anchorRule: 'simplex-projection',
+  }),
 });
 ```
 
@@ -275,21 +306,19 @@ Every algorithmic phase of `SimplexGraphEngine` and `solveSimplexSnapshot` is ba
 - `createAdaptiveHexMeshStrategy(defaults?)` *(default)* — Automatically chooses `horizontal` / `vertical` orientation and `wideFirst` parity via `buildSimplexMesh`.
 - `createFixedLatticeMeshStrategy({ cols, rows, orientation?, wideFirst?, innerPadding? })` — Pins an exact `(cols × rows)` 60° equilateral lattice (fixed cluster count `K = cols * rows`) across resizes.
 
-### 2. `SimplexClusteringStrategy` (Topic Partitioning, Shared Tags & Anchoring)
+### 2. `SimplexClusteringStrategy` (Embeddings, Similarities & Tag Specialization)
 
-Supports distinct `initialize(ctx)` (initial corpus) and optional `update(ctx)` (subsequent item mutations, viewport resizes, or mesh edits):
+Clustering strategies declare `requiresTags?: boolean` (defaults to `true` for backward-compatible tag strategies, `false` for vector/similarity/custom spaces) and support distinct `initialize(ctx)` and optional `update(ctx)` hooks:
 
-- `createJaccardAnnealingClusteringStrategy({ sharedTagRule?, anchorRule? })` *(default)* — Full Jaccard tag partitioning + Simulated Annealing QAP vertex embedding + Hungarian identity matching on every update.
-- `createIncrementalAnchorClusteringStrategy({ sharedTagRule?, anchorRule? })` — Runs full Jaccard + SA QAP on `initialize`, then on `update` preserves existing vertex topics/UIDs/colors spatially, incrementally attaches newly seen tags to the best-matching cluster, and prunes vanished tags.
-- **`sharedTagRule`** (`SharedTagRule<TItem>`):
-  - `'planar-hitting-set'` *(default)* — Adds minimal cross-cluster `sharedTags` so items stay planar-covered inside single mesh triangles.
-  - `'none'` — Keeps cluster tags strictly disjoint (`sharedTags` always empty).
-  - Or pass a custom `(ctx: SharedTagExpansionContext<TItem>) => readonly Set<number>[]` function.
-- **`anchorRule`** (`SimplexAnchorRule<TItem>`):
-  - `'explaining-away'` *(default)* — Greedy minimal covering simplex unit (`vertex ≺ edge ≺ triangle`) with normalized barycentric weights.
-  - `'raw-overlap'` — Proportional overlap weights across all units sharing item tags.
-  - `'barycentric-all'` — Normalized overlap across *all* vertices sharing at least one tag with the item (centroid pull across the full mesh).
-  - Or pass a custom `(ctx: SimplexItemAnchorContext<TItem>) => readonly RawItemUnitAssignment<TItem>[]` function.
+- **Vector Embeddings (`requiresTags: false`)**:
+  - `createEmbeddingClusteringStrategy({ getEmbedding, metric?, anchorRule?, deriveLabel? })` — Clusters untagged objects from a single vector or weighted multi-modal feature vectors (`EmbeddingSource[]`) via k-Means++ / Spherical k-Means, embeds centroids onto the 60° mesh via QAP Simulated Annealing, preserves cluster UIDs across updates via Hungarian centroid + membership matching, and computes planar barycentric weights (`'simplex-projection'` NNLS on mesh triangles/edges, `'explaining-away'`, or `'top-1'`).
+- **Pairwise Similarity (`requiresTags: false`)**:
+  - `createSimilarityClusteringStrategy({ getSimilarity, anchorRule?, deriveLabel? })` — Clusters any untagged domain object from a symmetric `(a, b) => [0, 1]` similarity function using PAM k-Medoids, QAP mesh embedding, and planar simplex projection.
+- **Tag Specialization (Default)**:
+  - `createJaccardAnnealingClusteringStrategy({ getTags?, sharedTagRule?, anchorRule? })` *(default)* — Full Jaccard tag partitioning + Simulated Annealing QAP vertex embedding + Hungarian identity matching on every update.
+  - `createIncrementalAnchorClusteringStrategy({ getTags?, sharedTagRule?, anchorRule? })` — Runs full Jaccard + SA QAP on `initialize`, then on `update` preserves existing vertex topics/UIDs/colors spatially, incrementally attaches newly seen tags to the best-matching cluster, and prunes vanished tags.
+  - **`sharedTagRule`** (`SharedTagRule<TItem>`): `'planar-hitting-set'` *(default)*, `'none'`, or custom expansion function.
+  - **`anchorRule`** (`SimplexAnchorRule<TItem>`): `'explaining-away'` *(default)*, `'raw-overlap'`, `'barycentric-all'`, or custom anchor function.
 
 ### 3. `SimplexColorStrategy` (Cluster Colors & Item Mixing)
 
@@ -337,10 +366,12 @@ engine.setClusteringStrategy(createIncrementalAnchorClusteringStrategy());
 
 ## Configuration Reference
 
-### `ItemIdentityConfig<TItem>` & `ClusterMetaConfig`
+### `StrategyItemIdentityConfig<TItem, TTagMeta>` & `ClusterMetaConfig`
 
-- If `TItem` has `{ readonly id: string; readonly tags: readonly string[] }`, `getId` and `getTags` are optional. Otherwise TypeScript requires both.
-- If `TClusterMeta` is `undefined` (default), `deriveClusterMeta` is optional. When a custom `TClusterMeta` type is supplied, `deriveClusterMeta(ctx)` becomes compile-time required.
+- If `TItem` has `{ readonly id: string }`, `getId` is optional; otherwise TypeScript requires `getId`.
+- If a custom `clusteringStrategy` is passed (e.g., `createEmbeddingClusteringStrategy`, `createSimilarityClusteringStrategy`, or strategy-scoped `getTags`), `getTags` is optional even when `TItem` has no `tags` field.
+- If `clusteringStrategy` is omitted and `TItem` lacks `tags`, TypeScript requires `getTags`.
+- If `TClusterMeta` is `undefined` (default), `deriveClusterMeta` is optional. When a custom `TClusterMeta` type is supplied, `deriveClusterMeta(ctx)` becomes compile-time required and receives `representativeItems`, `centroid`, `cohesion`, and `featureSummary` alongside `members`, `coreTags`, and `sharedTags`.
 
 ### `MeshOptions`
 
@@ -366,8 +397,8 @@ engine.setClusteringStrategy(createIncrementalAnchorClusteringStrategy());
 
 Every algorithmic building block can also be imported standalone:
 
-- **Mesh**: `buildSimplexMesh(width, height, tagCount, options)`, `buildSimplexLattice(...)`
-- **Clustering**: `computeSimplexClustering(...)`, `analyzeTagCorpus(...)`, `partitionTagsJaccard(...)`, `computeMeshHopDistances(...)`, `embedClustersQapAnnealing(...)`, `completePlanarSharedTags(...)`, `matchClustersHungarian(...)`, `assignItemsToSimplexUnits(...)`, `extractNormalizedItems(...)`, `defaultNormalizeTag(...)`
+- **Mesh**: `buildSimplexMesh(width, height, clusterCount, options)`, `buildSimplexLattice(...)`
+- **Clustering**: `computeSimplexClustering(...)`, `embedSimilarityMatrixOnMesh(...)`, `extractIdentifiedItems(...)`, `analyzeTagCorpus(...)`, `partitionTagsJaccard(...)`, `computeMeshHopDistances(...)`, `embedClustersQapAnnealing(...)`, `completePlanarSharedTags(...)`, `matchClustersHungarian(...)`, `assignItemsToSimplexUnits(...)`, `extractNormalizedItems(...)`, `defaultNormalizeTag(...)`
 - **Layout Solver**: `solveTwoPhaseLayout(...)`, `solveLocalAdaptiveLayout(...)`, `solveClusterPhase(...)`, `buildPhyllotaxisStarts(...)`, `runPerItemPbdRelaxation(...)`
 - **Geometry & Collision**: `computeConvexHull`, `rectToConvexPolygon`, `regularPolygon`, `starConvexHull`, `isPointInTriangle`, `computeConvexMtv`, `computeCirclePolygonMtv`, `hitTestConvexGeometry`, `UniformSpatialHashGrid`
 - **Color Science**: `hexToOklab`, `oklabToHex`, `mixOklabColors`, `lerpOklabHex`, `generatePerceptualClusterPalette`, `buildDistinctOklabPalette`, `assignMeshClusterColors`, `assignGreedyEdgeContrastColors`

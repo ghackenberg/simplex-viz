@@ -13,6 +13,8 @@ import type {
 import {
   SimplexTopicGraph,
   createAdaptiveHexMeshStrategy,
+  createCollisionDrivenLayoutStrategy,
+  createEmbeddingClusteringStrategy,
   createFixedLatticeMeshStrategy,
   createIncrementalAnchorClusteringStrategy,
   createJaccardAnnealingClusteringStrategy,
@@ -20,6 +22,9 @@ import {
   createOklabContrastColorStrategy,
   createPaletteColorStrategy,
   createPbdUniformLayoutStrategy,
+  createSimilarityClusteringStrategy,
+  createSoftSimplexEmbeddingClusteringStrategy,
+  createSoftSimplexTagClusteringStrategy,
   createThemeAdaptiveOklabColorStrategy,
   createWarmStartPbdLayoutStrategy,
   useSimplexGraphController,
@@ -44,16 +49,22 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { version as libraryVersion } from '../../packages/core/package.json';
+import { EntitySpecBadge } from './components/EntityPreview';
 import { SimplexLogoMark } from './components/SimplexLogoMark';
 import {
-  buildInitialKnowledgeCatalog,
-  createDynamicEntry,
-  deriveDemoClusterMeta,
   resolveDemoTagMeta,
-  type KnowledgeEntry,
   type TagTaxonomyInfo,
-  type TopicClusterSummary,
 } from './data/knowledgeCatalog';
+import {
+  DATASET_DESCRIPTIONS,
+  buildDemoCatalog,
+  computeMediaPairwiseSimilarity,
+  createDynamicDemoEntity,
+  deriveDemoEntityClusterMeta,
+  type DemoClusterSummary,
+  type DemoDatasetId,
+  type DemoEntity,
+} from './data/multimodalCatalog';
 import {
   DEFAULT_DEMO_RENDER_CONFIG,
   createDemoEdgeView,
@@ -61,6 +72,7 @@ import {
   createDemoVisualResolver,
   demoAnchorClusterView,
   demoBadgeClusterView,
+  demoDomainContentView,
   demoGeometricContentView,
   demoMultiSectorContentView,
   renderDemoClusterCard,
@@ -82,53 +94,121 @@ type TriangleHoverPolicy = 'tooltip' | 'focus-preview' | 'none';
 type LeftClickPolicy = 'inspect' | 'focus-toggle' | 'remove';
 type RightClickPolicy = 'context-menu' | 'browser-default';
 type MeshStrategyId = 'adaptive' | 'lattice-3x3' | 'lattice-4x3';
-type ClusteringStrategyId = 'jaccard-annealing' | 'incremental-anchor';
+type TagClusteringStrategyId =
+  | 'soft-simplex-tags'
+  | 'jaccard-annealing'
+  | 'incremental-anchor';
+type NonTagClusteringMode = 'soft-simplex-embedding' | 'embedding' | 'similarity';
+type EmbeddingMetricKind = 'cosine' | 'euclidean';
+type EmbeddingAnchorRule = 'simplex-projection' | 'explaining-away' | 'top-1';
 type ColorStrategyId =
   | 'oklab-contrast'
   | 'theme-adaptive'
   | 'curated-palette'
   | 'nordic-palette';
-type LayoutStrategyId = 'pbd-uniform' | 'pbd-warm-start' | 'local-adaptive';
+type LayoutStrategyId =
+  | 'collision-adaptive'
+  | 'pbd-uniform'
+  | 'pbd-warm-start'
+  | 'local-adaptive';
 
 interface ContextMenuState {
   readonly x: number;
   readonly y: number;
   readonly target: HitTarget<
-    KnowledgeEntry,
+    DemoEntity,
     DemoContentVisual,
     DemoClusterVisual,
     TagTaxonomyInfo,
-    TopicClusterSummary
+    DemoClusterSummary
   >;
 }
 
 type InspectedTarget =
   | {
       readonly kind: 'content';
-      readonly item: KnowledgeEntry;
+      readonly item: DemoEntity;
       readonly clusterTitles: readonly string[];
+      readonly residualDistance?: number;
+      readonly featureSummary?: string;
       readonly mixedColorHex: string;
     }
   | {
       readonly kind: 'cluster';
       readonly cluster: ClusterDescriptor<
-        KnowledgeEntry,
+        DemoEntity,
         TagTaxonomyInfo,
-        TopicClusterSummary
+        DemoClusterSummary
       >;
     }
   | {
       readonly kind: 'triangle';
       readonly triangle: MeshTriangleRenderState<
-        KnowledgeEntry,
+        DemoEntity,
         TagTaxonomyInfo,
-        TopicClusterSummary
+        DemoClusterSummary
       >;
     };
 
+const CONTENT_CONTROL_COPY: Record<
+  DemoDatasetId,
+  {
+    readonly domainOptionLabel?: string;
+    readonly cardOptionLabel: string;
+    readonly byTypeShapeLabel: string;
+    readonly scaleMetricLabel: string;
+    readonly cardMetaLabel: string;
+  }
+> = {
+  knowledge: {
+    cardOptionLabel: 'Article Mini-Card (JSX)',
+    byTypeShapeLabel: 'By Content Type (Article / Video / Project)',
+    scaleMetricLabel: 'Scale by Reading Time',
+    cardMetaLabel: 'Show Type & Reading Time',
+  },
+  media: {
+    domainOptionLabel: 'Media Frame Tile (SVG Thumbnail)',
+    cardOptionLabel: 'Media Gallery Card (JSX)',
+    byTypeShapeLabel: 'By Media Kind (Image / Video)',
+    scaleMetricLabel: 'Scale Videos Slightly Larger',
+    cardMetaLabel: 'Show Resolution & Duration',
+  },
+  voice: {
+    domainOptionLabel: 'Acoustic Waveform Capsule (SVG)',
+    cardOptionLabel: 'Voice Sample Card (JSX)',
+    byTypeShapeLabel: 'By Vocal Register (High ≥ 180 Hz / Low)',
+    scaleMetricLabel: 'Scale by Sample Duration',
+    cardMetaLabel: 'Show Pitch & Duration',
+  },
+  'body-shape': {
+    domainOptionLabel: 'Body Silhouette Glyph (SVG)',
+    cardOptionLabel: 'Anthropometric Card (JSX)',
+    byTypeShapeLabel: 'By Posture Profile (Athletic / Dynamic / Compact / Upright)',
+    scaleMetricLabel: 'Scale by Stature (cm)',
+    cardMetaLabel: 'Show Posture & Stature',
+  },
+};
+
+function formatEntitySubtitle(entity: DemoEntity): string {
+  if (entity.kind === 'knowledge') {
+    return `${entity.entry.contentType} · ${entity.entry.readingMinutes} min · ${entity.entry.publishedYear}`;
+  }
+  if (entity.kind === 'media') {
+    return entity.media.mediaKind === 'video'
+      ? `video · ${entity.media.durationSec ?? 0}s · ${entity.media.aspectRatio}`
+      : `image · ${entity.media.resolutionLabel} · ${entity.media.aspectRatio}`;
+  }
+  if (entity.kind === 'voice') {
+    return `${entity.voice.speakerProfile} · ${entity.voice.pitchHz} Hz · ${entity.voice.durationSec}s`;
+  }
+  return `${entity.body.archetype} · ${entity.body.heightCm} cm`;
+}
+
 export function DemoApp() {
-  const initialCatalog = useMemo(() => buildInitialKnowledgeCatalog(), []);
-  const [items, setItems] = useState<readonly KnowledgeEntry[]>(initialCatalog);
+  const [datasetId, setDatasetId] = useState<DemoDatasetId>('knowledge');
+  const [items, setItems] = useState<readonly DemoEntity[]>(() =>
+    buildDemoCatalog('knowledge'),
+  );
   const [renderConfig, setRenderConfig] = useState<DemoRenderConfig>(
     DEFAULT_DEMO_RENDER_CONFIG,
   );
@@ -142,16 +222,27 @@ export function DemoApp() {
 
   // Pluggable Core Strategy selections
   const [meshStrategyId, setMeshStrategyId] = useState<MeshStrategyId>('adaptive');
-  const [clusteringStrategyId, setClusteringStrategyId] =
-    useState<ClusteringStrategyId>('jaccard-annealing');
+  const [tagClusteringStrategyId, setTagClusteringStrategyId] =
+    useState<TagClusteringStrategyId>('soft-simplex-tags');
   const [sharedTagRule, setSharedTagRule] =
     useState<SharedTagRuleKind>('planar-hitting-set');
   const [anchorRule, setAnchorRule] =
     useState<SimplexAnchorRuleKind>('explaining-away');
+
+  // Non-tag embedding / similarity strategy parameters
+  const [nonTagMode, setNonTagMode] =
+    useState<NonTagClusteringMode>('soft-simplex-embedding');
+  const [triangleSpreadPct, setTriangleSpreadPct] = useState<number>(45);
+  const [embeddingMetric, setEmbeddingMetric] =
+    useState<EmbeddingMetricKind>('cosine');
+  const [embeddingAnchorRule, setEmbeddingAnchorRule] =
+    useState<EmbeddingAnchorRule>('simplex-projection');
+  const [semanticWeightPct, setSemanticWeightPct] = useState<number>(65);
+
   const [colorStrategyId, setColorStrategyId] =
     useState<ColorStrategyId>('oklab-contrast');
   const [layoutStrategyId, setLayoutStrategyId] =
-    useState<LayoutStrategyId>('pbd-uniform');
+    useState<LayoutStrategyId>('collision-adaptive');
 
   // Privacy-safe in-memory theme state (never persisted to storage or cookies)
   const [themePreference, setThemePreference] = useState<ThemePreference>('auto');
@@ -195,14 +286,14 @@ export function DemoApp() {
   const [leftClickPolicy, setLeftClickPolicy] = useState<LeftClickPolicy>('inspect');
   const [rightClickPolicy, setRightClickPolicy] =
     useState<RightClickPolicy>('context-menu');
-  const [wheelPolicy, setWheelPolicy] = useState<'zoom-to-cursor' | 'pan-vertical' | 'none'>(
-    'zoom-to-cursor',
-  );
+  const [wheelPolicy, setWheelPolicy] = useState<
+    'zoom-to-cursor' | 'pan-vertical' | 'none'
+  >('zoom-to-cursor');
 
   // Live telemetry & interaction overlays
   const [metrics, setMetrics] = useState<LayoutMetrics>({
     clusterCount: 0,
-    itemCount: initialCatalog.length,
+    itemCount: 0,
     tagCount: 0,
     clusterScale: 1,
     contentScale: 1,
@@ -214,21 +305,21 @@ export function DemoApp() {
   });
   const [fps, setFps] = useState<number>(60);
   const [hoveredContent, setHoveredContent] = useState<ContentHoverEvent<
-    KnowledgeEntry,
+    DemoEntity,
     DemoContentVisual,
     TagTaxonomyInfo,
-    TopicClusterSummary
+    DemoClusterSummary
   > | null>(null);
   const [hoveredCluster, setHoveredCluster] = useState<ClusterHoverEvent<
-    KnowledgeEntry,
+    DemoEntity,
     DemoClusterVisual,
     TagTaxonomyInfo,
-    TopicClusterSummary
+    DemoClusterSummary
   > | null>(null);
   const [hoveredTriangle, setHoveredTriangle] = useState<TriangleHoverEvent<
-    KnowledgeEntry,
+    DemoEntity,
     TagTaxonomyInfo,
-    TopicClusterSummary
+    DemoClusterSummary
   > | null>(null);
   const [inspected, setInspected] = useState<InspectedTarget | null>(null);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => new Set());
@@ -297,12 +388,37 @@ export function DemoApp() {
   }, [stageSize.width, stageSize.height]);
 
   const { controllerRef, handle } = useSimplexGraphController<
-    KnowledgeEntry,
+    DemoEntity,
     DemoContentVisual,
     DemoClusterVisual,
     TagTaxonomyInfo,
-    TopicClusterSummary
+    DemoClusterSummary
   >();
+
+  const switchDataset = useCallback((nextDataset: DemoDatasetId) => {
+    setRapidFireActive(false);
+    setPinnedIds(new Set());
+    setHighlightedIds(new Set());
+    setFocusedClusterUid(null);
+    setFocusedTriangleIndex(null);
+    setHoveredContent(null);
+    setHoveredCluster(null);
+    setHoveredTriangle(null);
+    setInspected(null);
+    setContextMenu(null);
+    setDatasetId(nextDataset);
+    setItems(buildDemoCatalog(nextDataset));
+    setRenderConfig((prev) => {
+      if (nextDataset === 'knowledge') {
+        return prev.contentRenderer === 'domain'
+          ? { ...prev, contentRenderer: 'geometric' }
+          : prev;
+      }
+      return prev.contentRenderer === 'geometric'
+        ? { ...prev, contentRenderer: 'domain' }
+        : prev;
+    });
+  }, []);
 
   const visualResolver = useMemo(
     () => createDemoVisualResolver(renderConfig, resolvedTheme),
@@ -329,56 +445,202 @@ export function DemoApp() {
 
   const meshStrategy = useMemo(() => {
     if (meshStrategyId === 'lattice-3x3') {
-      return createFixedLatticeMeshStrategy<KnowledgeEntry>({ cols: 3, rows: 3 });
+      return createFixedLatticeMeshStrategy<DemoEntity>({ cols: 3, rows: 3 });
     }
     if (meshStrategyId === 'lattice-4x3') {
-      return createFixedLatticeMeshStrategy<KnowledgeEntry>({ cols: 4, rows: 3 });
+      return createFixedLatticeMeshStrategy<DemoEntity>({ cols: 4, rows: 3 });
     }
-    return createAdaptiveHexMeshStrategy<KnowledgeEntry>();
+    return createAdaptiveHexMeshStrategy<DemoEntity>();
   }, [meshStrategyId]);
 
   const clusteringStrategy = useMemo(() => {
-    if (clusteringStrategyId === 'incremental-anchor') {
-      return createIncrementalAnchorClusteringStrategy<
-        KnowledgeEntry,
-        TagTaxonomyInfo
-      >({
+    const spread = triangleSpreadPct / 100;
+
+    if (datasetId === 'knowledge') {
+      const getKnowledgeTags = (e: DemoEntity): readonly string[] =>
+        e.kind === 'knowledge' ? e.entry.hashtags : [];
+      if (tagClusteringStrategyId === 'soft-simplex-tags') {
+        return createSoftSimplexTagClusteringStrategy<DemoEntity, TagTaxonomyInfo>({
+          getTags: getKnowledgeTags,
+          sharedTagRule,
+          anchorRule,
+          triangleSpread: spread,
+        });
+      }
+      if (tagClusteringStrategyId === 'incremental-anchor') {
+        return createIncrementalAnchorClusteringStrategy<DemoEntity, TagTaxonomyInfo>({
+          getTags: getKnowledgeTags,
+          sharedTagRule,
+          anchorRule,
+        });
+      }
+      return createJaccardAnnealingClusteringStrategy<DemoEntity, TagTaxonomyInfo>({
+        getTags: getKnowledgeTags,
         sharedTagRule,
         anchorRule,
       });
     }
-    return createJaccardAnnealingClusteringStrategy<
-      KnowledgeEntry,
-      TagTaxonomyInfo
-    >({
-      sharedTagRule,
-      anchorRule,
+
+    const semW = semanticWeightPct / 100;
+    const styleW = Math.max(0.05, 1 - semW);
+
+    if (nonTagMode === 'similarity') {
+      return createSimilarityClusteringStrategy<DemoEntity, TagTaxonomyInfo>({
+        clusterCount: datasetId === 'media' ? 7 : 6,
+        anchorRule: embeddingAnchorRule === 'top-1' ? 'top-1' : 'simplex-projection',
+        getSimilarity: (a, b) => {
+          if (datasetId === 'media') {
+            return computeMediaPairwiseSimilarity(a, b, semW, styleW);
+          }
+          const va =
+            a.kind === 'voice'
+              ? a.voice.voiceEmbedding
+              : a.kind === 'body-shape'
+                ? a.body.shapeEmbedding
+                : [];
+          const vb =
+            b.kind === 'voice'
+              ? b.voice.voiceEmbedding
+              : b.kind === 'body-shape'
+                ? b.body.shapeEmbedding
+                : [];
+          let dot = 0;
+          let na = 0;
+          let nb = 0;
+          for (let i = 0; i < va.length; i++) {
+            const x = va[i] ?? 0;
+            const y = vb[i] ?? 0;
+            dot += x * y;
+            na += x * x;
+            nb += y * y;
+          }
+          if (na <= 1e-9 || nb <= 1e-9) return 0;
+          return Math.max(0, Math.min(1, dot / (Math.sqrt(na) * Math.sqrt(nb))));
+        },
+      });
+    }
+
+    if (nonTagMode === 'soft-simplex-embedding') {
+      if (datasetId === 'media') {
+        return createSoftSimplexEmbeddingClusteringStrategy<
+          DemoEntity,
+          TagTaxonomyInfo
+        >({
+          getEmbedding: [
+            {
+              name: 'semantic-scene',
+              weight: semW,
+              getVector: (e) => (e.kind === 'media' ? e.media.semanticEmbedding : []),
+            },
+            {
+              name: 'visual-style',
+              weight: styleW,
+              getVector: (e) => (e.kind === 'media' ? e.media.styleEmbedding : []),
+            },
+          ],
+          clusterCount: 7,
+          metric: embeddingMetric,
+          triangleSpread: spread,
+        });
+      }
+
+      if (datasetId === 'voice') {
+        return createSoftSimplexEmbeddingClusteringStrategy<
+          DemoEntity,
+          TagTaxonomyInfo
+        >({
+          getEmbedding: (e) => (e.kind === 'voice' ? e.voice.voiceEmbedding : []),
+          clusterCount: 6,
+          metric: embeddingMetric,
+          triangleSpread: spread,
+        });
+      }
+
+      return createSoftSimplexEmbeddingClusteringStrategy<
+        DemoEntity,
+        TagTaxonomyInfo
+      >({
+        getEmbedding: (e) => (e.kind === 'body-shape' ? e.body.shapeEmbedding : []),
+        clusterCount: 6,
+        metric: embeddingMetric,
+        triangleSpread: spread,
+      });
+    }
+
+    if (datasetId === 'media') {
+      return createEmbeddingClusteringStrategy<DemoEntity, TagTaxonomyInfo>({
+        getEmbedding: [
+          {
+            name: 'semantic-scene',
+            weight: semW,
+            getVector: (e) => (e.kind === 'media' ? e.media.semanticEmbedding : []),
+          },
+          {
+            name: 'visual-style',
+            weight: styleW,
+            getVector: (e) => (e.kind === 'media' ? e.media.styleEmbedding : []),
+          },
+        ],
+        clusterCount: 7,
+        metric: embeddingMetric,
+        anchorRule: embeddingAnchorRule,
+      });
+    }
+
+    if (datasetId === 'voice') {
+      return createEmbeddingClusteringStrategy<DemoEntity, TagTaxonomyInfo>({
+        getEmbedding: (e) => (e.kind === 'voice' ? e.voice.voiceEmbedding : []),
+        clusterCount: 6,
+        metric: embeddingMetric,
+        anchorRule: embeddingAnchorRule,
+      });
+    }
+
+    return createEmbeddingClusteringStrategy<DemoEntity, TagTaxonomyInfo>({
+      getEmbedding: (e) => (e.kind === 'body-shape' ? e.body.shapeEmbedding : []),
+      clusterCount: 6,
+      metric: embeddingMetric,
+      anchorRule: embeddingAnchorRule,
     });
-  }, [clusteringStrategyId, sharedTagRule, anchorRule]);
+  }, [
+    datasetId,
+    tagClusteringStrategyId,
+    sharedTagRule,
+    anchorRule,
+    nonTagMode,
+    triangleSpreadPct,
+    embeddingMetric,
+    embeddingAnchorRule,
+    semanticWeightPct,
+  ]);
 
   const colorStrategy = useMemo(() => {
     if (colorStrategyId === 'theme-adaptive') {
-      return createThemeAdaptiveOklabColorStrategy<
-        KnowledgeEntry,
-        TagTaxonomyInfo
-      >();
+      return createThemeAdaptiveOklabColorStrategy<DemoEntity, TagTaxonomyInfo>();
     }
     if (colorStrategyId === 'curated-palette') {
-      return createPaletteColorStrategy<KnowledgeEntry, TagTaxonomyInfo>(
+      return createPaletteColorStrategy<DemoEntity, TagTaxonomyInfo>(
         ['#0ea5e9', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#f97316'],
         { mode: 'edge-contrast' },
       );
     }
     if (colorStrategyId === 'nordic-palette') {
-      return createPaletteColorStrategy<KnowledgeEntry, TagTaxonomyInfo>(
+      return createPaletteColorStrategy<DemoEntity, TagTaxonomyInfo>(
         ['#0284c7', '#0d9488', '#475569', '#0369a1', '#0f766e', '#64748b'],
         { mode: 'edge-contrast' },
       );
     }
-    return createOklabContrastColorStrategy<KnowledgeEntry, TagTaxonomyInfo>();
+    return createOklabContrastColorStrategy<DemoEntity, TagTaxonomyInfo>();
   }, [colorStrategyId]);
 
   const layoutStrategy = useMemo(() => {
+    if (layoutStrategyId === 'collision-adaptive') {
+      return createCollisionDrivenLayoutStrategy({
+        minLocalScale: 0.34,
+        shrinkFactor: 0.85,
+        warmStart: true,
+      });
+    }
     if (layoutStrategyId === 'pbd-warm-start') {
       return createWarmStartPbdLayoutStrategy();
     }
@@ -394,31 +656,39 @@ export function DemoApp() {
 
   const resetCoreStrategies = useCallback(() => {
     setMeshStrategyId('adaptive');
-    setClusteringStrategyId('jaccard-annealing');
+    setTagClusteringStrategyId('soft-simplex-tags');
     setSharedTagRule('planar-hitting-set');
     setAnchorRule('explaining-away');
+    setNonTagMode('soft-simplex-embedding');
+    setTriangleSpreadPct(45);
+    setEmbeddingMetric('cosine');
+    setEmbeddingAnchorRule('simplex-projection');
+    setSemanticWeightPct(65);
     setColorStrategyId('oklab-contrast');
-    setLayoutStrategyId('pbd-uniform');
+    setLayoutStrategyId('collision-adaptive');
   }, []);
 
   const effectivePinnedIds = useMemo(() => {
-    if (inspected?.kind !== 'content' || pinnedIds.has(inspected.item.slug)) {
+    if (inspected?.kind !== 'content' || pinnedIds.has(inspected.item.id)) {
       return pinnedIds;
     }
     const merged = new Set(pinnedIds);
-    merged.add(inspected.item.slug);
+    merged.add(inspected.item.id);
     return merged;
   }, [pinnedIds, inspected]);
 
-  // Mutation handlers
-  const handleAddItems = useCallback((count: number) => {
-    const additions: KnowledgeEntry[] = [];
-    for (let i = 0; i < count; i++) {
-      dynamicSeqRef.current += 1;
-      additions.push(createDynamicEntry(dynamicSeqRef.current));
-    }
-    setItems((prev) => [...prev, ...additions]);
-  }, []);
+  // Mutation handlers (work identically across all 4 tagged & untagged datasets!)
+  const handleAddItems = useCallback(
+    (count: number) => {
+      const additions: DemoEntity[] = [];
+      for (let i = 0; i < count; i++) {
+        dynamicSeqRef.current += 1;
+        additions.push(createDynamicDemoEntity(datasetId, dynamicSeqRef.current));
+      }
+      setItems((prev) => [...prev, ...additions]);
+    },
+    [datasetId],
+  );
 
   const handleRemoveItems = useCallback((count: number) => {
     setItems((prev) => {
@@ -435,8 +705,8 @@ export function DemoApp() {
     setFocusedClusterUid(null);
     setFocusedTriangleIndex(null);
     setInspected(null);
-    setItems(initialCatalog);
-  }, [initialCatalog]);
+    setItems(buildDemoCatalog(datasetId));
+  }, [datasetId]);
 
   // Rapid-Fire Mutation Stress Test (mutates every 250ms mid-transition!)
   useEffect(() => {
@@ -482,10 +752,10 @@ export function DemoApp() {
   const onContentHover = useCallback(
     (
       ev: ContentHoverEvent<
-        KnowledgeEntry,
+        DemoEntity,
         DemoContentVisual,
         TagTaxonomyInfo,
-        TopicClusterSummary
+        DemoClusterSummary
       > | null,
     ) => {
       if (contentHoverPolicy === 'none') {
@@ -516,10 +786,10 @@ export function DemoApp() {
   const onClusterHover = useCallback(
     (
       ev: ClusterHoverEvent<
-        KnowledgeEntry,
+        DemoEntity,
         DemoClusterVisual,
         TagTaxonomyInfo,
-        TopicClusterSummary
+        DemoClusterSummary
       > | null,
     ) => {
       if (clusterHoverPolicy === 'none') {
@@ -539,9 +809,9 @@ export function DemoApp() {
   const onTriangleHover = useCallback(
     (
       ev: TriangleHoverEvent<
-        KnowledgeEntry,
+        DemoEntity,
         TagTaxonomyInfo,
-        TopicClusterSummary
+        DemoClusterSummary
       > | null,
     ) => {
       if (triangleHoverPolicy === 'none') {
@@ -567,27 +837,27 @@ export function DemoApp() {
     });
   }, []);
 
-  const removeItemBySlug = useCallback((slug: string) => {
-    setItems((prev) => prev.filter((it) => it.slug !== slug));
+  const removeItemById = useCallback((id: string) => {
+    setItems((prev) => prev.filter((it) => it.id !== id));
     setPinnedIds((prev) => {
-      if (!prev.has(slug)) return prev;
+      if (!prev.has(id)) return prev;
       const next = new Set(prev);
-      next.delete(slug);
+      next.delete(id);
       return next;
     });
     setInspected((cur) =>
-      cur?.kind === 'content' && cur.item.slug === slug ? null : cur,
+      cur?.kind === 'content' && cur.item.id === id ? null : cur,
     );
   }, []);
 
   const onLeftClick = useCallback(
     (
       target: HitTarget<
-        KnowledgeEntry,
+        DemoEntity,
         DemoContentVisual,
         DemoClusterVisual,
         TagTaxonomyInfo,
-        TopicClusterSummary
+        DemoClusterSummary
       >,
     ) => {
       setContextMenu(null);
@@ -606,7 +876,7 @@ export function DemoApp() {
 
       if (leftClickPolicy === 'remove') {
         if (target.kind === 'content') {
-          removeItemBySlug(target.item.slug);
+          removeItemById(target.item.id);
         }
         return;
       }
@@ -627,7 +897,7 @@ export function DemoApp() {
         } else {
           setFocusedClusterUid(null);
           setFocusedTriangleIndex(null);
-          const ids = new Set<string>([target.item.slug]);
+          const ids = new Set<string>([target.item.id]);
           for (const uc of target.layoutContext.unitClusters) {
             for (const m of uc.cluster.members) {
               ids.add(m.itemId);
@@ -638,12 +908,12 @@ export function DemoApp() {
         return;
       }
 
-      // Default: 'inspect' (single-select across content items, clusters, & triangle faces)
+      // Default: 'inspect'
       if (target.kind === 'content') {
         setFocusedClusterUid(null);
         setFocusedTriangleIndex(null);
         setInspected((cur) =>
-          cur?.kind === 'content' && cur.item.slug === target.item.slug
+          cur?.kind === 'content' && cur.item.id === target.item.id
             ? null
             : {
                 kind: 'content',
@@ -651,6 +921,8 @@ export function DemoApp() {
                 clusterTitles: target.layoutContext.unitClusters.map(
                   (uc) => `${uc.cluster.code} (${Math.round(uc.weight * 100)}%)`,
                 ),
+                residualDistance: target.layoutContext.residualDistance,
+                featureSummary: target.layoutContext.featureSummary,
                 mixedColorHex: target.layoutContext.mixedColorHex,
               },
         );
@@ -683,17 +955,17 @@ export function DemoApp() {
         );
       }
     },
-    [leftClickPolicy, removeItemBySlug],
+    [leftClickPolicy, removeItemById],
   );
 
   const onRightClick = useCallback(
     (
       target: HitTarget<
-        KnowledgeEntry,
+        DemoEntity,
         DemoContentVisual,
         DemoClusterVisual,
         TagTaxonomyInfo,
-        TopicClusterSummary
+        DemoClusterSummary
       >,
       _raw: NormalizedPointerEvent,
     ): boolean | void => {
@@ -709,6 +981,7 @@ export function DemoApp() {
   );
 
   const wheelBehavior: WheelBehavior = wheelPolicy;
+  const activeDatasetInfo = DATASET_DESCRIPTIONS[datasetId];
 
   return (
     <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-slate-50 text-slate-900 dark:bg-[#07090E] dark:text-slate-100">
@@ -793,6 +1066,34 @@ export function DemoApp() {
               </button>
             </div>
 
+            {/* Section 0: Dataset & Feature Representation (Tagged vs. Tag-Free Modalities) */}
+            <section className="p-4 border-b border-slate-200/80 dark:border-slate-800/80">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
+                  Dataset &amp; Representation
+                </h2>
+                <span className="font-mono text-[10px] text-cyan-700 dark:text-cyan-300">
+                  {datasetId === 'knowledge' ? 'Tagged' : 'Tag-Free'}
+                </span>
+              </div>
+              <select
+                aria-label="Dataset and representation"
+                value={datasetId}
+                onChange={(e) => switchDataset(e.target.value as DemoDatasetId)}
+                className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+              >
+                <option value="knowledge">{DATASET_DESCRIPTIONS.knowledge.label}</option>
+                <option value="media">{DATASET_DESCRIPTIONS.media.label}</option>
+                <option value="voice">{DATASET_DESCRIPTIONS.voice.label}</option>
+                <option value="body-shape">
+                  {DATASET_DESCRIPTIONS['body-shape'].label}
+                </option>
+              </select>
+              <div className="mt-1.5 font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                {activeDatasetInfo.clusteringModeLabel} · {items.length} items
+              </div>
+            </section>
+
             {/* Section 1: Fine-Grained Visual Rendering Settings */}
             <section className="p-4 border-b border-slate-200/80 dark:border-slate-800/80">
               <div className="mb-3 flex items-center justify-between">
@@ -801,7 +1102,12 @@ export function DemoApp() {
                 </h2>
                 <button
                   type="button"
-                  onClick={() => setRenderConfig(DEFAULT_DEMO_RENDER_CONFIG)}
+                  onClick={() =>
+                    setRenderConfig({
+                      ...DEFAULT_DEMO_RENDER_CONFIG,
+                      contentRenderer: datasetId === 'knowledge' ? 'geometric' : 'domain',
+                    })
+                  }
                   className="cursor-pointer text-[11px] text-slate-500 hover:text-cyan-700 dark:text-slate-400 dark:hover:text-cyan-300 transition-colors"
                 >
                   Defaults
@@ -809,7 +1115,7 @@ export function DemoApp() {
               </div>
 
               <div className="space-y-3 text-xs">
-                {/* Content Nodes Sub-Group */}
+                {/* Content Nodes Sub-Group (adapted per active dataset) */}
                 <div className="rounded-md border border-slate-200/80 bg-slate-50/60 p-2.5 space-y-2.5 dark:border-slate-800 dark:bg-[#0E131D]/70">
                   <label className="block">
                     <span className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-300">
@@ -824,11 +1130,160 @@ export function DemoApp() {
                       }
                       className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0B0F17] dark:text-slate-200"
                     >
+                      {CONTENT_CONTROL_COPY[datasetId].domainOptionLabel && (
+                        <option value="domain">
+                          {CONTENT_CONTROL_COPY[datasetId].domainOptionLabel}
+                        </option>
+                      )}
                       <option value="geometric">Geometric Shape (SVG Morphing)</option>
                       <option value="multisector">Multi-Sector Donut (SVG)</option>
-                      <option value="react-card">React JSX Mini-Card</option>
+                      <option value="react-card">
+                        {CONTENT_CONTROL_COPY[datasetId].cardOptionLabel}
+                      </option>
                     </select>
                   </label>
+
+                  {renderConfig.contentRenderer === 'domain' && datasetId !== 'knowledge' && (
+                    <>
+                      <label className="block">
+                        <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                          <span>{datasetId === 'media' ? 'Frame Scale' : 'Glyph Scale'}</span>
+                          <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
+                            {renderConfig.domainGlyphScale.toFixed(2)}×
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.75}
+                          max={1.45}
+                          step={0.05}
+                          value={renderConfig.domainGlyphScale}
+                          onChange={(e) =>
+                            updateRenderConfig({
+                              domainGlyphScale: parseFloat(e.target.value),
+                            })
+                          }
+                          className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+
+                      {datasetId === 'voice' && (
+                        <label className="block">
+                          <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                            <span>Waveform Bars</span>
+                            <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
+                              {renderConfig.voiceWaveformBars} bars
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min={6}
+                            max={14}
+                            step={1}
+                            value={renderConfig.voiceWaveformBars}
+                            onChange={(e) =>
+                              updateRenderConfig({
+                                voiceWaveformBars: parseInt(e.target.value, 10),
+                              })
+                            }
+                            className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                          />
+                        </label>
+                      )}
+
+                      <label className="flex cursor-pointer items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
+                        <span>{CONTENT_CONTROL_COPY[datasetId].scaleMetricLabel}</span>
+                        <input
+                          type="checkbox"
+                          checked={renderConfig.scaleByReadingTime}
+                          onChange={(e) =>
+                            updateRenderConfig({
+                              scaleByReadingTime: e.target.checked,
+                            })
+                          }
+                          className="h-3.5 w-3.5 accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+
+                      {datasetId === 'media' && (
+                        <>
+                          <label className="flex cursor-pointer items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
+                            <span>Show Video Play Indicator</span>
+                            <input
+                              type="checkbox"
+                              checked={renderConfig.mediaShowVideoBadge}
+                              onChange={(e) =>
+                                updateRenderConfig({
+                                  mediaShowVideoBadge: e.target.checked,
+                                })
+                              }
+                              className="h-3.5 w-3.5 accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                            />
+                          </label>
+                          <label className="flex cursor-pointer items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
+                            <span>Show Aspect Ratio (16:9 / 4:3 / 1:1)</span>
+                            <input
+                              type="checkbox"
+                              checked={renderConfig.mediaShowAspectTag}
+                              onChange={(e) =>
+                                updateRenderConfig({
+                                  mediaShowAspectTag: e.target.checked,
+                                })
+                              }
+                              className="h-3.5 w-3.5 accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                            />
+                          </label>
+                        </>
+                      )}
+
+                      {datasetId === 'voice' && (
+                        <label className="flex cursor-pointer items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
+                          <span>Show Pitch Readout (Hz)</span>
+                          <input
+                            type="checkbox"
+                            checked={renderConfig.voiceShowPitchLabel}
+                            onChange={(e) =>
+                              updateRenderConfig({
+                                voiceShowPitchLabel: e.target.checked,
+                              })
+                            }
+                            className="h-3.5 w-3.5 accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                          />
+                        </label>
+                      )}
+
+                      {datasetId === 'body-shape' && (
+                        <>
+                          <label className="flex cursor-pointer items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
+                            <span>Show Calibration Frame</span>
+                            <input
+                              type="checkbox"
+                              checked={renderConfig.bodyShowCalibrationRing}
+                              onChange={(e) =>
+                                updateRenderConfig({
+                                  bodyShowCalibrationRing: e.target.checked,
+                                })
+                              }
+                              className="h-3.5 w-3.5 accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                            />
+                          </label>
+                          <label className="flex cursor-pointer items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
+                            <span>Show Stature (cm)</span>
+                            <input
+                              type="checkbox"
+                              checked={renderConfig.bodyShowHeightLabel}
+                              onChange={(e) =>
+                                updateRenderConfig({
+                                  bodyShowHeightLabel: e.target.checked,
+                                })
+                              }
+                              className="h-3.5 w-3.5 accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                            />
+                          </label>
+                        </>
+                      )}
+                    </>
+                  )}
 
                   {renderConfig.contentRenderer === 'geometric' && (
                     <>
@@ -846,7 +1301,7 @@ export function DemoApp() {
                           className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0B0F17] dark:text-slate-200"
                         >
                           <option value="by-type">
-                            By Content Type (Circle / Diamond / Star)
+                            {CONTENT_CONTROL_COPY[datasetId].byTypeShapeLabel}
                           </option>
                           <option value="circle">Circle (All Items)</option>
                           <option value="diamond">Diamond (All Items)</option>
@@ -858,7 +1313,7 @@ export function DemoApp() {
                       <label className="block">
                         <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                           <span>Base Radius</span>
-                          <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                          <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
                             {renderConfig.contentBaseRadius} px
                           </span>
                         </div>
@@ -880,7 +1335,7 @@ export function DemoApp() {
                       <label className="block">
                         <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                           <span>Stroke Width</span>
-                          <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                          <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
                             {renderConfig.contentStrokeWidth.toFixed(1)} px
                           </span>
                         </div>
@@ -900,7 +1355,7 @@ export function DemoApp() {
                       </label>
 
                       <label className="flex cursor-pointer items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
-                        <span>Scale by Reading Time</span>
+                        <span>{CONTENT_CONTROL_COPY[datasetId].scaleMetricLabel}</span>
                         <input
                           type="checkbox"
                           checked={renderConfig.scaleByReadingTime}
@@ -920,7 +1375,7 @@ export function DemoApp() {
                       <label className="block">
                         <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                           <span>Base Radius</span>
-                          <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                          <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
                             {renderConfig.contentBaseRadius + 2} px
                           </span>
                         </div>
@@ -942,7 +1397,7 @@ export function DemoApp() {
                       <label className="block">
                         <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                           <span>Inner Core Ratio</span>
-                          <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                          <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
                             {Math.round(renderConfig.donutInnerRatio * 100)}%
                           </span>
                         </div>
@@ -962,7 +1417,7 @@ export function DemoApp() {
                       </label>
 
                       <label className="flex cursor-pointer items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
-                        <span>Scale by Reading Time</span>
+                        <span>{CONTENT_CONTROL_COPY[datasetId].scaleMetricLabel}</span>
                         <input
                           type="checkbox"
                           checked={renderConfig.scaleByReadingTime}
@@ -996,7 +1451,7 @@ export function DemoApp() {
                       <label className="block">
                         <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                           <span>Headline Length</span>
-                          <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                          <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
                             {renderConfig.contentCardMaxChars} chars
                           </span>
                         </div>
@@ -1016,7 +1471,7 @@ export function DemoApp() {
                       </label>
 
                       <label className="flex cursor-pointer items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
-                        <span>Show Type &amp; Duration</span>
+                        <span>{CONTENT_CONTROL_COPY[datasetId].cardMetaLabel}</span>
                         <input
                           type="checkbox"
                           checked={renderConfig.showContentCardMeta}
@@ -1057,7 +1512,7 @@ export function DemoApp() {
                     <label className="block">
                       <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                         <span>Anchor Radius</span>
-                        <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                        <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
                           {renderConfig.anchorRadius} px
                         </span>
                       </div>
@@ -1080,7 +1535,7 @@ export function DemoApp() {
                       <label className="block">
                         <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                           <span>Title Length</span>
-                          <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                          <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
                             {renderConfig.clusterTitleMaxChars} chars
                           </span>
                         </div>
@@ -1138,19 +1593,15 @@ export function DemoApp() {
                       <option value="barycentric-sector">
                         Barycentric 3-Way Sectors
                       </option>
-                      <option value="blueprint-inset">
-                        Blueprint Inset Frame
-                      </option>
-                      <option value="density-heatmap">
-                        Density Heatmap + Count
-                      </option>
+                      <option value="blueprint-inset">Blueprint Inset Frame</option>
+                      <option value="density-heatmap">Density Heatmap + Count</option>
                     </select>
                   </label>
 
                   <label className="block">
                     <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                       <span>Face Base Opacity</span>
-                      <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                      <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
                         {Math.round(renderConfig.triangleFaceOpacity * 100)}%
                       </span>
                     </div>
@@ -1186,9 +1637,7 @@ export function DemoApp() {
                       <option value="cluster-tinted">
                         Cluster-Tinted Tri-Segment
                       </option>
-                      <option value="precision-rail">
-                        Precision Double Rail
-                      </option>
+                      <option value="precision-rail">Precision Double Rail</option>
                       <option value="minimal-highlight">
                         Minimal (Highlight Only)
                       </option>
@@ -1198,7 +1647,7 @@ export function DemoApp() {
                   <label className="block">
                     <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                       <span>Edge Stroke Width</span>
-                      <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                      <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
                         {renderConfig.meshEdgeWidth.toFixed(1)} px
                       </span>
                     </div>
@@ -1235,377 +1684,552 @@ export function DemoApp() {
                 </button>
               </div>
 
-            <div className="space-y-2.5 text-xs">
-              <label className="block">
-                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                  1 · Mesh Strategy
-                </span>
-                <select
-                  value={meshStrategyId}
-                  onChange={(e) => setMeshStrategyId(e.target.value as MeshStrategyId)}
-                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
-                >
-                  <option value="adaptive">Adaptive Hex Mesh (Auto K)</option>
-                  <option value="lattice-3x3">Fixed 3×3 Lattice (K = 9)</option>
-                  <option value="lattice-4x3">Fixed 4×3 Lattice (K = 12)</option>
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                  2 · Clustering Strategy
-                </span>
-                <select
-                  value={clusteringStrategyId}
-                  onChange={(e) =>
-                    setClusteringStrategyId(e.target.value as ClusteringStrategyId)
-                  }
-                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
-                >
-                  <option value="jaccard-annealing">
-                    Jaccard + QAP Annealing (Full)
-                  </option>
-                  <option value="incremental-anchor">
-                    Incremental Anchor (Preserve Topics)
-                  </option>
-                </select>
-              </label>
-
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="space-y-2.5 text-xs">
                 <label className="block">
                   <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                    Shared Tags
+                    1 · Mesh Strategy
                   </span>
                   <select
-                    value={sharedTagRule}
-                    onChange={(e) =>
-                      setSharedTagRule(e.target.value as SharedTagRuleKind)
-                    }
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                    value={meshStrategyId}
+                    onChange={(e) => setMeshStrategyId(e.target.value as MeshStrategyId)}
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
                   >
-                    <option value="planar-hitting-set">Hitting-Set</option>
-                    <option value="none">Core Only</option>
+                    <option value="adaptive">Adaptive Hex Mesh (Auto K)</option>
+                    <option value="lattice-3x3">Fixed 3×3 Lattice (K = 9)</option>
+                    <option value="lattice-4x3">Fixed 4×3 Lattice (K = 12)</option>
+                  </select>
+                </label>
+
+                {datasetId === 'knowledge' ? (
+                  <>
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                        2 · Tag Clustering Strategy
+                      </span>
+                      <select
+                        value={tagClusteringStrategyId}
+                        onChange={(e) =>
+                          setTagClusteringStrategyId(
+                            e.target.value as TagClusteringStrategyId,
+                          )
+                        }
+                        className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                      >
+                        <option value="soft-simplex-tags">
+                          Soft-Simplex Balanced + Spread
+                        </option>
+                        <option value="jaccard-annealing">
+                          Jaccard + QAP Annealing (Classic)
+                        </option>
+                        <option value="incremental-anchor">
+                          Incremental Anchor (Preserve Topics)
+                        </option>
+                      </select>
+                    </label>
+
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <label className="block">
+                        <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                          Shared Tags
+                        </span>
+                        <select
+                          value={sharedTagRule}
+                          onChange={(e) =>
+                            setSharedTagRule(e.target.value as SharedTagRuleKind)
+                          }
+                          className="w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                        >
+                          <option value="planar-hitting-set">Hitting-Set</option>
+                          <option value="none">Core Only</option>
+                        </select>
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                          Anchor Rule
+                        </span>
+                        <select
+                          value={anchorRule}
+                          onChange={(e) =>
+                            setAnchorRule(e.target.value as SimplexAnchorRuleKind)
+                          }
+                          className="w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                        >
+                          <option value="explaining-away">Explaining-Away</option>
+                          <option value="raw-overlap">Raw Overlap</option>
+                          <option value="barycentric-all">Barycentric All</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    {tagClusteringStrategyId === 'soft-simplex-tags' && (
+                      <label className="block rounded-md border border-slate-200/80 bg-slate-50/70 p-2 dark:border-slate-800 dark:bg-[#0E131D]/70">
+                        <div className="mb-1 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300">
+                          <span>Triangle Interior Spread</span>
+                          <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
+                            {triangleSpreadPct}%
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={65}
+                          step={5}
+                          value={triangleSpreadPct}
+                          onChange={(e) =>
+                            setTriangleSpreadPct(parseInt(e.target.value, 10))
+                          }
+                          className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                        2 · Feature Clustering Strategy
+                      </span>
+                      <select
+                        value={nonTagMode}
+                        onChange={(e) =>
+                          setNonTagMode(e.target.value as NonTagClusteringMode)
+                        }
+                        className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                      >
+                        <option value="soft-simplex-embedding">
+                          Soft-Simplex Embedding + Load Balance
+                        </option>
+                        <option value="embedding">
+                          Embedding k-Means + QAP (Classic)
+                        </option>
+                        <option value="similarity">
+                          Pairwise Similarity k-Medoids + QAP
+                        </option>
+                      </select>
+                    </label>
+
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {(nonTagMode === 'soft-simplex-embedding' ||
+                        nonTagMode === 'embedding') && (
+                        <label
+                          className={`block ${
+                            nonTagMode === 'soft-simplex-embedding' ? 'col-span-2' : ''
+                          }`}
+                        >
+                          <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                            Vector Metric
+                          </span>
+                          <select
+                            value={embeddingMetric}
+                            onChange={(e) =>
+                              setEmbeddingMetric(
+                                e.target.value as EmbeddingMetricKind,
+                              )
+                            }
+                            className="w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                          >
+                            <option value="cosine">Cosine (Spherical)</option>
+                            <option value="euclidean">Euclidean L2</option>
+                          </select>
+                        </label>
+                      )}
+
+                      {nonTagMode !== 'soft-simplex-embedding' && (
+                        <label
+                          className={`block ${nonTagMode === 'similarity' ? 'col-span-2' : ''}`}
+                        >
+                          <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                            Simplex Projection
+                          </span>
+                          <select
+                            value={embeddingAnchorRule}
+                            onChange={(e) =>
+                              setEmbeddingAnchorRule(
+                                e.target.value as EmbeddingAnchorRule,
+                              )
+                            }
+                            className="w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                          >
+                            <option value="simplex-projection">
+                              Closed-Form NNLS Simplex
+                            </option>
+                            {nonTagMode === 'embedding' && (
+                              <option value="explaining-away">
+                                Soft Explaining-Away
+                              </option>
+                            )}
+                            <option value="top-1">Nearest Vertex Only</option>
+                          </select>
+                        </label>
+                      )}
+                    </div>
+
+                    {nonTagMode === 'soft-simplex-embedding' && (
+                      <label className="block rounded-md border border-slate-200/80 bg-slate-50/70 p-2 dark:border-slate-800 dark:bg-[#0E131D]/70">
+                        <div className="mb-1 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300">
+                          <span>Triangle Interior Spread</span>
+                          <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
+                            {triangleSpreadPct}%
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={80}
+                          step={5}
+                          value={triangleSpreadPct}
+                          onChange={(e) =>
+                            setTriangleSpreadPct(parseInt(e.target.value, 10))
+                          }
+                          className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+                    )}
+
+                    {datasetId === 'media' && (
+                      <label className="block rounded-md border border-slate-200/80 bg-slate-50/70 p-2 dark:border-slate-800 dark:bg-[#0E131D]/70">
+                        <div className="mb-1 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300">
+                          <span>Modality Weight: Scene / Style</span>
+                          <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
+                            {semanticWeightPct}% / {100 - semanticWeightPct}%
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={5}
+                          max={95}
+                          step={5}
+                          value={semanticWeightPct}
+                          onChange={(e) =>
+                            setSemanticWeightPct(parseInt(e.target.value, 10))
+                          }
+                          className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+                    )}
+                  </>
+                )}
+
+                <label className="block">
+                  <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                    3 · Color Strategy
+                  </span>
+                  <select
+                    value={colorStrategyId}
+                    onChange={(e) =>
+                      setColorStrategyId(e.target.value as ColorStrategyId)
+                    }
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                  >
+                    <option value="oklab-contrast">
+                      OKLab Edge Contrast (Default)
+                    </option>
+                    <option value="theme-adaptive">
+                      Theme-Adaptive OKLab (Dark/Light)
+                    </option>
+                    <option value="curated-palette">
+                      Curated High-Contrast Palette
+                    </option>
+                    <option value="nordic-palette">
+                      Nordic Slate &amp; Teal Palette
+                    </option>
                   </select>
                 </label>
 
                 <label className="block">
                   <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                    Anchor Rule
+                    4 · Layout Strategy
                   </span>
                   <select
-                    value={anchorRule}
+                    value={layoutStrategyId}
                     onChange={(e) =>
-                      setAnchorRule(e.target.value as SimplexAnchorRuleKind)
+                      setLayoutStrategyId(e.target.value as LayoutStrategyId)
                     }
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
                   >
-                    <option value="explaining-away">Explaining-Away</option>
-                    <option value="raw-overlap">Raw Overlap</option>
-                    <option value="barycentric-all">Barycentric All</option>
+                    <option value="collision-adaptive">
+                      Collision-Driven Adaptive Scale
+                    </option>
+                    <option value="pbd-uniform">
+                      PBD Uniform Scale (Classic)
+                    </option>
+                    <option value="pbd-warm-start">
+                      Warm-Start PBD (Preserve Positions)
+                    </option>
+                    <option value="local-adaptive">
+                      Local Density-Adaptive Scale
+                    </option>
                   </select>
                 </label>
               </div>
+            </section>
 
-              <label className="block">
-                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                  3 · Color Strategy
-                </span>
-                <select
-                  value={colorStrategyId}
-                  onChange={(e) => setColorStrategyId(e.target.value as ColorStrategyId)}
-                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+            {/* Section 2: Dynamic Mutations & Rapid-Fire Stress Test */}
+            <section className="p-4 border-b border-slate-200/80 dark:border-slate-800/80">
+              <div className="mb-2.5 flex items-center justify-between">
+                <h2 className="text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
+                  Dynamic Mutations
+                </h2>
+                <button
+                  type="button"
+                  onClick={handleResetCatalog}
+                  className="cursor-pointer text-[11px] text-slate-500 hover:text-cyan-700 dark:text-slate-400 dark:hover:text-cyan-300 transition-colors"
                 >
-                  <option value="oklab-contrast">OKLab Edge Contrast (Default)</option>
-                  <option value="theme-adaptive">
-                    Theme-Adaptive OKLab (Dark/Light)
-                  </option>
-                  <option value="curated-palette">Curated High-Contrast Palette</option>
-                  <option value="nordic-palette">Nordic Slate &amp; Teal Palette</option>
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                  4 · Layout Strategy
-                </span>
-                <select
-                  value={layoutStrategyId}
-                  onChange={(e) => setLayoutStrategyId(e.target.value as LayoutStrategyId)}
-                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                  Reset
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 mb-2">
+                <button
+                  type="button"
+                  onClick={() => handleAddItems(1)}
+                  className="cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-cyan-600/50 hover:text-cyan-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200 dark:hover:border-cyan-500/50 dark:hover:text-cyan-200 transition-colors whitespace-nowrap"
                 >
-                  <option value="pbd-uniform">PBD Uniform Scale (0 px overlap)</option>
-                  <option value="pbd-warm-start">
-                    Warm-Start PBD (Preserve Positions)
-                  </option>
-                  <option value="local-adaptive">
-                    Local Density-Adaptive Scale
-                  </option>
-                </select>
-              </label>
-            </div>
-          </section>
+                  + 1 Item
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddItems(10)}
+                  className="cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-cyan-600/50 hover:text-cyan-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200 dark:hover:border-cyan-500/50 dark:hover:text-cyan-200 transition-colors whitespace-nowrap"
+                >
+                  + 10 Items
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveItems(1)}
+                  className="cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-amber-600/50 hover:text-amber-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200 dark:hover:border-amber-500/50 dark:hover:text-amber-200 transition-colors whitespace-nowrap"
+                >
+                  - 1 Item
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveItems(10)}
+                  className="cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-amber-600/50 hover:text-amber-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200 dark:hover:border-amber-500/50 dark:hover:text-amber-200 transition-colors whitespace-nowrap"
+                >
+                  - 10 Items
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRapidFireActive((v) => !v)}
+                className={`cursor-pointer flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold transition-colors whitespace-nowrap ${
+                  rapidFireActive
+                    ? 'border-amber-500/70 bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200'
+                    : 'border-slate-200 bg-slate-100 text-slate-700 hover:border-cyan-600/50 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-cyan-500/50'
+                }`}
+              >
+                <Zap className="h-3.5 w-3.5" />
+                {rapidFireActive
+                  ? 'Rapid-Fire Running (250 ms)… Stop'
+                  : 'Rapid-Fire Mutation Test'}
+              </button>
+            </section>
 
-          {/* Section 2: Dynamic Mutations & Rapid-Fire Stress Test */}
-          <section className="p-4 border-b border-slate-200/80 dark:border-slate-800/80">
-            <div className="mb-2.5 flex items-center justify-between">
-              <h2 className="text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
-                Dynamic Mutations
+            {/* Section 3: Collision & Geometry Inspector */}
+            <section className="p-4 border-b border-slate-200/80 dark:border-slate-800/80">
+              <h2 className="mb-3 text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
+                Collision &amp; Geometry Inspector
               </h2>
-              <button
-                type="button"
-                onClick={handleResetCatalog}
-                className="cursor-pointer text-[11px] text-slate-500 hover:text-cyan-700 dark:text-slate-400 dark:hover:text-cyan-300 transition-colors"
-              >
-                Reset
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5 mb-2">
-              <button
-                type="button"
-                onClick={() => handleAddItems(1)}
-                className="cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-cyan-600/50 hover:text-cyan-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200 dark:hover:border-cyan-500/50 dark:hover:text-cyan-200 transition-colors whitespace-nowrap"
-              >
-                + 1 Item
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddItems(10)}
-                className="cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-cyan-600/50 hover:text-cyan-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200 dark:hover:border-cyan-500/50 dark:hover:text-cyan-200 transition-colors whitespace-nowrap"
-              >
-                + 10 Items
-              </button>
-              <button
-                type="button"
-                onClick={() => handleRemoveItems(1)}
-                className="cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-amber-600/50 hover:text-amber-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200 dark:hover:border-amber-500/50 dark:hover:text-amber-200 transition-colors whitespace-nowrap"
-              >
-                - 1 Item
-              </button>
-              <button
-                type="button"
-                onClick={() => handleRemoveItems(10)}
-                className="cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-amber-600/50 hover:text-amber-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200 dark:hover:border-amber-500/50 dark:hover:text-amber-200 transition-colors whitespace-nowrap"
-              >
-                - 10 Items
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => setRapidFireActive((v) => !v)}
-              className={`cursor-pointer flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold transition-colors whitespace-nowrap ${
-                rapidFireActive
-                  ? 'border-amber-500/70 bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200'
-                  : 'border-slate-200 bg-slate-100 text-slate-700 hover:border-cyan-600/50 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-cyan-500/50'
-              }`}
-            >
-              <Zap className="h-3.5 w-3.5" />
-              {rapidFireActive
-                ? 'Rapid-Fire Running (250 ms)… Stop'
-                : 'Rapid-Fire Mutation Test'}
-            </button>
-          </section>
 
-          {/* Section 3: Collision & Geometry Inspector */}
-          <section className="p-4 border-b border-slate-200/80 dark:border-slate-800/80">
-            <h2 className="mb-3 text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
-              Collision &amp; Geometry Inspector
-            </h2>
-
-            <label className="block mb-3">
-              <div className="flex items-center justify-between text-xs text-slate-700 dark:text-slate-300 mb-1.5">
-                <span>Size Multiplier</span>
-                <span className="font-mono text-cyan-700 dark:text-cyan-300">
-                  {sizeMultiplier.toFixed(2)}×
-                </span>
-              </div>
-              <input
-                type="range"
-                min={0.6}
-                max={2.2}
-                step={0.05}
-                value={sizeMultiplier}
-                onChange={(e) => setSizeMultiplier(parseFloat(e.target.value))}
-                className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
-              />
-            </label>
-
-            <label className="flex cursor-pointer items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 dark:border-slate-800 dark:bg-[#0E131D] dark:text-slate-200 mb-3">
-              <span>Show Convex Bounding Hulls</span>
-              <input
-                type="checkbox"
-                checked={showHulls}
-                onChange={(e) => setShowHulls(e.target.checked)}
-                className="h-4 w-4 accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
-              />
-            </label>
-
-            <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-slate-200 bg-slate-200/80 dark:border-slate-800 dark:bg-slate-800/70">
-              <div className="bg-white dark:bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Clusters K
-                </div>
-                <div className="font-mono text-base font-semibold text-slate-900 dark:text-slate-100">
-                  {metrics.clusterCount}
-                </div>
-              </div>
-              <div className="bg-white dark:bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Items
-                </div>
-                <div className="font-mono text-base font-semibold text-slate-900 dark:text-slate-100">
-                  {metrics.itemCount}
-                </div>
-              </div>
-              <div className="bg-white dark:bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                  α Cluster
-                </div>
-                <div className="font-mono text-base font-semibold text-amber-600 dark:text-amber-300">
-                  {metrics.clusterScale.toFixed(3)}
-                </div>
-              </div>
-              <div className="bg-white dark:bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                  α Content
-                </div>
-                <div className="font-mono text-base font-semibold text-cyan-700 dark:text-cyan-300">
-                  {metrics.contentScale.toFixed(3)}
-                </div>
-              </div>
-              <div className="bg-white dark:bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Overlaps
-                </div>
-                <div
-                  className={`font-mono text-base font-semibold ${
-                    metrics.overlapCount === 0
-                      ? 'text-[#06B6D4]'
-                      : 'text-fuchsia-600 dark:text-fuchsia-400'
-                  }`}
-                >
-                  {metrics.overlapCount}
-                </div>
-              </div>
-              <div className="bg-white dark:bg-[#0B0F17] p-2.5">
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Frame Rate
-                </div>
-                <div className="font-mono text-base font-semibold text-slate-900 dark:text-slate-100">
-                  {fps}{' '}
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">
-                    fps
+              <label className="block mb-3">
+                <div className="flex items-center justify-between text-xs text-slate-700 dark:text-slate-300 mb-1.5">
+                  <span>Size Multiplier</span>
+                  <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
+                    {sizeMultiplier.toFixed(2)}×
                   </span>
                 </div>
+                <input
+                  type="range"
+                  min={0.6}
+                  max={2.2}
+                  step={0.05}
+                  value={sizeMultiplier}
+                  onChange={(e) => setSizeMultiplier(parseFloat(e.target.value))}
+                  className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                />
+              </label>
+
+              <label className="flex cursor-pointer items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 dark:border-slate-800 dark:bg-[#0E131D] dark:text-slate-200 mb-3">
+                <span>Show Convex Bounding Hulls</span>
+                <input
+                  type="checkbox"
+                  checked={showHulls}
+                  onChange={(e) => setShowHulls(e.target.checked)}
+                  className="h-4 w-4 accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                />
+              </label>
+
+              <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-slate-200 bg-slate-200/80 dark:border-slate-800 dark:bg-slate-800/70">
+                <div className="bg-white dark:bg-[#0B0F17] p-2.5">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Clusters K
+                  </div>
+                  <div className="font-mono tabular-nums text-base font-semibold text-slate-900 dark:text-slate-100">
+                    {metrics.clusterCount}
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-[#0B0F17] p-2.5">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Items
+                  </div>
+                  <div className="font-mono tabular-nums text-base font-semibold text-slate-900 dark:text-slate-100">
+                    {metrics.itemCount}
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-[#0B0F17] p-2.5">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    α Cluster
+                  </div>
+                  <div className="font-mono tabular-nums text-base font-semibold text-amber-600 dark:text-amber-300">
+                    {metrics.clusterScale.toFixed(3)}
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-[#0B0F17] p-2.5">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    α Content
+                  </div>
+                  <div className="font-mono tabular-nums text-base font-semibold text-cyan-700 dark:text-cyan-300">
+                    {metrics.contentScale.toFixed(3)}
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-[#0B0F17] p-2.5">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Overlaps
+                  </div>
+                  <div
+                    className={`font-mono tabular-nums text-base font-semibold ${
+                      metrics.overlapCount === 0
+                        ? 'text-[#06B6D4]'
+                        : 'text-fuchsia-600 dark:text-fuchsia-400'
+                    }`}
+                  >
+                    {metrics.overlapCount}
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-[#0B0F17] p-2.5">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Frame Rate
+                  </div>
+                  <div className="font-mono tabular-nums text-base font-semibold text-slate-900 dark:text-slate-100">
+                    {fps}{' '}
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">
+                      fps
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
 
-          {/* Section 4: Interaction Configurator */}
-          <section className="p-4">
-            <h2 className="mb-3 text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
-              Interaction Configurator
-            </h2>
-            <div className="space-y-2.5 text-xs">
-              <label className="block">
-                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                  Hover Content
-                </span>
-                <select
-                  value={contentHoverPolicy}
-                  onChange={(e) =>
-                    setContentHoverPolicy(e.target.value as ContentHoverPolicy)
-                  }
-                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
-                >
-                  <option value="tooltip">Show Tooltip Card</option>
-                  <option value="highlight-unit">Highlight Simplex Neighbors</option>
-                  <option value="none">Disabled</option>
-                </select>
-              </label>
+            {/* Section 4: Interaction Configurator */}
+            <section className="p-4">
+              <h2 className="mb-3 text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
+                Interaction Configurator
+              </h2>
+              <div className="space-y-2.5 text-xs">
+                <label className="block">
+                  <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                    Hover Content
+                  </span>
+                  <select
+                    value={contentHoverPolicy}
+                    onChange={(e) =>
+                      setContentHoverPolicy(e.target.value as ContentHoverPolicy)
+                    }
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                  >
+                    <option value="tooltip">Show Tooltip Card</option>
+                    <option value="highlight-unit">Highlight Simplex Neighbors</option>
+                    <option value="none">Disabled</option>
+                  </select>
+                </label>
 
-              <label className="block">
-                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                  Hover Cluster
-                </span>
-                <select
-                  value={clusterHoverPolicy}
-                  onChange={(e) =>
-                    setClusterHoverPolicy(e.target.value as ClusterHoverPolicy)
-                  }
-                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
-                >
-                  <option value="tooltip">Show Cluster Stats</option>
-                  <option value="focus-members">Isolate Members</option>
-                  <option value="none">Disabled</option>
-                </select>
-              </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                    Hover Cluster
+                  </span>
+                  <select
+                    value={clusterHoverPolicy}
+                    onChange={(e) =>
+                      setClusterHoverPolicy(e.target.value as ClusterHoverPolicy)
+                    }
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                  >
+                    <option value="tooltip">Show Cluster Stats</option>
+                    <option value="focus-members">Isolate Members</option>
+                    <option value="none">Disabled</option>
+                  </select>
+                </label>
 
-              <label className="block">
-                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                  Hover Triangle Face
-                </span>
-                <select
-                  value={triangleHoverPolicy}
-                  onChange={(e) =>
-                    setTriangleHoverPolicy(e.target.value as TriangleHoverPolicy)
-                  }
-                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
-                >
-                  <option value="tooltip">Show Triangle Tooltip</option>
-                  <option value="focus-preview">Isolate Face on Hover</option>
-                  <option value="none">Disabled</option>
-                </select>
-              </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                    Hover Triangle Face
+                  </span>
+                  <select
+                    value={triangleHoverPolicy}
+                    onChange={(e) =>
+                      setTriangleHoverPolicy(e.target.value as TriangleHoverPolicy)
+                    }
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                  >
+                    <option value="tooltip">Show Triangle Tooltip</option>
+                    <option value="focus-preview">Isolate Face on Hover</option>
+                    <option value="none">Disabled</option>
+                  </select>
+                </label>
 
-              <label className="block">
-                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                  Left Click
-                </span>
-                <select
-                  value={leftClickPolicy}
-                  onChange={(e) => setLeftClickPolicy(e.target.value as LeftClickPolicy)}
-                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
-                >
-                  <option value="inspect">Select &amp; Inspect Details</option>
-                  <option value="focus-toggle">Focus Unit / Cluster</option>
-                  <option value="remove">Remove Item Directly</option>
-                </select>
-              </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                    Left Click
+                  </span>
+                  <select
+                    value={leftClickPolicy}
+                    onChange={(e) =>
+                      setLeftClickPolicy(e.target.value as LeftClickPolicy)
+                    }
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                  >
+                    <option value="inspect">Select &amp; Inspect Details</option>
+                    <option value="focus-toggle">Focus Unit / Cluster</option>
+                    <option value="remove">Remove Item Directly</option>
+                  </select>
+                </label>
 
-              <label className="block">
-                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                  Right Click
-                </span>
-                <select
-                  value={rightClickPolicy}
-                  onChange={(e) => setRightClickPolicy(e.target.value as RightClickPolicy)}
-                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
-                >
-                  <option value="context-menu">Open Custom Context Menu</option>
-                  <option value="browser-default">Browser Default Menu</option>
-                </select>
-              </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                    Right Click
+                  </span>
+                  <select
+                    value={rightClickPolicy}
+                    onChange={(e) =>
+                      setRightClickPolicy(e.target.value as RightClickPolicy)
+                    }
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                  >
+                    <option value="context-menu">Open Custom Context Menu</option>
+                    <option value="browser-default">Browser Default Menu</option>
+                  </select>
+                </label>
 
-              <label className="block">
-                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                  Mouse Scroll
-                </span>
-                <select
-                  value={wheelPolicy}
-                  onChange={(e) =>
-                    setWheelPolicy(
-                      e.target.value as 'zoom-to-cursor' | 'pan-vertical' | 'none',
-                    )
-                  }
-                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
-                >
-                  <option value="zoom-to-cursor">Zoom to Cursor</option>
-                  <option value="pan-vertical">Pan Vertical / Horizontal</option>
-                  <option value="none">Disabled</option>
-                </select>
-              </label>
-            </div>
-          </section>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                    Mouse Scroll
+                  </span>
+                  <select
+                    value={wheelPolicy}
+                    onChange={(e) =>
+                      setWheelPolicy(
+                        e.target.value as 'zoom-to-cursor' | 'pan-vertical' | 'none',
+                      )
+                    }
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                  >
+                    <option value="zoom-to-cursor">Zoom to Cursor</option>
+                    <option value="pan-vertical">Pan Vertical / Horizontal</option>
+                    <option value="none">Disabled</option>
+                  </select>
+                </label>
+              </div>
+            </section>
           </aside>
         )}
 
@@ -1614,7 +2238,7 @@ export function DemoApp() {
           ref={stageRef}
           className="relative min-w-0 flex-1 bg-slate-50 dark:bg-[#07090E]"
         >
-          {/* Top-Left Canvas Controls Fly-Out Button (visible only when sidebar is collapsed) */}
+          {/* Top-Left Canvas Controls Fly-Out Button */}
           {!controlsOpen && (
             <button
               type="button"
@@ -1627,26 +2251,27 @@ export function DemoApp() {
             </button>
           )}
           <SimplexTopicGraph<
-            KnowledgeEntry,
+            DemoEntity,
             DemoContentVisual,
             DemoClusterVisual,
             TagTaxonomyInfo,
-            TopicClusterSummary
+            DemoClusterSummary
           >
             controllerRef={controllerRef}
             items={items}
-            getId={(entry) => entry.slug}
-            getTags={(entry) => entry.hashtags}
+            getId={(entity) => entity.id}
             resolveTagMeta={resolveDemoTagMeta}
-            deriveClusterMeta={deriveDemoClusterMeta}
+            deriveClusterMeta={deriveDemoEntityClusterMeta}
             visualResolver={visualResolver}
             theme={resolvedTheme}
             contentView={
-              renderConfig.contentRenderer === 'geometric'
-                ? demoGeometricContentView
-                : renderConfig.contentRenderer === 'multisector'
-                  ? demoMultiSectorContentView
-                  : undefined
+              renderConfig.contentRenderer === 'domain'
+                ? demoDomainContentView
+                : renderConfig.contentRenderer === 'geometric'
+                  ? demoGeometricContentView
+                  : renderConfig.contentRenderer === 'multisector'
+                    ? demoMultiSectorContentView
+                    : undefined
             }
             clusterView={
               renderConfig.clusterRenderer === 'anchor'
@@ -1735,19 +2360,19 @@ export function DemoApp() {
               }}
             >
               <div className="font-semibold text-slate-900 dark:text-slate-100 leading-snug">
-                {hoveredContent.item.headline}
+                {hoveredContent.item.title}
               </div>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                <span>{hoveredContent.item.contentType}</span>
-                <span aria-hidden="true">·</span>
-                <span>{hoveredContent.item.readingMinutes} min</span>
-                <span aria-hidden="true">·</span>
-                <span>{hoveredContent.item.publishedYear}</span>
+              <div className="mt-1 font-mono text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+                {formatEntitySubtitle(hoveredContent.item)}
               </div>
               <div className="mt-1 text-[11px] text-cyan-700 dark:text-cyan-300">
-                {hoveredContent.layoutContext.tags
-                  .map((t) => t.meta?.displayTitle ?? t.tag)
-                  .join(' · ')}
+                {hoveredContent.layoutContext.tags.length > 0
+                  ? hoveredContent.layoutContext.tags
+                      .map((t) => t.meta?.displayTitle ?? t.tag)
+                      .join(' · ')
+                  : hoveredContent.layoutContext.unitClusters
+                      .map((uc) => `${uc.cluster.code} ${Math.round(uc.weight * 100)}%`)
+                      .join(' · ')}
               </div>
             </div>
           )}
@@ -1777,23 +2402,23 @@ export function DemoApp() {
                 <span className="font-mono text-cyan-700 dark:text-cyan-300">
                   {hoveredCluster.cluster.code}
                 </span>
-                <span>{hoveredCluster.cluster.meta.title}</span>
+                <span className="truncate">{hoveredCluster.cluster.meta.title}</span>
               </div>
-              <div className="mt-1 flex items-center gap-1.5 font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                <span>{hoveredCluster.cluster.meta.memberCount} items</span>
-                <span aria-hidden="true">·</span>
-                <span>
-                  avg {hoveredCluster.cluster.meta.avgReadingMinutes.toFixed(1)} min
-                </span>
-                <span aria-hidden="true">·</span>
-                <span>{hoveredCluster.cluster.meta.dominantType}</span>
+              <div className="mt-1 font-mono text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+                {hoveredCluster.cluster.meta.subtitle}
               </div>
-              <div className="mt-1 text-[11px] text-slate-700 dark:text-slate-300">
-                Core:{' '}
-                {hoveredCluster.cluster.coreTags
-                  .map((t) => t.meta?.displayTitle ?? t.tag)
-                  .join(', ')}
-              </div>
+              {hoveredCluster.cluster.coreTags.length > 0 ? (
+                <div className="mt-1 text-[11px] text-slate-700 dark:text-slate-300">
+                  Core:{' '}
+                  {hoveredCluster.cluster.coreTags
+                    .map((t) => t.meta?.displayTitle ?? t.tag)
+                    .join(', ')}
+                </div>
+              ) : hoveredCluster.cluster.featureSummary ? (
+                <div className="mt-1 font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                  {hoveredCluster.cluster.featureSummary}
+                </div>
+              ) : null}
             </div>
           )}
 
@@ -1829,7 +2454,7 @@ export function DemoApp() {
                     />
                     <span>Triangle #{hoveredTriangle.triangle.index + 1}</span>
                   </span>
-                  <span className="font-mono text-[11px] font-normal text-cyan-700 dark:text-cyan-300">
+                  <span className="font-mono tabular-nums text-[11px] font-normal text-cyan-700 dark:text-cyan-300">
                     {hoveredTriangle.triangle.coveredItemCount} items
                   </span>
                 </div>
@@ -1855,8 +2480,9 @@ export function DemoApp() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-1 font-mono text-[10px] text-slate-500 dark:text-slate-400">
-                  {hoveredTriangle.triangle.interiorItemCount} 3-way interior · Click to inspect
+                <div className="mt-1 font-mono tabular-nums text-[10px] text-slate-500 dark:text-slate-400">
+                  {hoveredTriangle.triangle.interiorItemCount} 3-way interior · Click to
+                  inspect
                 </div>
               </div>
             )}
@@ -1874,34 +2500,34 @@ export function DemoApp() {
               {contextMenu.target.kind === 'content' && (
                 <>
                   <div className="border-b border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-700 dark:border-slate-800 dark:text-slate-300 truncate">
-                    {contextMenu.target.item.headline}
+                    {contextMenu.target.item.title}
                   </div>
                   <button
                     type="button"
                     onClick={() => {
-                      const slug =
+                      const id =
                         contextMenu.target.kind === 'content'
-                          ? contextMenu.target.item.slug
+                          ? contextMenu.target.item.id
                           : '';
-                      if (slug) togglePinId(slug);
+                      if (id) togglePinId(id);
                       setContextMenu(null);
                     }}
                     className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     <Pin className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
-                    {pinnedIds.has(contextMenu.target.item.slug)
+                    {pinnedIds.has(contextMenu.target.item.id)
                       ? 'Unpin node'
                       : 'Pin node'}
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      const slug =
+                      const id =
                         contextMenu.target.kind === 'content'
-                          ? contextMenu.target.item.slug
+                          ? contextMenu.target.item.id
                           : '';
-                      if (slug) {
-                        removeItemBySlug(slug);
+                      if (id) {
+                        removeItemById(id);
                       }
                       setContextMenu(null);
                     }}
@@ -2003,7 +2629,7 @@ export function DemoApp() {
                 <div>
                   {inspected.kind === 'content' ? (
                     <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
-                      {inspected.item.headline}
+                      {inspected.item.title}
                     </div>
                   ) : inspected.kind === 'cluster' ? (
                     <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
@@ -2037,41 +2663,56 @@ export function DemoApp() {
               </div>
 
               {inspected.kind === 'content' ? (
-                <div className="mt-2.5 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                    <span>{inspected.item.slug}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{inspected.item.contentType}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{inspected.item.readingMinutes} min</span>
+                <div>
+                  <EntitySpecBadge
+                    entity={inspected.item}
+                    accentHex={inspected.mixedColorHex}
+                  />
+                  <div className="mt-2.5 text-[11px] text-slate-700 dark:text-slate-300">
+                    <span className="text-slate-500 dark:text-slate-400">Simplex Unit: </span>
+                    <span className="font-mono tabular-nums">
+                      {inspected.clusterTitles.join(', ')}
+                    </span>
                   </div>
-                  <div className="text-[11px] text-slate-700 dark:text-slate-300">
-                    <span className="text-slate-500 dark:text-slate-400">Unit: </span>
-                    {inspected.clusterTitles.join(', ')}
-                  </div>
-                  <div className="text-[11px] text-cyan-700 dark:text-cyan-300">
-                    {inspected.item.hashtags
-                      .map((h) => resolveDemoTagMeta(h)?.displayTitle ?? h)
-                      .join(' · ')}
-                  </div>
+                  {(inspected.featureSummary ||
+                    inspected.residualDistance !== undefined) && (
+                    <div className="mt-1 font-mono tabular-nums text-[10px] text-slate-500 dark:text-slate-400">
+                      {inspected.featureSummary ?? ''}
+                      {inspected.residualDistance !== undefined
+                        ? ` · residual ${inspected.residualDistance.toFixed(3)}`
+                        : ''}
+                    </div>
+                  )}
                 </div>
               ) : inspected.kind === 'cluster' ? (
                 <div className="mt-2.5 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                  <div className="flex flex-wrap items-center gap-2 font-mono tabular-nums text-[11px] text-slate-500 dark:text-slate-400">
                     <span>{inspected.cluster.meta.memberCount} members</span>
                     <span aria-hidden="true">·</span>
                     <span>{inspected.cluster.meta.exclusiveCount} exclusive</span>
-                    <span aria-hidden="true">·</span>
-                    <span>
-                      avg {inspected.cluster.meta.avgReadingMinutes.toFixed(1)} min
-                    </span>
+                    {inspected.cluster.cohesion !== undefined && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span>
+                          {Math.round(inspected.cluster.cohesion * 100)}% cohesion
+                        </span>
+                      </>
+                    )}
                   </div>
-                  <div className="text-[11px] text-slate-700 dark:text-slate-300">
-                    <span className="text-slate-500 dark:text-slate-400">Core Tags: </span>
-                    {inspected.cluster.coreTags
-                      .map((t) => t.meta?.displayTitle ?? t.tag)
-                      .join(', ')}
-                  </div>
+                  {inspected.cluster.coreTags.length > 0 ? (
+                    <div className="text-[11px] text-slate-700 dark:text-slate-300">
+                      <span className="text-slate-500 dark:text-slate-400">
+                        Core Tags:{' '}
+                      </span>
+                      {inspected.cluster.coreTags
+                        .map((t) => t.meta?.displayTitle ?? t.tag)
+                        .join(', ')}
+                    </div>
+                  ) : inspected.cluster.featureSummary ? (
+                    <div className="font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                      {inspected.cluster.featureSummary}
+                    </div>
+                  ) : null}
                   {inspected.cluster.sharedTags.length > 0 && (
                     <div className="text-[11px] text-amber-700 dark:text-amber-300">
                       <span className="text-slate-500 dark:text-slate-400">
@@ -2089,9 +2730,9 @@ export function DemoApp() {
                         className="flex items-center justify-between gap-2 text-[11px]"
                       >
                         <span className="truncate text-slate-700 dark:text-slate-200">
-                          {m.item.headline}
+                          {m.item.title}
                         </span>
-                        <span className="font-mono text-slate-500 dark:text-slate-400 shrink-0">
+                        <span className="font-mono tabular-nums text-slate-500 dark:text-slate-400 shrink-0">
                           {Math.round(m.normalizedWeight * 100)}%
                         </span>
                       </div>
@@ -2100,7 +2741,7 @@ export function DemoApp() {
                 </div>
               ) : (
                 <div className="mt-2.5 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                  <div className="flex flex-wrap items-center gap-2 font-mono tabular-nums text-[11px] text-slate-500 dark:text-slate-400">
                     <span>{inspected.triangle.coveredItemCount} covered items</span>
                     <span aria-hidden="true">·</span>
                     <span>{inspected.triangle.interiorItemCount} interior 3-way</span>
@@ -2127,7 +2768,7 @@ export function DemoApp() {
                           </span>
                         </div>
                         {corner && (
-                          <span className="font-mono text-slate-500 dark:text-slate-400 shrink-0">
+                          <span className="font-mono tabular-nums text-slate-500 dark:text-slate-400 shrink-0">
                             {corner.meta.memberCount}
                           </span>
                         )}

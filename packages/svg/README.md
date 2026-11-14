@@ -107,31 +107,43 @@ controller.removeItems('old-slug');
 controller.camera.reset();
 ```
 
-### Pluggable Core Strategies (Algorithm Swapping at Runtime)
+### Pluggable Core Strategies (Embeddings, Similarities & Tag Specialization)
 
-`@simplex-viz/svg` re-exports all built-in `@simplex-viz/core` strategy factories (`createAdaptiveHexMeshStrategy`, `createFixedLatticeMeshStrategy`, `createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`, `createOklabContrastColorStrategy`, `createThemeAdaptiveOklabColorStrategy`, `createPaletteColorStrategy`, `createPbdUniformLayoutStrategy`, `createWarmStartPbdLayoutStrategy`, `createLocalAdaptiveLayoutStrategy`). Combine them freely with any preset or custom `SvgNodeView`:
+`@simplex-viz/svg` re-exports all built-in `@simplex-viz/core` strategy factories—including **`createEmbeddingClusteringStrategy`** (single/multi-modal vector embeddings without any `tags` field) and **`createSimilarityClusteringStrategy`** (arbitrary pairwise similarity functions), alongside tag strategies (`createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`), mesh, color, and layout strategies:
 
 ```ts
 import {
   SimplexSvgController,
-  createFixedLatticeMeshStrategy,
-  createIncrementalAnchorClusteringStrategy,
+  createEmbeddingClusteringStrategy,
   createThemeAdaptiveOklabColorStrategy,
   createLocalAdaptiveLayoutStrategy,
 } from '@simplex-viz/svg';
 
+interface ImageAsset {
+  readonly id: string;
+  readonly caption: string;
+  readonly clipVec: readonly number[];
+  readonly colorVec: readonly number[];
+}
+
 const controller = new SimplexSvgController('#graph', {
-  items,
+  items: imageAssets,
+  getLabel: (img) => img.caption,
   preset: 'glyphs',
-  theme: 'light',
-  meshStrategy: createFixedLatticeMeshStrategy({ cols: 3, rows: 3 }),
-  clusteringStrategy: createIncrementalAnchorClusteringStrategy({
-    sharedTagRule: 'planar-hitting-set',
-    anchorRule: 'explaining-away',
+  theme: 'dark',
+  tooltip: true,
+  clusteringStrategy: createEmbeddingClusteringStrategy<ImageAsset>({
+    getEmbedding: [
+      { name: 'Semantic', getVector: (i) => i.clipVec, weight: 0.7 },
+      { name: 'Palette', getVector: (i) => i.colorVec, weight: 0.3 },
+    ],
+    metric: 'cosine',
+    anchorRule: 'simplex-projection',
   }),
   colorStrategy: createThemeAdaptiveOklabColorStrategy(),
   layoutStrategy: createLocalAdaptiveLayoutStrategy({ warmStart: true }),
 });
+```
 
 // Swap any pipeline stage live without resetting camera pan/zoom:
 controller.setColorStrategy(createOklabContrastColorStrategy());
@@ -412,7 +424,7 @@ export const CustomCardSvgView: SvgNodeView<CardVisual> = {
 | `preset` / `setPreset(preset, getLabel?)` | Switches between `'geometric'`, `'glyphs'`, and `'badges'` with smooth transitions. |
 | `theme` / `setTheme(theme)` | Switches `'dark'` / `'light'` presets and notifies theme-aware color strategies. |
 | `meshStrategy` / `setMeshStrategy(strategy)` | Swaps `SimplexMeshStrategy` (`createAdaptiveHexMeshStrategy`, `createFixedLatticeMeshStrategy`, or custom). |
-| `clusteringStrategy` / `setClusteringStrategy(strategy)` | Swaps `SimplexClusteringStrategy` (`createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`, or custom). |
+| `clusteringStrategy` / `setClusteringStrategy(strategy)` | Swaps `SimplexClusteringStrategy` (`createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`, `createEmbeddingClusteringStrategy`, `createSimilarityClusteringStrategy`, or custom). When supplying a non-tag strategy, `getTags` is optional. |
 | `colorStrategy` / `setColorStrategy(strategy)` | Swaps `SimplexColorStrategy` (`createOklabContrastColorStrategy`, `createThemeAdaptiveOklabColorStrategy`, `createPaletteColorStrategy`, or custom). |
 | `layoutStrategy` / `setLayoutStrategy(strategy)` | Swaps `SimplexLayoutStrategy` (`createPbdUniformLayoutStrategy`, `createWarmStartPbdLayoutStrategy`, `createLocalAdaptiveLayoutStrategy`, or custom). |
 | `setMeshOptions(opts)` / `setLayoutOptions(opts)` | Updates `MeshOptions` or `LayoutSolverOptions` at runtime. |

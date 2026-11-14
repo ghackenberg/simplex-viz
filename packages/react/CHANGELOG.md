@@ -1,5 +1,14 @@
 # @simplex-viz/react
 
+## 0.5.0
+
+### Minor Changes
+
+- Update `SimplexTopicGraphProps` to `StrategyItemIdentityConfig` (making `getTags` optional for untagged embedding/similarity models), generalize keyless `renderContentNode` cache keys and built-in React tooltips for untagged items, and re-export `createEmbeddingClusteringStrategy`, `createSimilarityClusteringStrategy`, and related types.
+- Updated dependencies
+  - @simplex-viz/core@0.5.0
+  - @simplex-viz/svg@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes

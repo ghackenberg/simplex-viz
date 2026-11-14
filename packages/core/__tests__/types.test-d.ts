@@ -1,10 +1,12 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import { solveSimplexSnapshot } from '../src/snapshot';
-import type {
-  SimplexClusteringStrategy,
-  SimplexColorStrategy,
-  SimplexLayoutStrategy,
-  SimplexMeshStrategy,
+import {
+  createEmbeddingClusteringStrategy,
+  createSimilarityClusteringStrategy,
+  type SimplexClusteringStrategy,
+  type SimplexColorStrategy,
+  type SimplexLayoutStrategy,
+  type SimplexMeshStrategy,
 } from '../src/strategies';
 import type {
   ClusterDescriptor,
@@ -14,6 +16,7 @@ import type {
   HitTarget,
   ItemIdentityConfig,
   SimplexEngineConfig,
+  StrategyItemIdentityConfig,
   VisualResolver,
 } from '../src/types';
 
@@ -21,6 +24,12 @@ interface CustomArticle {
   readonly slug: string;
   readonly hashtags: readonly string[];
   readonly readingMinutes: number;
+}
+
+interface ImageEmbeddingSample {
+  readonly id: string;
+  readonly clipVector: readonly number[];
+  readonly colorHistogram: readonly number[];
 }
 
 interface CustomTagMeta {
@@ -42,6 +51,32 @@ describe('End-to-end compile-time type safety', () => {
       readonly getId: (item: CustomArticle) => string;
       readonly getTags: (item: CustomArticle) => readonly string[];
     }>();
+  });
+
+  it('allows omitting getTags when clusteringStrategy is explicitly provided, while requiring it otherwise', () => {
+    // Without clusteringStrategy, untagged items require getTags
+    expectTypeOf<StrategyItemIdentityConfig<ImageEmbeddingSample, unknown>>().toMatchTypeOf<{
+      readonly getId?: (item: ImageEmbeddingSample) => string;
+      readonly getTags: (item: ImageEmbeddingSample) => readonly string[];
+    }>();
+
+    // With clusteringStrategy, getTags becomes optional for untagged embedding/similarity models
+    const embSnap = solveSimplexSnapshot([] as readonly ImageEmbeddingSample[], {
+      clusteringStrategy: createEmbeddingClusteringStrategy<ImageEmbeddingSample>({
+        getEmbedding: [
+          { getVector: (s) => s.clipVector, weight: 0.7 },
+          { getVector: (s) => s.colorHistogram, weight: 0.3 },
+        ],
+      }),
+    });
+    expectTypeOf(embSnap.items[0]!.item).toEqualTypeOf<ImageEmbeddingSample>();
+
+    const simSnap = solveSimplexSnapshot([] as readonly ImageEmbeddingSample[], {
+      clusteringStrategy: createSimilarityClusteringStrategy<ImageEmbeddingSample>({
+        getSimilarity: () => 0.5,
+      }),
+    });
+    expectTypeOf(simSnap.items[0]!.item).toEqualTypeOf<ImageEmbeddingSample>();
   });
 
   it('threads TItem, TTagMeta, TClusterMeta, TContentVisual, TClusterVisual through VisualResolver & events', () => {

@@ -1,5 +1,11 @@
 # @simplex-viz/core
 
+## 0.5.0
+
+### Minor Changes
+
+- Generalize clustering beyond `{ id, tags }`: tag-based Jaccard + Hitting-Set clustering is now an out-of-the-box specialization (`requiresTags !== false`, `StrategyItemIdentityConfig`), while `createEmbeddingClusteringStrategy` (single/multi-modal vector embeddings, k-Means++ / Spherical k-Means, QAP mesh embedding, closed-form NNLS barycentric simplex projection) and `createSimilarityClusteringStrategy` (PAM k-Medoids + QAP mesh embedding) support arbitrary untagged domain objects cleanly.
+
 ## 0.4.0
 
 ### Minor Changes

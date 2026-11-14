@@ -15,17 +15,52 @@ export interface DefaultTaggedItem {
 }
 
 /**
- * Conditional hybrid accessor configuration for arbitrary user domain items `TItem`.
+ * Lightweight identified item tuple used internally before strategy-specific feature extraction.
+ */
+export interface IdentifiedItem<TItem> {
+  readonly id: string;
+  readonly item: TItem;
+}
+
+/**
+ * Conditional hybrid ID accessor configuration for arbitrary domain items `TItem`.
+ */
+export type ItemIdConfig<TItem> = [TItem] extends [{ readonly id: string }]
+  ? { readonly getId?: (item: TItem) => string }
+  : { readonly getId: (item: TItem) => string };
+
+/**
+ * Conditional tag accessor configuration for tag-based clustering strategies.
+ */
+export type ItemTagsConfig<TItem> = [TItem] extends [{ readonly tags: readonly string[] }]
+  ? { readonly getTags?: (item: TItem) => readonly string[] }
+  : { readonly getTags: (item: TItem) => readonly string[] };
+
+/**
+ * Conditional hybrid accessor configuration for tagged user domain items `TItem`.
  *
  * When `TItem` already contains `{ id: string }` and `{ tags: readonly string[] }`,
  * `getId` and `getTags` remain optional; otherwise TypeScript enforces providing them.
  */
-export type ItemIdentityConfig<TItem> = (TItem extends { readonly id: string }
-  ? { readonly getId?: (item: TItem) => string }
-  : { readonly getId: (item: TItem) => string }) &
-  (TItem extends { readonly tags: readonly string[] }
-    ? { readonly getTags?: (item: TItem) => readonly string[] }
-    : { readonly getTags: (item: TItem) => readonly string[] });
+export type ItemIdentityConfig<TItem> = ItemIdConfig<TItem> & ItemTagsConfig<TItem>;
+
+/**
+ * Conditional item identity + clustering strategy configuration.
+ *
+ * When `clusteringStrategy` is omitted, the built-in tag-based clustering specialization is active
+ * (requiring `getTags` whenever `TItem` does not provide `{ tags: readonly string[] }`).
+ * When a custom or embedding/similarity `clusteringStrategy` is provided, `getTags` is optional.
+ */
+export type StrategyItemIdentityConfig<TItem, TTagMeta> = ItemIdConfig<TItem> &
+  (
+    | (ItemTagsConfig<TItem> & {
+        readonly clusteringStrategy?: undefined;
+      })
+    | {
+        readonly clusteringStrategy: SimplexClusteringStrategy<TItem, TTagMeta>;
+        readonly getTags?: (item: TItem) => readonly string[];
+      }
+  );
 
 /**
  * Conditional configuration for deriving custom cluster metadata `TClusterMeta`.
@@ -96,12 +131,20 @@ export interface ClusterDerivationContext<TItem, TTagMeta = undefined> {
     readonly x: number;
     readonly y: number;
   };
-  /** Disjoint core tags owned exclusively by this cluster's primary partition. */
+  /** Disjoint core tags owned exclusively by this cluster's primary partition (empty for non-tag strategies). */
   readonly coreTags: readonly TagDescriptor<TTagMeta>[];
-  /** Minimal shared tags added during Phase 2 to guarantee 100% planar triangle coverage. */
+  /** Minimal shared tags added during Phase 2 to guarantee 100% planar triangle coverage (empty for non-tag strategies). */
   readonly sharedTags: readonly TagDescriptor<TTagMeta>[];
   /** All content items whose active simplex unit includes this cluster (\tilde{w}_{ik} > 0). */
   readonly members: readonly ClusterMemberRef<TItem>[];
+  /** Representative / medoid members ordered closest to the cluster center (populated by embedding/similarity strategies). */
+  readonly representativeItems?: readonly ClusterMemberRef<TItem>[];
+  /** Optional cluster centroid vector in embedding space. */
+  readonly centroid?: readonly number[];
+  /** Optional average intra-cluster similarity / compactness score in [0, 1]. */
+  readonly cohesion?: number;
+  /** Optional human-readable summary produced by non-tag clustering strategies. */
+  readonly featureSummary?: string;
 }
 
 /**
@@ -126,7 +169,7 @@ export interface ContentLayoutContext<
 > {
   /** Canonical identifier extracted via `getId`. */
   readonly id: string;
-  /** Resolved tag descriptors for this item. */
+  /** Resolved tag descriptors for this item (empty when using tag-free clustering strategies). */
   readonly tags: readonly TagDescriptor<TTagMeta>[];
   /** Perceptually mixed OKLab color converted to sRGB hex. */
   readonly mixedColorHex: string;
@@ -138,6 +181,10 @@ export interface ContentLayoutContext<
     readonly weight: number;
     readonly coverage: number;
   }>;
+  /** Optional reconstruction error / residual distance from the assigned simplex unit (embedding/similarity strategies). */
+  readonly residualDistance?: number;
+  /** Optional concise feature summary emitted by custom clustering strategies. */
+  readonly featureSummary?: string;
 }
 
 /**
@@ -651,7 +698,7 @@ export type SimplexEngineConfig<
   TClusterVisual = unknown,
   TTagMeta = undefined,
   TClusterMeta = undefined,
-> = ItemIdentityConfig<TItem> &
+> = StrategyItemIdentityConfig<TItem, TTagMeta> &
   ClusterMetaConfig<TItem, TTagMeta, TClusterMeta> &
   Omit<
     SimplexEngineResolvedConfig<
@@ -661,5 +708,5 @@ export type SimplexEngineConfig<
       TTagMeta,
       TClusterMeta
     >,
-    'getId' | 'getTags' | 'deriveClusterMeta'
+    'getId' | 'getTags' | 'deriveClusterMeta' | 'clusteringStrategy'
   >;

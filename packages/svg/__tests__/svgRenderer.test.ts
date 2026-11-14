@@ -6,6 +6,7 @@ import {
   GeometricShapeSvgView,
   GradientTriangleSvgView,
   SimplexSvgController,
+  createEmbeddingClusteringStrategy,
   createSimplexSvg,
   type BadgeClusterVisual,
   type GeometricShapeVisual,
@@ -436,6 +437,72 @@ describe('@simplex-viz/svg integration', () => {
     controller.stepForTest(16);
     expect(firstTri.querySelectorAll('polygon').length).toBe(4);
     expect(firstTri.querySelectorAll('circle').length).toBe(3);
+
+    controller.destroy();
+    container.remove();
+  });
+
+  it('renders untagged vector-embedding objects via createSimplexSvg without getTags and builds weighted anchor tooltips', () => {
+    interface AudioSample {
+      readonly id: string;
+      readonly signature: readonly number[];
+    }
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+    document.body.appendChild(container);
+
+    const samples: AudioSample[] = [
+      { id: 'aud-1', signature: [1, 0, 0] },
+      { id: 'aud-2', signature: [0.95, 0.1, 0] },
+      { id: 'aud-3', signature: [0, 1, 0] },
+      { id: 'aud-4', signature: [0.1, 0.95, 0] },
+      { id: 'aud-5', signature: [0, 0, 1] },
+      { id: 'aud-6', signature: [0, 0.1, 0.95] },
+      { id: 'aud-7', signature: [0.45, 0.45, 0.2] },
+    ];
+
+    const controller = createSimplexSvg(container, {
+      items: samples,
+      clusteringStrategy: createEmbeddingClusteringStrategy<AudioSample>({
+        getEmbedding: (s) => s.signature,
+      }),
+      tooltip: true,
+      layoutOptions: { seed: 9 },
+    });
+
+    for (let i = 0; i < 40; i++) controller.stepForTest(20);
+
+    const svg = controller.getSvgElement();
+    Object.defineProperty(svg, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+    const itemGroups = svg.querySelectorAll('g.sv-node-item');
+    expect(itemGroups.length).toBe(7);
+    expect(svg.querySelectorAll('g.sv-node-cluster').length).toBeGreaterThanOrEqual(3);
+
+    const transform = itemGroups[0]!.getAttribute('transform') ?? '';
+    const coordsMatch = transform.match(/translate\(\s*([0-9.-]+)[,\s]+([0-9.-]+)/);
+    expect(coordsMatch).not.toBeNull();
+    const itemX = parseFloat(coordsMatch![1]!);
+    const itemY = parseFloat(coordsMatch![2]!);
+
+    svg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: itemX,
+        clientY: itemY,
+        bubbles: true,
+      }),
+    );
+
+    const tooltipEl = container.querySelector('.sv-tooltip') as HTMLDivElement | null;
+    expect(tooltipEl).not.toBeNull();
+    expect(tooltipEl!.style.display).toBe('block');
+    expect(tooltipEl!.textContent).toContain('%');
 
     controller.destroy();
     container.remove();

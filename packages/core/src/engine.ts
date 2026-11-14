@@ -8,6 +8,7 @@ import {
 import { SimplexCamera } from './camera';
 import {
   defaultNormalizeTag,
+  extractIdentifiedItems,
   extractNormalizedItems,
   type ComputedItemPlacement,
   type NormalizedContentItem,
@@ -38,6 +39,7 @@ import type {
   ConvexGeometry,
   DefaultTaggedItem,
   HitTarget,
+  IdentifiedItem,
   InteractionHandlers,
   LayoutMetrics,
   LayoutSolverOptions,
@@ -169,6 +171,7 @@ export class SimplexGraphEngine<
 
   private currentMesh: SimplexMesh | null = null;
   private previousMesh: SimplexMesh | null = null;
+  private previousItems: readonly IdentifiedItem<TItem>[] = [];
   private previousNormalizedItems: readonly NormalizedContentItem<TItem>[] = [];
   private lastClusteringOutput: ClusteringStrategyOutput<TItem, TTagMeta> | null = null;
   private lastPrevClusterSnapshots: readonly PreviousClusterSnapshot[] = [];
@@ -529,15 +532,28 @@ export class SimplexGraphEngine<
   }
 
   private recomputePipeline(reason: PipelineUpdateReason): void {
-    const normalized = extractNormalizedItems(
-      this.rawItems,
-      this.getIdFn,
-      this.getTagsFn,
-      this.normalizeTagFn,
-    );
+    const identifiedItems = extractIdentifiedItems(this.rawItems, this.getIdFn);
+    const requiresTags = this.clusteringStrategy.requiresTags !== false;
+    const effectiveGetTags = this.clusteringStrategy.getTags ?? this.getTagsFn;
+    const effectiveNormalizeTag = this.clusteringStrategy.normalizeTag ?? this.normalizeTagFn;
+    const normalized = requiresTags
+      ? extractNormalizedItems(
+          this.rawItems,
+          this.getIdFn,
+          effectiveGetTags,
+          effectiveNormalizeTag,
+        )
+      : [];
 
-    const prevIdSet = new Set(this.previousNormalizedItems.map((it) => it.id));
-    const nextIdSet = new Set(normalized.map((it) => it.id));
+    const activePrevIds = requiresTags
+      ? this.previousNormalizedItems.map((it) => it.id)
+      : this.previousItems.map((it) => it.id);
+    const activeNextIds = requiresTags
+      ? normalized.map((it) => it.id)
+      : identifiedItems.map((it) => it.id);
+
+    const prevIdSet = new Set(activePrevIds);
+    const nextIdSet = new Set(activeNextIds);
     const addedItemIds = new Set<string>();
     for (const id of nextIdSet) {
       if (!prevIdSet.has(id)) addedItemIds.add(id);
@@ -547,13 +563,22 @@ export class SimplexGraphEngine<
       if (!nextIdSet.has(id)) removedItemIds.add(id);
     }
 
-    const uniqueTagCount = new Set(normalized.flatMap((n) => n.tags)).size;
+    const uniqueTagCount = requiresTags
+      ? new Set(normalized.flatMap((n) => n.tags)).size
+      : 0;
+    const targetClusterCount = this.clusteringStrategy.estimateClusterCount?.({
+      items: identifiedItems,
+      normalizedItems: normalized,
+      meshOptions: this.meshOptions,
+    });
     const mesh = this.meshStrategy.buildMesh({
       viewportWidth: this.viewportWidth,
       viewportHeight: this.viewportHeight,
       uniqueTagCount,
-      itemCount: normalized.length,
+      itemCount: activeNextIds.length,
+      items: identifiedItems,
       normalizedItems: normalized,
+      targetClusterCount,
       meshOptions: this.meshOptions,
       previousMesh: this.previousMesh,
       reason,
@@ -570,10 +595,16 @@ export class SimplexGraphEngine<
         coreTags.add(t.tag);
       }
       for (const t of cNode.domain.sharedTags) tags.add(t.tag);
+      const memberIds = new Set<string>();
+      for (const m of cNode.domain.members) {
+        memberIds.add(m.itemId);
+      }
       prevClusterSnapshots.push({
         clusterUid: cNode.domain.clusterUid,
         tags,
         coreTags,
+        memberIds,
+        centroid: cNode.domain.centroid,
         x: cNode.x.value,
         y: cNode.y.value,
         colorHex: cNode.domain.colorHex,
@@ -582,6 +613,8 @@ export class SimplexGraphEngine<
     }
 
     const clusteringCtx: ClusteringStrategyContext<TItem, TTagMeta> = {
+      items: identifiedItems,
+      previousItems: this.previousItems,
       normalizedItems: normalized,
       previousNormalizedItems: this.previousNormalizedItems,
       addedItemIds,
@@ -589,6 +622,8 @@ export class SimplexGraphEngine<
       mesh,
       previousMesh: this.previousMesh,
       previousClusters: prevClusterSnapshots,
+      getTags: effectiveGetTags,
+      normalizeTag: effectiveNormalizeTag,
       resolveTagMeta: this.resolveTagMetaFn,
       allocateClusterUid: () => {
         this.nextClusterUidSeq.value += 1;
@@ -605,6 +640,7 @@ export class SimplexGraphEngine<
 
     this.lastClusteringOutput = clusteringOutput;
     this.lastPrevClusterSnapshots = prevClusterSnapshots;
+    this.previousItems = identifiedItems;
     this.previousNormalizedItems = normalized;
     this.previousMesh = mesh;
 
@@ -712,6 +748,9 @@ export class SimplexGraphEngine<
         anchorX: ri.placement.anchorX,
         anchorY: ri.placement.anchorY,
         hull: ri.hull,
+        unitVertexIndices: ri.placement.layoutContext.unitClusters.map(
+          (uc) => uc.cluster.clusterIndex,
+        ),
       })),
       mesh,
       viewportWidth: this.viewportWidth,

@@ -8,7 +8,6 @@ import {
   type ContentHoverEvent,
   type DefaultTaggedItem,
   type InteractionHandlers,
-  type ItemIdentityConfig,
   type LayoutMetrics,
   type LayoutSolverOptions,
   type MeshOptions,
@@ -16,6 +15,7 @@ import {
   type SimplexColorStrategy,
   type SimplexLayoutStrategy,
   type SimplexMeshStrategy,
+  type StrategyItemIdentityConfig,
   type TriangleHoverEvent,
   type VisualResolver,
 } from '@simplex-viz/core';
@@ -148,7 +148,7 @@ export type SimplexSvgControllerOptions<
   TClusterVisual = DefaultClusterPresetVisual,
   TTagMeta = undefined,
   TClusterMeta = undefined,
-> = ItemIdentityConfig<TItem> &
+> = StrategyItemIdentityConfig<TItem, TTagMeta> &
   ClusterMetaConfig<TItem, TTagMeta, TClusterMeta> &
   Omit<
     SimplexSvgControllerResolvedOptions<
@@ -158,7 +158,7 @@ export type SimplexSvgControllerOptions<
       TTagMeta,
       TClusterMeta
     >,
-    'getId' | 'getTags' | 'deriveClusterMeta'
+    'getId' | 'getTags' | 'deriveClusterMeta' | 'clusteringStrategy'
   >;
 
 function resolveContainerElement(target: HTMLElement | string): HTMLElement {
@@ -533,7 +533,13 @@ export class SimplexSvgController<
       this.getLabelExtractor,
     );
     const tagList = ev.layoutContext.tags.map((t) => `#${t.tag}`).slice(0, 5).join(' · ');
-    return tagList ? `${label}\n${tagList}` : label;
+    if (tagList) {
+      return `${label}\n${tagList}`;
+    }
+    const weightList = ev.layoutContext.unitClusters
+      .map((uc) => `${uc.cluster.code} ${Math.round(uc.weight * 100)}%`)
+      .join(' · ');
+    return weightList ? `${label}\n${weightList}` : label;
   }
 
   private formatClusterTooltip(

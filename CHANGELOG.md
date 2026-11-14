@@ -2,6 +2,19 @@
 
 Alle relevanten Änderungen an **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`) werden in dieser Datei im Format [Keep a Changelog](https://keepachangelog.com/de/1.1.0/) dokumentiert und über `@changesets/cli` verwaltet.
 
+## [0.5.0] - 2026-11-14
+
+### Hinzugefügt / Geändert
+- **`@simplex-viz/core`**:
+  - **Vollständige Generalisierung der Clustering-Schicht**: Tag-basiertes Clustering (`{ id, tags }` / Jaccard + Hitting-Set) ist nun eine mitgelieferte Spezialisierung statt harter Kern-Voraussetzung (`requiresTags?: boolean`, `StrategyItemIdentityConfig`, `extractIdentifiedItems`, `embedSimilarityMatrixOnMesh`).
+  - **`createEmbeddingClusteringStrategy`**: Erstklassige Unterstützung für untaggte Domänenobjekte mit einzelnen oder gewichteten multimodalen Vektor-Embeddings (`sources`), k-Means++ / Spherical k-Means, QAP-Mesh-Einbettung, ungarischer Cluster-UID-Stabilität sowie geschlossener baryzentrischer NNLS-Simplex-Projektion (`'simplex-projection'`, `'explaining-away'`, `'top-1'`).
+  - **`createSimilarityClusteringStrategy`**: Clustering beliebiger untaggter Objekte anhand einer paarweisen Ähnlichkeitsfunktion `(a, b) => [0, 1]` über PAM k-Medoids, QAP-Einbettung und Simplex-Projektion.
+  - Erweiterte Kontext-Metadaten (`representativeItems`, `centroid`, `cohesion`, `featureSummary`, `residualDistance`) und generisches Hungarian-Matching anhand von Mitgliedschaften/Zentroiden auch ohne Tags.
+- **`@simplex-viz/svg` & `@simplex-viz/react`**:
+  - `StrategyItemIdentityConfig`-Durchreichung (`getTags` optional bei nicht-Tag-basierten Strategien), Cluster-Gewichts-Fallback-Tooltips für untaggte Objekte, angepasste Cache-Keys und vollständige Re-Exports aller neuen Embedding-/Similarity-Strategien und Typen.
+- **Demo-App & Dokumentation**:
+  - 4 umschaltbare Datensätze (`Knowledge Articles (Tags)`, `Images & Videos (Dual Embeddings)`, `Voice Samples (Audio Signatures)`, `Body Shapes (Latent Vectors)`) ohne `.tags` auf den neuen Modellen, domänenspezifische SVG-Vorschauen (Audio-Wellenform, Körpersilhouette, Media-Gradient) sowie dynamische Modalitätsgewichtungs-Controls.
+
 ## [0.4.0] - 2026-11-14
 
 ### Hinzugefügt

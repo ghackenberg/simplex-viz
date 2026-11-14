@@ -1,14 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SimplexGraphEngine } from '../src/engine';
+import { isPointInTriangle } from '../src/geometry';
 import { solveSimplexSnapshot } from '../src/snapshot';
 import {
   createAdaptiveHexMeshStrategy,
+  createCollisionDrivenLayoutStrategy,
+  createEmbeddingClusteringStrategy,
   createFixedLatticeMeshStrategy,
   createIncrementalAnchorClusteringStrategy,
   createJaccardAnnealingClusteringStrategy,
   createLocalAdaptiveLayoutStrategy,
   createPaletteColorStrategy,
   createPbdUniformLayoutStrategy,
+  createSimilarityClusteringStrategy,
+  createSoftSimplexEmbeddingClusteringStrategy,
+  createSoftSimplexTagClusteringStrategy,
   createThemeAdaptiveOklabColorStrategy,
   createWarmStartPbdLayoutStrategy,
   type SimplexClusteringStrategy,
@@ -287,5 +293,327 @@ describe('Pluggable Core Strategies', () => {
     > = snap.items[0]!.layoutContext;
     expect(cluster.meta.top.length).toBeGreaterThan(0);
     expect(ctx.tags[0]?.meta?.upper.length).toBeGreaterThan(0);
+  });
+
+  it('clusters untagged items using multi-modal vector embeddings with barycentric simplex projection and incremental UID stability', () => {
+    interface VoiceRecording {
+      readonly id: string;
+      readonly label: string;
+      readonly timbre: readonly number[];
+      readonly prosody: readonly number[];
+    }
+
+    const recordings: VoiceRecording[] = [
+      // Cluster A: low pitch + warm timbre
+      { id: 'v1', label: 'Narrator A', timbre: [0.95, 0.2, 0.05, 0.0], prosody: [0.85, 0.15] },
+      { id: 'v2', label: 'Narrator B', timbre: [0.92, 0.24, 0.08, 0.02], prosody: [0.8, 0.2] },
+      { id: 'v3', label: 'Narrator C', timbre: [0.89, 0.28, 0.04, 0.05], prosody: [0.88, 0.12] },
+      // Cluster B: bright + crisp
+      { id: 'v4', label: 'Soprano A', timbre: [0.05, 0.94, 0.2, 0.02], prosody: [0.2, 0.8] },
+      { id: 'v5', label: 'Soprano B', timbre: [0.08, 0.91, 0.25, 0.05], prosody: [0.25, 0.75] },
+      { id: 'v6', label: 'Soprano C', timbre: [0.1, 0.88, 0.18, 0.08], prosody: [0.18, 0.82] },
+      // Cluster C: gravelly + percussive
+      { id: 'v7', label: 'Vocalist A', timbre: [0.04, 0.08, 0.93, 0.22], prosody: [0.5, 0.5] },
+      { id: 'v8', label: 'Vocalist B', timbre: [0.06, 0.12, 0.9, 0.28], prosody: [0.55, 0.45] },
+      { id: 'v9', label: 'Vocalist C', timbre: [0.05, 0.1, 0.94, 0.18], prosody: [0.48, 0.52] },
+      // Hybrid bridge between A and B
+      { id: 'v10', label: 'Alto Bridge', timbre: [0.55, 0.58, 0.12, 0.04], prosody: [0.52, 0.48] },
+    ];
+
+    const strategy = createEmbeddingClusteringStrategy<VoiceRecording>({
+      getEmbedding: [
+        { name: 'Timbre', getVector: (r) => r.timbre, weight: 0.75 },
+        { name: 'Prosody', getVector: (r) => r.prosody, weight: 0.25 },
+      ],
+      metric: 'cosine',
+      anchorRule: 'simplex-projection',
+      deriveLabel: (reps, idx) =>
+        reps[0]?.item.label ?? `Voice ${idx + 1}`,
+    });
+
+    expect(strategy.requiresTags).toBe(false);
+
+    const snap = solveSimplexSnapshot(recordings, {
+      width: 960,
+      height: 620,
+      clusteringStrategy: strategy,
+      deriveClusterMeta: (ctx) => ({
+        cohesion: ctx.cohesion ?? 0,
+        leadLabel: ctx.representativeItems?.[0]?.item.label ?? '',
+      }),
+    });
+
+    expect(snap.metrics.overlapCount).toBe(0);
+    expect(snap.clusters.length).toBeGreaterThanOrEqual(3);
+    for (const c of snap.clusters) {
+      expect(c.cluster.coreTags.length).toBe(0);
+      expect(c.cluster.centroid?.length).toBe(6);
+      expect(c.cluster.representativeItems?.length).toBeGreaterThanOrEqual(1);
+      expect(c.cluster.meta.leadLabel.length).toBeGreaterThan(0);
+    }
+
+    // Check barycentric weights & residual distances for untagged items
+    for (const item of snap.items) {
+      expect(item.layoutContext.tags.length).toBe(0);
+      const weightSum = item.layoutContext.unitClusters.reduce((s, u) => s + u.weight, 0);
+      expect(Math.abs(weightSum - 1)).toBeLessThan(1e-4);
+      expect(item.layoutContext.residualDistance).toBeGreaterThanOrEqual(0);
+      expect(item.layoutContext.featureSummary?.length).toBeGreaterThan(0);
+    }
+
+    // Verify incremental stability when adding/removing untagged items in SimplexGraphEngine
+    const engine = new SimplexGraphEngine({
+      items: recordings,
+      clusteringStrategy: strategy,
+      visualResolver: {
+        resolveContentVisual: () => ({ r: 10 }),
+        resolveClusterVisual: () => ({ r: 24 }),
+        getVisualCacheKey: () => 'v-emb',
+      },
+      renderer: createHeadlessRenderer(),
+      viewportWidth: 960,
+      viewportHeight: 620,
+    });
+
+    const initialUids = new Set(engine.getClusters().map((c) => c.clusterUid));
+    engine.addItems([
+      { id: 'v11', label: 'Narrator D', timbre: [0.91, 0.22, 0.06, 0.03], prosody: [0.84, 0.16] },
+    ]);
+    const preserved = engine.getClusters().filter((c) => initialUids.has(c.clusterUid));
+    expect(preserved.length).toBeGreaterThanOrEqual(3);
+    expect(engine.getMetrics().overlapCount).toBe(0);
+
+    // Euclidean distance metric also produces valid overlap-free snapshot
+    const eucSnap = solveSimplexSnapshot(recordings, {
+      clusteringStrategy: createEmbeddingClusteringStrategy<VoiceRecording>({
+        getEmbedding: (r) => r.timbre,
+        metric: 'euclidean',
+        anchorRule: 'explaining-away',
+      }),
+    });
+    expect(eucSnap.metrics.overlapCount).toBe(0);
+
+    engine.destroy();
+  });
+
+  it('clusters untagged items from an arbitrary pairwise similarity function via k-Medoids + QAP mesh embedding', () => {
+    interface BodyScan {
+      readonly id: string;
+      readonly measurements: readonly [number, number, number];
+    }
+
+    const scans: BodyScan[] = [
+      { id: 'b1', measurements: [0.1, 0.1, 0.9] },
+      { id: 'b2', measurements: [0.15, 0.12, 0.85] },
+      { id: 'b3', measurements: [0.9, 0.1, 0.1] },
+      { id: 'b4', measurements: [0.85, 0.15, 0.12] },
+      { id: 'b5', measurements: [0.1, 0.9, 0.1] },
+      { id: 'b6', measurements: [0.14, 0.86, 0.12] },
+      { id: 'b7', measurements: [0.5, 0.5, 0.5] },
+    ];
+
+    const strategy = createSimilarityClusteringStrategy<BodyScan>({
+      getSimilarity: (a, b) => {
+        let sq = 0;
+        for (let i = 0; i < 3; i++) {
+          const d = a.measurements[i]! - b.measurements[i]!;
+          sq += d * d;
+        }
+        return Math.exp(-sq * 2.5);
+      },
+      anchorRule: 'simplex-projection',
+      deriveLabel: (reps, idx) => `Medoid ${reps[0]?.itemId ?? idx}`,
+    });
+
+    expect(strategy.requiresTags).toBe(false);
+
+    const snap = solveSimplexSnapshot(scans, {
+      width: 900,
+      height: 580,
+      clusteringStrategy: strategy,
+    });
+
+    expect(snap.metrics.overlapCount).toBe(0);
+    expect(snap.clusters.length).toBeGreaterThanOrEqual(3);
+    for (const c of snap.clusters) {
+      expect(c.cluster.defaultLabel).toMatch(/^Medoid b/);
+    }
+    for (const it of snap.items) {
+      const sum = it.layoutContext.unitClusters.reduce((s, u) => s + u.weight, 0);
+      expect(Math.abs(sum - 1)).toBeLessThan(1e-4);
+    }
+  });
+
+  it('scales adaptive mesh clusters cleanly when getTags is scoped to Jaccard/Incremental clustering strategy', () => {
+    interface ArticleWithoutTagsProp {
+      readonly id: string;
+      readonly keywords: readonly string[];
+    }
+
+    const articles: ArticleWithoutTagsProp[] = Array.from({ length: 20 }, (_, i) => ({
+      id: `art-${i}`,
+      keywords: [
+        `topic-${i % 12}`,
+        `topic-${(i + 3) % 12}`,
+        `topic-${(i + 5) % 12}`,
+      ],
+    }));
+
+    const snap = solveSimplexSnapshot(articles, {
+      width: 1200,
+      height: 800,
+      clusteringStrategy: createJaccardAnnealingClusteringStrategy({
+        getTags: (a) => a.keywords,
+      }),
+    });
+
+    expect(snap.metrics.overlapCount).toBe(0);
+    expect(snap.metrics.tagCount).toBe(12);
+    expect(snap.clusters.length).toBeGreaterThan(3);
+  });
+
+  it('supports Soft-Simplex tag & embedding clustering combined with Collision-Driven Adaptive Layout', () => {
+    const softTagSnap = solveSimplexSnapshot(TEST_ITEMS, {
+      width: 960,
+      height: 620,
+      clusteringStrategy: createSoftSimplexTagClusteringStrategy({
+        triangleSpread: 0.45,
+        balanceLoad: true,
+      }),
+      layoutStrategy: createCollisionDrivenLayoutStrategy({
+        minLocalScale: 0.34,
+      }),
+    });
+
+    expect(softTagSnap.metrics.overlapCount).toBe(0);
+    expect(softTagSnap.metrics.maxPenetrationPx).toBeLessThanOrEqual(1e-4);
+
+    // Items should spread into 3-way triangle simplices and preserve 100% weight sums
+    const triItems = softTagSnap.items.filter(
+      (it) => it.layoutContext.unitClusters.length >= 3,
+    );
+    expect(triItems.length).toBeGreaterThan(0);
+    for (const it of softTagSnap.items) {
+      const sum = it.layoutContext.unitClusters.reduce((s, u) => s + u.weight, 0);
+      expect(Math.abs(sum - 1)).toBeLessThan(1e-5);
+    }
+
+    // Skewed embedding dataset paired with Soft-Simplex Embedding + Collision-Driven Layout
+    interface AudioSample {
+      readonly id: string;
+      readonly label: string;
+      readonly vec: readonly number[];
+    }
+    const samples: AudioSample[] = [
+      ...Array.from({ length: 18 }, (_, i) => ({
+        id: `crowd-${i}`,
+        label: `Crowd ${i}`,
+        vec: [0.95, 0.12 + (i % 3) * 0.02, 0.04, 0.01],
+      })),
+      { id: 'solo-a', label: 'Solo A', vec: [0.05, 0.96, 0.05, 0.02] },
+      { id: 'solo-b', label: 'Solo B', vec: [0.04, 0.06, 0.95, 0.08] },
+      { id: 'solo-c', label: 'Solo C', vec: [0.06, 0.05, 0.08, 0.95] },
+      { id: 'bridge', label: 'Bridge', vec: [0.45, 0.48, 0.44, 0.12] },
+    ];
+
+    const softEmbStrategy = createSoftSimplexEmbeddingClusteringStrategy<AudioSample>({
+      getEmbedding: (s) => s.vec,
+      metric: 'cosine',
+      triangleSpread: 0.48,
+      balanceLoad: true,
+    });
+    expect(softEmbStrategy.requiresTags).toBe(false);
+
+    const embSnap = solveSimplexSnapshot(samples, {
+      width: 960,
+      height: 620,
+      itemRadius: 16,
+      clusteringStrategy: softEmbStrategy,
+      layoutStrategy: createCollisionDrivenLayoutStrategy({
+        minLocalScale: 0.34,
+        shrinkFactor: 0.85,
+      }),
+    });
+
+    expect(embSnap.metrics.overlapCount).toBe(0);
+    expect(embSnap.metrics.maxPenetrationPx).toBeLessThanOrEqual(1e-4);
+    for (const it of embSnap.items) {
+      const sum = it.layoutContext.unitClusters.reduce((s, u) => s + u.weight, 0);
+      expect(Math.abs(sum - 1)).toBeLessThan(1e-4);
+    }
+
+    // Sparse items keep full 1.0x legibility while at least some dense items may stay large or shrink only where needed
+    const maxItemScale = Math.max(...embSnap.items.map((it) => it.scale));
+    expect(maxItemScale).toBeCloseTo(1.0, 5);
+  });
+
+  it('enforces covering-triangle containment end-to-end via solveSimplexSnapshot across all built-in layout strategies', () => {
+    const denseTagged: DefaultTaggedItem[] = [
+      ...Array.from({ length: 14 }, (_, i) => ({
+        id: `d-${i}`,
+        tags: ['rust', 'wasm', 'compilers'],
+      })),
+      ...Array.from({ length: 10 }, (_, i) => ({
+        id: `e-${i}`,
+        tags: ['svg', 'geometry'],
+      })),
+      ...TEST_ITEMS,
+    ];
+
+    const verifySnapshotContainment = (
+      snap: ReturnType<typeof solveSimplexSnapshot<DefaultTaggedItem>>,
+    ) => {
+      expect(snap.metrics.overlapCount).toBe(0);
+      expect(snap.metrics.maxPenetrationPx).toBeLessThanOrEqual(1e-4);
+      for (const it of snap.items) {
+        const indices = it.layoutContext.unitClusters.map((uc) => uc.cluster.clusterIndex);
+        if (indices.length < 2) continue;
+        const covering = snap.mesh.triangles.filter((tr) =>
+          indices.every((req) => tr.vertices.includes(req)),
+        );
+        if (covering.length === 0) continue;
+        const insideAny = covering.some((tr) =>
+          isPointInTriangle(
+            it.x,
+            it.y,
+            snap.mesh.vertices[tr.vertices[0]]!,
+            snap.mesh.vertices[tr.vertices[1]]!,
+            snap.mesh.vertices[tr.vertices[2]]!,
+            1e-4,
+          ),
+        );
+        expect(insideAny).toBe(true);
+      }
+    };
+
+    verifySnapshotContainment(
+      solveSimplexSnapshot(denseTagged, {
+        width: 820,
+        height: 540,
+        itemRadius: 16,
+        clusteringStrategy: createJaccardAnnealingClusteringStrategy(),
+        layoutStrategy: createPbdUniformLayoutStrategy(),
+      }),
+    );
+
+    verifySnapshotContainment(
+      solveSimplexSnapshot(denseTagged, {
+        width: 820,
+        height: 540,
+        itemRadius: 16,
+        clusteringStrategy: createSoftSimplexTagClusteringStrategy(),
+        layoutStrategy: createLocalAdaptiveLayoutStrategy(),
+      }),
+    );
+
+    verifySnapshotContainment(
+      solveSimplexSnapshot(denseTagged, {
+        width: 820,
+        height: 540,
+        itemRadius: 16,
+        clusteringStrategy: createSoftSimplexTagClusteringStrategy(),
+        layoutStrategy: createCollisionDrivenLayoutStrategy(),
+      }),
+    );
   });
 });

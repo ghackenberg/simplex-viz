@@ -5,7 +5,7 @@
 <h1 align="center">SimplexViz</h1>
 
 <p align="center">
-  <strong>Triangulation-based, strictly overlap-free visualization of tagged content collections on a dynamic 60° equilateral triangle mesh (simplex mesh).</strong>
+  <strong>Triangulation-based, strictly overlap-free visualization of arbitrary domain collections (vector embeddings, pairwise similarities, or tagged items) on a dynamic 60° equilateral triangle mesh.</strong>
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-f59e0b.svg" alt="License: MIT" /></a>
 </p>
 
-SimplexViz partitions tagged collections into balanced topic clusters, embeds them onto an adaptive 60° simplex lattice with perceptual OKLab color mixing, and resolves every convex node hull to a guaranteed `0.0 px` overlap layout. It is structured as a modular three-layer TypeScript stack—a zero-dependency headless core (`@simplex-viz/core`), a framework-agnostic SVG engine (`@simplex-viz/svg`), and type-safe React bindings (`@simplex-viz/react`).
+SimplexViz partitions arbitrary collections—whether **single- or multi-modal vector embeddings** (text, images, videos, voice audio signatures, body-shape latents), **custom pairwise similarity functions**, or **tagged knowledge items**—into balanced clusters, embeds them onto an adaptive 60° simplex lattice with perceptual OKLab color mixing, and resolves every convex node hull to a guaranteed `0.0 px` overlap layout. It is structured as a modular three-layer TypeScript stack—a zero-dependency headless core (`@simplex-viz/core`), a framework-agnostic SVG engine (`@simplex-viz/svg`), and type-safe React bindings (`@simplex-viz/react`).
 
 ## Live Showcase
 
@@ -30,13 +30,13 @@ Explore the interactive demo at **<https://hackenberg.tech/simplex-viz/>**. It b
 
 ## Project Vision & Mathematical Principle
 
-Classical force-directed layouts often turn tagged knowledge collections into unreadable hairball graphs with crossing edges and overlapping labels. **SimplexViz** embeds topic centroids onto an adaptive **toothed equilateral 60° triangle lattice** through four **pluggable, independently swappable strategy stages**:
+Classical force-directed layouts and raw UMAP/t-SNE scatters often turn multi-dimensional collections into unreadable hairballs or overlapping blobs. **SimplexViz** embeds cluster centroids or medoids onto an adaptive **toothed equilateral 60° triangle lattice** through four **pluggable, independently swappable strategy stages**:
 
 1. **Mesh Strategy (`SimplexMeshStrategy`)**: Defaults to `createAdaptiveHexMeshStrategy()` (`buildSimplexMesh`), which selects the most area-efficient 60° lattice orientation (`horizontal` or `vertical`) and row parity (`wideFirst`) from viewport dimensions `(W, H)`, or can be swapped for `createFixedLatticeMeshStrategy({ cols, rows })`.
-2. **Clustering & Anchoring Strategy (`SimplexClusteringStrategy`)**: Defaults to `createJaccardAnnealingClusteringStrategy()` (or incremental `createIncrementalAnchorClusteringStrategy()` with `initialize` + `update`):
-   - **Stage 1**: Regularized Jaccard co-occurrence partitions tags into `K` balanced disjoint core sets `T_k^core` and embeds them onto mesh vertices via Simulated Annealing (Quadratic Assignment Problem).
-   - **Stage 2 (`sharedTagRule`)**: A Weighted Hitting-Set pass plus backward pruning adds minimal `sharedTags` (`'planar-hitting-set'`, or `'none'` for strict disjoint partitions) until 100% of items are planar-covered (`C_i ⊆ T_a ∪ T_b ∪ T_c`).
-   - **Stage 3 (`anchorRule`)**: Assigns each item to its covering simplex unit (`'explaining-away'`, `'raw-overlap'`, or `'barycentric-all'`) and computes `(anchorX, anchorY)`.
+2. **Clustering & Anchoring Strategy (`SimplexClusteringStrategy`)**: Completely representation-agnostic via `requiresTags?: boolean`:
+   - **Tag Specialization (Built-in Default)**: `createJaccardAnnealingClusteringStrategy()` (or `createIncrementalAnchorClusteringStrategy()`) treats `{ id, tags }` / `getTags` as an out-of-the-box specialization—partitioning tags via regularized Jaccard + QAP Simulated Annealing, adding minimal `sharedTags` via Weighted Hitting-Set (`'planar-hitting-set'`), and projecting items onto simplex units (`'explaining-away'`, `'raw-overlap'`, `'barycentric-all'`).
+   - **Single & Multi-Modal Vector Embeddings (`requiresTags: false`)**: `createEmbeddingClusteringStrategy()` clusters untagged items from one or multiple weighted feature vectors (`getEmbedding: [{ getVector, weight }]`), embeds centroids onto the mesh via QAP Simulated Annealing (`embedSimilarityMatrixOnMesh`), preserves cluster UIDs across updates via Hungarian matching, and projects items into planar simplex coordinates via closed-form NNLS barycentric projection (`'simplex-projection'`, `'explaining-away'`, `'top-1'`).
+   - **Pairwise Similarity Matrices (`requiresTags: false`)**: `createSimilarityClusteringStrategy({ getSimilarity })` partitions any untagged domain model using PAM k-Medoids, QAP mesh embedding, and simplex projection from a domain-specific `(a, b) => [0, 1]` similarity function.
 3. **Color Strategy (`SimplexColorStrategy`)**: Defaults to `createOklabContrastColorStrategy()` (perceptual OKLab edge-contrast coloring + chroma-preserving barycentric mixing), or swaps cleanly to `createThemeAdaptiveOklabColorStrategy()` or `createPaletteColorStrategy(hexColors)`.
 4. **Layout & Collision Strategy (`SimplexLayoutStrategy`)**: Defaults to `createPbdUniformLayoutStrategy()` (`solveTwoPhaseLayout`: binary search over `α_content`, position-based relaxation, and exact SAT / circle-polygon MTV separation), or swaps to `createWarmStartPbdLayoutStrategy()` or `createLocalAdaptiveLayoutStrategy()`—strictly guaranteeing **0.0 px overlap** across all built-in solvers.
 
@@ -125,9 +125,9 @@ controller.setPreset('glyphs');
 Zero-config defaults never lock you in—you can opt into deeper control one layer at a time as your application grows:
 
 1. **Level 1 — Built-in Presets & Interactivity (`preset`, `theme`, `tooltip`, `focusOnClusterClick`, `focusOnTriangleClick`)**: Switch between `'geometric'`, `'glyphs'`, and `'badges'`, pair with `'dark'` or `'light'` themes, toggle `tooltip` (`boolean` or custom formatter for items, clusters, and mesh triangles), and rely on built-in drag-to-pan, wheel zoom, and cluster or triangle face click-focus toggles.
-2. **Level 2 — Custom Domain Schemas (`getId`, `getTags`, `getLabel`, `deriveClusterMeta`)**: Keep your existing domain records (`Article`, `Bookmark`, `Document`) without mapping them to `{ id, tags }`. TypeScript enforces `getId` and `getTags` whenever your type lacks `id` or `tags`.
+2. **Level 2 — Custom Domain Schemas (`getId`, `getTags`, `getLabel`, `deriveClusterMeta`)**: Keep your existing domain records (`Article`, `ImageAsset`, `VoiceClip`, `BodyScan`) without mapping them to `{ id, tags }`. TypeScript enforces `getTags` *only* when using the default tag-clustering path; passing `clusteringStrategy` (`createEmbeddingClusteringStrategy`, `createSimilarityClusteringStrategy`, or custom) makes `getTags` completely optional.
 3. **Level 3 — Keyless React JSX or Portable `SvgNodeView` / `SvgTriangleView` / `SvgEdgeView` Plugins**: Supply `renderContentNode` / `renderClusterNode` in React *without* writing a `VisualResolver` (auto-measured via offscreen `getBBox()`), or pass any `SvgNodeView`, `SvgTriangleView` (`OklabTintTriangleSvgView`, `GradientTriangleSvgView`, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`), and `SvgEdgeView` (`DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`) plugin for 60 fps imperative SVG updates.
-4. **Level 4 — Pluggable Core Strategies (`meshStrategy`, `clusteringStrategy`, `colorStrategy`, `layoutStrategy`)**: Mix and match built-in factories (`createFixedLatticeMeshStrategy`, `createIncrementalAnchorClusteringStrategy`, `createThemeAdaptiveOklabColorStrategy`, `createPaletteColorStrategy`, `createLocalAdaptiveLayoutStrategy`) or supply your own implementations—orthogonal to any visual preset.
+4. **Level 4 — Pluggable Core Strategies (`meshStrategy`, `clusteringStrategy`, `colorStrategy`, `layoutStrategy`)**: Mix and match tag strategies (`createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`), multi-modal embedding strategies (`createEmbeddingClusteringStrategy`), pairwise similarity strategies (`createSimilarityClusteringStrategy`), fixed lattices, palettes, and local-adaptive layout solvers—orthogonal to any visual preset.
 5. **Level 5 — Full `VisualResolver` & Headless `solveSimplexSnapshot` / `SimplexGraphEngine`**: Define typed visual descriptors and crossfade keys, compute one-shot static layouts with `solveSimplexSnapshot(items)` in Node.js/SSR/Canvas, or drive custom WebGL engines frame by frame with `SimplexGraphEngine`.
 
 ### Example: Custom Domain Record with Keyless React JSX
@@ -240,17 +240,51 @@ export function ConfiguredTopicMap({ items }: { items: readonly { id: string; ta
 }
 ```
 
+### Example: Multi-Modal Embeddings Without Tags (`createEmbeddingClusteringStrategy`)
+
+Your items do not need a `tags` property at all—visualize untagged images, videos, voice signatures, or latent vectors directly using weighted multi-modal embeddings:
+
+```tsx
+import { SimplexTopicGraph, createEmbeddingClusteringStrategy } from '@simplex-viz/react';
+
+interface MediaAsset {
+  readonly id: string;
+  readonly title: string;
+  readonly sceneEmbedding: readonly number[];
+  readonly styleEmbedding: readonly number[];
+}
+
+export function MediaSimplexMap({ assets }: { assets: readonly MediaAsset[] }) {
+  return (
+    <SimplexTopicGraph
+      items={assets}
+      getLabel={(m) => m.title}
+      clusteringStrategy={createEmbeddingClusteringStrategy<MediaAsset>({
+        getEmbedding: [
+          { name: 'Semantic Scene', getVector: (m) => m.sceneEmbedding, weight: 0.7 },
+          { name: 'Visual Style', getVector: (m) => m.styleEmbedding, weight: 0.3 },
+        ],
+        metric: 'cosine',
+        anchorRule: 'simplex-projection',
+      })}
+      preset="glyphs"
+      tooltip
+    />
+  );
+}
+```
+
 ## Local Development & Scripts
 
-Use these pnpm workspace scripts to run the interactive demo locally, enforce module boundaries, execute unit and integration tests, build package artifacts, and verify package exports:
+Use these npm workspace scripts to run the interactive demo locally, enforce module boundaries, execute unit and integration tests, build package artifacts, and verify package exports:
 
 ```bash
-pnpm install
-pnpm dev                # Starts the interactive demo app at http://localhost:3000
-pnpm lint               # ESLint (module boundary checks) + TypeScript typecheck
-pnpm test               # Vitest invariant, type-level, and DOM integration tests
-pnpm build:packages     # Builds dist/ + .d.ts for all three packages
-pnpm validate:packages  # Validates package exports with publint
+npm install
+npm run dev                # Starts the interactive demo app at http://localhost:3000
+npm run lint               # ESLint (module boundary checks) + TypeScript typecheck
+npm test                   # Vitest invariant, type-level, and DOM integration tests
+npm run build:packages     # Builds dist/ + .d.ts for all three packages
+npm run validate:packages  # Validates package exports with publint
 ```
 
 ## License
