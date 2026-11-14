@@ -13,7 +13,7 @@ import {
   type NormalizedContentItem,
   type PreviousClusterSnapshot,
 } from './clustering';
-import { hitTestConvexGeometry } from './geometry';
+import { hitTestConvexGeometry, isPointInTriangle } from './geometry';
 import { hexToOklab, lerpOklabHex, mixOklabColors, type OklabTuple } from './oklab';
 import {
   createAdaptiveHexMeshStrategy,
@@ -72,10 +72,22 @@ interface AnimatedNodeRecord<TVisual, TDomainMeta> {
 
 interface AnimatedTriangleRecord {
   readonly index: number;
+  readonly vertexIndices: readonly [number, number, number];
   readonly points: readonly [Point2D, Point2D, Point2D];
+  readonly centroid: Point2D;
+  readonly coveredItemCount: number;
+  readonly interiorItemCount: number;
   currentOklab: [number, number, number];
   targetOklab: OklabTuple;
   fillHex: string;
+}
+
+interface AnimatedEdgeRecord {
+  readonly index: number;
+  readonly vertexIndices: readonly [number, number];
+  readonly a: Point2D;
+  readonly b: Point2D;
+  readonly mixedColorHex: string;
 }
 
 function defaultGetId<TItem>(item: TItem): string {
@@ -123,7 +135,13 @@ export class SimplexGraphEngine<
     TTagMeta,
     TClusterMeta
   >;
-  private readonly renderer: SimplexRendererAdapter<TContentVisual, TClusterVisual>;
+  private readonly renderer: SimplexRendererAdapter<
+    TContentVisual,
+    TClusterVisual,
+    TItem,
+    TTagMeta,
+    TClusterMeta
+  >;
   private viewportWidth: number;
   private viewportHeight: number;
   private meshOptions: MeshOptions;
@@ -167,14 +185,16 @@ export class SimplexGraphEngine<
     AnimatedNodeRecord<TContentVisual, ComputedItemPlacement<TItem, TTagMeta, TClusterMeta>>
   >();
   private triangleStates: AnimatedTriangleRecord[] = [];
-  private edgeStates: MeshEdgeRenderState[] = [];
+  private edgeRecords: AnimatedEdgeRecord[] = [];
 
   private readonly nextClusterUidSeq = { value: 0 };
   private hoveredContentId: string | null = null;
   private hoveredClusterUid: string | null = null;
+  private hoveredTriangleIndex: number | null = null;
   private pinnedIds = new Set<string>();
   private highlightedIds = new Set<string>();
   private focusedClusterUid: string | null = null;
+  private focusedTriangleIndex: number | null = null;
 
   private currentMetrics: LayoutMetrics = {
     clusterCount: 0,
@@ -485,6 +505,19 @@ export class SimplexGraphEngine<
   /** Focuses a specific cluster UID (dimming unrelated nodes) or clears focus with `null`. */
   setFocusedClusterUid(clusterUid: string | null): void {
     this.focusedClusterUid = clusterUid;
+    this.dirtyRender = true;
+  }
+
+  /** Focuses a specific mesh triangle face by index (dimming unrelated faces, clusters, and items) or clears with `null`. */
+  setFocusedTriangleIndex(triangleIndex: number | null): void {
+    const valid =
+      triangleIndex !== null &&
+      triangleIndex >= 0 &&
+      triangleIndex < this.triangleStates.length
+        ? triangleIndex
+        : null;
+    if (this.focusedTriangleIndex === valid) return;
+    this.focusedTriangleIndex = valid;
     this.dirtyRender = true;
   }
 
@@ -820,12 +853,13 @@ export class SimplexGraphEngine<
       }
     }
 
-    // 5. Reconcile triangle background OKLab tints
+    // 5. Reconcile triangle background OKLab tints, centroids, and density counts
     const prevTriMap = new Map<number, AnimatedTriangleRecord>();
     for (const tr of this.triangleStates) {
       prevTriMap.set(tr.index, tr);
     }
 
+    const fallbackOklab = hexToOklab('#1e293b');
     this.triangleStates = mesh.triangles.map((tri) => {
       const [va, vb, vc] = tri.vertices;
       const pA = mesh.vertices[va]!;
@@ -835,9 +869,9 @@ export class SimplexGraphEngine<
       const cB = this.currentClusters[vb];
       const cC = this.currentClusters[vc];
       const mixed = mixOklabColors([
-        { oklab: cA?.oklab ?? hexToOklab('#1e293b'), weight: 1 },
-        { oklab: cB?.oklab ?? hexToOklab('#1e293b'), weight: 1 },
-        { oklab: cC?.oklab ?? hexToOklab('#1e293b'), weight: 1 },
+        { oklab: cA?.oklab ?? fallbackOklab, weight: 1 },
+        { oklab: cB?.oklab ?? fallbackOklab, weight: 1 },
+        { oklab: cC?.oklab ?? fallbackOklab, weight: 1 },
       ]);
       const prev = prevTriMap.get(tri.index);
       const startOklab: [number, number, number] =
@@ -845,28 +879,78 @@ export class SimplexGraphEngine<
           ? [...prev.currentOklab]
           : [mixed.oklab[0], mixed.oklab[1], mixed.oklab[2]];
 
+      let coveredItemCount = 0;
+      let interiorItemCount = 0;
+      for (const placement of this.currentPlacements) {
+        const ucs = placement.layoutContext.unitClusters;
+        if (ucs.length === 0) continue;
+        let allInside = true;
+        for (let k = 0; k < ucs.length; k++) {
+          const cIdx = ucs[k]!.cluster.clusterIndex;
+          if (cIdx !== va && cIdx !== vb && cIdx !== vc) {
+            allInside = false;
+            break;
+          }
+        }
+        if (allInside) {
+          coveredItemCount++;
+          if (ucs.length === 3) {
+            interiorItemCount++;
+          }
+        }
+      }
+
       return {
         index: tri.index,
+        vertexIndices: [va, vb, vc],
         points: [
           { x: pA.x, y: pA.y },
           { x: pB.x, y: pB.y },
           { x: pC.x, y: pC.y },
         ],
+        centroid: {
+          x: (pA.x + pB.x + pC.x) / 3,
+          y: (pA.y + pB.y + pC.y) / 3,
+        },
+        coveredItemCount,
+        interiorItemCount,
         currentOklab: startOklab,
         targetOklab: mixed.oklab,
         fillHex: lerpOklabHex(startOklab, mixed.oklab, isInitial ? 1 : 0),
       };
     });
 
-    this.edgeStates = mesh.edges.map((e) => {
+    this.edgeRecords = mesh.edges.map((e, idx) => {
       const a = mesh.vertices[e.a]!;
       const b = mesh.vertices[e.b]!;
+      const cA = this.currentClusters[e.a];
+      const cB = this.currentClusters[e.b];
+      const mixed = mixOklabColors([
+        { oklab: cA?.oklab ?? fallbackOklab, weight: 1 },
+        { oklab: cB?.oklab ?? fallbackOklab, weight: 1 },
+      ]);
       return {
+        index: idx,
+        vertexIndices: [e.a, e.b],
         a: { x: a.x, y: a.y },
         b: { x: b.x, y: b.y },
-        isHighlighted: false,
+        mixedColorHex: mixed.hex,
       };
     });
+
+    if (
+      this.hoveredTriangleIndex !== null &&
+      this.hoveredTriangleIndex >= this.triangleStates.length
+    ) {
+      this.hoveredTriangleIndex = null;
+      this.interactions.onTriangleHover?.(null);
+    }
+    if (
+      this.focusedTriangleIndex !== null &&
+      this.focusedTriangleIndex >= this.triangleStates.length
+    ) {
+      this.focusedTriangleIndex = null;
+    }
 
     this.currentMetrics = {
       clusterCount: this.currentClusters.length,
@@ -963,17 +1047,78 @@ export class SimplexGraphEngine<
     return allSettled;
   }
 
-  private buildFrameSnapshot(): SceneFrameSnapshot<TContentVisual, TClusterVisual> {
+  private buildTriangleRenderState(
+    tr: AnimatedTriangleRecord,
+    hasTriangleFocus = false,
+  ): MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta> {
+    const [va, vb, vc] = tr.vertexIndices;
+    const isHovered = this.hoveredTriangleIndex === tr.index;
+    const isFocused = this.focusedTriangleIndex === tr.index;
+    const isDimmed = hasTriangleFocus && !isFocused && !isHovered;
+    return {
+      index: tr.index,
+      vertexIndices: tr.vertexIndices,
+      points: tr.points,
+      centroid: tr.centroid,
+      fillHex: tr.fillHex,
+      fillOpacity: 0.085,
+      clusters: [
+        this.currentClusters[va],
+        this.currentClusters[vb],
+        this.currentClusters[vc],
+      ],
+      coveredItemCount: tr.coveredItemCount,
+      interiorItemCount: tr.interiorItemCount,
+      interaction: {
+        isHovered,
+        isFocused,
+        isDimmed,
+      },
+    };
+  }
+
+  private buildFrameSnapshot(): SceneFrameSnapshot<
+    TContentVisual,
+    TClusterVisual,
+    TItem,
+    TTagMeta,
+    TClusterMeta
+  > {
+    const hasTriangleOnlyFocus =
+      this.focusedTriangleIndex !== null &&
+      this.focusedClusterUid === null &&
+      this.highlightedIds.size === 0;
+    const focusedTriangle =
+      this.focusedTriangleIndex !== null
+        ? this.triangleStates[this.focusedTriangleIndex]
+        : undefined;
+    const hoveredTriangle =
+      this.hoveredTriangleIndex !== null
+        ? this.triangleStates[this.hoveredTriangleIndex]
+        : undefined;
+    const focusedTriVertSet = focusedTriangle
+      ? new Set(focusedTriangle.vertexIndices)
+      : null;
+    const hoveredTriVertSet = hoveredTriangle
+      ? new Set(hoveredTriangle.vertexIndices)
+      : null;
+
     const hasHighlightFocus =
-      this.highlightedIds.size > 0 || this.focusedClusterUid !== null;
+      this.highlightedIds.size > 0 ||
+      this.focusedClusterUid !== null ||
+      hasTriangleOnlyFocus;
 
     const clusters: NodeRenderState<TClusterVisual>[] = [];
     for (const cNode of this.clusterNodes.values()) {
       const isHovered = this.hoveredClusterUid === cNode.id;
-      const isFocused = this.focusedClusterUid === cNode.id;
+      const isFocusedCluster = this.focusedClusterUid === cNode.id;
+      const inFocusedTriangle = Boolean(
+        hasTriangleOnlyFocus && focusedTriVertSet?.has(cNode.domain.clusterIndex),
+      );
       const isPinned = this.pinnedIds.has(cNode.id);
       const isDimmed =
-        this.focusedClusterUid !== null && !isFocused && !isHovered;
+        (this.focusedClusterUid !== null && !isFocusedCluster && !isHovered) ||
+        (hasTriangleOnlyFocus && !inFocusedTriangle && !isHovered);
 
       clusters.push({
         id: cNode.id,
@@ -988,7 +1133,7 @@ export class SimplexGraphEngine<
           isHovered,
           isPinned,
           isDimmed,
-          isHighlighted: isFocused,
+          isHighlighted: isFocusedCluster || inFocusedTriangle,
         },
         transition: cNode.transition
           ? {
@@ -1013,8 +1158,17 @@ export class SimplexGraphEngine<
         iNode.domain.layoutContext.unitClusters.some(
           (uc) => uc.cluster.clusterUid === this.focusedClusterUid,
         );
+      const belongsToFocusedTriangle =
+        hasTriangleOnlyFocus &&
+        focusedTriVertSet !== null &&
+        iNode.domain.layoutContext.unitClusters.length > 0 &&
+        iNode.domain.layoutContext.unitClusters.every((uc) =>
+          focusedTriVertSet.has(uc.cluster.clusterIndex),
+        );
       const isHighlighted =
-        this.highlightedIds.has(iNode.id) || belongsToFocusedCluster;
+        this.highlightedIds.has(iNode.id) ||
+        belongsToFocusedCluster ||
+        belongsToFocusedTriangle;
       const isDimmed = hasHighlightFocus && !isHighlighted && !isHovered && !isPinned;
 
       items.push({
@@ -1046,19 +1200,52 @@ export class SimplexGraphEngine<
       });
     }
 
-    const triangles: MeshTriangleRenderState[] = this.triangleStates.map((tr) => ({
-      index: tr.index,
-      points: tr.points,
-      fillHex: tr.fillHex,
-      fillOpacity: 0.085,
-    }));
+    const hasTriangleFocus = this.focusedTriangleIndex !== null;
+    const triangles: MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta>[] =
+      this.triangleStates.map((tr) =>
+        this.buildTriangleRenderState(tr, hasTriangleFocus),
+      );
+
+    const edges: MeshEdgeRenderState<TItem, TTagMeta, TClusterMeta>[] =
+      this.edgeRecords.map((edge) => {
+        const [ea, eb] = edge.vertexIndices;
+        const cA = this.currentClusters[ea];
+        const cB = this.currentClusters[eb];
+        const onFocusedTri = Boolean(
+          focusedTriVertSet && focusedTriVertSet.has(ea) && focusedTriVertSet.has(eb),
+        );
+        const onHoveredTri = Boolean(
+          hoveredTriVertSet && hoveredTriVertSet.has(ea) && hoveredTriVertSet.has(eb),
+        );
+        const touchesFocusedCluster =
+          this.focusedClusterUid !== null &&
+          (cA?.clusterUid === this.focusedClusterUid ||
+            cB?.clusterUid === this.focusedClusterUid);
+        const touchesHoveredCluster =
+          this.hoveredClusterUid !== null &&
+          (cA?.clusterUid === this.hoveredClusterUid ||
+            cB?.clusterUid === this.hoveredClusterUid);
+        return {
+          index: edge.index,
+          vertexIndices: edge.vertexIndices,
+          a: edge.a,
+          b: edge.b,
+          mixedColorHex: edge.mixedColorHex,
+          clusters: [cA, cB],
+          isHighlighted:
+            onFocusedTri ||
+            onHoveredTri ||
+            touchesFocusedCluster ||
+            touchesHoveredCluster,
+        };
+      });
 
     return {
       viewportWidth: this.viewportWidth,
       viewportHeight: this.viewportHeight,
       camera: this.camera.getState(),
       triangles,
-      edges: this.edgeStates,
+      edges,
       clusters,
       items,
       showHulls: this.showHulls,
@@ -1067,7 +1254,7 @@ export class SimplexGraphEngine<
 
   /**
    * Mathematical convex-hull hit-testing in world coordinates.
-   * Checks active items first (topmost draw order), then clusters, else background.
+   * Checks active items first (topmost draw order), then clusters, then triangle faces, else background.
    */
   hitTest(
     screenX: number,
@@ -1129,6 +1316,28 @@ export class SimplexGraphEngine<
       }
     }
 
+    // Test mesh triangle faces
+    const hasTriangleFocus = this.focusedTriangleIndex !== null;
+    for (let i = this.triangleStates.length - 1; i >= 0; i--) {
+      const tr = this.triangleStates[i]!;
+      if (
+        isPointInTriangle(
+          worldPosition.x,
+          worldPosition.y,
+          tr.points[0],
+          tr.points[1],
+          tr.points[2],
+        )
+      ) {
+        return {
+          kind: 'triangle',
+          triangle: this.buildTriangleRenderState(tr, hasTriangleFocus),
+          worldPosition,
+          screenPosition,
+        };
+      }
+    }
+
     return {
       kind: 'background',
       worldPosition,
@@ -1146,6 +1355,10 @@ export class SimplexGraphEngine<
         this.hoveredClusterUid = null;
         this.interactions.onClusterHover?.(null);
       }
+      if (this.hoveredTriangleIndex !== null) {
+        this.hoveredTriangleIndex = null;
+        this.interactions.onTriangleHover?.(null);
+      }
       this.hoveredContentId = nextId;
       this.dirtyRender = true;
       this.interactions.onContentHover?.({
@@ -1161,11 +1374,31 @@ export class SimplexGraphEngine<
         this.hoveredContentId = null;
         this.interactions.onContentHover?.(null);
       }
+      if (this.hoveredTriangleIndex !== null) {
+        this.hoveredTriangleIndex = null;
+        this.interactions.onTriangleHover?.(null);
+      }
       this.hoveredClusterUid = nextUid;
       this.dirtyRender = true;
       this.interactions.onClusterHover?.({
         cluster: target.cluster,
         visual: target.visual,
+        screenPosition: target.screenPosition,
+        worldPosition: target.worldPosition,
+      });
+    } else if (target.kind === 'triangle') {
+      if (this.hoveredContentId !== null) {
+        this.hoveredContentId = null;
+        this.interactions.onContentHover?.(null);
+      }
+      if (this.hoveredClusterUid !== null) {
+        this.hoveredClusterUid = null;
+        this.interactions.onClusterHover?.(null);
+      }
+      this.hoveredTriangleIndex = target.triangle.index;
+      this.dirtyRender = true;
+      this.interactions.onTriangleHover?.({
+        triangle: target.triangle,
         screenPosition: target.screenPosition,
         worldPosition: target.worldPosition,
       });
@@ -1179,6 +1412,11 @@ export class SimplexGraphEngine<
         this.hoveredClusterUid = null;
         this.dirtyRender = true;
         this.interactions.onClusterHover?.(null);
+      }
+      if (this.hoveredTriangleIndex !== null) {
+        this.hoveredTriangleIndex = null;
+        this.dirtyRender = true;
+        this.interactions.onTriangleHover?.(null);
       }
     }
   }
@@ -1194,6 +1432,11 @@ export class SimplexGraphEngine<
       this.hoveredClusterUid = null;
       this.dirtyRender = true;
       this.interactions.onClusterHover?.(null);
+    }
+    if (this.hoveredTriangleIndex !== null) {
+      this.hoveredTriangleIndex = null;
+      this.dirtyRender = true;
+      this.interactions.onTriangleHover?.(null);
     }
   }
 

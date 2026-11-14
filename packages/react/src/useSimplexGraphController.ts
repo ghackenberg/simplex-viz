@@ -8,7 +8,11 @@ import type {
   SimplexLayoutStrategy,
   SimplexMeshStrategy,
 } from '@simplex-viz/core';
-import type { SimplexSvgController } from '@simplex-viz/svg';
+import type {
+  SimplexSvgController,
+  SvgEdgeView,
+  SvgTriangleView,
+} from '@simplex-viz/svg';
 import { useCallback, useRef } from 'react';
 
 /**
@@ -28,6 +32,9 @@ export interface SimplexGraphHandle<
   setClusteringStrategy(strategy: SimplexClusteringStrategy<TItem, TTagMeta>): void;
   setColorStrategy(strategy: SimplexColorStrategy<TItem, TTagMeta>): void;
   setLayoutStrategy(strategy: SimplexLayoutStrategy): void;
+  setTriangleView(view: SvgTriangleView<TItem, TTagMeta, TClusterMeta>): void;
+  setEdgeView(view: SvgEdgeView<TItem, TTagMeta, TClusterMeta>): void;
+  setFocusedTriangleIndex(triangleIndex: number | null): void;
   resetCamera(): void;
   zoomBy(factor: number): void;
   getMetrics(): LayoutMetrics | null;
@@ -109,6 +116,24 @@ export function useSimplexGraphController<
     controllerRef.current?.setLayoutStrategy(strategy);
   }, []);
 
+  const setTriangleView = useCallback(
+    (view: SvgTriangleView<TItem, TTagMeta, TClusterMeta>) => {
+      controllerRef.current?.setTriangleView(view);
+    },
+    [],
+  );
+
+  const setEdgeView = useCallback(
+    (view: SvgEdgeView<TItem, TTagMeta, TClusterMeta>) => {
+      controllerRef.current?.setEdgeView(view);
+    },
+    [],
+  );
+
+  const setFocusedTriangleIndex = useCallback((triangleIndex: number | null) => {
+    controllerRef.current?.setFocusedTriangleIndex(triangleIndex);
+  }, []);
+
   const resetCamera = useCallback(() => {
     controllerRef.current?.camera.reset();
   }, []);
@@ -146,6 +171,9 @@ export function useSimplexGraphController<
       setClusteringStrategy,
       setColorStrategy,
       setLayoutStrategy,
+      setTriangleView,
+      setEdgeView,
+      setFocusedTriangleIndex,
       resetCamera,
       zoomBy,
       getMetrics,

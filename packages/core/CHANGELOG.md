@@ -5,6 +5,7 @@
 ### Minor Changes
 
 - Make all four spatial pipeline stages pluggable and hot-swappable (`SimplexMeshStrategy`, `SimplexClusteringStrategy` with `initialize`/`update` plus configurable `sharedTagRule` and `anchorRule`, `SimplexColorStrategy`, and `SimplexLayoutStrategy`), add built-in strategy factories (`createAdaptiveHexMeshStrategy`, `createFixedLatticeMeshStrategy`, `createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`, `createOklabContrastColorStrategy`, `createThemeAdaptiveOklabColorStrategy`, `createPaletteColorStrategy`, `createPbdUniformLayoutStrategy`, `createWarmStartPbdLayoutStrategy`, `createLocalAdaptiveLayoutStrategy`), and document all strategies.
+- Add barycentric triangle-face hit-testing (`isPointInTriangle`, `HitTarget` `kind: 'triangle'`), `onTriangleHover`, `setFocusedTriangleIndex`, and enriched `MeshTriangleRenderState` / `MeshEdgeRenderState` snapshots.
 
 ## 0.2.1
 

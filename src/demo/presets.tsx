@@ -6,16 +6,26 @@ import type {
 } from '@simplex-viz/core';
 import {
   BadgeClusterSvgView,
+  BarycentricSectorTriangleSvgView,
+  BlueprintInsetTriangleSvgView,
   ClusterAnchorSvgView,
+  ClusterTintedEdgeSvgView,
+  DashedMeshEdgeSvgView,
+  DensityHeatmapTriangleSvgView,
   GeometricShapeSvgView,
+  MinimalHighlightEdgeSvgView,
   MultiSectorGlyphSvgView,
+  OklabTintTriangleSvgView,
+  PrecisionRailEdgeSvgView,
   type BadgeClusterVisual,
   type ClusterAnchorVisual,
   type GeometricShapeKind,
   type GeometricShapeVisual,
   type MultiSectorGlyphVisual,
   type SimplexTheme,
+  type SvgEdgeView,
   type SvgNodeView,
+  type SvgTriangleView,
 } from '@simplex-viz/svg';
 import type { ReactNode } from 'react';
 import type {
@@ -27,6 +37,16 @@ import type {
 export type ContentRendererKind = 'geometric' | 'multisector' | 'react-card';
 export type ClusterRendererKind = 'anchor' | 'badge' | 'react-card';
 export type ContentShapeMode = 'by-type' | GeometricShapeKind;
+export type TriangleFaceStyle =
+  | 'oklab-tint'
+  | 'barycentric-sector'
+  | 'blueprint-inset'
+  | 'density-heatmap';
+export type MeshEdgeStyle =
+  | 'dashed'
+  | 'cluster-tinted'
+  | 'precision-rail'
+  | 'minimal-highlight';
 
 export interface DemoRenderConfig {
   readonly contentRenderer: ContentRendererKind;
@@ -42,6 +62,10 @@ export interface DemoRenderConfig {
   readonly anchorRadius: number;
   readonly clusterTitleMaxChars: number;
   readonly showClusterMetaLine: boolean;
+  readonly triangleFaceStyle: TriangleFaceStyle;
+  readonly triangleFaceOpacity: number;
+  readonly meshEdgeStyle: MeshEdgeStyle;
+  readonly meshEdgeWidth: number;
 }
 
 export const DEFAULT_DEMO_RENDER_CONFIG: DemoRenderConfig = {
@@ -58,6 +82,10 @@ export const DEFAULT_DEMO_RENDER_CONFIG: DemoRenderConfig = {
   anchorRadius: 23,
   clusterTitleMaxChars: 22,
   showClusterMetaLine: true,
+  triangleFaceStyle: 'oklab-tint',
+  triangleFaceOpacity: 0.09,
+  meshEdgeStyle: 'dashed',
+  meshEdgeWidth: 1.0,
 };
 
 /**
@@ -174,6 +202,67 @@ export const demoBadgeClusterView: SvgNodeView<DemoClusterVisual> = {
     }
   },
 };
+
+export function createDemoTriangleView(
+  config: Pick<DemoRenderConfig, 'triangleFaceStyle' | 'triangleFaceOpacity'>,
+): SvgTriangleView<KnowledgeEntry, TagTaxonomyInfo, TopicClusterSummary> {
+  const baseOpacity = config.triangleFaceOpacity;
+  switch (config.triangleFaceStyle) {
+    case 'barycentric-sector':
+      return new BarycentricSectorTriangleSvgView({
+        baseOpacity: Math.min(0.6, baseOpacity * 1.35),
+        showMedians: true,
+      });
+    case 'blueprint-inset':
+      return new BlueprintInsetTriangleSvgView({
+        baseOpacity,
+        insetRatio: 0.82,
+      });
+    case 'density-heatmap':
+      return new DensityHeatmapTriangleSvgView({
+        baseOpacity: Math.max(0.03, baseOpacity * 0.55),
+        peakItemCount: 10,
+        showCountBadge: true,
+      });
+    case 'oklab-tint':
+    default:
+      return new OklabTintTriangleSvgView({
+        baseOpacity,
+        hoverOpacityBoost: 0.16,
+        strokeOnHover: true,
+      });
+  }
+}
+
+export function createDemoEdgeView(
+  config: Pick<DemoRenderConfig, 'meshEdgeStyle' | 'meshEdgeWidth'>,
+): SvgEdgeView<KnowledgeEntry, TagTaxonomyInfo, TopicClusterSummary> {
+  const strokeWidth = config.meshEdgeWidth;
+  switch (config.meshEdgeStyle) {
+    case 'cluster-tinted':
+      return new ClusterTintedEdgeSvgView({
+        strokeWidth: Math.max(0.8, strokeWidth * 1.25),
+        opacity: 0.52,
+      });
+    case 'precision-rail':
+      return new PrecisionRailEdgeSvgView({
+        strokeWidth,
+        railOffset: 1.8,
+      });
+    case 'minimal-highlight':
+      return new MinimalHighlightEdgeSvgView({
+        strokeWidth: Math.max(1.0, strokeWidth * 1.3),
+        restOpacity: 0.08,
+      });
+    case 'dashed':
+    default:
+      return new DashedMeshEdgeSvgView({
+        strokeWidth,
+        dasharray: '3 4',
+        opacity: 0.3,
+      });
+  }
+}
 
 function truncateLabel(text: string, maxChars: number): string {
   const limit = Math.max(6, maxChars);

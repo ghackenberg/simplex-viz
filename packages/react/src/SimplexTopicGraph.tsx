@@ -16,6 +16,7 @@ import type {
   SimplexColorStrategy,
   SimplexLayoutStrategy,
   SimplexMeshStrategy,
+  TriangleHoverEvent,
   VisualResolver,
   WheelBehavior,
 } from '@simplex-viz/core';
@@ -28,7 +29,9 @@ import {
   type DefaultContentPresetVisual,
   type SimplexTheme,
   type SimplexVisualPreset,
+  type SvgEdgeView,
   type SvgNodeView,
+  type SvgTriangleView,
 } from '@simplex-viz/svg';
 import {
   useEffect,
@@ -62,6 +65,11 @@ export type SimplexReactTooltipTarget<
   | ({ readonly kind: 'cluster' } & ClusterHoverEvent<
       TItem,
       TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >)
+  | ({ readonly kind: 'triangle' } & TriangleHoverEvent<
+      TItem,
       TTagMeta,
       TClusterMeta
     >);
@@ -113,6 +121,10 @@ export type SimplexTopicGraphProps<
     readonly contentView?: SvgNodeView<TContentVisual>;
     /** Portable `@simplex-viz/svg` view plugin for topic clusters. */
     readonly clusterView?: SvgNodeView<TClusterVisual>;
+    /** Pluggable `@simplex-viz/svg` view plugin for triangulation triangle faces. */
+    readonly triangleView?: SvgTriangleView<TItem, TTagMeta, TClusterMeta>;
+    /** Pluggable `@simplex-viz/svg` view plugin for triangulation mesh edges. */
+    readonly edgeView?: SvgEdgeView<TItem, TTagMeta, TClusterMeta>;
     /** Optional declarative React JSX renderer for content items (auto-measured via `getBBox()`). */
     readonly renderContentNode?: (
       item: TItem,
@@ -141,11 +153,17 @@ export type SimplexTopicGraphProps<
     readonly pinnedIds?: ReadonlySet<string> | readonly string[];
     readonly highlightedIds?: ReadonlySet<string> | readonly string[];
     readonly focusedClusterUid?: string | null;
+    readonly focusedTriangleIndex?: number | null;
     /**
      * Enables built-in cluster focus toggle on click when `focusedClusterUid` and `onLeftClick`
      * are not controlled externally. Default: `true`.
      */
     readonly focusOnClusterClick?: boolean;
+    /**
+     * Enables built-in triangle face focus toggle on click when `focusedTriangleIndex` and `onLeftClick`
+     * are not controlled externally. Default: `true`.
+     */
+    readonly focusOnTriangleClick?: boolean;
     /**
      * Enables a built-in floating hover tooltip, or accepts a custom `(target) => ReactNode` formatter.
      * Default: `false`.
@@ -166,6 +184,9 @@ export type SimplexTopicGraphProps<
     ) => void;
     readonly onClusterHover?: (
       event: ClusterHoverEvent<TItem, TClusterVisual, TTagMeta, TClusterMeta> | null,
+    ) => void;
+    readonly onTriangleHover?: (
+      event: TriangleHoverEvent<TItem, TTagMeta, TClusterMeta> | null,
     ) => void;
     readonly onLeftClick?: (
       target: HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
@@ -241,6 +262,7 @@ export function SimplexTopicGraph<
   > | null>(null);
 
   const internalFocusedUidRef = useRef<string | null>(null);
+  const internalFocusedTriangleRef = useRef<number | null>(null);
 
   const contentDomainByKeyRef = useRef(
     new Map<string, ContentDomainRecord<TItem, TTagMeta, TClusterMeta>>(),
@@ -264,6 +286,8 @@ export function SimplexTopicGraph<
   const syncedClusteringStrategyRef = useRef(props.clusteringStrategy);
   const syncedColorStrategyRef = useRef(props.colorStrategy);
   const syncedLayoutStrategyRef = useRef(props.layoutStrategy);
+  const syncedTriangleViewRef = useRef(props.triangleView);
+  const syncedEdgeViewRef = useRef(props.edgeView);
 
   const resolveEffectiveResolver = (): VisualResolver<
     TItem,
@@ -437,6 +461,8 @@ export function SimplexTopicGraph<
       visualResolver: effectiveResolver,
       contentView,
       clusterView,
+      triangleView: p.triangleView,
+      edgeView: p.edgeView,
       normalizeTag: p.normalizeTag,
       resolveTagMeta: p.resolveTagMeta,
       meshOptions: p.meshOptions,
@@ -450,6 +476,7 @@ export function SimplexTopicGraph<
       layoutStrategy: p.layoutStrategy,
       showHulls: p.showHulls,
       focusOnClusterClick: false,
+      focusOnTriangleClick: false,
       interactions: {
         onContentHover: (ev) => {
           latestPropsRef.current.onContentHover?.(ev);
@@ -463,26 +490,68 @@ export function SimplexTopicGraph<
             setHoveredTarget(ev ? { kind: 'cluster', ...ev } : null);
           }
         },
+        onTriangleHover: (ev) => {
+          latestPropsRef.current.onTriangleHover?.(ev);
+          if (latestPropsRef.current.tooltip) {
+            setHoveredTarget(ev ? { kind: 'triangle', ...ev } : null);
+          }
+        },
         onLeftClick: (target, raw) => {
           const cur = latestPropsRef.current;
           if (cur.onLeftClick) {
             cur.onLeftClick(target, raw);
             return;
           }
-          if (cur.focusedClusterUid === undefined && (cur.focusOnClusterClick ?? true)) {
-            if (target.kind === 'cluster') {
-              const next =
-                internalFocusedUidRef.current === target.cluster.clusterUid
-                  ? null
-                  : target.cluster.clusterUid;
-              internalFocusedUidRef.current = next;
-              ctrlRef.current?.setFocusedClusterUid(next);
-            } else if (
-              target.kind === 'background' &&
+          if (
+            target.kind === 'cluster' &&
+            cur.focusedClusterUid === undefined &&
+            (cur.focusOnClusterClick ?? true)
+          ) {
+            if (
+              cur.focusedTriangleIndex === undefined &&
+              internalFocusedTriangleRef.current !== null
+            ) {
+              internalFocusedTriangleRef.current = null;
+              ctrlRef.current?.setFocusedTriangleIndex(null);
+            }
+            const next =
+              internalFocusedUidRef.current === target.cluster.clusterUid
+                ? null
+                : target.cluster.clusterUid;
+            internalFocusedUidRef.current = next;
+            ctrlRef.current?.setFocusedClusterUid(next);
+          } else if (
+            target.kind === 'triangle' &&
+            cur.focusedTriangleIndex === undefined &&
+            (cur.focusOnTriangleClick ?? true)
+          ) {
+            if (
+              cur.focusedClusterUid === undefined &&
               internalFocusedUidRef.current !== null
             ) {
               internalFocusedUidRef.current = null;
               ctrlRef.current?.setFocusedClusterUid(null);
+            }
+            const next =
+              internalFocusedTriangleRef.current === target.triangle.index
+                ? null
+                : target.triangle.index;
+            internalFocusedTriangleRef.current = next;
+            ctrlRef.current?.setFocusedTriangleIndex(next);
+          } else if (target.kind === 'background') {
+            if (
+              cur.focusedClusterUid === undefined &&
+              internalFocusedUidRef.current !== null
+            ) {
+              internalFocusedUidRef.current = null;
+              ctrlRef.current?.setFocusedClusterUid(null);
+            }
+            if (
+              cur.focusedTriangleIndex === undefined &&
+              internalFocusedTriangleRef.current !== null
+            ) {
+              internalFocusedTriangleRef.current = null;
+              ctrlRef.current?.setFocusedTriangleIndex(null);
             }
           }
         },
@@ -595,7 +664,23 @@ export function SimplexTopicGraph<
     }
   }, [props.layoutStrategy]);
 
-  // Sync pinned / highlighted / focused cluster
+  // Sync pluggable triangle face & edge views independently (instant re-render, no layout recompute)
+  useEffect(() => {
+    if (
+      syncedTriangleViewRef.current === props.triangleView &&
+      syncedEdgeViewRef.current === props.edgeView
+    ) {
+      return;
+    }
+    syncedTriangleViewRef.current = props.triangleView;
+    syncedEdgeViewRef.current = props.edgeView;
+    ctrlRef.current?.setViews({
+      triangleView: props.triangleView,
+      edgeView: props.edgeView,
+    });
+  }, [props.triangleView, props.edgeView]);
+
+  // Sync pinned / highlighted / focused cluster / focused triangle
   useEffect(() => {
     if (props.pinnedIds !== undefined) {
       ctrlRef.current?.setPinnedIds(props.pinnedIds);
@@ -614,6 +699,13 @@ export function SimplexTopicGraph<
       ctrlRef.current?.setFocusedClusterUid(props.focusedClusterUid);
     }
   }, [props.focusedClusterUid]);
+
+  useEffect(() => {
+    if (props.focusedTriangleIndex !== undefined) {
+      internalFocusedTriangleRef.current = props.focusedTriangleIndex;
+      ctrlRef.current?.setFocusedTriangleIndex(props.focusedTriangleIndex);
+    }
+  }, [props.focusedTriangleIndex]);
 
   // Clear built-in tooltip if prop toggled off
   useEffect(() => {
@@ -658,7 +750,7 @@ export function SimplexTopicGraph<
             </div>
           )}
         </div>
-      ) : (
+      ) : hoveredTarget.kind === 'cluster' ? (
         <div>
           <div style={{ fontWeight: 600, color: hoveredTarget.cluster.colorHex }}>
             {`${hoveredTarget.cluster.code} · ${hoveredTarget.cluster.defaultLabel}`}
@@ -667,6 +759,24 @@ export function SimplexTopicGraph<
             {`${hoveredTarget.cluster.members.length} ${
               hoveredTarget.cluster.members.length === 1 ? 'item' : 'items'
             }`}
+          </div>
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontWeight: 600, color: isLight ? '#0f172a' : '#f8fafc' }}>
+            {`Triangle #${hoveredTarget.triangle.index + 1}`}
+          </div>
+          <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
+            {hoveredTarget.triangle.clusters
+              .map((c, idx) =>
+                c
+                  ? `${c.code} (${c.defaultLabel})`
+                  : `V${hoveredTarget.triangle.vertexIndices[idx] ?? idx}`,
+              )
+              .join(' · ')}
+          </div>
+          <div style={{ marginTop: 2, fontSize: 11, color: isLight ? '#64748b' : '#94a3b8' }}>
+            {`${hoveredTarget.triangle.coveredItemCount} items · ${hoveredTarget.triangle.interiorItemCount} interior`}
           </div>
         </div>
       );

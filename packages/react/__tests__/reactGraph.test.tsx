@@ -1,7 +1,11 @@
 // @vitest-environment happy-dom
 import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { SimplexTopicGraph } from '../src/SimplexTopicGraph';
+import {
+  BarycentricSectorTriangleSvgView,
+  ClusterTintedEdgeSvgView,
+  SimplexTopicGraph,
+} from '../src/index';
 
 interface CustomDoc {
   readonly slug: string;
@@ -120,5 +124,35 @@ describe('@simplex-viz/react integration', () => {
     expect(keyless.container.querySelectorAll('g.sv-node-item').length).toBe(6);
     expect(keyless.container.querySelectorAll('g.sv-node-cluster').length).toBeGreaterThanOrEqual(3);
     keyless.unmount();
+  });
+
+  it('accepts pluggable triangleView, edgeView, and controlled focusedTriangleIndex props', () => {
+    const items = Array.from({ length: 9 }, (_, i) => ({
+      id: `t-${i}`,
+      tags: [`x-${i % 3}`, `x-${(i + 1) % 3}`],
+    }));
+
+    const { container, unmount } = render(
+      <div style={{ width: 800, height: 600 }}>
+        <SimplexTopicGraph
+          items={items}
+          triangleView={new BarycentricSectorTriangleSvgView()}
+          edgeView={new ClusterTintedEdgeSvgView()}
+          focusedTriangleIndex={0}
+          tooltip
+        />
+      </div>,
+    );
+
+    const triGroups = container.querySelectorAll('g.sv-mesh-triangle');
+    const edgeGroups = container.querySelectorAll('g.sv-mesh-edge');
+    expect(triGroups.length).toBeGreaterThanOrEqual(1);
+    expect(edgeGroups.length).toBeGreaterThanOrEqual(3);
+    // BarycentricSectorTriangleSvgView renders 3 quad polygons + medians + outline when focused
+    expect(triGroups[0]!.querySelectorAll('polygon').length).toBeGreaterThanOrEqual(3);
+    // ClusterTintedEdgeSvgView renders 3 colored segments per edge
+    expect(edgeGroups[0]!.querySelectorAll('line').length).toBe(3);
+
+    unmount();
   });
 });

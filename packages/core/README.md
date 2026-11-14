@@ -31,7 +31,7 @@ Before diving into the TypeScript API, the schematic diagram below traces a sing
 - **Perceptual OKLab palette & mixing**: Edge-contrast-optimized cluster colors (static dark-tuned, theme-adaptive dark/light, or custom hex palettes) and chroma-preserving barycentric OKLab blending.
 - **Guaranteed 0.0 px overlap**: Hierarchical two-phase convex hull solver (`solveTwoPhaseLayout`, optional warm-starting, and `solveLocalAdaptiveLayout`) combining Separating Axis Theorem (SAT), circle-polygon Minimum Translation Vectors (MTV), uniform spatial hash grids, and binary scale search.
 - **Interruptible C1-continuous animation**: Critically damped scalar springs and retargetable dual-layer transition state machines.
-- **Mathematical hit-testing**: Resolution-independent convex-hull pointer hit-testing in world coordinates.
+- **Mathematical hit-testing**: Resolution-independent convex-hull and barycentric triangle-face pointer hit-testing (`isPointInTriangle`) in world coordinates, with cluster and triangle focus isolation.
 
 ## Installation
 
@@ -169,7 +169,9 @@ const myRenderer: SimplexRendererAdapter<ArticleVisual, TopicVisual> = {
     return { kind: 'circle', radius: 24 };
   },
   renderFrame(snapshot: SceneFrameSnapshot<ArticleVisual, TopicVisual>) {
-    // Draw snapshot.triangles, snapshot.edges, snapshot.clusters, snapshot.items
+    // Draw snapshot.triangles (with clusters, coveredItemCount, interiorItemCount,
+    // interaction.isHovered / isFocused / isDimmed), snapshot.edges (with mixedColorHex,
+    // clusters, isHighlighted), snapshot.clusters, and snapshot.items
     // using snapshot.camera ({ zoom, panX, panY })
   },
   destroy() {
@@ -248,9 +250,10 @@ To highlight items, isolate a topic cluster, or handle user input in a Canvas/We
 // Focus & highlight states
 engine.setPinnedIds(['sat-primer']);
 engine.setFocusedClusterUid(engine.getClusters()[0]?.clusterUid ?? null);
+engine.setFocusedTriangleIndex(0);
 
 // Forward normalized pointer & wheel events from your surface
-engine.handlePointerMove(screenX, screenY);
+engine.handlePointerMove(screenX, screenY); // Emits onContentHover, onClusterHover, onTriangleHover
 engine.handleLeftClick({
   screenX,
   screenY,
@@ -366,7 +369,7 @@ Every algorithmic building block can also be imported standalone:
 - **Mesh**: `buildSimplexMesh(width, height, tagCount, options)`, `buildSimplexLattice(...)`
 - **Clustering**: `computeSimplexClustering(...)`, `analyzeTagCorpus(...)`, `partitionTagsJaccard(...)`, `computeMeshHopDistances(...)`, `embedClustersQapAnnealing(...)`, `completePlanarSharedTags(...)`, `matchClustersHungarian(...)`, `assignItemsToSimplexUnits(...)`, `extractNormalizedItems(...)`, `defaultNormalizeTag(...)`
 - **Layout Solver**: `solveTwoPhaseLayout(...)`, `solveLocalAdaptiveLayout(...)`, `solveClusterPhase(...)`, `buildPhyllotaxisStarts(...)`, `runPerItemPbdRelaxation(...)`
-- **Geometry & Collision**: `computeConvexHull`, `rectToConvexPolygon`, `regularPolygon`, `starConvexHull`, `computeConvexMtv`, `computeCirclePolygonMtv`, `hitTestConvexGeometry`, `UniformSpatialHashGrid`
+- **Geometry & Collision**: `computeConvexHull`, `rectToConvexPolygon`, `regularPolygon`, `starConvexHull`, `isPointInTriangle`, `computeConvexMtv`, `computeCirclePolygonMtv`, `hitTestConvexGeometry`, `UniformSpatialHashGrid`
 - **Color Science**: `hexToOklab`, `oklabToHex`, `mixOklabColors`, `lerpOklabHex`, `generatePerceptualClusterPalette`, `buildDistinctOklabPalette`, `assignMeshClusterColors`, `assignGreedyEdgeContrastColors`
 - **Animation & Camera**: `stepCriticallyDampedSpring`, `retargetVisualTransition`, `stepVisualTransition`, `SimplexCamera`
 

@@ -1,16 +1,33 @@
 import {
   getHullBoundingRadius,
   type ConvexGeometry,
+  type DefaultTaggedItem,
+  type MeshEdgeRenderState,
+  type MeshTriangleRenderState,
   type NodeRenderState,
   type SceneFrameSnapshot,
+  type SimplexColorTheme,
   type SimplexRendererAdapter,
 } from '@simplex-viz/core';
 import { measureVisualWithSvgView, SVG_NS } from './hullMeasure';
-import type { SvgNodeView } from './types';
+import type { SvgEdgeView, SvgNodeView, SvgTriangleView } from './types';
+import {
+  DashedMeshEdgeSvgView,
+  OklabTintTriangleSvgView,
+} from './views/MeshFaceEdgeViews';
 
-export interface SvgRendererOptions<TContentVisual, TClusterVisual> {
+export interface SvgRendererOptions<
+  TContentVisual,
+  TClusterVisual,
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> {
   readonly contentView: SvgNodeView<TContentVisual>;
   readonly clusterView: SvgNodeView<TClusterVisual>;
+  readonly triangleView?: SvgTriangleView<TItem, TTagMeta, TClusterMeta>;
+  readonly edgeView?: SvgEdgeView<TItem, TTagMeta, TClusterMeta>;
+  readonly theme?: SimplexColorTheme;
 }
 
 interface TrackedNodeDom<TVisual> {
@@ -27,20 +44,62 @@ interface TrackedNodeDom<TVisual> {
   lastView?: SvgNodeView<TVisual>;
 }
 
+interface TrackedMeshPartDom {
+  readonly group: SVGGElement;
+  lastSig: string | null;
+}
+
 function interactionSignature<TVisual>(state: NodeRenderState<TVisual>): string {
   const { isHovered, isPinned, isDimmed, isHighlighted } = state.interaction;
   return `${isHovered ? 1 : 0}${isPinned ? 1 : 0}${isDimmed ? 1 : 0}${isHighlighted ? 1 : 0}`;
+}
+
+function triangleSignature<TItem, TTagMeta, TClusterMeta>(
+  tr: MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta>,
+  theme: SimplexColorTheme,
+  viewSeq: number,
+  viewKey: string,
+): string {
+  const pts = tr.points
+    .map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+    .join(';');
+  const { isHovered, isFocused, isDimmed } = tr.interaction;
+  const clusterColors = tr.clusters.map((c) => c?.colorHex ?? '').join(',');
+  return `${viewSeq}:${viewKey}:${theme}:${pts}:${tr.fillHex}:${tr.fillOpacity.toFixed(3)}:${tr.coveredItemCount}:${tr.interiorItemCount}:${clusterColors}:${isHovered ? 1 : 0}${isFocused ? 1 : 0}${isDimmed ? 1 : 0}`;
+}
+
+function edgeSignature<TItem, TTagMeta, TClusterMeta>(
+  edge: MeshEdgeRenderState<TItem, TTagMeta, TClusterMeta>,
+  theme: SimplexColorTheme,
+  viewSeq: number,
+  viewKey: string,
+): string {
+  const c0 = edge.clusters[0]?.colorHex ?? '';
+  const c1 = edge.clusters[1]?.colorHex ?? '';
+  return `${viewSeq}:${viewKey}:${theme}:${edge.a.x.toFixed(1)},${edge.a.y.toFixed(1)}-${edge.b.x.toFixed(1)},${edge.b.y.toFixed(1)}:${edge.mixedColorHex}:${c0},${c1}:${edge.isHighlighted ? 1 : 0}`;
 }
 
 /**
  * Framework-agnostic SVG scene-graph renderer implementing `SimplexRendererAdapter`.
  *
  * Performs keyed `<g>` reconciliation, direct 60fps `transform`/`opacity` attribute updates,
- * automatic offscreen `getBBox()` convex hull measurement, and universal Dual-Layer Crossfade
- * (or optional parametric `morph()` when supported by the active `SvgNodeView`).
+ * pluggable triangle face & edge views, automatic offscreen `getBBox()` convex hull measurement,
+ * and universal Dual-Layer Crossfade (or optional parametric `morph()`).
  */
-export class SvgRendererAdapter<TContentVisual, TClusterVisual>
-  implements SimplexRendererAdapter<TContentVisual, TClusterVisual>
+export class SvgRendererAdapter<
+  TContentVisual,
+  TClusterVisual,
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> implements
+    SimplexRendererAdapter<
+      TContentVisual,
+      TClusterVisual,
+      TItem,
+      TTagMeta,
+      TClusterMeta
+    >
 {
   private readonly svgEl: SVGSVGElement;
   private readonly doc: Document;
@@ -54,6 +113,11 @@ export class SvgRendererAdapter<TContentVisual, TClusterVisual>
 
   private contentView: SvgNodeView<TContentVisual>;
   private clusterView: SvgNodeView<TClusterVisual>;
+  private triangleView: SvgTriangleView<TItem, TTagMeta, TClusterMeta>;
+  private edgeView: SvgEdgeView<TItem, TTagMeta, TClusterMeta>;
+  private theme: SimplexColorTheme;
+  private triangleViewSeq = 0;
+  private edgeViewSeq = 0;
 
   private readonly contentHullCache = new Map<string, ConvexGeometry>();
   private readonly clusterHullCache = new Map<string, ConvexGeometry>();
@@ -62,17 +126,30 @@ export class SvgRendererAdapter<TContentVisual, TClusterVisual>
 
   private readonly clusterDomMap = new Map<string, TrackedNodeDom<TClusterVisual>>();
   private readonly itemDomMap = new Map<string, TrackedNodeDom<TContentVisual>>();
-  private readonly trianglePolygons: SVGPolygonElement[] = [];
-  private readonly edgeLines: SVGLineElement[] = [];
+  private readonly triangleDom: TrackedMeshPartDom[] = [];
+  private readonly edgeDom: TrackedMeshPartDom[] = [];
 
   constructor(
     svgEl: SVGSVGElement,
-    options: SvgRendererOptions<TContentVisual, TClusterVisual>,
+    options: SvgRendererOptions<
+      TContentVisual,
+      TClusterVisual,
+      TItem,
+      TTagMeta,
+      TClusterMeta
+    >,
   ) {
     this.svgEl = svgEl;
     this.doc = svgEl.ownerDocument;
     this.contentView = options.contentView;
     this.clusterView = options.clusterView;
+    this.triangleView =
+      options.triangleView ??
+      new OklabTintTriangleSvgView<TItem, TTagMeta, TClusterMeta>();
+    this.edgeView =
+      options.edgeView ??
+      new DashedMeshEdgeSvgView<TItem, TTagMeta, TClusterMeta>();
+    this.theme = options.theme ?? 'dark';
 
     while (this.svgEl.firstChild) {
       this.svgEl.removeChild(this.svgEl.firstChild);
@@ -108,11 +185,32 @@ export class SvgRendererAdapter<TContentVisual, TClusterVisual>
   }
 
   /**
-   * Swaps active content and/or cluster `SvgNodeView` plugins at runtime and invalidates
-   * hull caches so the engine re-measures and smoothly crossfades into the new views.
+   * Updates the active color theme forwarded to `SvgTriangleView` and `SvgEdgeView`.
+   */
+  setTheme(theme: SimplexColorTheme): void {
+    if (this.theme === theme) return;
+    this.theme = theme;
+    for (const d of this.triangleDom) d.lastSig = null;
+    for (const d of this.edgeDom) d.lastSig = null;
+  }
+
+  /**
+   * Swaps active content, cluster, triangle face, and/or edge SVG view plugins at runtime
+   * and invalidates caches so the engine re-measures and renders smoothly.
    */
   setViews(
-    views: Partial<SvgRendererOptions<TContentVisual, TClusterVisual>>,
+    views: Partial<
+      Omit<
+        SvgRendererOptions<
+          TContentVisual,
+          TClusterVisual,
+          TItem,
+          TTagMeta,
+          TClusterMeta
+        >,
+        'theme'
+      >
+    >,
   ): void {
     if (views.contentView && views.contentView !== this.contentView) {
       this.contentView = views.contentView;
@@ -121,6 +219,16 @@ export class SvgRendererAdapter<TContentVisual, TClusterVisual>
     if (views.clusterView && views.clusterView !== this.clusterView) {
       this.clusterView = views.clusterView;
       this.clusterHullCache.clear();
+    }
+    if (views.triangleView && views.triangleView !== this.triangleView) {
+      this.triangleView = views.triangleView;
+      this.triangleViewSeq += 1;
+      for (const d of this.triangleDom) d.lastSig = null;
+    }
+    if (views.edgeView && views.edgeView !== this.edgeView) {
+      this.edgeView = views.edgeView;
+      this.edgeViewSeq += 1;
+      for (const d of this.edgeDom) d.lastSig = null;
     }
   }
 
@@ -148,7 +256,15 @@ export class SvgRendererAdapter<TContentVisual, TClusterVisual>
     );
   }
 
-  renderFrame(snapshot: SceneFrameSnapshot<TContentVisual, TClusterVisual>): void {
+  renderFrame(
+    snapshot: SceneFrameSnapshot<
+      TContentVisual,
+      TClusterVisual,
+      TItem,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): void {
     this.svgEl.setAttribute(
       'viewBox',
       `0 0 ${snapshot.viewportWidth} ${snapshot.viewportHeight}`,
@@ -158,47 +274,50 @@ export class SvgRendererAdapter<TContentVisual, TClusterVisual>
       `translate(${snapshot.camera.panX.toFixed(2)}, ${snapshot.camera.panY.toFixed(2)}) scale(${snapshot.camera.zoom.toFixed(4)})`,
     );
 
-    // 1. Mesh triangles
-    while (this.trianglePolygons.length < snapshot.triangles.length) {
-      const poly = this.doc.createElementNS(SVG_NS, 'polygon');
-      this.trianglesGroup.appendChild(poly);
-      this.trianglePolygons.push(poly);
+    // 1. Pluggable Mesh Triangles
+    while (this.triangleDom.length < snapshot.triangles.length) {
+      const group = this.createGroup('sv-mesh-triangle');
+      group.setAttribute('data-triangle-index', String(this.triangleDom.length));
+      this.trianglesGroup.appendChild(group);
+      this.triangleDom.push({ group, lastSig: null });
     }
-    while (this.trianglePolygons.length > snapshot.triangles.length) {
-      const poly = this.trianglePolygons.pop();
-      poly?.remove();
+    while (this.triangleDom.length > snapshot.triangles.length) {
+      const entry = this.triangleDom.pop();
+      entry?.group.remove();
     }
+    const triViewKey = this.triangleView.cacheKey ?? '';
     for (let i = 0; i < snapshot.triangles.length; i++) {
       const tr = snapshot.triangles[i]!;
-      const poly = this.trianglePolygons[i]!;
-      poly.setAttribute(
-        'points',
-        tr.points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '),
-      );
-      poly.setAttribute('fill', tr.fillHex);
-      poly.setAttribute('fill-opacity', String(tr.fillOpacity));
+      const entry = this.triangleDom[i]!;
+      entry.group.setAttribute('data-triangle-index', String(tr.index));
+      const sig = triangleSignature(tr, this.theme, this.triangleViewSeq, triViewKey);
+      if (entry.lastSig !== sig) {
+        this.triangleView.mountOrUpdate(entry.group, tr, this.theme);
+        entry.lastSig = sig;
+      }
     }
 
-    // 2. Mesh edges
-    while (this.edgeLines.length < snapshot.edges.length) {
-      const line = this.doc.createElementNS(SVG_NS, 'line');
-      line.setAttribute('stroke', 'rgba(100, 116, 139, 0.26)');
-      line.setAttribute('stroke-width', '1');
-      line.setAttribute('stroke-dasharray', '3 4');
-      this.edgesGroup.appendChild(line);
-      this.edgeLines.push(line);
+    // 2. Pluggable Mesh Edges
+    while (this.edgeDom.length < snapshot.edges.length) {
+      const group = this.createGroup('sv-mesh-edge');
+      group.setAttribute('data-edge-index', String(this.edgeDom.length));
+      this.edgesGroup.appendChild(group);
+      this.edgeDom.push({ group, lastSig: null });
     }
-    while (this.edgeLines.length > snapshot.edges.length) {
-      const line = this.edgeLines.pop();
-      line?.remove();
+    while (this.edgeDom.length > snapshot.edges.length) {
+      const entry = this.edgeDom.pop();
+      entry?.group.remove();
     }
+    const edgeViewKey = this.edgeView.cacheKey ?? '';
     for (let i = 0; i < snapshot.edges.length; i++) {
       const edge = snapshot.edges[i]!;
-      const line = this.edgeLines[i]!;
-      line.setAttribute('x1', edge.a.x.toFixed(1));
-      line.setAttribute('y1', edge.a.y.toFixed(1));
-      line.setAttribute('x2', edge.b.x.toFixed(1));
-      line.setAttribute('y2', edge.b.y.toFixed(1));
+      const entry = this.edgeDom[i]!;
+      entry.group.setAttribute('data-edge-index', String(edge.index));
+      const sig = edgeSignature(edge, this.theme, this.edgeViewSeq, edgeViewKey);
+      if (entry.lastSig !== sig) {
+        this.edgeView.mountOrUpdate(entry.group, edge, this.theme);
+        entry.lastSig = sig;
+      }
     }
 
     // 3. Reconcile Clusters & Content Items
@@ -402,7 +521,13 @@ export class SvgRendererAdapter<TContentVisual, TClusterVisual>
   }
 
   private renderHullOverlay(
-    snapshot: SceneFrameSnapshot<TContentVisual, TClusterVisual>,
+    snapshot: SceneFrameSnapshot<
+      TContentVisual,
+      TClusterVisual,
+      TItem,
+      TTagMeta,
+      TClusterMeta
+    >,
   ): void {
     while (this.hullsGroup.firstChild) {
       this.hullsGroup.removeChild(this.hullsGroup.firstChild);
@@ -457,6 +582,8 @@ export class SvgRendererAdapter<TContentVisual, TClusterVisual>
   destroy(): void {
     this.clusterDomMap.clear();
     this.itemDomMap.clear();
+    this.triangleDom.length = 0;
+    this.edgeDom.length = 0;
     this.contentHullCache.clear();
     this.clusterHullCache.clear();
     this.contentViewByKey.clear();

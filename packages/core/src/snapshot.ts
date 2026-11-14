@@ -138,8 +138,8 @@ export interface SimplexLayoutSnapshot<
   readonly width: number;
   readonly height: number;
   readonly mesh: SimplexMesh;
-  readonly triangles: readonly MeshTriangleRenderState[];
-  readonly edges: readonly MeshEdgeRenderState[];
+  readonly triangles: readonly MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta>[];
+  readonly edges: readonly MeshEdgeRenderState<TItem, TTagMeta, TClusterMeta>[];
   readonly clusters: readonly SnapshotClusterNode<TItem, TTagMeta, TClusterMeta>[];
   readonly items: readonly SnapshotContentNode<TItem, TTagMeta, TClusterMeta>[];
   readonly metrics: LayoutMetrics;
@@ -340,40 +340,86 @@ export function solveSimplexSnapshot<
     });
 
   const fallbackOklab = hexToOklab('#1e293b');
-  const triangles: MeshTriangleRenderState[] = mesh.triangles.map((tri) => {
-    const [va, vb, vc] = tri.vertices;
-    const pA = mesh.vertices[va]!;
-    const pB = mesh.vertices[vb]!;
-    const pC = mesh.vertices[vc]!;
-    const cA = clustering.clusters[va];
-    const cB = clustering.clusters[vb];
-    const cC = clustering.clusters[vc];
-    const mixed = mixOklabColors([
-      { oklab: cA?.oklab ?? fallbackOklab, weight: 1 },
-      { oklab: cB?.oklab ?? fallbackOklab, weight: 1 },
-      { oklab: cC?.oklab ?? fallbackOklab, weight: 1 },
-    ]);
-    return {
-      index: tri.index,
-      points: [
-        { x: pA.x, y: pA.y },
-        { x: pB.x, y: pB.y },
-        { x: pC.x, y: pC.y },
-      ],
-      fillHex: mixed.hex,
-      fillOpacity: 0.085,
-    };
-  });
+  const triangles: MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta>[] =
+    mesh.triangles.map((tri) => {
+      const [va, vb, vc] = tri.vertices;
+      const pA = mesh.vertices[va]!;
+      const pB = mesh.vertices[vb]!;
+      const pC = mesh.vertices[vc]!;
+      const cA = clusters[va]?.cluster;
+      const cB = clusters[vb]?.cluster;
+      const cC = clusters[vc]?.cluster;
+      const mixed = mixOklabColors([
+        { oklab: cA?.oklab ?? fallbackOklab, weight: 1 },
+        { oklab: cB?.oklab ?? fallbackOklab, weight: 1 },
+        { oklab: cC?.oklab ?? fallbackOklab, weight: 1 },
+      ]);
+      let coveredItemCount = 0;
+      let interiorItemCount = 0;
+      for (const placement of clustering.items) {
+        const ucs = placement.layoutContext.unitClusters;
+        if (ucs.length === 0) continue;
+        let allInside = true;
+        for (let k = 0; k < ucs.length; k++) {
+          const cIdx = ucs[k]!.cluster.clusterIndex;
+          if (cIdx !== va && cIdx !== vb && cIdx !== vc) {
+            allInside = false;
+            break;
+          }
+        }
+        if (allInside) {
+          coveredItemCount++;
+          if (ucs.length === 3) {
+            interiorItemCount++;
+          }
+        }
+      }
+      return {
+        index: tri.index,
+        vertexIndices: [va, vb, vc],
+        points: [
+          { x: pA.x, y: pA.y },
+          { x: pB.x, y: pB.y },
+          { x: pC.x, y: pC.y },
+        ],
+        centroid: {
+          x: (pA.x + pB.x + pC.x) / 3,
+          y: (pA.y + pB.y + pC.y) / 3,
+        },
+        fillHex: mixed.hex,
+        fillOpacity: 0.085,
+        clusters: [cA, cB, cC],
+        coveredItemCount,
+        interiorItemCount,
+        interaction: {
+          isHovered: false,
+          isFocused: false,
+          isDimmed: false,
+        },
+      };
+    });
 
-  const edges: MeshEdgeRenderState[] = mesh.edges.map((e) => {
-    const a = mesh.vertices[e.a]!;
-    const b = mesh.vertices[e.b]!;
-    return {
-      a: { x: a.x, y: a.y },
-      b: { x: b.x, y: b.y },
-      isHighlighted: false,
-    };
-  });
+  const edges: MeshEdgeRenderState<TItem, TTagMeta, TClusterMeta>[] = mesh.edges.map(
+    (e, idx) => {
+      const a = mesh.vertices[e.a]!;
+      const b = mesh.vertices[e.b]!;
+      const cA = clusters[e.a]?.cluster;
+      const cB = clusters[e.b]?.cluster;
+      const mixed = mixOklabColors([
+        { oklab: cA?.oklab ?? fallbackOklab, weight: 1 },
+        { oklab: cB?.oklab ?? fallbackOklab, weight: 1 },
+      ]);
+      return {
+        index: idx,
+        vertexIndices: [e.a, e.b],
+        a: { x: a.x, y: a.y },
+        b: { x: b.x, y: b.y },
+        mixedColorHex: mixed.hex,
+        clusters: [cA, cB],
+        isHighlighted: false,
+      };
+    },
+  );
 
   const metrics: LayoutMetrics = {
     clusterCount: clusters.length,

@@ -22,11 +22,12 @@ While `@simplex-viz/core` computes pure spatial coordinates, `@simplex-viz/svg` 
 
 ## Features
 
-- **Framework-agnostic SVG scene graph**: Keyed DOM reconciliation for background mesh triangles, highlighted edges, convex hull debug wireframes, cluster nodes, and content nodes.
+- **Framework-agnostic SVG scene graph**: Keyed DOM reconciliation for background mesh triangles, mesh edges, convex hull debug wireframes, cluster nodes, and content nodes.
+- **Pluggable triangle face & mesh edge views**: Swap `SvgTriangleView` (`OklabTintTriangleSvgView`, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`) and `SvgEdgeView` (`DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`) live via `setTriangleView` / `setEdgeView` / `setViews`.
 - **Automatic offscreen `getBBox()` hull measurement**: Omit `measureConvexHull` on any `SvgNodeView` and `@simplex-viz/svg` automatically renders it in a hidden measurement bin, reads `getBBox()`, and caches a tight convex polygon for overlap-free layout.
 - **Smooth 60 fps transitions**: Critically damped spring motion + specialized parametric `morph()` or automatic dual-layer crossfade when switching visual presets or mutating items.
-- **Centralized root-SVG interactions**: Attaches pointer, two-finger touch pinch-to-zoom/pan, click, right-click, wheel, drag-to-pan, and `ResizeObserver` listeners solely on the root `<svg>` element and delegates hit-testing to `@simplex-viz/core`'s exact convex geometry solver.
-- **Four built-in view plugins**: Ready-to-use views for geometric shape morphing, multi-sector topic glyphs, vertex anchors, and dynamic text badges.
+- **Centralized root-SVG interactions**: Attaches pointer, two-finger touch pinch-to-zoom/pan, click, right-click, wheel, drag-to-pan, and `ResizeObserver` listeners solely on the root `<svg>` element and delegates hit-testing to `@simplex-viz/core`'s exact convex geometry + triangle-face solver (including triangle hover tooltips and click-to-focus while keeping drag-to-pan intact).
+- **Modular built-in view plugins**: Four node views (geometric shape morphing, multi-sector topic glyphs, vertex anchors, dynamic text badges) plus four triangle face views and four mesh edge views.
 
 ## Installation
 
@@ -85,10 +86,15 @@ const controller = new SimplexSvgController('#graph', {
   getId: (a) => a.slug,
   getTags: (a) => a.topics,
   preset: 'badges',
-  tooltip: (target) =>
-    target.kind === 'content'
-      ? `${target.item.headline} (${target.layoutContext.tags.length} tags)`
-      : `${target.cluster.defaultLabel}: ${target.cluster.members.length} articles`,
+  tooltip: (target) => {
+    if (target.kind === 'content') {
+      return `${target.item.headline} (${target.layoutContext.tags.length} tags)`;
+    }
+    if (target.kind === 'cluster') {
+      return `${target.cluster.defaultLabel}: ${target.cluster.members.length} articles`;
+    }
+    return `Triangle #${target.triangle.index + 1} (${target.triangle.coveredItemCount} items)`;
+  },
 });
 ```
 
@@ -297,6 +303,44 @@ const visual: ClusterAnchorVisual = {
 };
 ```
 
+## Pluggable Triangle Faces & Mesh Edges (`SvgTriangleView` & `SvgEdgeView`)
+
+Every mesh triangle face (`MeshTriangleRenderState`) and edge (`MeshEdgeRenderState`) is rendered through swappable `SvgTriangleView` and `SvgEdgeView` plugins. Triangle faces automatically participate in world-coordinate hit-testing: hovering illuminates the face and opens tooltips (`onTriangleHover`), left-clicking toggles triangle isolation (`focusOnTriangleClick`, default `true`), and pressing + dragging still pans smoothly across faces.
+
+```ts
+import {
+  SimplexSvgController,
+  BarycentricSectorTriangleSvgView,
+  ClusterTintedEdgeSvgView,
+  DensityHeatmapTriangleSvgView,
+  PrecisionRailEdgeSvgView,
+} from '@simplex-viz/svg';
+
+const controller = new SimplexSvgController('#graph', {
+  items,
+  preset: 'glyphs',
+  tooltip: true,
+  triangleView: new BarycentricSectorTriangleSvgView({ baseOpacity: 0.14 }),
+  edgeView: new ClusterTintedEdgeSvgView({ strokeWidth: 1.4 }),
+});
+
+// Hot-swap triangle face and edge renderers at runtime without re-running layout:
+controller.setTriangleView(new DensityHeatmapTriangleSvgView({ peakItemCount: 10 }));
+controller.setEdgeView(new PrecisionRailEdgeSvgView({ railOffset: 1.8 }));
+```
+
+### Built-In `SvgTriangleView` Plugins
+- `OklabTintTriangleSvgView` *(default)* — Perceptual OKLab-blended face fill with hover/focus border emphasis and vertex markers.
+- `BarycentricSectorTriangleSvgView` — Splits each triangle around its centroid into three cluster-colored corner sectors with optional dashed medians.
+- `BlueprintInsetTriangleSvgView` — Architectural double-frame triangle with centroid cross reticle on hover/focus.
+- `DensityHeatmapTriangleSvgView` — Scales face saturation by `coveredItemCount` and displays an item count pill at the centroid.
+
+### Built-In `SvgEdgeView` Plugins
+- `DashedMeshEdgeSvgView` *(default)* — Crisp dashed lattice edges that illuminate in blended OKLab color when adjacent clusters or triangles are hovered/focused.
+- `ClusterTintedEdgeSvgView` — Tri-segment gradient look transitioning smoothly between endpoint cluster hues and their OKLab midpoint mix.
+- `PrecisionRailEdgeSvgView` — Parallel double-rail lines with a midpoint diamond marker.
+- `MinimalHighlightEdgeSvgView` — Faint structural guides at rest that brighten cleanly on adjacent hover or focus.
+
 ## Writing Custom `SvgNodeView` Plugins
 
 Implement `SvgNodeView<TVisual>` centered around local origin `(0, 0)`. `SvgRendererAdapter` handles world positioning `(x, y)`, solver scale `α`, opacity, and crossfading on the parent `<g>`.
@@ -372,18 +416,22 @@ export const CustomCardSvgView: SvgNodeView<CardVisual> = {
 | `layoutStrategy` / `setLayoutStrategy(strategy)` | Swaps `SimplexLayoutStrategy` (`createPbdUniformLayoutStrategy`, `createWarmStartPbdLayoutStrategy`, `createLocalAdaptiveLayoutStrategy`, or custom). |
 | `setMeshOptions(opts)` / `setLayoutOptions(opts)` | Updates `MeshOptions` or `LayoutSolverOptions` at runtime. |
 | `getMeshStrategy()` / `getClusteringStrategy()` / `getColorStrategy()` / `getLayoutStrategy()` | Inspects the currently active core strategy instances. |
-| `tooltip` / `setTooltip(tooltip)` | Enables a floating DOM hover tooltip (`boolean` or `(target) => string` formatter). |
+| `tooltip` / `setTooltip(tooltip)` | Enables a floating DOM hover tooltip (`boolean` or `(target) => string` formatter for `'content'`, `'cluster'`, and `'triangle'`). |
 | `focusOnClusterClick` | Option (default `true`): toggles cluster focus on click when no custom `interactions.onLeftClick` is provided. |
+| `focusOnTriangleClick` | Option (default `true`): toggles triangle face focus on click when no custom `interactions.onLeftClick` is provided. |
+| `triangleView` / `setTriangleView(view)` | Swaps the `SvgTriangleView` plugin rendering triangulation faces (`OklabTintTriangleSvgView`, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`, or custom). |
+| `edgeView` / `setEdgeView(view)` | Swaps the `SvgEdgeView` plugin rendering mesh edges (`DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`, or custom). |
 | `addItems(items)` | Appends one or more items and triggers an interruptible transition. |
 | `removeItems(ids)` | Removes items by ID and smoothly fades out exiting nodes. |
 | `setItems(items)` | Replaces the entire corpus while preserving matching clusters & items. |
-| `setViews({ contentView, clusterView })` | Hot-swaps `SvgNodeView` plugins at runtime. |
+| `setViews({ contentView, clusterView, triangleView, edgeView })` | Hot-swaps node, triangle face, and mesh edge view plugins at runtime. |
 | `setVisualResolver(resolver)` | Updates descriptor resolution and crossfades smoothly. |
 | `setSizeMultiplier(multiplier)` | Uniformly scales node sizes (`0.35` – `3.0`) and re-solves zero overlap. |
 | `setShowHulls(show)` | Toggles convex bounding hull wireframe overlays. |
 | `setPinnedIds(ids)` / `setHighlightedIds(ids)` | Controls pinned and highlighted visual emphasis states. |
 | `setFocusedClusterUid(uid \| null)` | Isolates a cluster and its members, dimming unrelated nodes. |
-| `setInteractions(handlers)` | Replaces pointer, click, and wheel callbacks dynamically (`onWheel` defaults to `'zoom-to-cursor'`). |
+| `setFocusedTriangleIndex(index \| null)` | Isolates a triangulation triangle face, its adjacent edges, vertices, and contained items. |
+| `setInteractions(handlers)` | Replaces pointer, click, and wheel callbacks dynamically (`onContentHover`, `onClusterHover`, `onTriangleHover`, `onLeftClick`, `onRightClick`, `onWheel`). |
 | `camera` | Exposes `CameraController` (`zoomToCursor`, `panBy`, `reset`, `getState`, `setState`) with immediate synchronous `<svg>` transform updates. |
 | `getMetrics()` / `getClusters()` / `getItems()` | Reads live solver telemetry, clusters, and items. |
 | `getSvgElement()` | Returns the managed root `<svg>` element. |

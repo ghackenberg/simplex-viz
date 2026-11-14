@@ -16,6 +16,7 @@ import {
   type SimplexColorStrategy,
   type SimplexLayoutStrategy,
   type SimplexMeshStrategy,
+  type TriangleHoverEvent,
   type VisualResolver,
 } from '@simplex-viz/core';
 import { SVG_NS } from './hullMeasure';
@@ -29,7 +30,7 @@ import {
   type SimplexVisualPreset,
 } from './presets';
 import { SvgRendererAdapter, type SvgRendererOptions } from './SvgRendererAdapter';
-import type { SvgNodeView } from './types';
+import type { SvgEdgeView, SvgNodeView, SvgTriangleView } from './types';
 
 export type SimplexTooltipFormatter<
   TItem = DefaultTaggedItem,
@@ -48,6 +49,11 @@ export type SimplexTooltipFormatter<
     | ({ readonly kind: 'cluster' } & ClusterHoverEvent<
         TItem,
         TClusterVisual,
+        TTagMeta,
+        TClusterMeta
+      >)
+    | ({ readonly kind: 'triangle' } & TriangleHoverEvent<
+        TItem,
         TTagMeta,
         TClusterMeta
       >),
@@ -80,9 +86,25 @@ export interface SimplexSvgControllerResolvedOptions<
     TClusterMeta
   >;
   /** Optional custom content `SvgNodeView` (defaults to the active `preset` view). */
-  readonly contentView?: SvgRendererOptions<TContentVisual, TClusterVisual>['contentView'];
+  readonly contentView?: SvgRendererOptions<
+    TContentVisual,
+    TClusterVisual,
+    TItem,
+    TTagMeta,
+    TClusterMeta
+  >['contentView'];
   /** Optional custom cluster `SvgNodeView` (defaults to the active `preset` view). */
-  readonly clusterView?: SvgRendererOptions<TContentVisual, TClusterVisual>['clusterView'];
+  readonly clusterView?: SvgRendererOptions<
+    TContentVisual,
+    TClusterVisual,
+    TItem,
+    TTagMeta,
+    TClusterMeta
+  >['clusterView'];
+  /** Optional pluggable `SvgTriangleView` for triangulation faces. */
+  readonly triangleView?: SvgTriangleView<TItem, TTagMeta, TClusterMeta>;
+  /** Optional pluggable `SvgEdgeView` for triangulation edges. */
+  readonly edgeView?: SvgEdgeView<TItem, TTagMeta, TClusterMeta>;
   readonly normalizeTag?: (rawTag: string) => string;
   readonly resolveTagMeta?: (normalizedTag: string) => TTagMeta | undefined;
   readonly meshOptions?: MeshOptions;
@@ -97,6 +119,11 @@ export interface SimplexSvgControllerResolvedOptions<
    * unless a custom `interactions.onLeftClick` handler is provided. Default: `true`.
    */
   readonly focusOnClusterClick?: boolean;
+  /**
+   * Automatically toggles triangle face focus when clicking a triangle face (and clears on background click)
+   * unless a custom `interactions.onLeftClick` handler is provided. Default: `true`.
+   */
+  readonly focusOnTriangleClick?: boolean;
   /** Enables a built-in floating DOM hover tooltip (or supply a custom text formatter). Default: `false`. */
   readonly tooltip?:
     | boolean
@@ -168,7 +195,13 @@ export class SimplexSvgController<
 > {
   private readonly containerEl: HTMLElement;
   private readonly svgEl: SVGSVGElement;
-  private readonly adapter: SvgRendererAdapter<TContentVisual, TClusterVisual>;
+  private readonly adapter: SvgRendererAdapter<
+    TContentVisual,
+    TClusterVisual,
+    TItem,
+    TTagMeta,
+    TClusterMeta
+  >;
   private readonly engine: SimplexGraphEngine<
     TItem,
     TContentVisual,
@@ -179,6 +212,7 @@ export class SimplexSvgController<
   private readonly resizeObserver: ResizeObserver | null = null;
   private readonly onFpsUpdate?: (fps: number) => void;
   private readonly focusOnClusterClick: boolean;
+  private readonly focusOnTriangleClick: boolean;
   private readonly getIdExtractor: (item: TItem) => string;
   private getLabelExtractor?: (item: TItem) => string;
   private tooltipOption:
@@ -186,6 +220,7 @@ export class SimplexSvgController<
     | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
   private tooltipEl: HTMLDivElement | null = null;
   private focusedClusterUidState: string | null = null;
+  private focusedTriangleIndexState: number | null = null;
   private currentPreset: SimplexVisualPreset;
   private currentTheme: SimplexTheme;
   private readonly usesCustomVisualResolver: boolean;
@@ -229,6 +264,7 @@ export class SimplexSvgController<
     this.containerEl = resolveContainerElement(containerEl);
     this.onFpsUpdate = options.onFpsUpdate;
     this.focusOnClusterClick = options.focusOnClusterClick ?? true;
+    this.focusOnTriangleClick = options.focusOnTriangleClick ?? true;
     this.getLabelExtractor = options.getLabel;
     this.tooltipOption = options.tooltip ?? false;
     this.getIdExtractor =
@@ -272,9 +308,18 @@ export class SimplexSvgController<
     const initialW = rect.width > 40 ? rect.width : 960;
     const initialH = rect.height > 40 ? rect.height : 620;
 
-    this.adapter = new SvgRendererAdapter(this.svgEl, {
+    this.adapter = new SvgRendererAdapter<
+      TContentVisual,
+      TClusterVisual,
+      TItem,
+      TTagMeta,
+      TClusterMeta
+    >(this.svgEl, {
       contentView,
       clusterView,
+      triangleView: options.triangleView,
+      edgeView: options.edgeView,
+      theme: this.currentTheme,
     });
 
     this.engine = SimplexGraphEngine.createFromResolved({
@@ -427,20 +472,48 @@ export class SimplexSvgController<
           this.hideTooltip();
         }
       },
+      onTriangleHover: (ev) => {
+        userInteractions?.onTriangleHover?.(ev);
+        if (ev) {
+          this.showTooltip(
+            ev.screenPosition.x,
+            ev.screenPosition.y,
+            this.formatTriangleTooltip(ev),
+          );
+        } else {
+          this.hideTooltip();
+        }
+      },
       onLeftClick: (target, rawEvent) => {
         if (userInteractions?.onLeftClick) {
           userInteractions.onLeftClick(target, rawEvent);
           return;
         }
-        if (!this.focusOnClusterClick) return;
-        if (target.kind === 'cluster') {
+        if (target.kind === 'cluster' && this.focusOnClusterClick) {
+          if (this.focusedTriangleIndexState !== null) {
+            this.setFocusedTriangleIndex(null);
+          }
           const next =
             this.focusedClusterUidState === target.cluster.clusterUid
               ? null
               : target.cluster.clusterUid;
           this.setFocusedClusterUid(next);
-        } else if (target.kind === 'background' && this.focusedClusterUidState !== null) {
-          this.setFocusedClusterUid(null);
+        } else if (target.kind === 'triangle' && this.focusOnTriangleClick) {
+          if (this.focusedClusterUidState !== null) {
+            this.setFocusedClusterUid(null);
+          }
+          const next =
+            this.focusedTriangleIndexState === target.triangle.index
+              ? null
+              : target.triangle.index;
+          this.setFocusedTriangleIndex(next);
+        } else if (target.kind === 'background') {
+          if (this.focusedClusterUidState !== null) {
+            this.setFocusedClusterUid(null);
+          }
+          if (this.focusedTriangleIndexState !== null) {
+            this.setFocusedTriangleIndex(null);
+          }
         }
       },
       onRightClick: userInteractions?.onRightClick,
@@ -471,6 +544,21 @@ export class SimplexSvgController<
     }
     const count = ev.cluster.members.length;
     return `${ev.cluster.code} · ${ev.cluster.defaultLabel}\n${count} ${count === 1 ? 'item' : 'items'}`;
+  }
+
+  private formatTriangleTooltip(
+    ev: TriangleHoverEvent<TItem, TTagMeta, TClusterMeta>,
+  ): string {
+    if (typeof this.tooltipOption === 'function') {
+      return this.tooltipOption({ kind: 'triangle', ...ev });
+    }
+    const corners = ev.triangle.clusters
+      .map((c, idx) =>
+        c ? c.code : `V${ev.triangle.vertexIndices[idx] ?? idx}`,
+      )
+      .join(' · ');
+    const count = ev.triangle.coveredItemCount;
+    return `Triangle #${ev.triangle.index + 1} (${corners})\n${count} ${count === 1 ? 'item' : 'items'}`;
   }
 
   private applyTooltipThemeStyles(el: HTMLDivElement): void {
@@ -609,6 +697,7 @@ export class SimplexSvgController<
     if (this.tooltipEl) {
       this.applyTooltipThemeStyles(this.tooltipEl);
     }
+    this.adapter.setTheme(theme);
     this.engine.setTheme(theme);
     if (!this.usesCustomVisualResolver) {
       const resolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
@@ -626,6 +715,7 @@ export class SimplexSvgController<
         >,
       );
     }
+    this.engine.renderNow();
     this.ensureLoopRunning();
   }
 
@@ -700,9 +790,38 @@ export class SimplexSvgController<
   }
 
   setViews(
-    views: Partial<SvgRendererOptions<TContentVisual, TClusterVisual>>,
+    views: Partial<
+      Omit<
+        SvgRendererOptions<
+          TContentVisual,
+          TClusterVisual,
+          TItem,
+          TTagMeta,
+          TClusterMeta
+        >,
+        'theme'
+      >
+    >,
   ): void {
     this.adapter.setViews(views);
+    if (views.triangleView !== undefined || views.edgeView !== undefined) {
+      this.engine.renderNow();
+    }
+    this.ensureLoopRunning();
+  }
+
+  /** Swaps the triangulation face view plugin (`SvgTriangleView`) at runtime. */
+  setTriangleView(view: SvgTriangleView<TItem, TTagMeta, TClusterMeta>): void {
+    this.adapter.setViews({ triangleView: view });
+    this.engine.renderNow();
+    this.ensureLoopRunning();
+  }
+
+  /** Swaps the triangulation edge view plugin (`SvgEdgeView`) at runtime. */
+  setEdgeView(view: SvgEdgeView<TItem, TTagMeta, TClusterMeta>): void {
+    this.adapter.setViews({ edgeView: view });
+    this.engine.renderNow();
+    this.ensureLoopRunning();
   }
 
   setSizeMultiplier(multiplier: number): void {
@@ -743,6 +862,13 @@ export class SimplexSvgController<
     this.ensureLoopRunning();
   }
 
+  /** Focuses a specific mesh triangle face by index (dimming unrelated faces and nodes) or clears with `null`. */
+  setFocusedTriangleIndex(triangleIndex: number | null): void {
+    this.focusedTriangleIndexState = triangleIndex;
+    this.engine.setFocusedTriangleIndex(triangleIndex);
+    this.ensureLoopRunning();
+  }
+
   /** Deterministically advances simulation time in tests without waiting for rAF. */
   stepForTest(dtMs: number): boolean {
     return this.engine.step(dtMs);
@@ -779,12 +905,14 @@ export class SimplexSvgController<
     }
 
     const hit = this.engine.hitTest(x, y);
-    if (hit.kind === 'background') {
+    if (hit.kind === 'background' || hit.kind === 'triangle') {
       this.isDraggingPan = true;
       this.dragStartX = e.clientX;
       this.dragStartY = e.clientY;
       this.dragMoved = false;
-      this.svgEl.style.cursor = 'grabbing';
+      if (hit.kind === 'background') {
+        this.svgEl.style.cursor = 'grabbing';
+      }
     } else {
       this.isDraggingPan = false;
       this.dragMoved = false;
@@ -827,6 +955,7 @@ export class SimplexSvgController<
         this.dragMoved = true;
       }
       if (this.dragMoved) {
+        this.svgEl.style.cursor = 'grabbing';
         this.dragStartX = e.clientX;
         this.dragStartY = e.clientY;
         this.engine.camera.panBy(dx, dy);

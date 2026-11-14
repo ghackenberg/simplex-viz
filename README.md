@@ -26,7 +26,7 @@ Explore the interactive demo at **<https://hackenberg.tech/simplex-viz/>**. It b
   </a>
 </p>
 
-*Figure: The interactive SimplexViz showcase. Topic clusters (`T1`–`T8`) sit as topic badges or double-ring vertex anchors on the adaptive 60° equilateral triangle lattice, while content items render inside their covering vertices, edges, or triangles as colored shapes, multi-sector glyphs, or React cards blended in perceptual OKLab space. The collapsible left inspector offers fine-grained independent controls for content/cluster renderers, core algorithm strategies (`Mesh`, `Clustering`, `Color`, `Layout`), dataset mutations, size scaling, and solver telemetry (`0` overlaps at `60 fps`), with mouse and two-finger touch pinch/pan navigation across desktop and mobile viewports.*
+*Figure: The interactive SimplexViz showcase. Topic clusters (`T1`–`T8`) sit as topic badges or double-ring vertex anchors on the adaptive 60° equilateral triangle lattice, while content items render inside their covering vertices, edges, or triangles as colored shapes, multi-sector glyphs, or React cards blended in perceptual OKLab space. Triangle faces and mesh edges are swappable (`OklabTint`, `BarycentricSector`, `BlueprintInset`, `DensityHeatmap` + `Dashed`, `ClusterTinted`, `PrecisionRail`, `MinimalHighlight`) and support hover tooltips, click-to-inspect, and simplex isolation. The collapsible left inspector offers fine-grained independent controls for content, cluster, triangle face, and edge renderers alongside core algorithm strategies (`Mesh`, `Clustering`, `Color`, `Layout`), dataset mutations, and solver telemetry (`0` overlaps at `60 fps`), with mouse and two-finger touch pinch/pan navigation across desktop and mobile viewports.*
 
 ## Project Vision & Mathematical Principle
 
@@ -54,9 +54,9 @@ flowchart LR
 
 | Package | Role | Documentation |
 | --- | --- | --- |
-| [`@simplex-viz/core`](./packages/core) | Pure TypeScript triangulation, clustering, OKLab color science, 2-phase convex SAT solver, spring animation, and hit-testing. Zero DOM/SVG/React dependencies (`ES2022`). | [Core README](./packages/core/README.md) |
-| [`@simplex-viz/svg`](./packages/svg) | Framework-agnostic SVG engine (`Vanilla TS`, `Vue`, `Angular`, `Svelte`, Web Components) with root-SVG hit-testing, offscreen `getBBox()` hull measurement, built-in `SvgNodeView` plugins, and dual-layer crossfading. | [SVG README](./packages/svg/README.md) |
-| [`@simplex-viz/react`](./packages/react) | Thin, end-to-end type-safe React bindings (`<SimplexTopicGraph />`, `useSimplexGraphController`) supporting both portable `SvgNodeView` plugins and declarative JSX node renderers. | [React README](./packages/react/README.md) |
+| [`@simplex-viz/core`](./packages/core) | Pure TypeScript triangulation, clustering, OKLab color science, 2-phase convex SAT solver, spring animation, and convex + triangle hit-testing. Zero DOM/SVG/React dependencies (`ES2022`). | [Core README](./packages/core/README.md) |
+| [`@simplex-viz/svg`](./packages/svg) | Framework-agnostic SVG engine (`Vanilla TS`, `Vue`, `Angular`, `Svelte`, Web Components) with root-SVG hit-testing, offscreen `getBBox()` hull measurement, pluggable node/triangle/edge `Svg*View` plugins, interactive triangle focus/tooltips, and dual-layer crossfading. | [SVG README](./packages/svg/README.md) |
+| [`@simplex-viz/react`](./packages/react) | Thin, end-to-end type-safe React bindings (`<SimplexTopicGraph />`, `useSimplexGraphController`) supporting portable `SvgNodeView` / `SvgTriangleView` / `SvgEdgeView` plugins, declarative JSX node renderers, and interactive triangle events. | [React README](./packages/react/README.md) |
 
 ## Quickstart (Zero-Config)
 
@@ -124,9 +124,9 @@ controller.setPreset('glyphs');
 
 Zero-config defaults never lock you in—you can opt into deeper control one layer at a time as your application grows:
 
-1. **Level 1 — Built-in Presets & Interactivity (`preset`, `theme`, `tooltip`, `focusOnClusterClick`)**: Switch between `'geometric'`, `'glyphs'`, and `'badges'`, pair with `'dark'` or `'light'` themes, toggle `tooltip` (`boolean` or custom formatter), and rely on built-in drag-to-pan, wheel zoom, and cluster focus toggles.
+1. **Level 1 — Built-in Presets & Interactivity (`preset`, `theme`, `tooltip`, `focusOnClusterClick`, `focusOnTriangleClick`)**: Switch between `'geometric'`, `'glyphs'`, and `'badges'`, pair with `'dark'` or `'light'` themes, toggle `tooltip` (`boolean` or custom formatter for items, clusters, and mesh triangles), and rely on built-in drag-to-pan, wheel zoom, and cluster or triangle face click-focus toggles.
 2. **Level 2 — Custom Domain Schemas (`getId`, `getTags`, `getLabel`, `deriveClusterMeta`)**: Keep your existing domain records (`Article`, `Bookmark`, `Document`) without mapping them to `{ id, tags }`. TypeScript enforces `getId` and `getTags` whenever your type lacks `id` or `tags`.
-3. **Level 3 — Keyless React JSX or Portable `SvgNodeView` Plugins**: Supply `renderContentNode` / `renderClusterNode` in React *without* writing a `VisualResolver` (auto-measured via offscreen `getBBox()`), or pass any `SvgNodeView` plugin for 60 fps imperative SVG updates.
+3. **Level 3 — Keyless React JSX or Portable `SvgNodeView` / `SvgTriangleView` / `SvgEdgeView` Plugins**: Supply `renderContentNode` / `renderClusterNode` in React *without* writing a `VisualResolver` (auto-measured via offscreen `getBBox()`), or pass any `SvgNodeView`, `SvgTriangleView` (`OklabTintTriangleSvgView`, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`), and `SvgEdgeView` (`DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`) plugin for 60 fps imperative SVG updates.
 4. **Level 4 — Pluggable Core Strategies (`meshStrategy`, `clusteringStrategy`, `colorStrategy`, `layoutStrategy`)**: Mix and match built-in factories (`createFixedLatticeMeshStrategy`, `createIncrementalAnchorClusteringStrategy`, `createThemeAdaptiveOklabColorStrategy`, `createPaletteColorStrategy`, `createLocalAdaptiveLayoutStrategy`) or supply your own implementations—orthogonal to any visual preset.
 5. **Level 5 — Full `VisualResolver` & Headless `solveSimplexSnapshot` / `SimplexGraphEngine`**: Define typed visual descriptors and crossfade keys, compute one-shot static layouts with `solveSimplexSnapshot(items)` in Node.js/SSR/Canvas, or drive custom WebGL engines frame by frame with `SimplexGraphEngine`.
 

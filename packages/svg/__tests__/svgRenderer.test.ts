@@ -211,4 +211,187 @@ describe('@simplex-viz/svg integration', () => {
     controller.destroy();
     container.remove();
   });
+
+  it('supports pluggable SvgTriangleView and SvgEdgeView, hover tooltips, click-focus, and pan-on-drag', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+    document.body.appendChild(container);
+
+    const items: DefaultTaggedItem[] = Array.from({ length: 12 }, (_, i) => ({
+      id: `tri-${i}`,
+      tags: [`g-${i % 4}`, `g-${(i + 1) % 4}`],
+    }));
+
+    const customTriMount = { count: 0 };
+    const hoveredIndices: Array<number | null> = [];
+    const clickedKinds: string[] = [];
+
+    const controller = new SimplexSvgController(container, {
+      items,
+      tooltip: true,
+      layoutOptions: { seed: 99 },
+      interactions: {
+        onTriangleHover: (ev) => {
+          hoveredIndices.push(ev ? ev.triangle.index : null);
+        },
+        onLeftClick: (target) => {
+          clickedKinds.push(target.kind);
+        },
+      },
+    });
+
+    for (let i = 0; i < 40; i++) controller.stepForTest(20);
+
+    const svg = controller.getSvgElement();
+    Object.defineProperty(svg, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+
+    const triGroups = svg.querySelectorAll('g.sv-mesh-triangle');
+    const edgeGroups = svg.querySelectorAll('g.sv-mesh-edge');
+    expect(triGroups.length).toBeGreaterThanOrEqual(1);
+    expect(edgeGroups.length).toBeGreaterThanOrEqual(3);
+
+    // Swap in custom SvgTriangleView and SvgEdgeView at runtime
+    controller.setTriangleView({
+      cacheKey: 'custom-tri',
+      mountOrUpdate: (g, tri) => {
+        customTriMount.count += 1;
+        while (g.firstChild) g.removeChild(g.firstChild);
+        const poly = g.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        poly.setAttribute('data-custom-tri', String(tri.index));
+        poly.setAttribute(
+          'points',
+          tri.points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '),
+        );
+        poly.setAttribute('fill', tri.fillHex);
+        g.appendChild(poly);
+      },
+    });
+    controller.setEdgeView({
+      cacheKey: 'custom-edge',
+      mountOrUpdate: (g, edge) => {
+        while (g.firstChild) g.removeChild(g.firstChild);
+        const line = g.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('data-custom-edge', String(edge.index));
+        line.setAttribute('x1', String(edge.a.x));
+        line.setAttribute('y1', String(edge.a.y));
+        line.setAttribute('x2', String(edge.b.x));
+        line.setAttribute('y2', String(edge.b.y));
+        g.appendChild(line);
+      },
+    });
+
+    expect(customTriMount.count).toBeGreaterThanOrEqual(triGroups.length);
+    expect(svg.querySelectorAll('[data-custom-tri]').length).toBe(triGroups.length);
+    expect(svg.querySelectorAll('[data-custom-edge]').length).toBe(edgeGroups.length);
+
+    // Find coordinates of triangle #0 centroid and probe nearby for an open triangle spot
+    const firstPoly = svg.querySelector('polygon[data-custom-tri="0"]')!;
+    const coords = firstPoly
+      .getAttribute('points')!
+      .split(' ')
+      .map((pair) => {
+        const [x, y] = pair.split(',').map(Number);
+        return { x: x!, y: y! };
+      });
+    const cx = (coords[0]!.x + coords[1]!.x + coords[2]!.x) / 3;
+    const cy = (coords[0]!.y + coords[1]!.y + coords[2]!.y) / 3;
+
+    let probeX = cx;
+    let probeY = cy;
+    for (let dx = -36; dx <= 36; dx += 6) {
+      for (let dy = -36; dy <= 36; dy += 6) {
+        svg.dispatchEvent(
+          new PointerEvent('pointermove', {
+            pointerId: 1,
+            pointerType: 'mouse',
+            clientX: cx + dx,
+            clientY: cy + dy,
+            bubbles: true,
+          }),
+        );
+        if (hoveredIndices.at(-1) === 0) {
+          probeX = cx + dx;
+          probeY = cy + dy;
+          break;
+        }
+      }
+      if (hoveredIndices.at(-1) === 0) break;
+    }
+
+    expect(hoveredIndices.at(-1)).toBe(0);
+    const tooltipEl = container.querySelector('.sv-tooltip') as HTMLDivElement | null;
+    expect(tooltipEl).not.toBeNull();
+    expect(tooltipEl!.style.display).toBe('block');
+    expect(tooltipEl!.textContent).toContain('Triangle #1');
+
+    // Click without dragging dispatches triangle click
+    svg.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 1,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: probeX,
+        clientY: probeY,
+        bubbles: true,
+      }),
+    );
+    svg.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerId: 1,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: probeX,
+        clientY: probeY,
+        bubbles: true,
+      }),
+    );
+    svg.dispatchEvent(
+      new MouseEvent('click', {
+        button: 0,
+        clientX: probeX,
+        clientY: probeY,
+        bubbles: true,
+      }),
+    );
+    expect(clickedKinds.at(-1)).toBe('triangle');
+
+    // Dragging on triangle pans the camera instead of firing click
+    svg.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 1,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: probeX,
+        clientY: probeY,
+        bubbles: true,
+      }),
+    );
+    svg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: probeX + 40,
+        clientY: probeY + 20,
+        bubbles: true,
+      }),
+    );
+    svg.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerId: 1,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: probeX + 40,
+        clientY: probeY + 20,
+        bubbles: true,
+      }),
+    );
+    expect(controller.camera.getState().panX).toBeCloseTo(40, 1);
+
+    controller.destroy();
+    container.remove();
+  });
 });

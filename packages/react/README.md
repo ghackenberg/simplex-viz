@@ -25,9 +25,10 @@ In React, `<SimplexTopicGraph />` lets you drop custom JSX directly into cluster
 - **`<SimplexTopicGraph />`**: Responsive, zero-overlap triangulation graph component that automatically observes container resizing, computes cluster layouts, and drives 60 fps spring animations.
 - **Two rendering modes** (mix and match or swap live with smooth crossfading):
   1. **Declarative JSX Renderers** (`renderContentNode`, `renderClusterNode`): Write standard React SVG JSX (`<g>`, `<rect>`, `<text>`, `<circle>`). Nodes are automatically measured via offscreen `getBBox()` for collision-free placement.
-  2. **Portable `SvgNodeView` Plugins** (`contentView`, `clusterView` from `@simplex-viz/svg`): Direct SVG DOM updates with zero React reconciliation overhead per animation frame.
+  2. **Portable `Svg*View` Plugins** (`contentView`, `clusterView`, `triangleView`, `edgeView` from `@simplex-viz/svg`): Direct SVG DOM updates with zero React reconciliation overhead per animation frame, including swappable triangle face (`OklabTintTriangleSvgView`, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`) and mesh edge (`DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`) views.
+- **Interactive triangulation faces**: Built-in triangle hit-testing with hover emphasis (`onTriangleHover`), click-to-focus (`focusOnTriangleClick`, `focusedTriangleIndex`), and tooltip targets (`target.kind === 'triangle'`).
 - **Full generic type inference**: Infers `<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>` end-to-end across `items`, `getId`, `getTags`, `deriveClusterMeta`, `visualResolver`, `renderContentNode`, `renderClusterNode`, hover events, and click targets.
-- **`useSimplexGraphController`**: Imperative hook for live item mutations (`addItems`, `removeItems`, `setItems`), camera controls (`zoomBy`, `resetCamera`), and telemetry getters.
+- **`useSimplexGraphController`**: Imperative hook for live item mutations (`addItems`, `removeItems`, `setItems`), view/strategy hot-swapping (`setTriangleView`, `setEdgeView`, `set*Strategy`), camera controls (`zoomBy`, `resetCamera`), and telemetry getters.
 
 ## Installation
 
@@ -70,16 +71,24 @@ Swap between the three built-in presets (`'geometric'`, `'glyphs'`, or `'badges'
   getTags={(a) => a.hashtags}
   getLabel={(a) => a.title}
   preset="glyphs"
-  tooltip={(target) =>
-    target.kind === 'content' ? (
-      <div>
-        <strong>{target.item.title}</strong>
-        <div>{`${target.item.readingMinutes} min read`}</div>
-      </div>
-    ) : (
-      <strong>{`${target.cluster.defaultLabel} (${target.cluster.members.length})`}</strong>
-    )
-  }
+  tooltip={(target) => {
+    if (target.kind === 'content') {
+      return (
+        <div>
+          <strong>{target.item.title}</strong>
+          <div>{`${target.item.readingMinutes} min read`}</div>
+        </div>
+      );
+    }
+    if (target.kind === 'cluster') {
+      return (
+        <strong>{`${target.cluster.defaultLabel} (${target.cluster.members.length})`}</strong>
+      );
+    }
+    return (
+      <strong>{`Triangle #${target.triangle.index + 1} (${target.triangle.coveredItemCount} items)`}</strong>
+    );
+  }}
 />
 ```
 
@@ -434,6 +443,8 @@ export function StrategyShowcase({ items }: { items: readonly DefaultTaggedItem[
 | `getClusterCacheKey` | Auto-generated | Optional cache key callback `(cluster) => string` for keyless `renderClusterNode`. |
 | `contentView` | Preset view | Portable `SvgNodeView<TContentVisual>` plugin (used when `renderContentNode` is omitted). |
 | `clusterView` | Preset view | Portable `SvgNodeView<TClusterVisual>` plugin (used when `renderClusterNode` is omitted). |
+| `triangleView` | `OklabTintTriangleSvgView` | Portable `SvgTriangleView` plugin for triangulation faces (`OklabTintTriangleSvgView`, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`, or custom). |
+| `edgeView` | `DashedMeshEdgeSvgView` | Portable `SvgEdgeView` plugin for mesh edges (`DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`, or custom). |
 
 ### Mesh, Solver, Strategies & Visual Emphasis
 | Prop | Default | Description |
@@ -449,15 +460,18 @@ export function StrategyShowcase({ items }: { items: readonly DefaultTaggedItem[
 | `pinnedIds` | — | `ReadonlySet<string> \| readonly string[]` of pinned item IDs. |
 | `highlightedIds` | — | `ReadonlySet<string> \| readonly string[]` of highlighted item IDs (dims others). |
 | `focusedClusterUid` | `null` | Controlled cluster focus UID. When omitted (`undefined`), clicking clusters toggles focus automatically. |
+| `focusedTriangleIndex` | `null` | Controlled triangle face index. When omitted (`undefined`), clicking triangles toggles triangle isolation automatically. |
 | `className` / `style` | — | Styling forwarded to the outer container `<div>` (defaults to `width: 100%; height: 100%`). |
 
 ### Interactions, Tooltips, Telemetry & Controller
 | Prop | Default / Signature | Description |
 | --- | --- | --- |
-| `tooltip` | `false` | `boolean \| ((target) => ReactNode)` — Renders a built-in floating React `role="tooltip"` overlay. |
+| `tooltip` | `false` | `boolean \| ((target: SimplexReactTooltipTarget) => ReactNode)` — Renders a built-in floating React `role="tooltip"` overlay for `'content'`, `'cluster'`, and `'triangle'` targets. |
 | `focusOnClusterClick` | `true` | Automatically toggles cluster focus on click when `focusedClusterUid` and `onLeftClick` are omitted. |
+| `focusOnTriangleClick` | `true` | Automatically toggles triangle face focus on click when `focusedTriangleIndex` and `onLeftClick` are omitted. |
 | `onContentHover` | — | `(event: ContentHoverEvent \| null) => void` |
 | `onClusterHover` | — | `(event: ClusterHoverEvent \| null) => void` |
+| `onTriangleHover` | — | `(event: TriangleHoverEvent \| null) => void` |
 | `onLeftClick` | — | `(target: HitTarget, rawEvent: NormalizedPointerEvent) => void` |
 | `onRightClick` | — | `(target: HitTarget, rawEvent: NormalizedPointerEvent) => boolean \| void` (return `true` to suppress browser menu) |
 | `onWheel` | `'zoom-to-cursor'` | `'zoom-to-cursor' \| 'pan-vertical' \| 'none' \| ((event, camera) => void)` |
@@ -473,6 +487,7 @@ Returns `{ controllerRef, handle }`:
 - `handle.addItems(items)` — Appends items without resetting existing camera or springs.
 - `handle.removeItems(ids)` — Removes items by ID with smooth fade-out.
 - `handle.setItems(items)` — Replaces the active dataset.
+- `handle.setTriangleView(view)` / `handle.setEdgeView(view)` / `handle.setFocusedTriangleIndex(index)` — Hot-swaps mesh triangle/edge renderers or updates triangle focus imperatively.
 - `handle.setMeshStrategy(strategy)` / `handle.setClusteringStrategy(strategy)` / `handle.setColorStrategy(strategy)` / `handle.setLayoutStrategy(strategy)` — Hot-swaps core pipeline strategies imperatively.
 - `handle.zoomBy(factor)` — Zooms relative to viewport center.
 - `handle.resetCamera()` — Resets zoom & pan smoothly to `(1, 0, 0)`.

@@ -5,7 +5,9 @@ import type {
   HitTarget,
   LayoutMetrics,
   MeshOptions,
+  MeshTriangleRenderState,
   NormalizedPointerEvent,
+  TriangleHoverEvent,
   WheelBehavior,
 } from '@simplex-viz/core';
 import {
@@ -54,6 +56,8 @@ import {
 } from './data/knowledgeCatalog';
 import {
   DEFAULT_DEMO_RENDER_CONFIG,
+  createDemoEdgeView,
+  createDemoTriangleView,
   createDemoVisualResolver,
   demoAnchorClusterView,
   demoBadgeClusterView,
@@ -67,11 +71,14 @@ import {
   type DemoClusterVisual,
   type DemoContentVisual,
   type DemoRenderConfig,
+  type MeshEdgeStyle,
+  type TriangleFaceStyle,
 } from './presets';
 
 type ThemePreference = 'auto' | 'light' | 'dark';
 type ContentHoverPolicy = 'tooltip' | 'highlight-unit' | 'none';
 type ClusterHoverPolicy = 'tooltip' | 'focus-members' | 'none';
+type TriangleHoverPolicy = 'tooltip' | 'focus-preview' | 'none';
 type LeftClickPolicy = 'inspect' | 'focus-toggle' | 'remove';
 type RightClickPolicy = 'context-menu' | 'browser-default';
 type MeshStrategyId = 'adaptive' | 'lattice-3x3' | 'lattice-4x3';
@@ -105,6 +112,14 @@ type InspectedTarget =
   | {
       readonly kind: 'cluster';
       readonly cluster: ClusterDescriptor<
+        KnowledgeEntry,
+        TagTaxonomyInfo,
+        TopicClusterSummary
+      >;
+    }
+  | {
+      readonly kind: 'triangle';
+      readonly triangle: MeshTriangleRenderState<
         KnowledgeEntry,
         TagTaxonomyInfo,
         TopicClusterSummary
@@ -175,6 +190,8 @@ export function DemoApp() {
     useState<ContentHoverPolicy>('tooltip');
   const [clusterHoverPolicy, setClusterHoverPolicy] =
     useState<ClusterHoverPolicy>('tooltip');
+  const [triangleHoverPolicy, setTriangleHoverPolicy] =
+    useState<TriangleHoverPolicy>('tooltip');
   const [leftClickPolicy, setLeftClickPolicy] = useState<LeftClickPolicy>('inspect');
   const [rightClickPolicy, setRightClickPolicy] =
     useState<RightClickPolicy>('context-menu');
@@ -208,10 +225,16 @@ export function DemoApp() {
     TagTaxonomyInfo,
     TopicClusterSummary
   > | null>(null);
+  const [hoveredTriangle, setHoveredTriangle] = useState<TriangleHoverEvent<
+    KnowledgeEntry,
+    TagTaxonomyInfo,
+    TopicClusterSummary
+  > | null>(null);
   const [inspected, setInspected] = useState<InspectedTarget | null>(null);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => new Set());
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(() => new Set());
   const [focusedClusterUid, setFocusedClusterUid] = useState<string | null>(null);
+  const [focusedTriangleIndex, setFocusedTriangleIndex] = useState<number | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [controlsOpen, setControlsOpen] = useState<boolean>(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
@@ -284,6 +307,24 @@ export function DemoApp() {
   const visualResolver = useMemo(
     () => createDemoVisualResolver(renderConfig, resolvedTheme),
     [renderConfig, resolvedTheme],
+  );
+
+  const triangleView = useMemo(
+    () =>
+      createDemoTriangleView({
+        triangleFaceStyle: renderConfig.triangleFaceStyle,
+        triangleFaceOpacity: renderConfig.triangleFaceOpacity,
+      }),
+    [renderConfig.triangleFaceStyle, renderConfig.triangleFaceOpacity],
+  );
+
+  const edgeView = useMemo(
+    () =>
+      createDemoEdgeView({
+        meshEdgeStyle: renderConfig.meshEdgeStyle,
+        meshEdgeWidth: renderConfig.meshEdgeWidth,
+      }),
+    [renderConfig.meshEdgeStyle, renderConfig.meshEdgeWidth],
   );
 
   const meshStrategy = useMemo(() => {
@@ -392,6 +433,7 @@ export function DemoApp() {
     setPinnedIds(new Set());
     setHighlightedIds(new Set());
     setFocusedClusterUid(null);
+    setFocusedTriangleIndex(null);
     setInspected(null);
     setItems(initialCatalog);
   }, [initialCatalog]);
@@ -429,6 +471,12 @@ export function DemoApp() {
       window.removeEventListener('keydown', onKey);
     };
   }, [contextMenu]);
+
+  useEffect(() => {
+    if (triangleHoverPolicy === 'none') {
+      setHoveredTriangle(null);
+    }
+  }, [triangleHoverPolicy]);
 
   // Interaction callbacks wired to configured policies
   const onContentHover = useCallback(
@@ -488,6 +536,28 @@ export function DemoApp() {
     [clusterHoverPolicy],
   );
 
+  const onTriangleHover = useCallback(
+    (
+      ev: TriangleHoverEvent<
+        KnowledgeEntry,
+        TagTaxonomyInfo,
+        TopicClusterSummary
+      > | null,
+    ) => {
+      if (triangleHoverPolicy === 'none') {
+        setHoveredTriangle(null);
+        return;
+      }
+      if (triangleHoverPolicy === 'focus-preview') {
+        setFocusedTriangleIndex(ev ? ev.triangle.index : null);
+        setHoveredTriangle(ev);
+        return;
+      }
+      setHoveredTriangle(ev);
+    },
+    [triangleHoverPolicy],
+  );
+
   const togglePinId = useCallback((id: string) => {
     setPinnedIds((prev) => {
       const next = new Set(prev);
@@ -524,10 +594,12 @@ export function DemoApp() {
       if (target.kind === 'background') {
         if (leftClickPolicy === 'focus-toggle') {
           setFocusedClusterUid(null);
+          setFocusedTriangleIndex(null);
           setHighlightedIds(new Set());
         } else if (leftClickPolicy === 'inspect') {
           setInspected(null);
           setFocusedClusterUid(null);
+          setFocusedTriangleIndex(null);
         }
         return;
       }
@@ -542,11 +614,19 @@ export function DemoApp() {
       if (leftClickPolicy === 'focus-toggle') {
         if (target.kind === 'cluster') {
           setHighlightedIds(new Set());
+          setFocusedTriangleIndex(null);
           setFocusedClusterUid((cur) =>
             cur === target.cluster.clusterUid ? null : target.cluster.clusterUid,
           );
+        } else if (target.kind === 'triangle') {
+          setHighlightedIds(new Set());
+          setFocusedClusterUid(null);
+          setFocusedTriangleIndex((cur) =>
+            cur === target.triangle.index ? null : target.triangle.index,
+          );
         } else {
           setFocusedClusterUid(null);
+          setFocusedTriangleIndex(null);
           const ids = new Set<string>([target.item.slug]);
           for (const uc of target.layoutContext.unitClusters) {
             for (const m of uc.cluster.members) {
@@ -558,9 +638,10 @@ export function DemoApp() {
         return;
       }
 
-      // Default: 'inspect' (single-select across content items & clusters)
+      // Default: 'inspect' (single-select across content items, clusters, & triangle faces)
       if (target.kind === 'content') {
         setFocusedClusterUid(null);
+        setFocusedTriangleIndex(null);
         setInspected((cur) =>
           cur?.kind === 'content' && cur.item.slug === target.item.slug
             ? null
@@ -573,7 +654,8 @@ export function DemoApp() {
                 mixedColorHex: target.layoutContext.mixedColorHex,
               },
         );
-      } else {
+      } else if (target.kind === 'cluster') {
+        setFocusedTriangleIndex(null);
         setFocusedClusterUid((cur) =>
           cur === target.cluster.clusterUid ? null : target.cluster.clusterUid,
         );
@@ -584,6 +666,19 @@ export function DemoApp() {
             : {
                 kind: 'cluster',
                 cluster: target.cluster,
+              },
+        );
+      } else {
+        setFocusedClusterUid(null);
+        setFocusedTriangleIndex((cur) =>
+          cur === target.triangle.index ? null : target.triangle.index,
+        );
+        setInspected((cur) =>
+          cur?.kind === 'triangle' && cur.triangle.index === target.triangle.index
+            ? null
+            : {
+                kind: 'triangle',
+                triangle: target.triangle,
               },
         );
       }
@@ -1020,6 +1115,105 @@ export function DemoApp() {
                     </>
                   )}
                 </div>
+
+                {/* Mesh Triangulation (Faces & Edges) Sub-Group */}
+                <div className="rounded-md border border-slate-200/80 bg-slate-50/60 p-2.5 space-y-2.5 dark:border-slate-800 dark:bg-[#0E131D]/70">
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                      Triangle Faces
+                    </span>
+                    <select
+                      value={renderConfig.triangleFaceStyle}
+                      onChange={(e) =>
+                        updateRenderConfig({
+                          triangleFaceStyle: e.target.value as TriangleFaceStyle,
+                        })
+                      }
+                      className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0B0F17] dark:text-slate-200"
+                    >
+                      <option value="oklab-tint">OKLab Tint (Default)</option>
+                      <option value="barycentric-sector">
+                        Barycentric 3-Way Sectors
+                      </option>
+                      <option value="blueprint-inset">
+                        Blueprint Inset Frame
+                      </option>
+                      <option value="density-heatmap">
+                        Density Heatmap + Count
+                      </option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                      <span>Face Base Opacity</span>
+                      <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                        {Math.round(renderConfig.triangleFaceOpacity * 100)}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0.03}
+                      max={0.35}
+                      step={0.01}
+                      value={renderConfig.triangleFaceOpacity}
+                      onChange={(e) =>
+                        updateRenderConfig({
+                          triangleFaceOpacity: parseFloat(e.target.value),
+                        })
+                      }
+                      className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                      Mesh Edges
+                    </span>
+                    <select
+                      value={renderConfig.meshEdgeStyle}
+                      onChange={(e) =>
+                        updateRenderConfig({
+                          meshEdgeStyle: e.target.value as MeshEdgeStyle,
+                        })
+                      }
+                      className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0B0F17] dark:text-slate-200"
+                    >
+                      <option value="dashed">Dashed Architectural (Default)</option>
+                      <option value="cluster-tinted">
+                        Cluster-Tinted Tri-Segment
+                      </option>
+                      <option value="precision-rail">
+                        Precision Double Rail
+                      </option>
+                      <option value="minimal-highlight">
+                        Minimal (Highlight Only)
+                      </option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                      <span>Edge Stroke Width</span>
+                      <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                        {renderConfig.meshEdgeWidth.toFixed(1)} px
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0.5}
+                      max={3.0}
+                      step={0.1}
+                      value={renderConfig.meshEdgeWidth}
+                      onChange={(e) =>
+                        updateRenderConfig({
+                          meshEdgeWidth: parseFloat(e.target.value),
+                        })
+                      }
+                      className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                    />
+                  </label>
+                </div>
               </div>
             </section>
 
@@ -1345,6 +1539,23 @@ export function DemoApp() {
 
               <label className="block">
                 <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                  Hover Triangle Face
+                </span>
+                <select
+                  value={triangleHoverPolicy}
+                  onChange={(e) =>
+                    setTriangleHoverPolicy(e.target.value as TriangleHoverPolicy)
+                  }
+                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                >
+                  <option value="tooltip">Show Triangle Tooltip</option>
+                  <option value="focus-preview">Isolate Face on Hover</option>
+                  <option value="none">Disabled</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
                   Left Click
                 </span>
                 <select
@@ -1441,6 +1652,8 @@ export function DemoApp() {
                   ? demoBadgeClusterView
                   : undefined
             }
+            triangleView={triangleView}
+            edgeView={edgeView}
             renderContentNode={
               renderConfig.contentRenderer === 'react-card'
                 ? renderDemoContentCard
@@ -1456,6 +1669,7 @@ export function DemoApp() {
             pinnedIds={effectivePinnedIds}
             highlightedIds={highlightedIds}
             focusedClusterUid={focusedClusterUid}
+            focusedTriangleIndex={focusedTriangleIndex}
             meshOptions={responsiveMeshOptions}
             layoutOptions={{
               clusterGapPx: 14,
@@ -1468,6 +1682,7 @@ export function DemoApp() {
             layoutStrategy={layoutStrategy}
             onContentHover={onContentHover}
             onClusterHover={onClusterHover}
+            onTriangleHover={onTriangleHover}
             onLeftClick={onLeftClick}
             onRightClick={onRightClick}
             onWheel={wheelBehavior}
@@ -1579,6 +1794,70 @@ export function DemoApp() {
             </div>
           )}
 
+          {/* Floating Triangle Hover Tooltip */}
+          {hoveredTriangle &&
+            !hoveredContent &&
+            !hoveredCluster &&
+            !contextMenu && (
+              <div
+                className="pointer-events-none absolute z-30 max-w-[min(21rem,calc(100%-1.5rem))] rounded-md border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-lg dark:border-slate-700/90 dark:bg-[#0B0F17]/95"
+                style={{
+                  left: Math.max(
+                    12,
+                    Math.min(
+                      Math.max(12, stageSize.width - 280),
+                      hoveredTriangle.screenPosition.x + 14,
+                    ),
+                  ),
+                  top: Math.max(
+                    12,
+                    Math.min(
+                      Math.max(12, stageSize.height - 120),
+                      hoveredTriangle.screenPosition.y - 12,
+                    ),
+                  ),
+                }}
+              >
+                <div className="flex items-center justify-between gap-2 font-semibold text-slate-900 dark:text-slate-100">
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-xs"
+                      style={{ backgroundColor: hoveredTriangle.triangle.fillHex }}
+                    />
+                    <span>Triangle #{hoveredTriangle.triangle.index + 1}</span>
+                  </span>
+                  <span className="font-mono text-[11px] font-normal text-cyan-700 dark:text-cyan-300">
+                    {hoveredTriangle.triangle.coveredItemCount} items
+                  </span>
+                </div>
+                <div className="mt-1 space-y-0.5 text-[11px] text-slate-700 dark:text-slate-300">
+                  {hoveredTriangle.triangle.clusters.map((corner, idx) => (
+                    <div
+                      key={hoveredTriangle.triangle.vertexIndices[idx]}
+                      className="flex items-center gap-1.5 truncate"
+                    >
+                      <span
+                        className="inline-block h-2 w-2 rounded-full shrink-0"
+                        style={{
+                          backgroundColor: corner?.colorHex ?? '#64748b',
+                        }}
+                      />
+                      <span className="font-mono text-slate-500 dark:text-slate-400">
+                        {corner?.code ??
+                          `V${hoveredTriangle.triangle.vertexIndices[idx]}`}
+                      </span>
+                      <span className="truncate">
+                        {corner?.meta.title ?? 'Unassigned Vertex'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-1 font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                  {hoveredTriangle.triangle.interiorItemCount} 3-way interior · Click to inspect
+                </div>
+              </div>
+            )}
+
           {/* Custom Right-Click Context Menu */}
           {contextMenu && (
             <div
@@ -1642,6 +1921,7 @@ export function DemoApp() {
                     onClick={() => {
                       if (contextMenu.target.kind === 'cluster') {
                         const uid = contextMenu.target.cluster.clusterUid;
+                        setFocusedTriangleIndex(null);
                         setFocusedClusterUid((cur) => (cur === uid ? null : uid));
                       }
                       setContextMenu(null);
@@ -1654,12 +1934,43 @@ export function DemoApp() {
                 </>
               )}
 
+              {contextMenu.target.kind === 'triangle' &&
+                ((tri) => (
+                  <>
+                    <div className="border-b border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-700 dark:border-slate-800 dark:text-slate-300 truncate">
+                      Triangle #{tri.index + 1} ·{' '}
+                      {tri.clusters
+                        .map((c, idx) =>
+                          c ? c.code : `V${tri.vertexIndices[idx]}`,
+                        )
+                        .join(' · ')}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFocusedClusterUid(null);
+                        setFocusedTriangleIndex((cur) =>
+                          cur === tri.index ? null : tri.index,
+                        );
+                        setContextMenu(null);
+                      }}
+                      className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      <Crosshair className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" />
+                      {focusedTriangleIndex === tri.index
+                        ? 'Clear triangle focus'
+                        : 'Isolate triangle face'}
+                    </button>
+                  </>
+                ))(contextMenu.target.triangle)}
+
               {contextMenu.target.kind === 'background' && (
                 <button
                   type="button"
                   onClick={() => {
                     handle.resetCamera();
                     setFocusedClusterUid(null);
+                    setFocusedTriangleIndex(null);
                     setHighlightedIds(new Set());
                     setContextMenu(null);
                   }}
@@ -1682,7 +1993,7 @@ export function DemoApp() {
             <span>Reset Camera</span>
           </button>
 
-          {/* Responsive Selected / Inspected Node Detail Panel */}
+          {/* Responsive Selected / Inspected Node or Triangle Detail Panel */}
           {inspected && (
             <div className="absolute bottom-3 left-3 right-24 z-20 max-h-[44dvh] overflow-y-auto rounded-md border border-slate-200 bg-white/95 p-3.5 text-xs shadow-lg backdrop-blur-xs dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:shadow-none sm:bottom-auto sm:left-auto sm:top-14 sm:right-4 sm:w-80 sm:max-h-[calc(100%-7rem)]">
               <div className="flex items-start justify-between gap-2">
@@ -1691,12 +2002,20 @@ export function DemoApp() {
                     <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
                       {inspected.item.headline}
                     </div>
-                  ) : (
+                  ) : inspected.kind === 'cluster' ? (
                     <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
                       <span className="font-mono text-cyan-700 dark:text-cyan-300 mr-1.5">
                         {inspected.cluster.code}
                       </span>
                       {inspected.cluster.meta.title}
+                    </div>
+                  ) : (
+                    <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug flex items-center gap-2">
+                      <span
+                        className="inline-block h-3 w-3 rounded-xs shrink-0"
+                        style={{ backgroundColor: inspected.triangle.fillHex }}
+                      />
+                      <span>Triangle #{inspected.triangle.index + 1}</span>
                     </div>
                   )}
                 </div>
@@ -1706,6 +2025,7 @@ export function DemoApp() {
                   onClick={() => {
                     setInspected(null);
                     setFocusedClusterUid(null);
+                    setFocusedTriangleIndex(null);
                   }}
                   className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 >
@@ -1732,7 +2052,7 @@ export function DemoApp() {
                       .join(' · ')}
                   </div>
                 </div>
-              ) : (
+              ) : inspected.kind === 'cluster' ? (
                 <div className="mt-2.5 space-y-2">
                   <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
                     <span>{inspected.cluster.meta.memberCount} members</span>
@@ -1771,6 +2091,43 @@ export function DemoApp() {
                         <span className="font-mono text-slate-500 dark:text-slate-400 shrink-0">
                           {Math.round(m.normalizedWeight * 100)}%
                         </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2.5 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>{inspected.triangle.coveredItemCount} covered items</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{inspected.triangle.interiorItemCount} interior 3-way</span>
+                  </div>
+                  <div className="border-t border-slate-200 dark:border-slate-800 pt-2 space-y-1.5">
+                    {inspected.triangle.clusters.map((corner, idx) => (
+                      <div
+                        key={inspected.triangle.vertexIndices[idx]}
+                        className="flex items-center justify-between gap-2 text-[11px]"
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                            style={{
+                              backgroundColor: corner?.colorHex ?? '#64748b',
+                            }}
+                          />
+                          <span className="font-mono text-cyan-700 dark:text-cyan-300 shrink-0">
+                            {corner?.code ??
+                              `V${inspected.triangle.vertexIndices[idx]}`}
+                          </span>
+                          <span className="truncate text-slate-700 dark:text-slate-200">
+                            {corner?.meta.title ?? 'Unassigned Vertex'}
+                          </span>
+                        </div>
+                        {corner && (
+                          <span className="font-mono text-slate-500 dark:text-slate-400 shrink-0">
+                            {corner.meta.memberCount}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>

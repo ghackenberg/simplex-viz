@@ -282,33 +282,71 @@ export interface NodeRenderState<TVisual> {
 }
 
 /**
- * Render state for a single mesh triangle face.
+ * Render state for a single mesh triangle face, enriched with corner cluster descriptors,
+ * item density counts, and hover/focus interaction flags.
  */
-export interface MeshTriangleRenderState {
+export interface MeshTriangleRenderState<
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> {
   readonly index: number;
+  readonly vertexIndices: readonly [number, number, number];
   readonly points: readonly [Point2D, Point2D, Point2D];
+  readonly centroid: Point2D;
   readonly fillHex: string;
   readonly fillOpacity: number;
+  readonly clusters: readonly [
+    ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+    ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+    ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+  ];
+  /** Total items whose active simplex unit lies within this triangle (vertex, edge, or 3-cluster face). */
+  readonly coveredItemCount: number;
+  /** Items anchored strictly across all 3 corner clusters of this triangle. */
+  readonly interiorItemCount: number;
+  readonly interaction: {
+    readonly isHovered: boolean;
+    readonly isFocused: boolean;
+    readonly isDimmed: boolean;
+  };
 }
 
 /**
- * Render state for a single mesh edge.
+ * Render state for a single mesh edge connecting two adjacent vertex clusters.
  */
-export interface MeshEdgeRenderState {
+export interface MeshEdgeRenderState<
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> {
+  readonly index: number;
+  readonly vertexIndices: readonly [number, number];
   readonly a: Point2D;
   readonly b: Point2D;
+  readonly mixedColorHex: string;
+  readonly clusters: readonly [
+    ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+    ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+  ];
   readonly isHighlighted: boolean;
 }
 
 /**
  * Complete renderer-independent frame snapshot produced by `SimplexGraphEngine`.
  */
-export interface SceneFrameSnapshot<TContentVisual, TClusterVisual> {
+export interface SceneFrameSnapshot<
+  TContentVisual,
+  TClusterVisual,
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> {
   readonly viewportWidth: number;
   readonly viewportHeight: number;
   readonly camera: CameraState;
-  readonly triangles: readonly MeshTriangleRenderState[];
-  readonly edges: readonly MeshEdgeRenderState[];
+  readonly triangles: readonly MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta>[];
+  readonly edges: readonly MeshEdgeRenderState<TItem, TTagMeta, TClusterMeta>[];
   readonly clusters: readonly NodeRenderState<TClusterVisual>[];
   readonly items: readonly NodeRenderState<TContentVisual>[];
   readonly showHulls: boolean;
@@ -325,9 +363,22 @@ export interface HullMeasurer<TContentVisual, TClusterVisual> {
 /**
  * Renderer contract separating `@simplex-viz/core` from SVG, Canvas, or WebGL engines.
  */
-export interface SimplexRendererAdapter<TContentVisual, TClusterVisual>
-  extends HullMeasurer<TContentVisual, TClusterVisual> {
-  renderFrame(snapshot: SceneFrameSnapshot<TContentVisual, TClusterVisual>): void;
+export interface SimplexRendererAdapter<
+  TContentVisual,
+  TClusterVisual,
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> extends HullMeasurer<TContentVisual, TClusterVisual> {
+  renderFrame(
+    snapshot: SceneFrameSnapshot<
+      TContentVisual,
+      TClusterVisual,
+      TItem,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): void;
   destroy(): void;
 }
 
@@ -406,6 +457,12 @@ export type HitTarget<
       readonly screenPosition: Point2D;
     }
   | {
+      readonly kind: 'triangle';
+      readonly triangle: MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta>;
+      readonly worldPosition: Point2D;
+      readonly screenPosition: Point2D;
+    }
+  | {
       readonly kind: 'background';
       readonly worldPosition: Point2D;
       readonly screenPosition: Point2D;
@@ -443,6 +500,19 @@ export interface ClusterHoverEvent<
 }
 
 /**
+ * Hover payload for mesh triangle faces.
+ */
+export interface TriangleHoverEvent<
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> {
+  readonly triangle: MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta>;
+  readonly screenPosition: Point2D;
+  readonly worldPosition: Point2D;
+}
+
+/**
  * Wheel interaction policy.
  */
 export type WheelBehavior =
@@ -466,6 +536,9 @@ export interface InteractionHandlers<
   ) => void;
   readonly onClusterHover?: (
     event: ClusterHoverEvent<TItem, TClusterVisual, TTagMeta, TClusterMeta> | null,
+  ) => void;
+  readonly onTriangleHover?: (
+    event: TriangleHoverEvent<TItem, TTagMeta, TClusterMeta> | null,
   ) => void;
   readonly onLeftClick?: (
     target: HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
@@ -532,7 +605,13 @@ export interface SimplexEngineResolvedConfig<
     TTagMeta,
     TClusterMeta
   >;
-  readonly renderer: SimplexRendererAdapter<TContentVisual, TClusterVisual>;
+  readonly renderer: SimplexRendererAdapter<
+    TContentVisual,
+    TClusterVisual,
+    TItem,
+    TTagMeta,
+    TClusterMeta
+  >;
   readonly viewportWidth: number;
   readonly viewportHeight: number;
   readonly normalizeTag?: (rawTag: string) => string;

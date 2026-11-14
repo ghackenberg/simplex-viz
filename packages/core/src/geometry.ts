@@ -338,6 +338,26 @@ export function hitTestConvexGeometry(
   return true;
 }
 
+/**
+ * Exact 2D point-in-triangle test using signed edge half-planes (order-independent CCW/CW).
+ */
+export function isPointInTriangle(
+  px: number,
+  py: number,
+  a: Point2D,
+  b: Point2D,
+  c: Point2D,
+  epsilon = 1e-6,
+): boolean {
+  const d1 = (px - b.x) * (a.y - b.y) - (a.x - b.x) * (py - b.y);
+  const d2 = (px - c.x) * (b.y - c.y) - (b.x - c.x) * (py - c.y);
+  const d3 = (px - a.x) * (c.y - a.y) - (c.x - a.x) * (py - a.y);
+
+  const hasNeg = d1 < -epsilon || d2 < -epsilon || d3 < -epsilon;
+  const hasPos = d1 > epsilon || d2 > epsilon || d3 > epsilon;
+  return !(hasNeg && hasPos);
+}
+
 export interface MtvResult {
   /** Separation vector pushing shape A away from shape B. */
   readonly nx: number;

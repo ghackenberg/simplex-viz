@@ -7,11 +7,13 @@ export * from './views/GeometricShapeSvgView';
 export * from './views/MultiSectorGlyphSvgView';
 export * from './views/BadgeClusterSvgView';
 export * from './views/ClusterAnchorSvgView';
+export * from './views/MeshFaceEdgeViews';
 
 // Convenient re-exports from @simplex-viz/core for single-import non-React apps
 export {
   solveSimplexSnapshot,
   computeConvexHull,
+  isPointInTriangle,
   rectToConvexPolygon,
   regularPolygon,
   starConvexHull,
@@ -46,7 +48,9 @@ export {
   type LayoutMetrics,
   type LayoutSolverOptions,
   type LayoutStrategyContext,
+  type MeshEdgeRenderState,
   type MeshOptions,
+  type MeshTriangleRenderState,
   type NodeRenderState,
   type PipelineUpdateReason,
   type PreviousNodeLayout,
@@ -66,5 +70,6 @@ export {
   type SimplexMeshContext,
   type SimplexMeshStrategy,
   type SimplexSnapshotOptions,
+  type TriangleHoverEvent,
   type VisualResolver,
 } from '@simplex-viz/core';
