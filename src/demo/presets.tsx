@@ -11,6 +11,7 @@ import {
   MultiSectorGlyphSvgView,
   type BadgeClusterVisual,
   type ClusterAnchorVisual,
+  type GeometricShapeKind,
   type GeometricShapeVisual,
   type MultiSectorGlyphVisual,
   type SimplexTheme,
@@ -23,33 +24,69 @@ import type {
   TopicClusterSummary,
 } from './data/knowledgeCatalog';
 
-export type PresetId = 'geometric' | 'multisector' | 'react-cards';
+export type ContentRendererKind = 'geometric' | 'multisector' | 'react-card';
+export type ClusterRendererKind = 'anchor' | 'badge' | 'react-card';
+export type ContentShapeMode = 'by-type' | GeometricShapeKind;
+
+export interface DemoRenderConfig {
+  readonly contentRenderer: ContentRendererKind;
+  readonly clusterRenderer: ClusterRendererKind;
+  readonly contentShapeMode: ContentShapeMode;
+  readonly contentBaseRadius: number;
+  readonly contentStrokeWidth: number;
+  readonly scaleByReadingTime: boolean;
+  readonly donutInnerRatio: number;
+  readonly donutAccentRing: boolean;
+  readonly contentCardMaxChars: number;
+  readonly showContentCardMeta: boolean;
+  readonly anchorRadius: number;
+  readonly clusterTitleMaxChars: number;
+  readonly showClusterMetaLine: boolean;
+}
+
+export const DEFAULT_DEMO_RENDER_CONFIG: DemoRenderConfig = {
+  contentRenderer: 'geometric',
+  clusterRenderer: 'badge',
+  contentShapeMode: 'by-type',
+  contentBaseRadius: 9,
+  contentStrokeWidth: 1.4,
+  scaleByReadingTime: true,
+  donutInnerRatio: 0.44,
+  donutAccentRing: false,
+  contentCardMaxChars: 17,
+  showContentCardMeta: true,
+  anchorRadius: 23,
+  clusterTitleMaxChars: 22,
+  showClusterMetaLine: true,
+};
 
 /**
- * Unified discriminated union for content visuals across all three live-switchable presets,
+ * Unified discriminated union for independent content visuals across SVG and React JSX renderers,
  * preserving complete type safety without any `any` or `as unknown` casts.
  */
 export type DemoContentVisual =
-  | { readonly preset: 'geometric'; readonly shape: GeometricShapeVisual }
-  | { readonly preset: 'multisector'; readonly glyph: MultiSectorGlyphVisual }
+  | { readonly kind: 'geometric'; readonly shape: GeometricShapeVisual }
+  | { readonly kind: 'multisector'; readonly glyph: MultiSectorGlyphVisual }
   | {
-      readonly preset: 'react-cards';
+      readonly kind: 'react-card';
       readonly theme: SimplexTheme;
       readonly key: string;
       readonly colorHex: string;
       readonly headline: string;
       readonly minutes: number;
       readonly contentType: KnowledgeEntry['contentType'];
+      readonly maxChars: number;
+      readonly showMeta: boolean;
     };
 
 /**
- * Unified discriminated union for cluster visuals across all three presets.
+ * Unified discriminated union for independent cluster visuals across SVG and React JSX renderers.
  */
 export type DemoClusterVisual =
-  | { readonly preset: 'geometric'; readonly anchor: ClusterAnchorVisual }
-  | { readonly preset: 'multisector'; readonly badge: BadgeClusterVisual }
+  | { readonly kind: 'anchor'; readonly anchor: ClusterAnchorVisual }
+  | { readonly kind: 'badge'; readonly badge: BadgeClusterVisual }
   | {
-      readonly preset: 'react-cards';
+      readonly kind: 'react-card';
       readonly theme: SimplexTheme;
       readonly key: string;
       readonly colorHex: string;
@@ -58,6 +95,8 @@ export type DemoClusterVisual =
       readonly memberCount: number;
       readonly avgMinutes: number;
       readonly dominantType: KnowledgeEntry['contentType'];
+      readonly maxChars: number;
+      readonly showMeta: boolean;
     };
 
 const geomBase = new GeometricShapeSvgView();
@@ -67,11 +106,11 @@ const badgeBase = new BadgeClusterSvgView();
 
 export const demoGeometricContentView: SvgNodeView<DemoContentVisual> = {
   measureConvexHull: (v) =>
-    v.preset === 'geometric'
+    v.kind === 'geometric'
       ? geomBase.measureConvexHull(v.shape)
       : { kind: 'circle', radius: 10 },
   mountOrUpdate: (g, v, state) => {
-    if (v.preset === 'geometric') {
+    if (v.kind === 'geometric') {
       geomBase.mountOrUpdate(g, v.shape, {
         ...state,
         visual: v.shape,
@@ -80,7 +119,7 @@ export const demoGeometricContentView: SvgNodeView<DemoContentVisual> = {
     }
   },
   morph: (g, from, to, progress, state) => {
-    if (from.preset === 'geometric' && to.preset === 'geometric') {
+    if (from.kind === 'geometric' && to.kind === 'geometric') {
       return geomBase.morph(g, from.shape, to.shape, progress, {
         ...state,
         visual: to.shape,
@@ -93,11 +132,11 @@ export const demoGeometricContentView: SvgNodeView<DemoContentVisual> = {
 
 export const demoMultiSectorContentView: SvgNodeView<DemoContentVisual> = {
   measureConvexHull: (v) =>
-    v.preset === 'multisector'
+    v.kind === 'multisector'
       ? sectorBase.measureConvexHull(v.glyph)
       : { kind: 'circle', radius: 12 },
   mountOrUpdate: (g, v, state) => {
-    if (v.preset === 'multisector') {
+    if (v.kind === 'multisector') {
       sectorBase.mountOrUpdate(g, v.glyph, {
         ...state,
         visual: v.glyph,
@@ -109,11 +148,11 @@ export const demoMultiSectorContentView: SvgNodeView<DemoContentVisual> = {
 
 export const demoAnchorClusterView: SvgNodeView<DemoClusterVisual> = {
   measureConvexHull: (v) =>
-    v.preset === 'geometric'
+    v.kind === 'anchor'
       ? anchorBase.measureConvexHull(v.anchor)
       : { kind: 'circle', radius: 24 },
   mountOrUpdate: (g, v, state) => {
-    if (v.preset === 'geometric') {
+    if (v.kind === 'anchor') {
       anchorBase.mountOrUpdate(g, v.anchor, {
         ...state,
         visual: v.anchor,
@@ -126,7 +165,7 @@ export const demoAnchorClusterView: SvgNodeView<DemoClusterVisual> = {
 export const demoBadgeClusterView: SvgNodeView<DemoClusterVisual> = {
   // Intentionally omits measureConvexHull so @simplex-viz/svg performs automatic getBBox() measurement
   mountOrUpdate: (g, v, state) => {
-    if (v.preset === 'multisector') {
+    if (v.kind === 'badge') {
       badgeBase.mountOrUpdate(g, v.badge, {
         ...state,
         visual: v.badge,
@@ -136,8 +175,13 @@ export const demoBadgeClusterView: SvgNodeView<DemoClusterVisual> = {
   },
 };
 
+function truncateLabel(text: string, maxChars: number): string {
+  const limit = Math.max(6, maxChars);
+  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+}
+
 export function createDemoVisualResolver(
-  preset: PresetId,
+  config: DemoRenderConfig,
   theme: SimplexTheme = 'dark',
 ): VisualResolver<
   KnowledgeEntry,
@@ -148,114 +192,131 @@ export function createDemoVisualResolver(
 > {
   return {
     resolveContentVisual: (item, ctx) => {
-      if (preset === 'geometric') {
-        const shape =
-          item.contentType === 'article'
-            ? 'circle'
-            : item.contentType === 'video'
-              ? 'diamond'
-              : 'star';
+      const readingBonus = config.scaleByReadingTime
+        ? Math.min(4, Math.floor(item.readingMinutes / 8))
+        : 0;
+
+      if (config.contentRenderer === 'geometric') {
+        const shape: GeometricShapeKind =
+          config.contentShapeMode === 'by-type'
+            ? item.contentType === 'article'
+              ? 'circle'
+              : item.contentType === 'video'
+                ? 'diamond'
+                : 'star'
+            : config.contentShapeMode;
+
         return {
-          preset: 'geometric',
+          kind: 'geometric',
           shape: {
             shape,
-            radius: 9 + Math.min(4, Math.floor(item.readingMinutes / 8)),
+            radius: config.contentBaseRadius + readingBonus,
             fillHex: ctx.mixedColorHex,
             strokeHex: theme === 'light' ? '#FFFFFF' : '#07090E',
-            strokeWidth: 1.4,
+            strokeWidth: config.contentStrokeWidth,
             theme,
           },
         };
       }
-      if (preset === 'multisector') {
+
+      if (config.contentRenderer === 'multisector') {
+        const outerRadius = config.contentBaseRadius + 2 + readingBonus * 0.75;
+        const innerRadius = Math.max(2.5, outerRadius * config.donutInnerRatio);
         return {
-          preset: 'multisector',
+          kind: 'multisector',
           glyph: {
-            outerRadius: 11 + Math.min(3, Math.floor(item.readingMinutes / 9)),
-            innerRadius: 4.8,
+            outerRadius,
+            innerRadius,
             sectors: ctx.unitClusters.map((uc) => ({
               colorHex: uc.cluster.colorHex,
               weight: uc.weight,
             })),
             centerColorHex: ctx.mixedColorHex,
+            accentRingHex: config.donutAccentRing
+              ? theme === 'light'
+                ? '#0891b2'
+                : '#22d3ee'
+              : undefined,
             theme,
           },
         };
       }
-      const snippet =
-        item.headline.length > 18 ? `${item.headline.slice(0, 17)}…` : item.headline;
+
+      const snippet = truncateLabel(item.headline, config.contentCardMaxChars);
       return {
-        preset: 'react-cards',
+        kind: 'react-card',
         theme,
-        key: `card:${theme}:${item.slug}:${ctx.mixedColorHex}:${item.readingMinutes}`,
+        key: `card:${theme}:${item.slug}:${ctx.mixedColorHex}:${item.readingMinutes}:${config.contentCardMaxChars}:${config.showContentCardMeta ? 1 : 0}`,
         colorHex: ctx.mixedColorHex,
         headline: snippet,
         minutes: item.readingMinutes,
         contentType: item.contentType,
+        maxChars: config.contentCardMaxChars,
+        showMeta: config.showContentCardMeta,
       };
     },
 
     resolveClusterVisual: (cluster) => {
-      if (preset === 'geometric') {
+      if (config.clusterRenderer === 'anchor') {
         return {
-          preset: 'geometric',
+          kind: 'anchor',
           anchor: {
             code: cluster.code,
             label: cluster.meta.title,
             memberCount: cluster.meta.memberCount,
             colorHex: cluster.colorHex,
-            radius: 23,
+            radius: config.anchorRadius,
             theme,
           },
         };
       }
-      if (preset === 'multisector') {
-        const shortTitle =
-          cluster.meta.title.length > 22
-            ? `${cluster.meta.title.slice(0, 21)}…`
-            : cluster.meta.title;
+
+      const shortTitle = truncateLabel(cluster.meta.title, config.clusterTitleMaxChars);
+      if (config.clusterRenderer === 'badge') {
+        const metaLine = config.showClusterMetaLine
+          ? `${cluster.meta.memberCount} items · ${cluster.coreTags.length} tags · avg ${cluster.meta.avgReadingMinutes.toFixed(0)}m`
+          : `${cluster.meta.memberCount} items`;
         return {
-          preset: 'multisector',
+          kind: 'badge',
           badge: {
             code: cluster.code,
             title: shortTitle,
-            metaLine: `${cluster.meta.memberCount} items · ${cluster.coreTags.length} tags · avg ${cluster.meta.avgReadingMinutes.toFixed(0)}m`,
+            metaLine,
             colorHex: cluster.colorHex,
             theme,
           },
         };
       }
-      const shortTitle =
-        cluster.meta.title.length > 22
-          ? `${cluster.meta.title.slice(0, 21)}…`
-          : cluster.meta.title;
+
       return {
-        preset: 'react-cards',
+        kind: 'react-card',
         theme,
-        key: `rc:${theme}:${cluster.clusterUid}:${shortTitle}:${cluster.meta.memberCount}:${cluster.meta.dominantType}`,
+        key: `rc:${theme}:${cluster.clusterUid}:${shortTitle}:${cluster.meta.memberCount}:${cluster.meta.dominantType}:${cluster.colorHex}:${config.clusterTitleMaxChars}:${config.showClusterMetaLine ? 1 : 0}`,
         colorHex: cluster.colorHex,
         code: cluster.code,
         title: shortTitle,
         memberCount: cluster.meta.memberCount,
         avgMinutes: cluster.meta.avgReadingMinutes,
         dominantType: cluster.meta.dominantType,
+        maxChars: config.clusterTitleMaxChars,
+        showMeta: config.showClusterMetaLine,
       };
     },
 
     getVisualCacheKey: (visual) => {
-      if (visual.preset === 'geometric') {
-        if ('shape' in visual) {
-          return `g:${visual.shape.theme ?? 'dark'}:${visual.shape.shape}:${visual.shape.radius}:${visual.shape.fillHex}`;
-        }
-        return `ga:${visual.anchor.theme ?? 'dark'}:${visual.anchor.code}:${visual.anchor.memberCount}:${visual.anchor.colorHex}`;
+      if (visual.kind === 'geometric') {
+        return `g:${visual.shape.theme ?? 'dark'}:${visual.shape.shape}:${visual.shape.radius}:${visual.shape.strokeWidth ?? 1.4}:${visual.shape.fillHex}`;
       }
-      if (visual.preset === 'multisector') {
-        if ('glyph' in visual) {
-          const secKey = visual.glyph.sectors
-            .map((s) => `${s.colorHex}:${s.weight.toFixed(2)}`)
-            .join('|');
-          return `m:${visual.glyph.theme ?? 'dark'}:${visual.glyph.outerRadius}:${secKey}`;
-        }
+      if (visual.kind === 'multisector') {
+        const secKey = visual.glyph.sectors
+          .map((s) => `${s.colorHex}:${s.weight.toFixed(2)}`)
+          .join('|');
+        return `m:${visual.glyph.theme ?? 'dark'}:${visual.glyph.outerRadius.toFixed(1)}:${visual.glyph.innerRadius.toFixed(1)}:${visual.glyph.accentRingHex ?? 'none'}:${secKey}`;
+      }
+      if (visual.kind === 'anchor') {
+        return `ga:${visual.anchor.theme ?? 'dark'}:${visual.anchor.code}:${visual.anchor.memberCount}:${visual.anchor.radius}:${visual.anchor.colorHex}`;
+      }
+      if (visual.kind === 'badge') {
         return `mb:${visual.badge.theme ?? 'dark'}:${visual.badge.code}:${visual.badge.title}:${visual.badge.metaLine}:${visual.badge.colorHex}`;
       }
       return visual.key;
@@ -264,7 +325,7 @@ export function createDemoVisualResolver(
 }
 
 /**
- * Declarative React JSX renderer for content item mini-cards (Preset C).
+ * Declarative React JSX renderer for content item mini-cards.
  * Automatically measured via `getBBox()` by `@simplex-viz/react`.
  */
 export function renderDemoContentCard(
@@ -272,9 +333,11 @@ export function renderDemoContentCard(
   ctx: ContentLayoutContext<KnowledgeEntry, TagTaxonomyInfo, TopicClusterSummary>,
   state: NodeRenderState<DemoContentVisual>,
 ): ReactNode {
-  const isLight = state.visual.preset === 'react-cards' && state.visual.theme === 'light';
-  const snippet =
-    entry.headline.length > 17 ? `${entry.headline.slice(0, 16)}…` : entry.headline;
+  const cardVisual = state.visual.kind === 'react-card' ? state.visual : null;
+  const isLight = cardVisual?.theme === 'light';
+  const maxChars = cardVisual?.maxChars ?? 17;
+  const showMeta = cardVisual?.showMeta ?? true;
+  const snippet = cardVisual?.headline ?? truncateLabel(entry.headline, maxChars);
   const typeMark =
     entry.contentType === 'article' ? 'ART' : entry.contentType === 'video' ? 'VID' : 'PRJ';
   const stroke = state.interaction.isPinned
@@ -287,23 +350,33 @@ export function renderDemoContentCard(
         : '#f8fafc'
       : ctx.mixedColorHex;
 
+  const width = Math.max(82, Math.round(Math.max(snippet.length, showMeta ? 13 : 8) * 5.2 + 24));
+  const height = showMeta ? 30 : 21;
+  const halfW = width / 2;
+  const halfH = height / 2;
+
   return (
     <g>
       <rect
-        x={-52}
-        y={-15}
-        width={104}
-        height={30}
+        x={-halfW}
+        y={-halfH}
+        width={width}
+        height={height}
         rx={5}
         fill={isLight ? '#ffffff' : '#0d1320'}
         fillOpacity={isLight ? 0.97 : 0.95}
         stroke={stroke}
         strokeWidth={state.interaction.isHovered ? 1.8 : 1.15}
       />
-      <circle cx={-42} cy={-4} r={3.2} fill={ctx.mixedColorHex} />
+      <circle
+        cx={-halfW + 10}
+        cy={showMeta ? -4 : 0}
+        r={3.2}
+        fill={ctx.mixedColorHex}
+      />
       <text
-        x={-35}
-        y={-1}
+        x={-halfW + 17}
+        y={showMeta ? -1 : 3}
         fill={isLight ? '#0f172a' : '#f1f5f9'}
         fontSize={8.5}
         fontWeight={600}
@@ -311,21 +384,23 @@ export function renderDemoContentCard(
       >
         {snippet}
       </text>
-      <text
-        x={-45}
-        y={10}
-        fill={isLight ? '#475569' : '#94a3b8'}
-        fontSize={7.5}
-        fontFamily="IBM Plex Mono, monospace"
-      >
-        {`${typeMark} · ${entry.readingMinutes} min`}
-      </text>
+      {showMeta && (
+        <text
+          x={-halfW + 7}
+          y={10}
+          fill={isLight ? '#475569' : '#94a3b8'}
+          fontSize={7.5}
+          fontFamily="IBM Plex Mono, monospace"
+        >
+          {`${typeMark} · ${entry.readingMinutes} min`}
+        </text>
+      )}
     </g>
   );
 }
 
 /**
- * Declarative React JSX renderer for rich cluster summary cards (Preset C).
+ * Declarative React JSX renderer for rich cluster summary cards.
  * Directly accesses `cluster.meta.title`, `cluster.meta.dominantType`, and `cluster.meta.avgReadingMinutes`
  * without any type casts.
  */
@@ -333,11 +408,11 @@ export function renderDemoClusterCard(
   cluster: ClusterDescriptor<KnowledgeEntry, TagTaxonomyInfo, TopicClusterSummary>,
   state: NodeRenderState<DemoClusterVisual>,
 ): ReactNode {
-  const isLight = state.visual.preset === 'react-cards' && state.visual.theme === 'light';
-  const title =
-    cluster.meta.title.length > 22
-      ? `${cluster.meta.title.slice(0, 21)}…`
-      : cluster.meta.title;
+  const cardVisual = state.visual.kind === 'react-card' ? state.visual : null;
+  const isLight = cardVisual?.theme === 'light';
+  const maxChars = cardVisual?.maxChars ?? 22;
+  const showMeta = cardVisual?.showMeta ?? true;
+  const title = cardVisual?.title ?? truncateLabel(cluster.meta.title, maxChars);
   const stroke =
     state.interaction.isHovered || state.interaction.isHighlighted
       ? isLight
@@ -345,23 +420,32 @@ export function renderDemoClusterCard(
         : '#f8fafc'
       : cluster.colorHex;
 
+  const metaLine = `${cluster.meta.memberCount} items · avg ${cluster.meta.avgReadingMinutes.toFixed(0)}m · ${cluster.meta.dominantType}`;
+  const width = Math.max(
+    132,
+    Math.round(Math.max(title.length * 6.4 + 48, showMeta ? metaLine.length * 5.6 + 22 : 0)),
+  );
+  const height = showMeta ? 48 : 30;
+  const halfW = width / 2;
+  const halfH = height / 2;
+
   return (
     <g>
       <rect
-        x={-84}
-        y={-24}
-        width={168}
-        height={48}
+        x={-halfW}
+        y={-halfH}
+        width={width}
+        height={height}
         rx={7}
         fill={isLight ? '#ffffff' : '#0a0f1a'}
         fillOpacity={isLight ? 0.97 : 0.96}
         stroke={stroke}
         strokeWidth={state.interaction.isHovered ? 2.2 : 1.5}
       />
-      <circle cx={-71} cy={-8} r={4.5} fill={cluster.colorHex} />
+      <circle cx={-halfW + 13} cy={showMeta ? -8 : 0} r={4.5} fill={cluster.colorHex} />
       <text
-        x={-61}
-        y={-5}
+        x={-halfW + 23}
+        y={showMeta ? -5 : 3.5}
         fill={isLight ? '#0f172a' : cluster.colorHex}
         fontSize={10}
         fontWeight={600}
@@ -370,8 +454,8 @@ export function renderDemoClusterCard(
         {cluster.code}
       </text>
       <text
-        x={-40}
-        y={-5}
+        x={-halfW + 44}
+        y={showMeta ? -5 : 3.5}
         fill={isLight ? '#0f172a' : '#f8fafc'}
         fontSize={10.5}
         fontWeight={600}
@@ -379,15 +463,17 @@ export function renderDemoClusterCard(
       >
         {title}
       </text>
-      <text
-        x={-75}
-        y={13}
-        fill={isLight ? '#475569' : '#94a3b8'}
-        fontSize={9}
-        fontFamily="IBM Plex Mono, monospace"
-      >
-        {`${cluster.meta.memberCount} items · avg ${cluster.meta.avgReadingMinutes.toFixed(0)}m · ${cluster.meta.dominantType}`}
-      </text>
+      {showMeta && (
+        <text
+          x={-halfW + 9}
+          y={13}
+          fill={isLight ? '#475569' : '#94a3b8'}
+          fontSize={9}
+          fontFamily="IBM Plex Mono, monospace"
+        >
+          {metaLine}
+        </text>
+      )}
     </g>
   );
 }

@@ -53,6 +53,7 @@ import {
   type TopicClusterSummary,
 } from './data/knowledgeCatalog';
 import {
+  DEFAULT_DEMO_RENDER_CONFIG,
   createDemoVisualResolver,
   demoAnchorClusterView,
   demoBadgeClusterView,
@@ -60,9 +61,12 @@ import {
   demoMultiSectorContentView,
   renderDemoClusterCard,
   renderDemoContentCard,
+  type ClusterRendererKind,
+  type ContentRendererKind,
+  type ContentShapeMode,
   type DemoClusterVisual,
   type DemoContentVisual,
-  type PresetId,
+  type DemoRenderConfig,
 } from './presets';
 
 type ThemePreference = 'auto' | 'light' | 'dark';
@@ -78,7 +82,6 @@ type ColorStrategyId =
   | 'curated-palette'
   | 'nordic-palette';
 type LayoutStrategyId = 'pbd-uniform' | 'pbd-warm-start' | 'local-adaptive';
-type CombinationRecipeId = 'default' | 'editorial' | 'dense' | 'strict';
 
 interface ContextMenuState {
   readonly x: number;
@@ -111,10 +114,16 @@ type InspectedTarget =
 export function DemoApp() {
   const initialCatalog = useMemo(() => buildInitialKnowledgeCatalog(), []);
   const [items, setItems] = useState<readonly KnowledgeEntry[]>(initialCatalog);
-  const [preset, setPreset] = useState<PresetId>('geometric');
+  const [renderConfig, setRenderConfig] = useState<DemoRenderConfig>(
+    DEFAULT_DEMO_RENDER_CONFIG,
+  );
   const [sizeMultiplier, setSizeMultiplier] = useState<number>(1.0);
   const [showHulls, setShowHulls] = useState<boolean>(false);
   const [rapidFireActive, setRapidFireActive] = useState<boolean>(false);
+
+  const updateRenderConfig = useCallback((patch: Partial<DemoRenderConfig>) => {
+    setRenderConfig((prev) => ({ ...prev, ...patch }));
+  }, []);
 
   // Pluggable Core Strategy selections
   const [meshStrategyId, setMeshStrategyId] = useState<MeshStrategyId>('adaptive');
@@ -273,8 +282,8 @@ export function DemoApp() {
   >();
 
   const visualResolver = useMemo(
-    () => createDemoVisualResolver(preset, resolvedTheme),
-    [preset, resolvedTheme],
+    () => createDemoVisualResolver(renderConfig, resolvedTheme),
+    [renderConfig, resolvedTheme],
   );
 
   const meshStrategy = useMemo(() => {
@@ -342,101 +351,14 @@ export function DemoApp() {
     return createPbdUniformLayoutStrategy();
   }, [layoutStrategyId]);
 
-  const applyCombinationRecipe = useCallback((recipeId: CombinationRecipeId) => {
-    if (recipeId === 'default') {
-      setPreset('geometric');
-      setMeshStrategyId('adaptive');
-      setClusteringStrategyId('jaccard-annealing');
-      setSharedTagRule('planar-hitting-set');
-      setAnchorRule('explaining-away');
-      setColorStrategyId('oklab-contrast');
-      setLayoutStrategyId('pbd-uniform');
-      return;
-    }
-    if (recipeId === 'editorial') {
-      setPreset('react-cards');
-      setMeshStrategyId('lattice-3x3');
-      setClusteringStrategyId('incremental-anchor');
-      setSharedTagRule('planar-hitting-set');
-      setAnchorRule('explaining-away');
-      setColorStrategyId('theme-adaptive');
-      setLayoutStrategyId('pbd-warm-start');
-      return;
-    }
-    if (recipeId === 'dense') {
-      setPreset('multisector');
-      setMeshStrategyId('lattice-4x3');
-      setClusteringStrategyId('jaccard-annealing');
-      setSharedTagRule('planar-hitting-set');
-      setAnchorRule('barycentric-all');
-      setColorStrategyId('curated-palette');
-      setLayoutStrategyId('local-adaptive');
-      return;
-    }
-    setPreset('geometric');
+  const resetCoreStrategies = useCallback(() => {
     setMeshStrategyId('adaptive');
     setClusteringStrategyId('jaccard-annealing');
-    setSharedTagRule('none');
-    setAnchorRule('raw-overlap');
-    setColorStrategyId('nordic-palette');
+    setSharedTagRule('planar-hitting-set');
+    setAnchorRule('explaining-away');
+    setColorStrategyId('oklab-contrast');
     setLayoutStrategyId('pbd-uniform');
   }, []);
-
-  const activeRecipe: CombinationRecipeId | null = useMemo(() => {
-    if (
-      preset === 'geometric' &&
-      meshStrategyId === 'adaptive' &&
-      clusteringStrategyId === 'jaccard-annealing' &&
-      sharedTagRule === 'planar-hitting-set' &&
-      anchorRule === 'explaining-away' &&
-      colorStrategyId === 'oklab-contrast' &&
-      layoutStrategyId === 'pbd-uniform'
-    ) {
-      return 'default';
-    }
-    if (
-      preset === 'react-cards' &&
-      meshStrategyId === 'lattice-3x3' &&
-      clusteringStrategyId === 'incremental-anchor' &&
-      sharedTagRule === 'planar-hitting-set' &&
-      anchorRule === 'explaining-away' &&
-      colorStrategyId === 'theme-adaptive' &&
-      layoutStrategyId === 'pbd-warm-start'
-    ) {
-      return 'editorial';
-    }
-    if (
-      preset === 'multisector' &&
-      meshStrategyId === 'lattice-4x3' &&
-      clusteringStrategyId === 'jaccard-annealing' &&
-      sharedTagRule === 'planar-hitting-set' &&
-      anchorRule === 'barycentric-all' &&
-      colorStrategyId === 'curated-palette' &&
-      layoutStrategyId === 'local-adaptive'
-    ) {
-      return 'dense';
-    }
-    if (
-      preset === 'geometric' &&
-      meshStrategyId === 'adaptive' &&
-      clusteringStrategyId === 'jaccard-annealing' &&
-      sharedTagRule === 'none' &&
-      anchorRule === 'raw-overlap' &&
-      colorStrategyId === 'nordic-palette' &&
-      layoutStrategyId === 'pbd-uniform'
-    ) {
-      return 'strict';
-    }
-    return null;
-  }, [
-    preset,
-    meshStrategyId,
-    clusteringStrategyId,
-    sharedTagRule,
-    anchorRule,
-    colorStrategyId,
-    layoutStrategyId,
-  ]);
 
   const effectivePinnedIds = useMemo(() => {
     if (inspected?.kind !== 'content' || pinnedIds.has(inspected.item.slug)) {
@@ -776,104 +698,345 @@ export function DemoApp() {
               </button>
             </div>
 
-            {/* Section 1: Visual Preset Switcher */}
+            {/* Section 1: Fine-Grained Visual Rendering Settings */}
+            <section className="p-4 border-b border-slate-200/80 dark:border-slate-800/80">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
+                  Visual Rendering
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setRenderConfig(DEFAULT_DEMO_RENDER_CONFIG)}
+                  className="cursor-pointer text-[11px] text-slate-500 hover:text-cyan-700 dark:text-slate-400 dark:hover:text-cyan-300 transition-colors"
+                >
+                  Defaults
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                {/* Content Nodes Sub-Group */}
+                <div className="rounded-md border border-slate-200/80 bg-slate-50/60 p-2.5 space-y-2.5 dark:border-slate-800 dark:bg-[#0E131D]/70">
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                      Content Nodes
+                    </span>
+                    <select
+                      value={renderConfig.contentRenderer}
+                      onChange={(e) =>
+                        updateRenderConfig({
+                          contentRenderer: e.target.value as ContentRendererKind,
+                        })
+                      }
+                      className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0B0F17] dark:text-slate-200"
+                    >
+                      <option value="geometric">Geometric Shape (SVG Morphing)</option>
+                      <option value="multisector">Multi-Sector Donut (SVG)</option>
+                      <option value="react-card">React JSX Mini-Card</option>
+                    </select>
+                  </label>
+
+                  {renderConfig.contentRenderer === 'geometric' && (
+                    <>
+                      <label className="block">
+                        <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                          Shape Mapping
+                        </span>
+                        <select
+                          value={renderConfig.contentShapeMode}
+                          onChange={(e) =>
+                            updateRenderConfig({
+                              contentShapeMode: e.target.value as ContentShapeMode,
+                            })
+                          }
+                          className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0B0F17] dark:text-slate-200"
+                        >
+                          <option value="by-type">
+                            By Content Type (Circle / Diamond / Star)
+                          </option>
+                          <option value="circle">Circle (All Items)</option>
+                          <option value="diamond">Diamond (All Items)</option>
+                          <option value="hexagon">Hexagon (All Items)</option>
+                          <option value="star">5-Point Star (All Items)</option>
+                        </select>
+                      </label>
+
+                      <label className="block">
+                        <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                          <span>Base Radius</span>
+                          <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                            {renderConfig.contentBaseRadius} px
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={7}
+                          max={16}
+                          step={1}
+                          value={renderConfig.contentBaseRadius}
+                          onChange={(e) =>
+                            updateRenderConfig({
+                              contentBaseRadius: parseFloat(e.target.value),
+                            })
+                          }
+                          className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                          <span>Stroke Width</span>
+                          <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                            {renderConfig.contentStrokeWidth.toFixed(1)} px
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.5}
+                          max={3.0}
+                          step={0.1}
+                          value={renderConfig.contentStrokeWidth}
+                          onChange={(e) =>
+                            updateRenderConfig({
+                              contentStrokeWidth: parseFloat(e.target.value),
+                            })
+                          }
+                          className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+
+                      <label className="flex cursor-pointer items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
+                        <span>Scale by Reading Time</span>
+                        <input
+                          type="checkbox"
+                          checked={renderConfig.scaleByReadingTime}
+                          onChange={(e) =>
+                            updateRenderConfig({
+                              scaleByReadingTime: e.target.checked,
+                            })
+                          }
+                          className="h-3.5 w-3.5 accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  {renderConfig.contentRenderer === 'multisector' && (
+                    <>
+                      <label className="block">
+                        <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                          <span>Base Radius</span>
+                          <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                            {renderConfig.contentBaseRadius + 2} px
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={7}
+                          max={16}
+                          step={1}
+                          value={renderConfig.contentBaseRadius}
+                          onChange={(e) =>
+                            updateRenderConfig({
+                              contentBaseRadius: parseFloat(e.target.value),
+                            })
+                          }
+                          className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                          <span>Inner Core Ratio</span>
+                          <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                            {Math.round(renderConfig.donutInnerRatio * 100)}%
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.25}
+                          max={0.7}
+                          step={0.05}
+                          value={renderConfig.donutInnerRatio}
+                          onChange={(e) =>
+                            updateRenderConfig({
+                              donutInnerRatio: parseFloat(e.target.value),
+                            })
+                          }
+                          className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+
+                      <label className="flex cursor-pointer items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
+                        <span>Scale by Reading Time</span>
+                        <input
+                          type="checkbox"
+                          checked={renderConfig.scaleByReadingTime}
+                          onChange={(e) =>
+                            updateRenderConfig({
+                              scaleByReadingTime: e.target.checked,
+                            })
+                          }
+                          className="h-3.5 w-3.5 accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+
+                      <label className="flex cursor-pointer items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
+                        <span>Outer Accent Ring</span>
+                        <input
+                          type="checkbox"
+                          checked={renderConfig.donutAccentRing}
+                          onChange={(e) =>
+                            updateRenderConfig({
+                              donutAccentRing: e.target.checked,
+                            })
+                          }
+                          className="h-3.5 w-3.5 accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  {renderConfig.contentRenderer === 'react-card' && (
+                    <>
+                      <label className="block">
+                        <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                          <span>Headline Length</span>
+                          <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                            {renderConfig.contentCardMaxChars} chars
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={10}
+                          max={26}
+                          step={1}
+                          value={renderConfig.contentCardMaxChars}
+                          onChange={(e) =>
+                            updateRenderConfig({
+                              contentCardMaxChars: parseInt(e.target.value, 10),
+                            })
+                          }
+                          className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+
+                      <label className="flex cursor-pointer items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
+                        <span>Show Type &amp; Duration</span>
+                        <input
+                          type="checkbox"
+                          checked={renderConfig.showContentCardMeta}
+                          onChange={(e) =>
+                            updateRenderConfig({
+                              showContentCardMeta: e.target.checked,
+                            })
+                          }
+                          className="h-3.5 w-3.5 accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+                    </>
+                  )}
+                </div>
+
+                {/* Cluster Nodes Sub-Group */}
+                <div className="rounded-md border border-slate-200/80 bg-slate-50/60 p-2.5 space-y-2.5 dark:border-slate-800 dark:bg-[#0E131D]/70">
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                      Cluster Nodes
+                    </span>
+                    <select
+                      value={renderConfig.clusterRenderer}
+                      onChange={(e) =>
+                        updateRenderConfig({
+                          clusterRenderer: e.target.value as ClusterRendererKind,
+                        })
+                      }
+                      className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0B0F17] dark:text-slate-200"
+                    >
+                      <option value="anchor">Double-Ring Anchor (SVG)</option>
+                      <option value="badge">Stats Pill Badge (SVG getBBox)</option>
+                      <option value="react-card">React JSX Summary Card</option>
+                    </select>
+                  </label>
+
+                  {renderConfig.clusterRenderer === 'anchor' ? (
+                    <label className="block">
+                      <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                        <span>Anchor Radius</span>
+                        <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                          {renderConfig.anchorRadius} px
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={16}
+                        max={32}
+                        step={1}
+                        value={renderConfig.anchorRadius}
+                        onChange={(e) =>
+                          updateRenderConfig({
+                            anchorRadius: parseInt(e.target.value, 10),
+                          })
+                        }
+                        className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                      />
+                    </label>
+                  ) : (
+                    <>
+                      <label className="block">
+                        <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                          <span>Title Length</span>
+                          <span className="font-mono text-cyan-700 dark:text-cyan-300">
+                            {renderConfig.clusterTitleMaxChars} chars
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={12}
+                          max={28}
+                          step={1}
+                          value={renderConfig.clusterTitleMaxChars}
+                          onChange={(e) =>
+                            updateRenderConfig({
+                              clusterTitleMaxChars: parseInt(e.target.value, 10),
+                            })
+                          }
+                          className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+
+                      <label className="flex cursor-pointer items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
+                        <span>Show Cluster Metrics</span>
+                        <input
+                          type="checkbox"
+                          checked={renderConfig.showClusterMetaLine}
+                          onChange={(e) =>
+                            updateRenderConfig({
+                              showClusterMetaLine: e.target.checked,
+                            })
+                          }
+                          className="h-3.5 w-3.5 accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                        />
+                      </label>
+                    </>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* Section 1b: Core Algorithm Strategies (completely independent from rendering) */}
             <section className="p-4 border-b border-slate-200/80 dark:border-slate-800/80">
               <div className="mb-2.5 flex items-center justify-between">
                 <h2 className="text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
-                  Rendering Plugin
+                  Core Strategies
                 </h2>
-                <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                  Live Crossfade
-                </span>
+                <button
+                  type="button"
+                  onClick={resetCoreStrategies}
+                  className="cursor-pointer text-[11px] text-slate-500 hover:text-cyan-700 dark:text-slate-400 dark:hover:text-cyan-300 transition-colors"
+                >
+                  Defaults
+                </button>
               </div>
-            <div className="grid grid-cols-1 gap-1.5">
-              {(
-                [
-                  [
-                    'geometric',
-                    'A · Geometric Encoding',
-                    'SvgNodeView with 64-point morphing',
-                  ],
-                  [
-                    'multisector',
-                    'B · Topic Glyphs & Badges',
-                    'Multi-sector donut + getBBox() pills',
-                  ],
-                  [
-                    'react-cards',
-                    'C · React JSX Mini-Cards',
-                    'Declarative JSX + auto-scaling',
-                  ],
-                ] as const
-              ).map(([id, title, sub]) => {
-                const active = preset === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setPreset(id)}
-                    className={`cursor-pointer rounded-md border px-3 py-2 text-left transition-colors ${
-                      active
-                        ? 'border-cyan-600/60 bg-cyan-50 text-slate-950 dark:border-cyan-500/60 dark:bg-cyan-500/10 dark:text-slate-50'
-                        : 'border-slate-200 bg-slate-50/70 text-slate-700 hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:bg-[#0E131D] dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900'
-                    }`}
-                  >
-                    <div className="text-xs font-semibold">{title}</div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      {sub}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* Section 1b: Core Strategy Matrix & Preset Combinations */}
-          <section className="p-4 border-b border-slate-200/80 dark:border-slate-800/80">
-            <div className="mb-2.5 flex items-center justify-between">
-              <h2 className="text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
-                Core Strategies
-              </h2>
-              <button
-                type="button"
-                onClick={() => applyCombinationRecipe('default')}
-                className="cursor-pointer text-[11px] text-slate-500 hover:text-cyan-700 dark:text-slate-400 dark:hover:text-cyan-300 transition-colors"
-              >
-                Defaults
-              </button>
-            </div>
-
-            <div className="mb-3 grid grid-cols-2 gap-1.5">
-              {(
-                [
-                  ['default', 'Adaptive Explorer', 'Geom · Hex · OKLab'],
-                  ['editorial', 'Editorial Incremental', 'JSX · 3×3 · Warm'],
-                  ['dense', 'Dense Local Scale', 'Glyph · 4×3 · Local'],
-                  ['strict', 'Strict Partition', 'Geom · No Shared'],
-                ] as const
-              ).map(([recipeId, title, hint]) => {
-                const isActive = activeRecipe === recipeId;
-                return (
-                  <button
-                    key={recipeId}
-                    type="button"
-                    onClick={() => applyCombinationRecipe(recipeId)}
-                    className={`cursor-pointer rounded-md border px-2 py-1.5 text-left transition-colors ${
-                      isActive
-                        ? 'border-cyan-600/60 bg-cyan-50 text-slate-950 dark:border-cyan-500/60 dark:bg-cyan-500/10 dark:text-slate-50'
-                        : 'border-slate-200 bg-slate-50/70 text-slate-700 hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:bg-[#0E131D] dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900'
-                    }`}
-                  >
-                    <div className="text-[11px] font-semibold leading-tight truncate">
-                      {title}
-                    </div>
-                    <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                      {hint}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
 
             <div className="space-y-2.5 text-xs">
               <label className="block">
@@ -1265,21 +1428,29 @@ export function DemoApp() {
             visualResolver={visualResolver}
             theme={resolvedTheme}
             contentView={
-              preset === 'geometric'
+              renderConfig.contentRenderer === 'geometric'
                 ? demoGeometricContentView
-                : preset === 'multisector'
+                : renderConfig.contentRenderer === 'multisector'
                   ? demoMultiSectorContentView
                   : undefined
             }
             clusterView={
-              preset === 'geometric'
+              renderConfig.clusterRenderer === 'anchor'
                 ? demoAnchorClusterView
-                : preset === 'multisector'
+                : renderConfig.clusterRenderer === 'badge'
                   ? demoBadgeClusterView
                   : undefined
             }
-            renderContentNode={preset === 'react-cards' ? renderDemoContentCard : undefined}
-            renderClusterNode={preset === 'react-cards' ? renderDemoClusterCard : undefined}
+            renderContentNode={
+              renderConfig.contentRenderer === 'react-card'
+                ? renderDemoContentCard
+                : undefined
+            }
+            renderClusterNode={
+              renderConfig.clusterRenderer === 'react-card'
+                ? renderDemoClusterCard
+                : undefined
+            }
             sizeMultiplier={sizeMultiplier}
             showHulls={showHulls}
             pinnedIds={effectivePinnedIds}

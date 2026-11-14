@@ -1,5 +1,13 @@
 # @simplex-viz/svg
 
+## 0.3.0
+
+### Minor Changes
+
+- Expose and re-export pluggable `@simplex-viz/core` strategy factories, rules, and runtime strategy setters/getters on `SimplexSvgController`, add synchronous camera transform updates via `camera` (`zoomToCursor`, `panBy`, `reset`), and support two-finger touch pinch-to-zoom, touch pan, and `pointercancel` cleanup.
+- Updated dependencies
+  - @simplex-viz/core@0.3.0
+
 ## 0.2.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @simplex-viz/core
 
+## 0.3.0
+
+### Minor Changes
+
+- Make all four spatial pipeline stages pluggable and hot-swappable (`SimplexMeshStrategy`, `SimplexClusteringStrategy` with `initialize`/`update` plus configurable `sharedTagRule` and `anchorRule`, `SimplexColorStrategy`, and `SimplexLayoutStrategy`), add built-in strategy factories (`createAdaptiveHexMeshStrategy`, `createFixedLatticeMeshStrategy`, `createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`, `createOklabContrastColorStrategy`, `createThemeAdaptiveOklabColorStrategy`, `createPaletteColorStrategy`, `createPbdUniformLayoutStrategy`, `createWarmStartPbdLayoutStrategy`, `createLocalAdaptiveLayoutStrategy`), and document all strategies.
+
 ## 0.2.1
 
 ### Patch Changes

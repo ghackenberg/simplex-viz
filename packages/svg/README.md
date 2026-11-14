@@ -25,7 +25,7 @@ While `@simplex-viz/core` computes pure spatial coordinates, `@simplex-viz/svg` 
 - **Framework-agnostic SVG scene graph**: Keyed DOM reconciliation for background mesh triangles, highlighted edges, convex hull debug wireframes, cluster nodes, and content nodes.
 - **Automatic offscreen `getBBox()` hull measurement**: Omit `measureConvexHull` on any `SvgNodeView` and `@simplex-viz/svg` automatically renders it in a hidden measurement bin, reads `getBBox()`, and caches a tight convex polygon for overlap-free layout.
 - **Smooth 60 fps transitions**: Critically damped spring motion + specialized parametric `morph()` or automatic dual-layer crossfade when switching visual presets or mutating items.
-- **Centralized root-SVG interactions**: Attaches pointer, click, right-click, wheel, drag-to-pan, and `ResizeObserver` listeners solely on the root `<svg>` element and delegates hit-testing to `@simplex-viz/core`'s exact convex geometry solver.
+- **Centralized root-SVG interactions**: Attaches pointer, two-finger touch pinch-to-zoom/pan, click, right-click, wheel, drag-to-pan, and `ResizeObserver` listeners solely on the root `<svg>` element and delegates hit-testing to `@simplex-viz/core`'s exact convex geometry solver.
 - **Four built-in view plugins**: Ready-to-use views for geometric shape morphing, multi-sector topic glyphs, vertex anchors, and dynamic text badges.
 
 ## Installation
@@ -384,7 +384,7 @@ export const CustomCardSvgView: SvgNodeView<CardVisual> = {
 | `setPinnedIds(ids)` / `setHighlightedIds(ids)` | Controls pinned and highlighted visual emphasis states. |
 | `setFocusedClusterUid(uid \| null)` | Isolates a cluster and its members, dimming unrelated nodes. |
 | `setInteractions(handlers)` | Replaces pointer, click, and wheel callbacks dynamically (`onWheel` defaults to `'zoom-to-cursor'`). |
-| `camera` | Exposes `CameraController` (`zoomToCursor`, `panBy`, `reset`, `getState`, `setState`). |
+| `camera` | Exposes `CameraController` (`zoomToCursor`, `panBy`, `reset`, `getState`, `setState`) with immediate synchronous `<svg>` transform updates. |
 | `getMetrics()` / `getClusters()` / `getItems()` | Reads live solver telemetry, clusters, and items. |
 | `getSvgElement()` | Returns the managed root `<svg>` element. |
 | `stepForTest(dtMs)` | Deterministically advances simulation time in unit/DOM tests. |

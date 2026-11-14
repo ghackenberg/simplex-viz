@@ -2,6 +2,22 @@
 
 Alle relevanten Änderungen an **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`) werden in dieser Datei im Format [Keep a Changelog](https://keepachangelog.com/de/1.1.0/) dokumentiert und über `@changesets/cli` verwaltet.
 
+## [0.3.0] - 2026-11-14
+
+### Hinzugefügt
+- **`@simplex-viz/core`**:
+  - Austauschbare Strategie-Schnittstellen über die gesamte Pipeline (`SimplexMeshStrategy`, `SimplexClusteringStrategy` mit getrenntem `initialize`/`update` sowie `sharedTagRule` & `anchorRule`, `SimplexColorStrategy`, `SimplexLayoutStrategy`).
+  - Eingebaute Strategie-Factories (`createAdaptiveHexMeshStrategy`, `createFixedLatticeMeshStrategy`, `createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`, `createOklabContrastColorStrategy`, `createThemeAdaptiveOklabColorStrategy`, `createPaletteColorStrategy`, `createPbdUniformLayoutStrategy`, `createWarmStartPbdLayoutStrategy`, `createLocalAdaptiveLayoutStrategy`) inkl. Laufzeit-Wechsel auf `SimplexGraphEngine` (`setMeshStrategy`, `setClusteringStrategy`, `setColorStrategy`, `setLayoutStrategy`).
+- **`@simplex-viz/svg`**:
+  - Multi-Touch **2-Finger Pinch-to-Zoom & Touch-Pan** sowie `pointercancel`-Bereinigung in `SimplexSvgController`.
+  - Synchroner `cameraProxy`-Render-Sync (`engine.renderNow()`), sodass Zoom/Pan/Reset ohne Verzögerung im SVG greifen.
+  - Re-Export aller Core-Strategien, Rules und `set*Strategy`-/Getter-Methoden auf `SimplexSvgController`.
+- **`@simplex-viz/react`**:
+  - Neue Strategie-Props (`meshStrategy`, `clusteringStrategy`, `colorStrategy`, `layoutStrategy`) auf `<SimplexTopicGraph />` und imperative Setter im Hook `useSimplexGraphController`.
+- **Demo-App & Dokumentation**:
+  - Entkoppelte, feingranulare Render-Einstellungen für Content- (`Geometric Shape` als Standard) und Cluster-Knoten (`Stats Pill Badge` als Standard) ohne starre Preset-Buttons.
+  - Vollständig responsives Layout für Smartphones, Tablets, Laptops und Ultra-Wide-Displays (`100dvh`, `ResizeObserver`-gestützte Triangulation, Fly-Out-Drawer, klemmende Overlays) sowie Bibliotheks-Version im Header.
+
 ## [0.2.1] - 2026-11-13
 
 ### Geändert

@@ -26,7 +26,7 @@ Explore the interactive demo at **<https://hackenberg.tech/simplex-viz/>**. It b
   </a>
 </p>
 
-*Figure: The interactive SimplexViz showcase in Geometric Encoding mode. Topic clusters (`T1`–`T8`) sit as dashed double-ring vertex anchors on the adaptive 60° equilateral triangle lattice, while content items render inside their covering vertices, edges, or triangles as colored circles, diamonds, and stars blended in perceptual OKLab space. The left inspector provides live controls for rendering presets, core algorithm strategies (`Mesh`, `Clustering`, `Color`, `Layout`), dataset mutations, size scaling, and solver telemetry (`0` overlaps at `60 fps`), while hovering any node opens a contextual inspection tooltip.*
+*Figure: The interactive SimplexViz showcase. Topic clusters (`T1`–`T8`) sit as topic badges or double-ring vertex anchors on the adaptive 60° equilateral triangle lattice, while content items render inside their covering vertices, edges, or triangles as colored shapes, multi-sector glyphs, or React cards blended in perceptual OKLab space. The collapsible left inspector offers fine-grained independent controls for content/cluster renderers, core algorithm strategies (`Mesh`, `Clustering`, `Color`, `Layout`), dataset mutations, size scaling, and solver telemetry (`0` overlaps at `60 fps`), with mouse and two-finger touch pinch/pan navigation across desktop and mobile viewports.*
 
 ## Project Vision & Mathematical Principle
 
@@ -60,7 +60,7 @@ flowchart LR
 
 ## Quickstart (Zero-Config)
 
-Each package re-exports the helpers and types you need from lower layers—install just the single package matching your stack and pass `{ id, tags }` items directly. Pan, cursor zoom, cluster click-focus, and hover tooltips work out of the box.
+Each package re-exports the helpers and types you need from lower layers—install just the single package matching your stack and pass `{ id, tags }` items directly. Drag-to-pan, cursor wheel zoom, two-finger touch pinch-to-zoom, cluster click-focus, and hover tooltips work out of the box.
 
 ### React (`@simplex-viz/react`)
 

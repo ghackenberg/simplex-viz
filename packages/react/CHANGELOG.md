@@ -1,5 +1,14 @@
 # @simplex-viz/react
 
+## 0.3.0
+
+### Minor Changes
+
+- Add pluggable strategy props (`meshStrategy`, `clusteringStrategy`, `colorStrategy`, `layoutStrategy`) to `<SimplexTopicGraph />`, expose imperative strategy setters on `useSimplexGraphController()`, and re-export all built-in strategy factories and rule types from `@simplex-viz/svg` and `@simplex-viz/core`.
+- Updated dependencies
+  - @simplex-viz/core@0.3.0
+  - @simplex-viz/svg@0.3.0
+
 ## 0.2.1
 
 ### Patch Changes
