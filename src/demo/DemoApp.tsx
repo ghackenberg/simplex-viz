@@ -188,6 +188,15 @@ export function DemoApp() {
     [preset, resolvedTheme],
   );
 
+  const effectivePinnedIds = useMemo(() => {
+    if (inspected?.kind !== 'content' || pinnedIds.has(inspected.item.slug)) {
+      return pinnedIds;
+    }
+    const merged = new Set(pinnedIds);
+    merged.add(inspected.item.slug);
+    return merged;
+  }, [pinnedIds, inspected]);
+
   // Mutation handlers
   const handleAddItems = useCallback((count: number) => {
     const additions: KnowledgeEntry[] = [];
@@ -316,6 +325,19 @@ export function DemoApp() {
     });
   }, []);
 
+  const removeItemBySlug = useCallback((slug: string) => {
+    setItems((prev) => prev.filter((it) => it.slug !== slug));
+    setPinnedIds((prev) => {
+      if (!prev.has(slug)) return prev;
+      const next = new Set(prev);
+      next.delete(slug);
+      return next;
+    });
+    setInspected((cur) =>
+      cur?.kind === 'content' && cur.item.slug === slug ? null : cur,
+    );
+  }, []);
+
   const onLeftClick = useCallback(
     (
       target: HitTarget<
@@ -333,24 +355,26 @@ export function DemoApp() {
           setHighlightedIds(new Set());
         } else if (leftClickPolicy === 'inspect') {
           setInspected(null);
+          setFocusedClusterUid(null);
         }
         return;
       }
 
       if (leftClickPolicy === 'remove') {
         if (target.kind === 'content') {
-          const slugToRemove = target.item.slug;
-          setItems((prev) => prev.filter((it) => it.slug !== slugToRemove));
+          removeItemBySlug(target.item.slug);
         }
         return;
       }
 
       if (leftClickPolicy === 'focus-toggle') {
         if (target.kind === 'cluster') {
+          setHighlightedIds(new Set());
           setFocusedClusterUid((cur) =>
             cur === target.cluster.clusterUid ? null : target.cluster.clusterUid,
           );
         } else {
+          setFocusedClusterUid(null);
           const ids = new Set<string>([target.item.slug]);
           for (const uc of target.layoutContext.unitClusters) {
             for (const m of uc.cluster.members) {
@@ -362,28 +386,37 @@ export function DemoApp() {
         return;
       }
 
-      // Default: 'inspect'
+      // Default: 'inspect' (single-select across content items & clusters)
       if (target.kind === 'content') {
-        togglePinId(target.item.slug);
-        setInspected({
-          kind: 'content',
-          item: target.item,
-          clusterTitles: target.layoutContext.unitClusters.map(
-            (uc) => `${uc.cluster.code} (${Math.round(uc.weight * 100)}%)`,
-          ),
-          mixedColorHex: target.layoutContext.mixedColorHex,
-        });
+        setFocusedClusterUid(null);
+        setInspected((cur) =>
+          cur?.kind === 'content' && cur.item.slug === target.item.slug
+            ? null
+            : {
+                kind: 'content',
+                item: target.item,
+                clusterTitles: target.layoutContext.unitClusters.map(
+                  (uc) => `${uc.cluster.code} (${Math.round(uc.weight * 100)}%)`,
+                ),
+                mixedColorHex: target.layoutContext.mixedColorHex,
+              },
+        );
       } else {
         setFocusedClusterUid((cur) =>
           cur === target.cluster.clusterUid ? null : target.cluster.clusterUid,
         );
-        setInspected({
-          kind: 'cluster',
-          cluster: target.cluster,
-        });
+        setInspected((cur) =>
+          cur?.kind === 'cluster' &&
+          cur.cluster.clusterUid === target.cluster.clusterUid
+            ? null
+            : {
+                kind: 'cluster',
+                cluster: target.cluster,
+              },
+        );
       }
     },
-    [leftClickPolicy, togglePinId],
+    [leftClickPolicy, removeItemBySlug],
   );
 
   const onRightClick = useCallback(
@@ -803,7 +836,7 @@ export function DemoApp() {
                   onChange={(e) => setLeftClickPolicy(e.target.value as LeftClickPolicy)}
                   className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
                 >
-                  <option value="inspect">Pin &amp; Inspect Details</option>
+                  <option value="inspect">Select &amp; Inspect Details</option>
                   <option value="focus-toggle">Focus Unit / Cluster</option>
                   <option value="remove">Remove Item Directly</option>
                 </select>
@@ -883,7 +916,7 @@ export function DemoApp() {
             renderClusterNode={preset === 'react-cards' ? renderDemoClusterCard : undefined}
             sizeMultiplier={sizeMultiplier}
             showHulls={showHulls}
-            pinnedIds={pinnedIds}
+            pinnedIds={effectivePinnedIds}
             highlightedIds={highlightedIds}
             focusedClusterUid={focusedClusterUid}
             meshOptions={{
@@ -1046,7 +1079,7 @@ export function DemoApp() {
                           ? contextMenu.target.item.slug
                           : '';
                       if (slug) {
-                        setItems((prev) => prev.filter((it) => it.slug !== slug));
+                        removeItemBySlug(slug);
                       }
                       setContextMenu(null);
                     }}
