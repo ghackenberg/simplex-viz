@@ -1,11 +1,19 @@
 # @simplex-viz/react
 
+## 0.4.0
+
+### Minor Changes
+
+- Add pluggable `triangleView` / `edgeView` props, interactive triangle props (`focusedTriangleIndex`, `focusOnTriangleClick`, `onTriangleHover`), `'triangle'` tooltip targets, `GradientTriangleSvgView` re-exports, and `setTriangleView` / `setEdgeView` / `setFocusedTriangleIndex` hook methods.
+- Updated dependencies
+  - @simplex-viz/core@0.4.0
+  - @simplex-viz/svg@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes
 
 - Add pluggable strategy props (`meshStrategy`, `clusteringStrategy`, `colorStrategy`, `layoutStrategy`) to `<SimplexTopicGraph />`, expose imperative strategy setters on `useSimplexGraphController()`, and re-export all built-in strategy factories and rule types from `@simplex-viz/svg` and `@simplex-viz/core`.
-- Add pluggable `triangleView` / `edgeView` props, interactive triangle props (`focusedTriangleIndex`, `focusOnTriangleClick`, `onTriangleHover`), `'triangle'` tooltip targets, and `setTriangleView` / `setEdgeView` / `setFocusedTriangleIndex` hook methods.
 - Updated dependencies
   - @simplex-viz/core@0.3.0
   - @simplex-viz/svg@0.3.0

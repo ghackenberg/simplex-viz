@@ -1,11 +1,18 @@
 # @simplex-viz/svg
 
+## 0.4.0
+
+### Minor Changes
+
+- Add pluggable `SvgTriangleView` (`OklabTintTriangleSvgView`, `GradientTriangleSvgView` for continuous barycentric shading, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`) and `SvgEdgeView` (`DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`) plugins with runtime hot-swapping (`setTriangleView`, `setEdgeView`, `setViews`), interactive triangle hover/click/tooltips (`focusOnTriangleClick`, `setFocusedTriangleIndex`), and drag-to-pan across faces.
+- Updated dependencies
+  - @simplex-viz/core@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes
 
 - Expose and re-export pluggable `@simplex-viz/core` strategy factories, rules, and runtime strategy setters/getters on `SimplexSvgController`, add synchronous camera transform updates via `camera` (`zoomToCursor`, `panBy`, `reset`), and support two-finger touch pinch-to-zoom, touch pan, and `pointercancel` cleanup.
-- Add pluggable `SvgTriangleView` (`OklabTintTriangleSvgView`, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`) and `SvgEdgeView` (`DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`) plugins with runtime hot-swapping (`setTriangleView`, `setEdgeView`, `setViews`), interactive triangle hover/click/tooltips (`focusOnTriangleClick`, `setFocusedTriangleIndex`), and drag-to-pan across faces.
 - Updated dependencies
   - @simplex-viz/core@0.3.0
 

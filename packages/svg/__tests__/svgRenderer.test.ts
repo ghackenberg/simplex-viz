@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   BadgeClusterSvgView,
   GeometricShapeSvgView,
+  GradientTriangleSvgView,
   SimplexSvgController,
   createSimplexSvg,
   type BadgeClusterVisual,
@@ -390,6 +391,51 @@ describe('@simplex-viz/svg integration', () => {
       }),
     );
     expect(controller.camera.getState().panX).toBeCloseTo(40, 1);
+
+    controller.destroy();
+    container.remove();
+  });
+
+  it('renders continuous barycentric GradientTriangleSvgView with 3 linearGradients and isolated plus-lighter blending', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+    document.body.appendChild(container);
+
+    const items: DefaultTaggedItem[] = Array.from({ length: 12 }, (_, i) => ({
+      id: `grad-${i}`,
+      tags: [`c-${i % 4}`, `c-${(i + 1) % 4}`],
+    }));
+
+    const controller = new SimplexSvgController(container, {
+      items,
+      triangleView: new GradientTriangleSvgView({ baseOpacity: 0.2 }),
+      layoutOptions: { seed: 42 },
+    });
+
+    for (let i = 0; i < 40; i++) controller.stepForTest(20);
+
+    const svg = controller.getSvgElement();
+    const triGroups = svg.querySelectorAll('g.sv-mesh-triangle');
+    expect(triGroups.length).toBeGreaterThanOrEqual(1);
+
+    const firstTri = triGroups[0]!;
+    const grads = firstTri.querySelectorAll('defs linearGradient');
+    expect(grads.length).toBe(3);
+
+    const polys = firstTri.querySelectorAll('polygon');
+    expect(polys.length).toBe(3);
+    for (const poly of polys) {
+      expect(poly.getAttribute('fill')).toMatch(/^url\(#sv-tri-grad-/);
+      expect(poly.getAttribute('style')).toContain('mix-blend-mode: plus-lighter');
+    }
+
+    // Focus first triangle -> adds crisp outline + 3 corner dots
+    controller.setFocusedTriangleIndex(0);
+    controller.stepForTest(16);
+    expect(firstTri.querySelectorAll('polygon').length).toBe(4);
+    expect(firstTri.querySelectorAll('circle').length).toBe(3);
 
     controller.destroy();
     container.remove();

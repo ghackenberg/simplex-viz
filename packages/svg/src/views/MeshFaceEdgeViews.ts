@@ -108,6 +108,180 @@ export class OklabTintTriangleSvgView<
   }
 }
 
+export interface GradientTriangleViewOptions {
+  /** Base gradient fill opacity at rest. Default: `0.18`. */
+  readonly baseOpacity?: number;
+  /** Additional opacity boost when hovered or focused. Default: `0.18`. */
+  readonly hoverOpacityBoost?: number;
+  /** Draw a highlighted border stroke and vertex dots on hover/focus. Default: `true`. */
+  readonly strokeOnHover?: boolean;
+  /** Optional fallback color for unoccupied vertices to guarantee edge continuity. */
+  readonly unoccupiedColorHex?: string;
+}
+
+/**
+ * Continuous barycentric gradient triangle shading across the entire mesh.
+ *
+ * Uses three orthogonal vertex-to-opposite-edge SVG `<linearGradient>` passes composited
+ * via `mix-blend-mode: plus-lighter` inside an isolated `<g>` so every shared vertex and
+ * shared edge transitions seamlessly (`C0`-continuous) without seams across adjacent triangles.
+ */
+export class GradientTriangleSvgView<
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> implements SvgTriangleView<TItem, TTagMeta, TClusterMeta>
+{
+  private static nextInstanceId = 1;
+
+  private readonly instanceId: number;
+  private readonly baseOpacity: number;
+  private readonly hoverOpacityBoost: number;
+  private readonly strokeOnHover: boolean;
+  private readonly unoccupiedColorHex?: string;
+  public readonly cacheKey: string;
+
+  constructor(options: GradientTriangleViewOptions = {}) {
+    this.instanceId = GradientTriangleSvgView.nextInstanceId++;
+    this.baseOpacity = Math.max(0.01, Math.min(0.85, options.baseOpacity ?? 0.18));
+    this.hoverOpacityBoost = Math.max(
+      0,
+      Math.min(0.6, options.hoverOpacityBoost ?? 0.18),
+    );
+    this.strokeOnHover = options.strokeOnHover ?? true;
+    this.unoccupiedColorHex = options.unoccupiedColorHex;
+    this.cacheKey = `grad:${this.baseOpacity.toFixed(2)}:${this.hoverOpacityBoost.toFixed(2)}:${this.strokeOnHover ? 1 : 0}:${this.unoccupiedColorHex ?? 'auto'}`;
+  }
+
+  mountOrUpdate(
+    groupEl: SVGGElement,
+    triangle: MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta>,
+    theme: SimplexColorTheme,
+  ): void {
+    const doc = groupEl.ownerDocument;
+    clearGroup(groupEl);
+
+    const { isHovered, isFocused, isDimmed } = triangle.interaction;
+    let fillOpacity = this.baseOpacity;
+    if (isDimmed && !isHovered && !isFocused) {
+      fillOpacity = this.baseOpacity * 0.28;
+    } else if (isFocused) {
+      fillOpacity = Math.min(0.75, this.baseOpacity + this.hoverOpacityBoost * 1.15);
+    } else if (isHovered) {
+      fillOpacity = Math.min(0.7, this.baseOpacity + this.hoverOpacityBoost);
+    }
+
+    const fallbackColor =
+      this.unoccupiedColorHex ?? (theme === 'light' ? '#cbd5e1' : '#334155');
+    const cornerColors: readonly [string, string, string] = [
+      triangle.clusters[0]?.colorHex ?? fallbackColor,
+      triangle.clusters[1]?.colorHex ?? fallbackColor,
+      triangle.clusters[2]?.colorHex ?? fallbackColor,
+    ];
+    const ptsStr = formatPoints(triangle.points);
+
+    const altitudes: Array<{
+      readonly p: Point2D;
+      readonly foot: Point2D;
+      readonly color: string;
+    }> = [];
+    let validGeometry = true;
+
+    for (let i = 0; i < 3; i++) {
+      const p = triangle.points[i]!;
+      const q1 = triangle.points[(i + 1) % 3]!;
+      const q2 = triangle.points[(i + 2) % 3]!;
+      const dx = q2.x - q1.x;
+      const dy = q2.y - q1.y;
+      const lenSq = dx * dx + dy * dy;
+      if (lenSq < 1e-4) {
+        validGeometry = false;
+        break;
+      }
+      const proj = ((p.x - q1.x) * dx + (p.y - q1.y) * dy) / lenSq;
+      altitudes.push({
+        p,
+        foot: { x: q1.x + proj * dx, y: q1.y + proj * dy },
+        color: cornerColors[i]!,
+      });
+    }
+
+    if (validGeometry) {
+      const defs = doc.createElementNS(SVG_NS, 'defs');
+      const blendGroup = doc.createElementNS(SVG_NS, 'g');
+      blendGroup.setAttribute('opacity', fillOpacity.toFixed(3));
+      blendGroup.setAttribute('style', 'isolation: isolate');
+
+      for (let i = 0; i < 3; i++) {
+        const alt = altitudes[i]!;
+        const gradId = `sv-tri-grad-${this.instanceId}-${triangle.index}-${i}`;
+        const grad = doc.createElementNS(SVG_NS, 'linearGradient');
+        grad.setAttribute('id', gradId);
+        grad.setAttribute('gradientUnits', 'userSpaceOnUse');
+        grad.setAttribute('x1', alt.p.x.toFixed(2));
+        grad.setAttribute('y1', alt.p.y.toFixed(2));
+        grad.setAttribute('x2', alt.foot.x.toFixed(2));
+        grad.setAttribute('y2', alt.foot.y.toFixed(2));
+
+        const stop0 = doc.createElementNS(SVG_NS, 'stop');
+        stop0.setAttribute('offset', '0%');
+        stop0.setAttribute('stop-color', alt.color);
+        stop0.setAttribute('stop-opacity', '1');
+
+        const stop1 = doc.createElementNS(SVG_NS, 'stop');
+        stop1.setAttribute('offset', '100%');
+        stop1.setAttribute('stop-color', alt.color);
+        stop1.setAttribute('stop-opacity', '0');
+
+        grad.appendChild(stop0);
+        grad.appendChild(stop1);
+        defs.appendChild(grad);
+
+        const poly = doc.createElementNS(SVG_NS, 'polygon');
+        poly.setAttribute('points', ptsStr);
+        poly.setAttribute('fill', `url(#${gradId})`);
+        poly.setAttribute('stroke', `url(#${gradId})`);
+        poly.setAttribute('stroke-width', '0.6');
+        poly.setAttribute('stroke-linejoin', 'round');
+        poly.setAttribute('style', 'mix-blend-mode: plus-lighter');
+        blendGroup.appendChild(poly);
+      }
+
+      groupEl.appendChild(defs);
+      groupEl.appendChild(blendGroup);
+    } else {
+      const poly = doc.createElementNS(SVG_NS, 'polygon');
+      poly.setAttribute('points', ptsStr);
+      poly.setAttribute('fill', triangle.fillHex);
+      poly.setAttribute('fill-opacity', fillOpacity.toFixed(3));
+      groupEl.appendChild(poly);
+    }
+
+    if (this.strokeOnHover && (isHovered || isFocused)) {
+      const outline = doc.createElementNS(SVG_NS, 'polygon');
+      outline.setAttribute('points', ptsStr);
+      outline.setAttribute('fill', 'none');
+      outline.setAttribute('stroke', triangle.fillHex);
+      outline.setAttribute('stroke-width', isFocused ? '2.2' : '1.5');
+      outline.setAttribute('stroke-opacity', isFocused ? '0.92' : '0.8');
+      outline.setAttribute('stroke-linejoin', 'round');
+      groupEl.appendChild(outline);
+
+      for (let i = 0; i < 3; i++) {
+        const pt = triangle.points[i]!;
+        const dot = doc.createElementNS(SVG_NS, 'circle');
+        dot.setAttribute('cx', pt.x.toFixed(1));
+        dot.setAttribute('cy', pt.y.toFixed(1));
+        dot.setAttribute('r', isFocused ? '3.8' : '3.0');
+        dot.setAttribute('fill', cornerColors[i]!);
+        dot.setAttribute('stroke', theme === 'light' ? '#ffffff' : '#07090e');
+        dot.setAttribute('stroke-width', '1');
+        groupEl.appendChild(dot);
+      }
+    }
+  }
+}
+
 export interface BarycentricSectorTriangleViewOptions {
   /** Base sector fill opacity. Default: `0.13`. */
   readonly baseOpacity?: number;

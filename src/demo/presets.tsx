@@ -13,6 +13,7 @@ import {
   DashedMeshEdgeSvgView,
   DensityHeatmapTriangleSvgView,
   GeometricShapeSvgView,
+  GradientTriangleSvgView,
   MinimalHighlightEdgeSvgView,
   MultiSectorGlyphSvgView,
   OklabTintTriangleSvgView,
@@ -39,6 +40,7 @@ export type ClusterRendererKind = 'anchor' | 'badge' | 'react-card';
 export type ContentShapeMode = 'by-type' | GeometricShapeKind;
 export type TriangleFaceStyle =
   | 'oklab-tint'
+  | 'barycentric-gradient'
   | 'barycentric-sector'
   | 'blueprint-inset'
   | 'density-heatmap';
@@ -208,6 +210,12 @@ export function createDemoTriangleView(
 ): SvgTriangleView<KnowledgeEntry, TagTaxonomyInfo, TopicClusterSummary> {
   const baseOpacity = config.triangleFaceOpacity;
   switch (config.triangleFaceStyle) {
+    case 'barycentric-gradient':
+      return new GradientTriangleSvgView({
+        baseOpacity: Math.min(0.7, baseOpacity * 1.65),
+        hoverOpacityBoost: 0.18,
+        strokeOnHover: true,
+      });
     case 'barycentric-sector':
       return new BarycentricSectorTriangleSvgView({
         baseOpacity: Math.min(0.6, baseOpacity * 1.35),

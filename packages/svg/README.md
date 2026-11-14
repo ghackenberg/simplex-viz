@@ -23,11 +23,11 @@ While `@simplex-viz/core` computes pure spatial coordinates, `@simplex-viz/svg` 
 ## Features
 
 - **Framework-agnostic SVG scene graph**: Keyed DOM reconciliation for background mesh triangles, mesh edges, convex hull debug wireframes, cluster nodes, and content nodes.
-- **Pluggable triangle face & mesh edge views**: Swap `SvgTriangleView` (`OklabTintTriangleSvgView`, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`) and `SvgEdgeView` (`DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`) live via `setTriangleView` / `setEdgeView` / `setViews`.
+- **Pluggable triangle face & mesh edge views**: Swap `SvgTriangleView` (`OklabTintTriangleSvgView`, `GradientTriangleSvgView`, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`) and `SvgEdgeView` (`DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`) live via `setTriangleView` / `setEdgeView` / `setViews`.
 - **Automatic offscreen `getBBox()` hull measurement**: Omit `measureConvexHull` on any `SvgNodeView` and `@simplex-viz/svg` automatically renders it in a hidden measurement bin, reads `getBBox()`, and caches a tight convex polygon for overlap-free layout.
 - **Smooth 60 fps transitions**: Critically damped spring motion + specialized parametric `morph()` or automatic dual-layer crossfade when switching visual presets or mutating items.
 - **Centralized root-SVG interactions**: Attaches pointer, two-finger touch pinch-to-zoom/pan, click, right-click, wheel, drag-to-pan, and `ResizeObserver` listeners solely on the root `<svg>` element and delegates hit-testing to `@simplex-viz/core`'s exact convex geometry + triangle-face solver (including triangle hover tooltips and click-to-focus while keeping drag-to-pan intact).
-- **Modular built-in view plugins**: Four node views (geometric shape morphing, multi-sector topic glyphs, vertex anchors, dynamic text badges) plus four triangle face views and four mesh edge views.
+- **Modular built-in view plugins**: Four node views (geometric shape morphing, multi-sector topic glyphs, vertex anchors, dynamic text badges), five triangle face views, and four mesh edge views.
 
 ## Installation
 
@@ -331,6 +331,7 @@ controller.setEdgeView(new PrecisionRailEdgeSvgView({ railOffset: 1.8 }));
 
 ### Built-In `SvgTriangleView` Plugins
 - `OklabTintTriangleSvgView` *(default)* — Perceptual OKLab-blended face fill with hover/focus border emphasis and vertex markers.
+- `GradientTriangleSvgView` — Continuous barycentric gradient shading using three isolated `plus-lighter` `<linearGradient>` passes so shared vertices and edges flow seamlessly across the entire triangulation.
 - `BarycentricSectorTriangleSvgView` — Splits each triangle around its centroid into three cluster-colored corner sectors with optional dashed medians.
 - `BlueprintInsetTriangleSvgView` — Architectural double-frame triangle with centroid cross reticle on hover/focus.
 - `DensityHeatmapTriangleSvgView` — Scales face saturation by `coveredItemCount` and displays an item count pill at the centroid.
@@ -419,7 +420,7 @@ export const CustomCardSvgView: SvgNodeView<CardVisual> = {
 | `tooltip` / `setTooltip(tooltip)` | Enables a floating DOM hover tooltip (`boolean` or `(target) => string` formatter for `'content'`, `'cluster'`, and `'triangle'`). |
 | `focusOnClusterClick` | Option (default `true`): toggles cluster focus on click when no custom `interactions.onLeftClick` is provided. |
 | `focusOnTriangleClick` | Option (default `true`): toggles triangle face focus on click when no custom `interactions.onLeftClick` is provided. |
-| `triangleView` / `setTriangleView(view)` | Swaps the `SvgTriangleView` plugin rendering triangulation faces (`OklabTintTriangleSvgView`, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`, or custom). |
+| `triangleView` / `setTriangleView(view)` | Swaps the `SvgTriangleView` plugin rendering triangulation faces (`OklabTintTriangleSvgView`, `GradientTriangleSvgView`, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`, or custom). |
 | `edgeView` / `setEdgeView(view)` | Swaps the `SvgEdgeView` plugin rendering mesh edges (`DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`, or custom). |
 | `addItems(items)` | Appends one or more items and triggers an interruptible transition. |
 | `removeItems(ids)` | Removes items by ID and smoothly fades out exiting nodes. |

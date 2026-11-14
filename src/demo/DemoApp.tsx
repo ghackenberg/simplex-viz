@@ -1132,6 +1132,9 @@ export function DemoApp() {
                       className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0B0F17] dark:text-slate-200"
                     >
                       <option value="oklab-tint">OKLab Tint (Default)</option>
+                      <option value="barycentric-gradient">
+                        Continuous Barycentric Gradient
+                      </option>
                       <option value="barycentric-sector">
                         Barycentric 3-Way Sectors
                       </option>
