@@ -3,6 +3,10 @@ import type {
   ClusterDescriptor,
   DefaultTaggedItem,
   LayoutMetrics,
+  SimplexClusteringStrategy,
+  SimplexColorStrategy,
+  SimplexLayoutStrategy,
+  SimplexMeshStrategy,
 } from '@simplex-viz/core';
 import type { SimplexSvgController } from '@simplex-viz/svg';
 import { useCallback, useRef } from 'react';
@@ -20,6 +24,10 @@ export interface SimplexGraphHandle<
   addItems(items: TItem | readonly TItem[]): void;
   removeItems(ids: string | readonly string[]): void;
   setItems(items: readonly TItem[]): void;
+  setMeshStrategy(strategy: SimplexMeshStrategy<TItem>): void;
+  setClusteringStrategy(strategy: SimplexClusteringStrategy<TItem, TTagMeta>): void;
+  setColorStrategy(strategy: SimplexColorStrategy<TItem, TTagMeta>): void;
+  setLayoutStrategy(strategy: SimplexLayoutStrategy): void;
   resetCamera(): void;
   zoomBy(factor: number): void;
   getMetrics(): LayoutMetrics | null;
@@ -35,7 +43,7 @@ export interface SimplexGraphHandle<
 
 /**
  * React hook returning a stable `controllerRef` and imperative transaction helpers
- * (`addItems`, `removeItems`, `setItems`, camera controls, and live telemetry getters).
+ * (`addItems`, `removeItems`, `setItems`, strategy setters, camera controls, and live telemetry getters).
  */
 export function useSimplexGraphController<
   TItem = DefaultTaggedItem,
@@ -79,6 +87,28 @@ export function useSimplexGraphController<
     controllerRef.current?.setItems(items);
   }, []);
 
+  const setMeshStrategy = useCallback((strategy: SimplexMeshStrategy<TItem>) => {
+    controllerRef.current?.setMeshStrategy(strategy);
+  }, []);
+
+  const setClusteringStrategy = useCallback(
+    (strategy: SimplexClusteringStrategy<TItem, TTagMeta>) => {
+      controllerRef.current?.setClusteringStrategy(strategy);
+    },
+    [],
+  );
+
+  const setColorStrategy = useCallback(
+    (strategy: SimplexColorStrategy<TItem, TTagMeta>) => {
+      controllerRef.current?.setColorStrategy(strategy);
+    },
+    [],
+  );
+
+  const setLayoutStrategy = useCallback((strategy: SimplexLayoutStrategy) => {
+    controllerRef.current?.setLayoutStrategy(strategy);
+  }, []);
+
   const resetCamera = useCallback(() => {
     controllerRef.current?.camera.reset();
   }, []);
@@ -88,8 +118,10 @@ export function useSimplexGraphController<
     if (!ctrl) return;
     const svg = ctrl.getSvgElement();
     const rect = svg.getBoundingClientRect();
+    const width = rect.width > 0 ? rect.width : svg.clientWidth || 960;
+    const height = rect.height > 0 ? rect.height : svg.clientHeight || 620;
     const cam: CameraController = ctrl.camera;
-    cam.zoomToCursor(rect.width / 2, rect.height / 2, factor);
+    cam.zoomToCursor(width / 2, height / 2, factor);
   }, []);
 
   const getMetrics = useCallback(() => {
@@ -110,6 +142,10 @@ export function useSimplexGraphController<
       addItems,
       removeItems,
       setItems,
+      setMeshStrategy,
+      setClusteringStrategy,
+      setColorStrategy,
+      setLayoutStrategy,
       resetCamera,
       zoomBy,
       getMetrics,

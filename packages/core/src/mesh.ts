@@ -22,7 +22,7 @@ function countLatticeVertices(cols: number, rows: number, wideFirst: boolean): n
   return count;
 }
 
-function buildLatticeNodes(
+export function buildSimplexLattice(
   cols: number,
   rows: number,
   sideLength: number,
@@ -232,7 +232,7 @@ export function buildSimplexMesh(
   // Fallback minimal 3-vertex equilateral triangle if no candidate matched
   if (candidates.length === 0) {
     const s = Math.min(usableW, usableH / SQRT3_OVER_2, maxSide);
-    const { vertices, edges, triangles } = buildLatticeNodes(
+    const { vertices, edges, triangles } = buildSimplexLattice(
       2,
       2,
       s,
@@ -281,7 +281,7 @@ export function buildSimplexMesh(
       ? chosen.sideLength
       : Math.max(40, Math.min(chosen.sideLength, maxSide));
 
-  const { vertices, edges, triangles } = buildLatticeNodes(
+  const { vertices, edges, triangles } = buildSimplexLattice(
     chosen.cols,
     chosen.rows,
     effectiveS,

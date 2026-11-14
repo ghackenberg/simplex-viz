@@ -1,11 +1,20 @@
 import {
-  computeSimplexClustering,
   defaultNormalizeTag,
   extractNormalizedItems,
 } from './clustering';
-import { solveTwoPhaseLayout } from './layout';
-import { buildSimplexMesh } from './mesh';
 import { hexToOklab, mixOklabColors } from './oklab';
+import {
+  createAdaptiveHexMeshStrategy,
+  createJaccardAnnealingClusteringStrategy,
+  createOklabContrastColorStrategy,
+  createPbdUniformLayoutStrategy,
+  finalizeClusteringWithColors,
+  type SimplexClusteringStrategy,
+  type SimplexColorStrategy,
+  type SimplexColorTheme,
+  type SimplexLayoutStrategy,
+  type SimplexMeshStrategy,
+} from './strategies';
 import type {
   ClusterDerivationContext,
   ClusterDescriptor,
@@ -63,6 +72,16 @@ export type SimplexSnapshotOptions<
     readonly meshOptions?: MeshOptions;
     /** Two-phase SAT collision solver options. */
     readonly layoutOptions?: LayoutSolverOptions;
+    /** Optional custom mesh/triangulation strategy. */
+    readonly meshStrategy?: SimplexMeshStrategy<TItem>;
+    /** Optional custom topic clustering & vertex assignment strategy. */
+    readonly clusteringStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>;
+    /** Optional custom cluster coloring & item mixing strategy. */
+    readonly colorStrategy?: SimplexColorStrategy<TItem, TTagMeta>;
+    /** Optional custom node positioning & scaling strategy. */
+    readonly layoutStrategy?: SimplexLayoutStrategy;
+    /** Optional canvas theme hint forwarded to `colorStrategy`. */
+    readonly theme?: SimplexColorTheme;
     /** Optional custom convex hull callback for individual content items. */
     readonly measureContentHull?: (
       item: TItem,
@@ -147,6 +166,11 @@ interface SimplexSnapshotResolvedOptions<
   readonly resolveTagMeta?: (normalizedTag: string) => TTagMeta | undefined;
   readonly meshOptions?: MeshOptions;
   readonly layoutOptions?: LayoutSolverOptions;
+  readonly meshStrategy?: SimplexMeshStrategy<TItem>;
+  readonly clusteringStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>;
+  readonly colorStrategy?: SimplexColorStrategy<TItem, TTagMeta>;
+  readonly layoutStrategy?: SimplexLayoutStrategy;
+  readonly theme?: SimplexColorTheme;
   readonly measureContentHull?: (
     item: TItem,
     ctx: ContentLayoutContext<TItem, TTagMeta, TClusterMeta>,
@@ -196,37 +220,73 @@ export function solveSimplexSnapshot<
 
   const normalized = extractNormalizedItems(items, getId, getTags, normalizeTag);
   const uniqueTagCount = new Set(normalized.flatMap((n) => n.tags)).size;
-  const mesh = buildSimplexMesh(
-    width,
-    height,
-    Math.max(3, uniqueTagCount),
-    opts.meshOptions ?? {},
-  );
+  const seed = opts.layoutOptions?.seed ?? 0x51a7c0de;
+  const meshStrategy = opts.meshStrategy ?? createAdaptiveHexMeshStrategy<TItem>();
+  const clusteringStrategy =
+    opts.clusteringStrategy ?? createJaccardAnnealingClusteringStrategy<TItem, TTagMeta>();
+  const colorStrategy =
+    opts.colorStrategy ?? createOklabContrastColorStrategy<TItem, TTagMeta>();
+  const layoutStrategy = opts.layoutStrategy ?? createPbdUniformLayoutStrategy();
+  const theme = opts.theme ?? 'dark';
 
-  const clustering = computeSimplexClustering<TItem, TTagMeta, TClusterMeta>({
+  const mesh = meshStrategy.buildMesh({
+    viewportWidth: width,
+    viewportHeight: height,
+    uniqueTagCount,
+    itemCount: normalized.length,
     normalizedItems: normalized,
+    meshOptions: opts.meshOptions ?? {},
+    previousMesh: null,
+    reason: 'initial',
+  });
+
+  const seq = { value: 0 };
+  const clusteringOutput = clusteringStrategy.initialize({
+    normalizedItems: normalized,
+    previousNormalizedItems: [],
+    addedItemIds: new Set(normalized.map((n) => n.id)),
+    removedItemIds: new Set<string>(),
     mesh,
+    previousMesh: null,
+    previousClusters: [],
     resolveTagMeta: opts.resolveTagMeta,
+    allocateClusterUid: () => {
+      seq.value += 1;
+      return `cluster-${seq.value}`;
+    },
+    seed,
+    reason: 'initial',
+  });
+
+  const clustering = finalizeClusteringWithColors<TItem, TTagMeta, TClusterMeta>({
+    clusteringOutput,
+    mesh,
+    colorStrategy,
+    theme,
+    previousClusters: [],
+    reason: 'initial',
+    seed,
     deriveClusterMeta: opts.deriveClusterMeta,
-    nextClusterUidSeq: { value: 0 },
-    seed: opts.layoutOptions?.seed,
   });
 
   const clusterHulls = clustering.clusters.map(
     (cluster): ConvexGeometry =>
       opts.measureClusterHull
-        ? opts.measureClusterHull(cluster)
+        ? opts.measureClusterHull(cluster as ClusterDescriptor<TItem, TTagMeta, TClusterMeta>)
         : { kind: 'circle', radius: clusterRadius },
   );
 
   const itemHulls = clustering.items.map(
     (placement): ConvexGeometry =>
       opts.measureContentHull
-        ? opts.measureContentHull(placement.item, placement.layoutContext)
+        ? opts.measureContentHull(
+            placement.item,
+            placement.layoutContext as ContentLayoutContext<TItem, TTagMeta, TClusterMeta>,
+          )
         : { kind: 'circle', radius: itemRadius },
   );
 
-  const solved = solveTwoPhaseLayout({
+  const solved = layoutStrategy.solve({
     clusters: clustering.clusters.map((cluster, idx) => ({
       id: cluster.clusterUid,
       targetX: cluster.gridNode.x,
@@ -239,10 +299,12 @@ export function solveSimplexSnapshot<
       anchorY: placement.anchorY,
       hull: itemHulls[idx]!,
     })),
+    mesh,
     viewportWidth: width,
     viewportHeight: height,
     viewportMargin: 8,
-    options: opts.layoutOptions ?? {},
+    layoutOptions: opts.layoutOptions ?? {},
+    reason: 'initial',
   });
 
   const clusters: SnapshotClusterNode<TItem, TTagMeta, TClusterMeta>[] =
@@ -254,7 +316,7 @@ export function solveSimplexSnapshot<
         y: placed.y,
         scale: placed.scale,
         hull: clusterHulls[idx]!,
-        cluster,
+        cluster: cluster as ClusterDescriptor<TItem, TTagMeta, TClusterMeta>,
       };
     });
 
@@ -269,7 +331,11 @@ export function solveSimplexSnapshot<
         hull: itemHulls[idx]!,
         colorHex: placement.layoutContext.mixedColorHex,
         item: placement.item,
-        layoutContext: placement.layoutContext,
+        layoutContext: placement.layoutContext as ContentLayoutContext<
+          TItem,
+          TTagMeta,
+          TClusterMeta
+        >,
       };
     });
 

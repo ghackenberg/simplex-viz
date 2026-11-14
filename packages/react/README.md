@@ -356,6 +356,59 @@ export function FastGraph({
 
 > **Tip:** Memoize `visualResolver` (e.g., via `useMemo`) and keep `contentView` / `clusterView` instances stable outside render to avoid unnecessary crossfades. Changing `preset`, `visualResolver`, or switching view props intentionally triggers a smooth crossfade/morph transition.
 
+## Combining Presets & Pluggable Core Strategies
+
+Every `@simplex-viz/core` strategy factory is re-exported from `@simplex-viz/react` (`createFixedLatticeMeshStrategy`, `createIncrementalAnchorClusteringStrategy`, `createThemeAdaptiveOklabColorStrategy`, `createPaletteColorStrategy`, `createWarmStartPbdLayoutStrategy`, `createLocalAdaptiveLayoutStrategy`, etc.). Memoize strategy instances with `useMemo` and pass them alongside any `preset`, `theme`, or custom JSX renderer:
+
+```tsx
+import { useMemo, useState } from 'react';
+import {
+  SimplexTopicGraph,
+  createFixedLatticeMeshStrategy,
+  createIncrementalAnchorClusteringStrategy,
+  createLocalAdaptiveLayoutStrategy,
+  createThemeAdaptiveOklabColorStrategy,
+  type DefaultTaggedItem,
+} from '@simplex-viz/react';
+
+export function StrategyShowcase({ items }: { items: readonly DefaultTaggedItem[] }) {
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
+
+  const meshStrategy = useMemo(
+    () => createFixedLatticeMeshStrategy<DefaultTaggedItem>({ cols: 3, rows: 3 }),
+    [],
+  );
+  const clusteringStrategy = useMemo(
+    () =>
+      createIncrementalAnchorClusteringStrategy<DefaultTaggedItem>({
+        sharedTagRule: 'planar-hitting-set',
+        anchorRule: 'explaining-away',
+      }),
+    [],
+  );
+  const colorStrategy = useMemo(
+    () => createThemeAdaptiveOklabColorStrategy<DefaultTaggedItem>(),
+    [],
+  );
+  const layoutStrategy = useMemo(
+    () => createLocalAdaptiveLayoutStrategy({ warmStart: true }),
+    [],
+  );
+
+  return (
+    <SimplexTopicGraph
+      items={items}
+      preset="badges"
+      theme={theme}
+      meshStrategy={meshStrategy}
+      clusteringStrategy={clusteringStrategy}
+      colorStrategy={colorStrategy}
+      layoutStrategy={layoutStrategy}
+    />
+  );
+}
+```
+
 ## `<SimplexTopicGraph />` Props Reference
 
 ### Data, Typing & Metadata
@@ -373,6 +426,7 @@ export function FastGraph({
 | Prop | Default | Description |
 | --- | --- | --- |
 | `preset` | `'geometric'` | Built-in visual preset (`'geometric' \| 'glyphs' \| 'badges'`) used when custom views or `visualResolver` are omitted. |
+| `theme` | `'dark'` | Color theme (`'dark' \| 'light'`) applied to built-in presets, tooltips, and theme-adaptive color strategies. |
 | `visualResolver` | Built-in preset resolver | Optional `VisualResolver` mapping items and clusters to custom descriptors and cache keys. |
 | `renderContentNode` | — | Declarative React JSX renderer `(item, ctx, state) => ReactNode` (works with or without `visualResolver`, auto-measured via `getBBox()`). |
 | `renderClusterNode` | — | Declarative React JSX renderer `(cluster, state) => ReactNode` (works with or without `visualResolver`, auto-measured via `getBBox()`). |
@@ -381,11 +435,15 @@ export function FastGraph({
 | `contentView` | Preset view | Portable `SvgNodeView<TContentVisual>` plugin (used when `renderContentNode` is omitted). |
 | `clusterView` | Preset view | Portable `SvgNodeView<TClusterVisual>` plugin (used when `renderClusterNode` is omitted). |
 
-### Mesh, Solver & Visual Emphasis
+### Mesh, Solver, Strategies & Visual Emphasis
 | Prop | Default | Description |
 | --- | --- | --- |
 | `meshOptions` | — | `{ innerPadding, minSideLength, maxSideLength, maxClusters }`. |
 | `layoutOptions` | — | `{ clusterGapPx, itemGapPx, minContentScale, relaxationIterations, seed }`. |
+| `meshStrategy` | `createAdaptiveHexMeshStrategy()` | Pluggable `SimplexMeshStrategy<TItem>` controlling 60° triangulation layout. |
+| `clusteringStrategy` | `createJaccardAnnealingClusteringStrategy()` | Pluggable `SimplexClusteringStrategy<TItem, TTagMeta>` (`initialize` + `update`, `sharedTagRule`, `anchorRule`). |
+| `colorStrategy` | `createOklabContrastColorStrategy()` | Pluggable `SimplexColorStrategy<TItem, TTagMeta>` (OKLab contrast, theme-adaptive, or custom palette). |
+| `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Pluggable `SimplexLayoutStrategy` (`pbd-uniform`, `pbd-warm-start`, `local-adaptive`, or custom). |
 | `sizeMultiplier` | `1.0` | Uniform node size multiplier (`0.35` – `3.0`). |
 | `showHulls` | `false` | Renders convex bounding hull wireframes over nodes. |
 | `pinnedIds` | — | `ReadonlySet<string> \| readonly string[]` of pinned item IDs. |
@@ -415,6 +473,7 @@ Returns `{ controllerRef, handle }`:
 - `handle.addItems(items)` — Appends items without resetting existing camera or springs.
 - `handle.removeItems(ids)` — Removes items by ID with smooth fade-out.
 - `handle.setItems(items)` — Replaces the active dataset.
+- `handle.setMeshStrategy(strategy)` / `handle.setClusteringStrategy(strategy)` / `handle.setColorStrategy(strategy)` / `handle.setLayoutStrategy(strategy)` — Hot-swaps core pipeline strategies imperatively.
 - `handle.zoomBy(factor)` — Zooms relative to viewport center.
 - `handle.resetCamera()` — Resets zoom & pan smoothly to `(1, 0, 0)`.
 - `handle.getMetrics()` — Returns the latest `LayoutMetrics | null`.

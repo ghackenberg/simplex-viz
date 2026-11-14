@@ -5,6 +5,7 @@ export * from './geometry';
 export * from './mesh';
 export * from './clustering';
 export * from './layout';
+export * from './strategies';
 export * from './animation';
 export * from './camera';
 export * from './engine';

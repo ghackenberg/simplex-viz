@@ -9,7 +9,19 @@ import type {
 } from '@simplex-viz/core';
 import {
   SimplexTopicGraph,
+  createAdaptiveHexMeshStrategy,
+  createFixedLatticeMeshStrategy,
+  createIncrementalAnchorClusteringStrategy,
+  createJaccardAnnealingClusteringStrategy,
+  createLocalAdaptiveLayoutStrategy,
+  createOklabContrastColorStrategy,
+  createPaletteColorStrategy,
+  createPbdUniformLayoutStrategy,
+  createThemeAdaptiveOklabColorStrategy,
+  createWarmStartPbdLayoutStrategy,
   useSimplexGraphController,
+  type SharedTagRuleKind,
+  type SimplexAnchorRuleKind,
   type SimplexTheme,
 } from '@simplex-viz/react';
 import {
@@ -17,6 +29,7 @@ import {
   Minus,
   Monitor,
   Moon,
+  PanelLeftClose,
   Pin,
   Plus,
   RotateCcw,
@@ -27,6 +40,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { version as libraryVersion } from '../../packages/core/package.json';
 import { SimplexLogoMark } from './components/SimplexLogoMark';
 import {
   buildInitialKnowledgeCatalog,
@@ -55,6 +69,15 @@ type ContentHoverPolicy = 'tooltip' | 'highlight-unit' | 'none';
 type ClusterHoverPolicy = 'tooltip' | 'focus-members' | 'none';
 type LeftClickPolicy = 'inspect' | 'focus-toggle' | 'remove';
 type RightClickPolicy = 'context-menu' | 'browser-default';
+type MeshStrategyId = 'adaptive' | 'lattice-3x3' | 'lattice-4x3';
+type ClusteringStrategyId = 'jaccard-annealing' | 'incremental-anchor';
+type ColorStrategyId =
+  | 'oklab-contrast'
+  | 'theme-adaptive'
+  | 'curated-palette'
+  | 'nordic-palette';
+type LayoutStrategyId = 'pbd-uniform' | 'pbd-warm-start' | 'local-adaptive';
+type CombinationRecipeId = 'default' | 'editorial' | 'dense' | 'strict';
 
 interface ContextMenuState {
   readonly x: number;
@@ -91,9 +114,19 @@ export function DemoApp() {
   const [sizeMultiplier, setSizeMultiplier] = useState<number>(1.0);
   const [showHulls, setShowHulls] = useState<boolean>(false);
   const [rapidFireActive, setRapidFireActive] = useState<boolean>(false);
-  const [activeNavSection, setActiveNavSection] = useState<
-    'atlas' | 'rendering' | 'geometry' | 'interaction'
-  >('atlas');
+
+  // Pluggable Core Strategy selections
+  const [meshStrategyId, setMeshStrategyId] = useState<MeshStrategyId>('adaptive');
+  const [clusteringStrategyId, setClusteringStrategyId] =
+    useState<ClusteringStrategyId>('jaccard-annealing');
+  const [sharedTagRule, setSharedTagRule] =
+    useState<SharedTagRuleKind>('planar-hitting-set');
+  const [anchorRule, setAnchorRule] =
+    useState<SimplexAnchorRuleKind>('explaining-away');
+  const [colorStrategyId, setColorStrategyId] =
+    useState<ColorStrategyId>('oklab-contrast');
+  const [layoutStrategyId, setLayoutStrategyId] =
+    useState<LayoutStrategyId>('pbd-uniform');
 
   // Privacy-safe in-memory theme state (never persisted to storage or cookies)
   const [themePreference, setThemePreference] = useState<ThemePreference>('auto');
@@ -170,7 +203,9 @@ export function DemoApp() {
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(() => new Set());
   const [focusedClusterUid, setFocusedClusterUid] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  const [mobilePanelOpen, setMobilePanelOpen] = useState<boolean>(false);
+  const [controlsOpen, setControlsOpen] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
+  );
 
   const dynamicSeqRef = useRef<number>(200);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -187,6 +222,167 @@ export function DemoApp() {
     () => createDemoVisualResolver(preset, resolvedTheme),
     [preset, resolvedTheme],
   );
+
+  const meshStrategy = useMemo(() => {
+    if (meshStrategyId === 'lattice-3x3') {
+      return createFixedLatticeMeshStrategy<KnowledgeEntry>({ cols: 3, rows: 3 });
+    }
+    if (meshStrategyId === 'lattice-4x3') {
+      return createFixedLatticeMeshStrategy<KnowledgeEntry>({ cols: 4, rows: 3 });
+    }
+    return createAdaptiveHexMeshStrategy<KnowledgeEntry>();
+  }, [meshStrategyId]);
+
+  const clusteringStrategy = useMemo(() => {
+    if (clusteringStrategyId === 'incremental-anchor') {
+      return createIncrementalAnchorClusteringStrategy<
+        KnowledgeEntry,
+        TagTaxonomyInfo
+      >({
+        sharedTagRule,
+        anchorRule,
+      });
+    }
+    return createJaccardAnnealingClusteringStrategy<
+      KnowledgeEntry,
+      TagTaxonomyInfo
+    >({
+      sharedTagRule,
+      anchorRule,
+    });
+  }, [clusteringStrategyId, sharedTagRule, anchorRule]);
+
+  const colorStrategy = useMemo(() => {
+    if (colorStrategyId === 'theme-adaptive') {
+      return createThemeAdaptiveOklabColorStrategy<
+        KnowledgeEntry,
+        TagTaxonomyInfo
+      >();
+    }
+    if (colorStrategyId === 'curated-palette') {
+      return createPaletteColorStrategy<KnowledgeEntry, TagTaxonomyInfo>(
+        ['#0ea5e9', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#f97316'],
+        { mode: 'edge-contrast' },
+      );
+    }
+    if (colorStrategyId === 'nordic-palette') {
+      return createPaletteColorStrategy<KnowledgeEntry, TagTaxonomyInfo>(
+        ['#0284c7', '#0d9488', '#475569', '#0369a1', '#0f766e', '#64748b'],
+        { mode: 'edge-contrast' },
+      );
+    }
+    return createOklabContrastColorStrategy<KnowledgeEntry, TagTaxonomyInfo>();
+  }, [colorStrategyId]);
+
+  const layoutStrategy = useMemo(() => {
+    if (layoutStrategyId === 'pbd-warm-start') {
+      return createWarmStartPbdLayoutStrategy();
+    }
+    if (layoutStrategyId === 'local-adaptive') {
+      return createLocalAdaptiveLayoutStrategy({
+        crowdRadiusPx: 72,
+        minLocalScale: 0.42,
+        warmStart: true,
+      });
+    }
+    return createPbdUniformLayoutStrategy();
+  }, [layoutStrategyId]);
+
+  const applyCombinationRecipe = useCallback((recipeId: CombinationRecipeId) => {
+    if (recipeId === 'default') {
+      setPreset('geometric');
+      setMeshStrategyId('adaptive');
+      setClusteringStrategyId('jaccard-annealing');
+      setSharedTagRule('planar-hitting-set');
+      setAnchorRule('explaining-away');
+      setColorStrategyId('oklab-contrast');
+      setLayoutStrategyId('pbd-uniform');
+      return;
+    }
+    if (recipeId === 'editorial') {
+      setPreset('react-cards');
+      setMeshStrategyId('lattice-3x3');
+      setClusteringStrategyId('incremental-anchor');
+      setSharedTagRule('planar-hitting-set');
+      setAnchorRule('explaining-away');
+      setColorStrategyId('theme-adaptive');
+      setLayoutStrategyId('pbd-warm-start');
+      return;
+    }
+    if (recipeId === 'dense') {
+      setPreset('multisector');
+      setMeshStrategyId('lattice-4x3');
+      setClusteringStrategyId('jaccard-annealing');
+      setSharedTagRule('planar-hitting-set');
+      setAnchorRule('barycentric-all');
+      setColorStrategyId('curated-palette');
+      setLayoutStrategyId('local-adaptive');
+      return;
+    }
+    setPreset('geometric');
+    setMeshStrategyId('adaptive');
+    setClusteringStrategyId('jaccard-annealing');
+    setSharedTagRule('none');
+    setAnchorRule('raw-overlap');
+    setColorStrategyId('nordic-palette');
+    setLayoutStrategyId('pbd-uniform');
+  }, []);
+
+  const activeRecipe: CombinationRecipeId | null = useMemo(() => {
+    if (
+      preset === 'geometric' &&
+      meshStrategyId === 'adaptive' &&
+      clusteringStrategyId === 'jaccard-annealing' &&
+      sharedTagRule === 'planar-hitting-set' &&
+      anchorRule === 'explaining-away' &&
+      colorStrategyId === 'oklab-contrast' &&
+      layoutStrategyId === 'pbd-uniform'
+    ) {
+      return 'default';
+    }
+    if (
+      preset === 'react-cards' &&
+      meshStrategyId === 'lattice-3x3' &&
+      clusteringStrategyId === 'incremental-anchor' &&
+      sharedTagRule === 'planar-hitting-set' &&
+      anchorRule === 'explaining-away' &&
+      colorStrategyId === 'theme-adaptive' &&
+      layoutStrategyId === 'pbd-warm-start'
+    ) {
+      return 'editorial';
+    }
+    if (
+      preset === 'multisector' &&
+      meshStrategyId === 'lattice-4x3' &&
+      clusteringStrategyId === 'jaccard-annealing' &&
+      sharedTagRule === 'planar-hitting-set' &&
+      anchorRule === 'barycentric-all' &&
+      colorStrategyId === 'curated-palette' &&
+      layoutStrategyId === 'local-adaptive'
+    ) {
+      return 'dense';
+    }
+    if (
+      preset === 'geometric' &&
+      meshStrategyId === 'adaptive' &&
+      clusteringStrategyId === 'jaccard-annealing' &&
+      sharedTagRule === 'none' &&
+      anchorRule === 'raw-overlap' &&
+      colorStrategyId === 'nordic-palette' &&
+      layoutStrategyId === 'pbd-uniform'
+    ) {
+      return 'strict';
+    }
+    return null;
+  }, [
+    preset,
+    meshStrategyId,
+    clusteringStrategyId,
+    sharedTagRule,
+    anchorRule,
+    colorStrategyId,
+    layoutStrategyId,
+  ]);
 
   const effectivePinnedIds = useMemo(() => {
     if (inspected?.kind !== 'content' || pinnedIds.has(inspected.item.slug)) {
@@ -443,141 +639,90 @@ export function DemoApp() {
 
   const wheelBehavior: WheelBehavior = wheelPolicy;
 
-  const scrollControlSection = (
-    section: 'atlas' | 'rendering' | 'geometry' | 'interaction',
-  ) => {
-    setActiveNavSection(section);
-    if (section !== 'atlas') {
-      setMobilePanelOpen(true);
-    }
-  };
-
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-50 text-slate-900 dark:bg-[#07090E] dark:text-slate-100">
-      {/* Strict 3-Zone Top Bar Contract */}
+      {/* Minimal Header Bar: Brand + Theme Switcher */}
       <header className="flex h-13 shrink-0 items-center justify-between gap-4 border-b border-slate-200/90 bg-white px-5 dark:border-slate-800/80 dark:bg-[#0B0F17]">
-        <a
-          href="#atlas"
-          onClick={(e) => {
-            e.preventDefault();
-            scrollControlSection('atlas');
-          }}
-          className="flex items-center gap-2.5 text-base font-bold tracking-tight text-slate-900 dark:text-slate-50 whitespace-nowrap shrink-0"
-        >
+        <div className="flex items-center gap-2.5 text-base font-bold tracking-tight text-slate-900 dark:text-slate-50 whitespace-nowrap shrink-0">
           <SimplexLogoMark className="h-7 w-7 shrink-0" />
           <span>
             Simplex<span className="text-[#06B6D4]">Viz</span>
           </span>
-        </a>
+          <span className="rounded border border-slate-200/90 bg-slate-100/80 px-1.5 py-0.5 font-mono text-[11px] font-medium text-slate-600 dark:border-slate-800 dark:bg-[#0E131D] dark:text-slate-400">
+            v{libraryVersion}
+          </span>
+        </div>
 
-        <nav
-          aria-label="Workspace"
-          className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-500 dark:text-slate-400"
+        {/* Manual & Auto Theme Switcher (in-memory only, zero persistence) */}
+        <div
+          role="group"
+          aria-label="Color theme"
+          className="flex items-center rounded-md border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-800 dark:bg-[#0E131D] shrink-0"
         >
           {(
             [
-              ['atlas', 'Atlas'],
-              ['rendering', 'Rendering'],
-              ['geometry', 'Geometry'],
-              ['interaction', 'Interaction'],
+              ['auto', 'Auto', Monitor],
+              ['light', 'Light', Sun],
+              ['dark', 'Dark', Moon],
             ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => scrollControlSection(key)}
-              className={`cursor-pointer transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b ${
-                activeNavSection === key
-                  ? 'border-cyan-600 text-slate-950 dark:border-cyan-400 dark:text-slate-100'
-                  : 'border-transparent hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-2.5 shrink-0">
-          {/* Manual & Auto Theme Switcher (in-memory only, zero persistence) */}
-          <div
-            role="group"
-            aria-label="Color theme"
-            className="flex items-center rounded-md border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-800 dark:bg-[#0E131D]"
-          >
-            {(
-              [
-                ['auto', 'Auto', Monitor],
-                ['light', 'Light', Sun],
-                ['dark', 'Dark', Moon],
-              ] as const
-            ).map(([opt, label, Icon]) => {
-              const active = themePreference === opt;
-              return (
-                <button
-                  key={opt}
-                  type="button"
-                  aria-pressed={active}
-                  title={
-                    opt === 'auto'
-                      ? `Auto (system: ${systemDark ? 'Dark' : 'Light'})`
-                      : `${label} mode`
-                  }
-                  onClick={() => setThemePreference(opt)}
-                  className={`cursor-pointer flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
-                    active
-                      ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-cyan-300'
-                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="hidden sm:inline">{label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setMobilePanelOpen((v) => !v)}
-            className="lg:hidden rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
-          >
-            <SlidersHorizontal className="inline h-3.5 w-3.5 mr-1.5" />
-            Controls
-          </button>
-          <button
-            type="button"
-            onClick={() => handle.resetCamera()}
-            className="cursor-pointer rounded-md border border-cyan-600/35 bg-cyan-50 px-3.5 py-1.5 text-xs font-semibold text-cyan-800 hover:bg-cyan-100 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-200 dark:hover:bg-cyan-500/20 transition-colors whitespace-nowrap shrink-0"
-          >
-            Reset Camera
-          </button>
+          ).map(([opt, label, Icon]) => {
+            const active = themePreference === opt;
+            return (
+              <button
+                key={opt}
+                type="button"
+                aria-pressed={active}
+                title={
+                  opt === 'auto'
+                    ? `Auto (system: ${systemDark ? 'Dark' : 'Light'})`
+                    : `${label} mode`
+                }
+                onClick={() => setThemePreference(opt)}
+                className={`cursor-pointer flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
+                  active
+                    ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-cyan-300'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            );
+          })}
         </div>
       </header>
 
       {/* Main Split Console */}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        {/* Left Control & Telemetry Column */}
-        <aside
-          className={`${
-            mobilePanelOpen ? 'flex' : 'hidden'
-          } lg:flex w-[340px] shrink-0 flex-col overflow-y-auto border-r border-slate-200/90 bg-white dark:border-slate-800/80 dark:bg-[#0B0F17] z-20`}
-        >
-          {/* Section 1: Visual Preset Switcher */}
-          <section
-            className={`p-4 border-b border-slate-200/80 dark:border-slate-800/80 ${
-              activeNavSection === 'rendering'
-                ? 'bg-slate-100/70 dark:bg-slate-900/40'
-                : ''
-            }`}
-          >
-            <div className="mb-2.5 flex items-center justify-between">
-              <h2 className="text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
-                Rendering Plugin
-              </h2>
-              <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                Live Crossfade
-              </span>
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        {/* Left Fly-Out Control & Telemetry Column */}
+        {controlsOpen && (
+          <aside className="absolute inset-y-0 left-0 z-30 flex w-[340px] max-w-[88vw] shrink-0 flex-col overflow-y-auto border-r border-slate-200/90 bg-white shadow-xl dark:border-slate-800/80 dark:bg-[#0B0F17] lg:static lg:max-w-none lg:shadow-none">
+            <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-2.5 dark:border-slate-800/80">
+              <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-slate-800 dark:text-slate-200">
+                <SlidersHorizontal className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+                <span>Controls</span>
+              </div>
+              <button
+                type="button"
+                aria-label="Collapse controls"
+                title="Collapse controls"
+                onClick={() => setControlsOpen(false)}
+                className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 transition-colors"
+              >
+                <PanelLeftClose className="h-4 w-4" />
+              </button>
             </div>
+
+            {/* Section 1: Visual Preset Switcher */}
+            <section className="p-4 border-b border-slate-200/80 dark:border-slate-800/80">
+              <div className="mb-2.5 flex items-center justify-between">
+                <h2 className="text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
+                  Rendering Plugin
+                </h2>
+                <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                  Live Crossfade
+                </span>
+              </div>
             <div className="grid grid-cols-1 gap-1.5">
               {(
                 [
@@ -617,6 +762,163 @@ export function DemoApp() {
                   </button>
                 );
               })}
+            </div>
+          </section>
+
+          {/* Section 1b: Core Strategy Matrix & Preset Combinations */}
+          <section className="p-4 border-b border-slate-200/80 dark:border-slate-800/80">
+            <div className="mb-2.5 flex items-center justify-between">
+              <h2 className="text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
+                Core Strategies
+              </h2>
+              <button
+                type="button"
+                onClick={() => applyCombinationRecipe('default')}
+                className="cursor-pointer text-[11px] text-slate-500 hover:text-cyan-700 dark:text-slate-400 dark:hover:text-cyan-300 transition-colors"
+              >
+                Defaults
+              </button>
+            </div>
+
+            <div className="mb-3 grid grid-cols-2 gap-1.5">
+              {(
+                [
+                  ['default', 'Adaptive Explorer', 'Geom · Hex · OKLab'],
+                  ['editorial', 'Editorial Incremental', 'JSX · 3×3 · Warm'],
+                  ['dense', 'Dense Local Scale', 'Glyph · 4×3 · Local'],
+                  ['strict', 'Strict Partition', 'Geom · No Shared'],
+                ] as const
+              ).map(([recipeId, title, hint]) => {
+                const isActive = activeRecipe === recipeId;
+                return (
+                  <button
+                    key={recipeId}
+                    type="button"
+                    onClick={() => applyCombinationRecipe(recipeId)}
+                    className={`cursor-pointer rounded-md border px-2 py-1.5 text-left transition-colors ${
+                      isActive
+                        ? 'border-cyan-600/60 bg-cyan-50 text-slate-950 dark:border-cyan-500/60 dark:bg-cyan-500/10 dark:text-slate-50'
+                        : 'border-slate-200 bg-slate-50/70 text-slate-700 hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:bg-[#0E131D] dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900'
+                    }`}
+                  >
+                    <div className="text-[11px] font-semibold leading-tight truncate">
+                      {title}
+                    </div>
+                    <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                      {hint}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="space-y-2.5 text-xs">
+              <label className="block">
+                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                  1 · Mesh Strategy
+                </span>
+                <select
+                  value={meshStrategyId}
+                  onChange={(e) => setMeshStrategyId(e.target.value as MeshStrategyId)}
+                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                >
+                  <option value="adaptive">Adaptive Hex Mesh (Auto K)</option>
+                  <option value="lattice-3x3">Fixed 3×3 Lattice (K = 9)</option>
+                  <option value="lattice-4x3">Fixed 4×3 Lattice (K = 12)</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                  2 · Clustering Strategy
+                </span>
+                <select
+                  value={clusteringStrategyId}
+                  onChange={(e) =>
+                    setClusteringStrategyId(e.target.value as ClusteringStrategyId)
+                  }
+                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                >
+                  <option value="jaccard-annealing">
+                    Jaccard + QAP Annealing (Full)
+                  </option>
+                  <option value="incremental-anchor">
+                    Incremental Anchor (Preserve Topics)
+                  </option>
+                </select>
+              </label>
+
+              <div className="grid grid-cols-2 gap-1.5">
+                <label className="block">
+                  <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                    Shared Tags
+                  </span>
+                  <select
+                    value={sharedTagRule}
+                    onChange={(e) =>
+                      setSharedTagRule(e.target.value as SharedTagRuleKind)
+                    }
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                  >
+                    <option value="planar-hitting-set">Hitting-Set</option>
+                    <option value="none">Core Only</option>
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                    Anchor Rule
+                  </span>
+                  <select
+                    value={anchorRule}
+                    onChange={(e) =>
+                      setAnchorRule(e.target.value as SimplexAnchorRuleKind)
+                    }
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                  >
+                    <option value="explaining-away">Explaining-Away</option>
+                    <option value="raw-overlap">Raw Overlap</option>
+                    <option value="barycentric-all">Barycentric All</option>
+                  </select>
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                  3 · Color Strategy
+                </span>
+                <select
+                  value={colorStrategyId}
+                  onChange={(e) => setColorStrategyId(e.target.value as ColorStrategyId)}
+                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                >
+                  <option value="oklab-contrast">OKLab Edge Contrast (Default)</option>
+                  <option value="theme-adaptive">
+                    Theme-Adaptive OKLab (Dark/Light)
+                  </option>
+                  <option value="curated-palette">Curated High-Contrast Palette</option>
+                  <option value="nordic-palette">Nordic Slate &amp; Teal Palette</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                  4 · Layout Strategy
+                </span>
+                <select
+                  value={layoutStrategyId}
+                  onChange={(e) => setLayoutStrategyId(e.target.value as LayoutStrategyId)}
+                  className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                >
+                  <option value="pbd-uniform">PBD Uniform Scale (0 px overlap)</option>
+                  <option value="pbd-warm-start">
+                    Warm-Start PBD (Preserve Positions)
+                  </option>
+                  <option value="local-adaptive">
+                    Local Density-Adaptive Scale
+                  </option>
+                </select>
+              </label>
             </div>
           </section>
 
@@ -681,13 +983,7 @@ export function DemoApp() {
           </section>
 
           {/* Section 3: Collision & Geometry Inspector */}
-          <section
-            className={`p-4 border-b border-slate-200/80 dark:border-slate-800/80 ${
-              activeNavSection === 'geometry'
-                ? 'bg-slate-100/70 dark:bg-slate-900/40'
-                : ''
-            }`}
-          >
+          <section className="p-4 border-b border-slate-200/80 dark:border-slate-800/80">
             <h2 className="mb-3 text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
               Collision &amp; Geometry Inspector
             </h2>
@@ -782,13 +1078,7 @@ export function DemoApp() {
           </section>
 
           {/* Section 4: Interaction Configurator */}
-          <section
-            className={`p-4 ${
-              activeNavSection === 'interaction'
-                ? 'bg-slate-100/70 dark:bg-slate-900/40'
-                : ''
-            }`}
-          >
+          <section className="p-4">
             <h2 className="mb-3 text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">
               Interaction Configurator
             </h2>
@@ -876,13 +1166,26 @@ export function DemoApp() {
               </label>
             </div>
           </section>
-        </aside>
+          </aside>
+        )}
 
         {/* Main Triangulation Viewport Stage */}
         <main
           ref={stageRef}
           className="relative min-w-0 flex-1 bg-slate-50 dark:bg-[#07090E]"
         >
+          {/* Top-Left Canvas Controls Fly-Out Button (visible only when sidebar is collapsed) */}
+          {!controlsOpen && (
+            <button
+              type="button"
+              aria-expanded={false}
+              onClick={() => setControlsOpen(true)}
+              className="cursor-pointer absolute top-4 left-4 z-20 flex items-center gap-1.5 rounded-md border border-slate-200 bg-white/95 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:text-slate-200 dark:shadow-none dark:hover:border-slate-700 dark:hover:bg-slate-900 transition-colors whitespace-nowrap"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+              <span>Controls</span>
+            </button>
+          )}
           <SimplexTopicGraph<
             KnowledgeEntry,
             DemoContentVisual,
@@ -930,6 +1233,10 @@ export function DemoApp() {
               itemGapPx: 5,
               seed: 20261113,
             }}
+            meshStrategy={meshStrategy}
+            clusteringStrategy={clusteringStrategy}
+            colorStrategy={colorStrategy}
+            layoutStrategy={layoutStrategy}
             onContentHover={onContentHover}
             onClusterHover={onClusterHover}
             onLeftClick={onLeftClick}
@@ -940,7 +1247,7 @@ export function DemoApp() {
           />
 
           {/* Camera Zoom Overlay Controls */}
-          <div className="absolute bottom-4 right-4 flex items-center gap-1 rounded-md border border-slate-200 bg-white/95 p-1 shadow-sm dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:shadow-none">
+          <div className="absolute bottom-4 right-4 z-20 flex items-center gap-1 rounded-md border border-slate-200 bg-white/95 p-1 shadow-sm dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:shadow-none">
             <button
               type="button"
               aria-label="Zoom in"
@@ -956,14 +1263,6 @@ export function DemoApp() {
               className="cursor-pointer rounded p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 transition-colors"
             >
               <Minus className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              aria-label="Reset view"
-              onClick={() => handle.resetCamera()}
-              className="cursor-pointer rounded p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 transition-colors"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
             </button>
           </div>
 
@@ -1132,102 +1431,113 @@ export function DemoApp() {
             </div>
           )}
 
-          {/* Selected / Inspected Node Detail Panel */}
-          {inspected && (
-            <div className="absolute top-4 right-4 z-30 w-80 rounded-md border border-slate-200 bg-white/95 p-3.5 text-xs shadow-lg dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:shadow-none">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  {inspected.kind === 'content' ? (
-                    <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
-                      {inspected.item.headline}
-                    </div>
-                  ) : (
-                    <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
-                      <span className="font-mono text-cyan-700 dark:text-cyan-300 mr-1.5">
-                        {inspected.cluster.code}
-                      </span>
-                      {inspected.cluster.meta.title}
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  aria-label="Close inspector"
-                  onClick={() => {
-                    setInspected(null);
-                    setFocusedClusterUid(null);
-                  }}
-                  className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
+          {/* Top-Right Canvas Overlay Stack: Reset Camera + Selected Node Inspector */}
+          <div className="pointer-events-none absolute top-4 right-4 z-30 flex flex-col items-end gap-2.5">
+            <button
+              type="button"
+              onClick={() => handle.resetCamera()}
+              className="pointer-events-auto cursor-pointer flex items-center gap-1.5 rounded-md border border-cyan-600/35 bg-white/95 px-3 py-1.5 text-xs font-semibold text-cyan-800 shadow-sm hover:bg-cyan-50 dark:border-cyan-500/40 dark:bg-[#0B0F17]/95 dark:text-cyan-200 dark:shadow-none dark:hover:bg-cyan-500/15 transition-colors whitespace-nowrap shrink-0"
+            >
+              <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+              <span>Reset Camera</span>
+            </button>
 
-              {inspected.kind === 'content' ? (
-                <div className="mt-2.5 space-y-2">
-                  <div className="flex items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                    <span>{inspected.item.slug}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{inspected.item.contentType}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{inspected.item.readingMinutes} min</span>
+            {inspected && (
+              <div className="pointer-events-auto w-80 rounded-md border border-slate-200 bg-white/95 p-3.5 text-xs shadow-lg dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:shadow-none">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    {inspected.kind === 'content' ? (
+                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
+                        {inspected.item.headline}
+                      </div>
+                    ) : (
+                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
+                        <span className="font-mono text-cyan-700 dark:text-cyan-300 mr-1.5">
+                          {inspected.cluster.code}
+                        </span>
+                        {inspected.cluster.meta.title}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-[11px] text-slate-700 dark:text-slate-300">
-                    <span className="text-slate-500 dark:text-slate-400">Unit: </span>
-                    {inspected.clusterTitles.join(', ')}
-                  </div>
-                  <div className="text-[11px] text-cyan-700 dark:text-cyan-300">
-                    {inspected.item.hashtags
-                      .map((h) => resolveDemoTagMeta(h)?.displayTitle ?? h)
-                      .join(' · ')}
-                  </div>
+                  <button
+                    type="button"
+                    aria-label="Close inspector"
+                    onClick={() => {
+                      setInspected(null);
+                      setFocusedClusterUid(null);
+                    }}
+                    className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                 </div>
-              ) : (
-                <div className="mt-2.5 space-y-2">
-                  <div className="flex items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                    <span>{inspected.cluster.meta.memberCount} members</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{inspected.cluster.meta.exclusiveCount} exclusive</span>
-                    <span aria-hidden="true">·</span>
-                    <span>
-                      avg {inspected.cluster.meta.avgReadingMinutes.toFixed(1)} min
-                    </span>
+
+                {inspected.kind === 'content' ? (
+                  <div className="mt-2.5 space-y-2">
+                    <div className="flex items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                      <span>{inspected.item.slug}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{inspected.item.contentType}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{inspected.item.readingMinutes} min</span>
+                    </div>
+                    <div className="text-[11px] text-slate-700 dark:text-slate-300">
+                      <span className="text-slate-500 dark:text-slate-400">Unit: </span>
+                      {inspected.clusterTitles.join(', ')}
+                    </div>
+                    <div className="text-[11px] text-cyan-700 dark:text-cyan-300">
+                      {inspected.item.hashtags
+                        .map((h) => resolveDemoTagMeta(h)?.displayTitle ?? h)
+                        .join(' · ')}
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-700 dark:text-slate-300">
-                    <span className="text-slate-500 dark:text-slate-400">Core Tags: </span>
-                    {inspected.cluster.coreTags
-                      .map((t) => t.meta?.displayTitle ?? t.tag)
-                      .join(', ')}
-                  </div>
-                  {inspected.cluster.sharedTags.length > 0 && (
-                    <div className="text-[11px] text-amber-700 dark:text-amber-300">
-                      <span className="text-slate-500 dark:text-slate-400">
-                        Shared Tags:{' '}
+                ) : (
+                  <div className="mt-2.5 space-y-2">
+                    <div className="flex items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                      <span>{inspected.cluster.meta.memberCount} members</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{inspected.cluster.meta.exclusiveCount} exclusive</span>
+                      <span aria-hidden="true">·</span>
+                      <span>
+                        avg {inspected.cluster.meta.avgReadingMinutes.toFixed(1)} min
                       </span>
-                      {inspected.cluster.sharedTags
+                    </div>
+                    <div className="text-[11px] text-slate-700 dark:text-slate-300">
+                      <span className="text-slate-500 dark:text-slate-400">Core Tags: </span>
+                      {inspected.cluster.coreTags
                         .map((t) => t.meta?.displayTitle ?? t.tag)
                         .join(', ')}
                     </div>
-                  )}
-                  <div className="max-h-32 overflow-y-auto border-t border-slate-200 dark:border-slate-800 pt-2 space-y-1">
-                    {inspected.cluster.members.slice(0, 8).map((m) => (
-                      <div
-                        key={m.itemId}
-                        className="flex items-center justify-between gap-2 text-[11px]"
-                      >
-                        <span className="truncate text-slate-700 dark:text-slate-200">
-                          {m.item.headline}
+                    {inspected.cluster.sharedTags.length > 0 && (
+                      <div className="text-[11px] text-amber-700 dark:text-amber-300">
+                        <span className="text-slate-500 dark:text-slate-400">
+                          Shared Tags:{' '}
                         </span>
-                        <span className="font-mono text-slate-500 dark:text-slate-400 shrink-0">
-                          {Math.round(m.normalizedWeight * 100)}%
-                        </span>
+                        {inspected.cluster.sharedTags
+                          .map((t) => t.meta?.displayTitle ?? t.tag)
+                          .join(', ')}
                       </div>
-                    ))}
+                    )}
+                    <div className="max-h-32 overflow-y-auto border-t border-slate-200 dark:border-slate-800 pt-2 space-y-1">
+                      {inspected.cluster.members.slice(0, 8).map((m) => (
+                        <div
+                          key={m.itemId}
+                          className="flex items-center justify-between gap-2 text-[11px]"
+                        >
+                          <span className="truncate text-slate-700 dark:text-slate-200">
+                            {m.item.headline}
+                          </span>
+                          <span className="font-mono text-slate-500 dark:text-slate-400 shrink-0">
+                            {Math.round(m.normalizedWeight * 100)}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+          </div>
         </main>
       </div>
     </div>

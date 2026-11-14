@@ -1,3 +1,11 @@
+import type {
+  SimplexClusteringStrategy,
+  SimplexColorStrategy,
+  SimplexColorTheme,
+  SimplexLayoutStrategy,
+  SimplexMeshStrategy,
+} from './strategies';
+
 /**
  * Default shape of a tagged item when no custom `getId` or `getTags` accessor is provided.
  */
@@ -531,6 +539,16 @@ export interface SimplexEngineResolvedConfig<
   readonly resolveTagMeta?: (normalizedTag: string) => TTagMeta | undefined;
   readonly meshOptions?: MeshOptions;
   readonly layoutOptions?: LayoutSolverOptions;
+  /** Optional custom mesh/triangulation strategy. Default: `createAdaptiveHexMeshStrategy()`. */
+  readonly meshStrategy?: SimplexMeshStrategy<TItem>;
+  /** Optional custom topic clustering & vertex assignment strategy. Default: `createJaccardAnnealingClusteringStrategy()`. */
+  readonly clusteringStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>;
+  /** Optional custom cluster coloring & item color-mixing strategy. Default: `createOklabContrastColorStrategy()`. */
+  readonly colorStrategy?: SimplexColorStrategy<TItem, TTagMeta>;
+  /** Optional custom cluster/content positioning & scaling strategy. Default: `createPbdUniformLayoutStrategy()`. */
+  readonly layoutStrategy?: SimplexLayoutStrategy;
+  /** Canvas theme hint forwarded to `SimplexColorStrategy`. Default: `'dark'`. */
+  readonly theme?: SimplexColorTheme;
   readonly showHulls?: boolean;
   readonly interactions?: InteractionHandlers<
     TItem,

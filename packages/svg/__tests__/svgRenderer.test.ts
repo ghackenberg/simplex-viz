@@ -122,4 +122,35 @@ describe('@simplex-viz/svg integration', () => {
     controller.destroy();
     container.remove();
   });
+
+  it('applies camera zoomToCursor, panBy, and reset to SVG transform immediately when idle', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+    document.body.appendChild(container);
+
+    const items: DefaultTaggedItem[] = Array.from({ length: 6 }, (_, i) => ({
+      id: `cam-${i}`,
+      tags: [`a-${i % 3}`, `a-${(i + 1) % 3}`],
+    }));
+
+    const controller = createSimplexSvg(container, items);
+    for (let i = 0; i < 40; i++) controller.stepForTest(20);
+
+    const worldGroup = controller.getSvgElement().querySelector('g.sv-world')!;
+    expect(worldGroup.getAttribute('transform')).toBe('translate(0.00, 0.00) scale(1.0000)');
+
+    controller.camera.zoomToCursor(400, 300, 1.5);
+    expect(worldGroup.getAttribute('transform')).toContain('scale(1.5000)');
+
+    controller.camera.panBy(25, -15);
+    expect(worldGroup.getAttribute('transform')).toContain('translate(-175.00, -165.00)');
+
+    controller.camera.reset();
+    expect(worldGroup.getAttribute('transform')).toBe('translate(0.00, 0.00) scale(1.0000)');
+
+    controller.destroy();
+    container.remove();
+  });
 });

@@ -26,18 +26,19 @@ Explore the interactive demo at **<https://hackenberg.tech/simplex-viz/>**. It b
   </a>
 </p>
 
-*Figure: The interactive SimplexViz showcase in Geometric Encoding mode. Topic clusters (`T1`–`T8`) sit as dashed double-ring vertex anchors on the adaptive 60° equilateral triangle lattice, while content items render inside their covering vertices, edges, or triangles as colored circles, diamonds, and stars blended in perceptual OKLab space. The left inspector provides live controls for plugin switching, dataset mutations, size scaling, and solver telemetry (`0` overlaps at `60 fps`), while hovering any node opens a contextual inspection tooltip.*
+*Figure: The interactive SimplexViz showcase in Geometric Encoding mode. Topic clusters (`T1`–`T8`) sit as dashed double-ring vertex anchors on the adaptive 60° equilateral triangle lattice, while content items render inside their covering vertices, edges, or triangles as colored circles, diamonds, and stars blended in perceptual OKLab space. The left inspector provides live controls for rendering presets, core algorithm strategies (`Mesh`, `Clustering`, `Color`, `Layout`), dataset mutations, size scaling, and solver telemetry (`0` overlaps at `60 fps`), while hovering any node opens a contextual inspection tooltip.*
 
 ## Project Vision & Mathematical Principle
 
-Classical force-directed layouts often turn tagged knowledge collections into unreadable hairball graphs with crossing edges and overlapping labels. **SimplexViz** embeds topic centroids onto an adaptive **toothed equilateral 60° triangle lattice**:
+Classical force-directed layouts often turn tagged knowledge collections into unreadable hairball graphs with crossing edges and overlapping labels. **SimplexViz** embeds topic centroids onto an adaptive **toothed equilateral 60° triangle lattice** through four **pluggable, independently swappable strategy stages**:
 
-1. **Adaptive Simplex Mesh (`buildSimplexMesh`)**: From viewport dimensions `(W, H)`, padding, and a target edge-length interval `[minSideLength, maxSideLength]`, selects the most area-efficient lattice orientation (`horizontal` or `vertical`) and row parity (`wideFirst`) so every mesh triangle has exact 60° interior angles.
-2. **Two-Stage Topic Clustering (`computeSimplexClustering`)**:
-   - **Stage 1**: Regularized Jaccard co-occurrence partitions all tags into `K` balanced disjoint core sets `T_k^core` and embeds them onto adjacent mesh vertices via Simulated Annealing (Quadratic Assignment Problem).
-   - **Stage 2**: A Weighted Hitting-Set pass plus backward pruning adds minimal `sharedTags` until 100% of items are planar-covered by at least one mesh triangle `f = {a, b, c}` (`C_i ⊆ T_a ∪ T_b ∪ T_c`).
-3. **Explaining-Away & OKLab Color Mixing**: Each item is assigned to the smallest covering simplex unit (`vertex ≺ edge ≺ triangle`) with normalized barycentric weights and perceptual OKLab color mixing (preserving chroma).
-4. **Hierarchical Two-Phase Collision Solver (`solveTwoPhaseLayout`)**: Fixes scaled topic clusters first (Priority 1), then solves all content hulls via binary search over `α_content`, position-based relaxation, and exact SAT / circle-polygon Minimum Translation Vector (MTV) separation — guaranteeing **0.0 px overlap**.
+1. **Mesh Strategy (`SimplexMeshStrategy`)**: Defaults to `createAdaptiveHexMeshStrategy()` (`buildSimplexMesh`), which selects the most area-efficient 60° lattice orientation (`horizontal` or `vertical`) and row parity (`wideFirst`) from viewport dimensions `(W, H)`, or can be swapped for `createFixedLatticeMeshStrategy({ cols, rows })`.
+2. **Clustering & Anchoring Strategy (`SimplexClusteringStrategy`)**: Defaults to `createJaccardAnnealingClusteringStrategy()` (or incremental `createIncrementalAnchorClusteringStrategy()` with `initialize` + `update`):
+   - **Stage 1**: Regularized Jaccard co-occurrence partitions tags into `K` balanced disjoint core sets `T_k^core` and embeds them onto mesh vertices via Simulated Annealing (Quadratic Assignment Problem).
+   - **Stage 2 (`sharedTagRule`)**: A Weighted Hitting-Set pass plus backward pruning adds minimal `sharedTags` (`'planar-hitting-set'`, or `'none'` for strict disjoint partitions) until 100% of items are planar-covered (`C_i ⊆ T_a ∪ T_b ∪ T_c`).
+   - **Stage 3 (`anchorRule`)**: Assigns each item to its covering simplex unit (`'explaining-away'`, `'raw-overlap'`, or `'barycentric-all'`) and computes `(anchorX, anchorY)`.
+3. **Color Strategy (`SimplexColorStrategy`)**: Defaults to `createOklabContrastColorStrategy()` (perceptual OKLab edge-contrast coloring + chroma-preserving barycentric mixing), or swaps cleanly to `createThemeAdaptiveOklabColorStrategy()` or `createPaletteColorStrategy(hexColors)`.
+4. **Layout & Collision Strategy (`SimplexLayoutStrategy`)**: Defaults to `createPbdUniformLayoutStrategy()` (`solveTwoPhaseLayout`: binary search over `α_content`, position-based relaxation, and exact SAT / circle-polygon MTV separation), or swaps to `createWarmStartPbdLayoutStrategy()` or `createLocalAdaptiveLayoutStrategy()`—strictly guaranteeing **0.0 px overlap** across all built-in solvers.
 
 ## Architecture (Strict 3-Package Separation)
 
@@ -123,10 +124,11 @@ controller.setPreset('glyphs');
 
 Zero-config defaults never lock you in—you can opt into deeper control one layer at a time as your application grows:
 
-1. **Level 1 — Built-in Presets & Interactivity (`preset`, `tooltip`, `focusOnClusterClick`)**: Switch between `'geometric'`, `'glyphs'`, and `'badges'`, toggle `tooltip` (`boolean` or custom formatter), and rely on built-in drag-to-pan, wheel zoom, and cluster focus toggles.
+1. **Level 1 — Built-in Presets & Interactivity (`preset`, `theme`, `tooltip`, `focusOnClusterClick`)**: Switch between `'geometric'`, `'glyphs'`, and `'badges'`, pair with `'dark'` or `'light'` themes, toggle `tooltip` (`boolean` or custom formatter), and rely on built-in drag-to-pan, wheel zoom, and cluster focus toggles.
 2. **Level 2 — Custom Domain Schemas (`getId`, `getTags`, `getLabel`, `deriveClusterMeta`)**: Keep your existing domain records (`Article`, `Bookmark`, `Document`) without mapping them to `{ id, tags }`. TypeScript enforces `getId` and `getTags` whenever your type lacks `id` or `tags`.
 3. **Level 3 — Keyless React JSX or Portable `SvgNodeView` Plugins**: Supply `renderContentNode` / `renderClusterNode` in React *without* writing a `VisualResolver` (auto-measured via offscreen `getBBox()`), or pass any `SvgNodeView` plugin for 60 fps imperative SVG updates.
-4. **Level 4 — Full `VisualResolver` & Headless `solveSimplexSnapshot` / `SimplexGraphEngine`**: Define typed visual descriptors and crossfade keys, compute one-shot static layouts with `solveSimplexSnapshot(items)` in Node.js/SSR/Canvas, or drive custom WebGL engines frame by frame with `SimplexGraphEngine`.
+4. **Level 4 — Pluggable Core Strategies (`meshStrategy`, `clusteringStrategy`, `colorStrategy`, `layoutStrategy`)**: Mix and match built-in factories (`createFixedLatticeMeshStrategy`, `createIncrementalAnchorClusteringStrategy`, `createThemeAdaptiveOklabColorStrategy`, `createPaletteColorStrategy`, `createLocalAdaptiveLayoutStrategy`) or supply your own implementations—orthogonal to any visual preset.
+5. **Level 5 — Full `VisualResolver` & Headless `solveSimplexSnapshot` / `SimplexGraphEngine`**: Define typed visual descriptors and crossfade keys, compute one-shot static layouts with `solveSimplexSnapshot(items)` in Node.js/SSR/Canvas, or drive custom WebGL engines frame by frame with `SimplexGraphEngine`.
 
 ### Example: Custom Domain Record with Keyless React JSX
 
@@ -206,6 +208,36 @@ const snapshot = solveSimplexSnapshot(
 );
 
 console.log(snapshot.metrics.overlapCount); // 0
+```
+
+### Example: Combining Presets with Pluggable Core Strategies
+
+Every preset (`'geometric'`, `'glyphs'`, `'badges'`) or custom JSX renderer can be paired with custom mesh, incremental clustering (`initialize` vs `update`), palette, and local-adaptive layout strategies in React or Vanilla TypeScript:
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createFixedLatticeMeshStrategy,
+  createIncrementalAnchorClusteringStrategy,
+  createLocalAdaptiveLayoutStrategy,
+  createPaletteColorStrategy,
+} from '@simplex-viz/react';
+
+export function ConfiguredTopicMap({ items }: { items: readonly { id: string; tags: string[] }[] }) {
+  return (
+    <SimplexTopicGraph
+      items={items}
+      preset="glyphs"
+      meshStrategy={createFixedLatticeMeshStrategy({ cols: 3, rows: 3 })}
+      clusteringStrategy={createIncrementalAnchorClusteringStrategy({
+        sharedTagRule: 'planar-hitting-set',
+        anchorRule: 'explaining-away',
+      })}
+      colorStrategy={createPaletteColorStrategy(['#0ea5e9', '#f59e0b', '#10b981', '#ec4899'])}
+      layoutStrategy={createLocalAdaptiveLayoutStrategy({ warmStart: true })}
+    />
+  );
+}
 ```
 
 ## Local Development & Scripts

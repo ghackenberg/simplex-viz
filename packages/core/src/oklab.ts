@@ -80,19 +80,25 @@ export function oklabDistance(x: OklabTuple, y: OklabTuple): number {
 
 /**
  * Generates `count` perceptually distinct, high-contrast colors in OKLab
- * tuned for dark scientific backgrounds while maintaining chroma & legibility.
+ * tuned for dark or light backgrounds while maintaining chroma & legibility.
  */
-export function buildDistinctOklabPalette(count: number): readonly {
+export function buildDistinctOklabPalette(
+  count: number,
+  options?: { readonly theme?: 'dark' | 'light' },
+): readonly {
   readonly hex: string;
   readonly oklab: OklabTuple;
 }[] {
   const n = Math.max(1, count);
+  const theme = options?.theme ?? 'dark';
+  const baseL = theme === 'light' ? 0.56 : 0.71;
+  const baseC = theme === 'light' ? 0.155 : 0.145;
   const goldenAngle = 2.399963229728653;
   const result: { hex: string; oklab: OklabTuple }[] = [];
   for (let i = 0; i < n; i++) {
     const hue = (i * goldenAngle + 0.35) % (Math.PI * 2);
-    const lightness = 0.71 + (i % 3 === 0 ? 0.04 : i % 3 === 1 ? -0.02 : 0.01);
-    const chroma = 0.145 + (i % 2 === 0 ? 0.015 : -0.008);
+    const lightness = baseL + (i % 3 === 0 ? 0.04 : i % 3 === 1 ? -0.02 : 0.01);
+    const chroma = baseC + (i % 2 === 0 ? 0.015 : -0.008);
     const rawLab = oklchToOklab(lightness, chroma, hue);
     const hex = oklabToHex(rawLab);
     result.push({ hex, oklab: hexToOklab(hex) });
@@ -101,15 +107,17 @@ export function buildDistinctOklabPalette(count: number): readonly {
 }
 
 /**
- * Assigns palette colors to `K` mesh vertices, optimizing minimum edge contrast
- * along simplex mesh edges while optionally preserving previous matched colors.
+ * Assigns colors from an arbitrary palette to `K` mesh vertices, optimizing minimum
+ * OKLab perceptual contrast along mesh edges while optionally preserving matched colors.
  */
-export function assignMeshClusterColors(
+export function assignGreedyEdgeContrastColors(
   clusterCount: number,
   edges: readonly MeshEdge[],
+  palette: readonly { readonly hex: string; readonly oklab: OklabTuple }[],
   preservedColors?: ReadonlyMap<number, { readonly hex: string; readonly oklab: OklabTuple }>,
 ): readonly { readonly hex: string; readonly oklab: OklabTuple }[] {
-  const palette = buildDistinctOklabPalette(Math.max(clusterCount, 12));
+  const safePalette =
+    palette.length > 0 ? palette : buildDistinctOklabPalette(Math.max(clusterCount, 12));
   const assigned: ({ hex: string; oklab: OklabTuple } | undefined)[] = new Array(
     clusterCount,
   ).fill(undefined);
@@ -121,9 +129,9 @@ export function assignMeshClusterColors(
         assigned[clusterIdx] = color;
         let bestIdx = -1;
         let bestDist = Infinity;
-        for (let p = 0; p < palette.length; p++) {
+        for (let p = 0; p < safePalette.length; p++) {
           if (usedPaletteIdx.has(p)) continue;
-          const entry = palette[p];
+          const entry = safePalette[p];
           if (!entry) continue;
           const d = oklabDistance(entry.oklab, color.oklab);
           if (d < bestDist) {
@@ -149,9 +157,10 @@ export function assignMeshClusterColors(
     const neighbors = adj[k] ?? [];
     let bestCandidateIdx = 0;
     let bestScore = -Infinity;
-    for (let p = 0; p < palette.length; p++) {
-      if (usedPaletteIdx.has(p)) continue;
-      const cand = palette[p];
+    for (let p = 0; p < safePalette.length; p++) {
+      // Allow reuse only when palette is smaller than clusterCount and all entries are taken
+      if (usedPaletteIdx.has(p) && usedPaletteIdx.size < safePalette.length) continue;
+      const cand = safePalette[p];
       if (!cand) continue;
       let minNeighborDist = Infinity;
       let sumNeighborDist = 0;
@@ -172,13 +181,30 @@ export function assignMeshClusterColors(
       }
     }
     usedPaletteIdx.add(bestCandidateIdx);
-    const chosen = palette[bestCandidateIdx] ?? { hex: '#38bdf8', oklab: hexToOklab('#38bdf8') };
+    const chosen = safePalette[bestCandidateIdx] ?? {
+      hex: '#38bdf8',
+      oklab: hexToOklab('#38bdf8'),
+    };
     assigned[k] = chosen;
   }
 
   return assigned.map(
     (c) => c ?? { hex: '#38bdf8', oklab: hexToOklab('#38bdf8') },
   );
+}
+
+/**
+ * Assigns palette colors to `K` mesh vertices, optimizing minimum edge contrast
+ * along simplex mesh edges while optionally preserving previous matched colors.
+ */
+export function assignMeshClusterColors(
+  clusterCount: number,
+  edges: readonly MeshEdge[],
+  preservedColors?: ReadonlyMap<number, { readonly hex: string; readonly oklab: OklabTuple }>,
+  options?: { readonly theme?: 'dark' | 'light' },
+): readonly { readonly hex: string; readonly oklab: OklabTuple }[] {
+  const palette = buildDistinctOklabPalette(Math.max(clusterCount, 12), options);
+  return assignGreedyEdgeContrastColors(clusterCount, edges, palette, preservedColors);
 }
 
 /**

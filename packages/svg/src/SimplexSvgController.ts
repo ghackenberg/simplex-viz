@@ -12,6 +12,10 @@ import {
   type LayoutMetrics,
   type LayoutSolverOptions,
   type MeshOptions,
+  type SimplexClusteringStrategy,
+  type SimplexColorStrategy,
+  type SimplexLayoutStrategy,
+  type SimplexMeshStrategy,
   type VisualResolver,
 } from '@simplex-viz/core';
 import { SVG_NS } from './hullMeasure';
@@ -83,6 +87,10 @@ export interface SimplexSvgControllerResolvedOptions<
   readonly resolveTagMeta?: (normalizedTag: string) => TTagMeta | undefined;
   readonly meshOptions?: MeshOptions;
   readonly layoutOptions?: LayoutSolverOptions;
+  readonly meshStrategy?: SimplexMeshStrategy<TItem>;
+  readonly clusteringStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>;
+  readonly colorStrategy?: SimplexColorStrategy<TItem, TTagMeta>;
+  readonly layoutStrategy?: SimplexLayoutStrategy;
   readonly showHulls?: boolean;
   /**
    * Automatically toggles cluster focus when clicking a topic cluster (and clears on background click)
@@ -181,6 +189,7 @@ export class SimplexSvgController<
   private currentPreset: SimplexVisualPreset;
   private currentTheme: SimplexTheme;
   private readonly usesCustomVisualResolver: boolean;
+  private readonly cameraProxy: CameraController;
 
   private rafId: number | null = null;
   private lastFrameTs = 0;
@@ -278,11 +287,43 @@ export class SimplexSvgController<
       resolveTagMeta: options.resolveTagMeta,
       meshOptions: options.meshOptions,
       layoutOptions: options.layoutOptions,
+      meshStrategy: options.meshStrategy,
+      clusteringStrategy: options.clusteringStrategy,
+      colorStrategy: options.colorStrategy,
+      layoutStrategy: options.layoutStrategy,
+      theme: this.currentTheme,
       showHulls: options.showHulls,
       interactions: this.wrapInteractions(options.interactions),
       onMetricsChange: options.onMetricsChange,
       onClustersChange: options.onClustersChange,
     });
+
+    const baseCamera = this.engine.camera;
+    const syncCameraRender = (): void => {
+      if (this.destroyed) return;
+      this.engine.renderNow();
+    };
+    this.cameraProxy = {
+      getState: () => baseCamera.getState(),
+      setState: (next) => {
+        baseCamera.setState(next);
+        syncCameraRender();
+      },
+      zoomToCursor: (screenX, screenY, zoomFactor) => {
+        baseCamera.zoomToCursor(screenX, screenY, zoomFactor);
+        syncCameraRender();
+      },
+      panBy: (dx, dy) => {
+        baseCamera.panBy(dx, dy);
+        syncCameraRender();
+      },
+      reset: () => {
+        baseCamera.reset();
+        syncCameraRender();
+      },
+      screenToWorld: (screenX, screenY) => baseCamera.screenToWorld(screenX, screenY),
+      worldToScreen: (worldX, worldY) => baseCamera.worldToScreen(worldX, worldY),
+    };
 
     this.attachSvgListeners();
 
@@ -491,7 +532,7 @@ export class SimplexSvgController<
   }
 
   get camera(): CameraController {
-    return this.engine.camera;
+    return this.cameraProxy;
   }
 
   getSvgElement(): SVGSVGElement {
@@ -565,6 +606,7 @@ export class SimplexSvgController<
     if (this.tooltipEl) {
       this.applyTooltipThemeStyles(this.tooltipEl);
     }
+    this.engine.setTheme(theme);
     if (!this.usesCustomVisualResolver) {
       const resolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
         this.currentPreset,
@@ -580,8 +622,54 @@ export class SimplexSvgController<
           TClusterMeta
         >,
       );
-      this.ensureLoopRunning();
     }
+    this.ensureLoopRunning();
+  }
+
+  setMeshStrategy(strategy: SimplexMeshStrategy<TItem>): void {
+    this.engine.setMeshStrategy(strategy);
+    this.ensureLoopRunning();
+  }
+
+  setClusteringStrategy(strategy: SimplexClusteringStrategy<TItem, TTagMeta>): void {
+    this.engine.setClusteringStrategy(strategy);
+    this.ensureLoopRunning();
+  }
+
+  setColorStrategy(strategy: SimplexColorStrategy<TItem, TTagMeta>): void {
+    this.engine.setColorStrategy(strategy);
+    this.ensureLoopRunning();
+  }
+
+  setLayoutStrategy(strategy: SimplexLayoutStrategy): void {
+    this.engine.setLayoutStrategy(strategy);
+    this.ensureLoopRunning();
+  }
+
+  getMeshStrategy(): SimplexMeshStrategy<TItem> {
+    return this.engine.getMeshStrategy();
+  }
+
+  getClusteringStrategy(): SimplexClusteringStrategy<TItem, TTagMeta> {
+    return this.engine.getClusteringStrategy();
+  }
+
+  getColorStrategy(): SimplexColorStrategy<TItem, TTagMeta> {
+    return this.engine.getColorStrategy();
+  }
+
+  getLayoutStrategy(): SimplexLayoutStrategy {
+    return this.engine.getLayoutStrategy();
+  }
+
+  setMeshOptions(options: MeshOptions): void {
+    this.engine.setMeshOptions(options);
+    this.ensureLoopRunning();
+  }
+
+  setLayoutOptions(options: LayoutSolverOptions): void {
+    this.engine.setLayoutOptions(options);
+    this.ensureLoopRunning();
   }
 
   setTooltip(

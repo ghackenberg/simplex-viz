@@ -7,16 +7,30 @@ import {
 } from './animation';
 import { SimplexCamera } from './camera';
 import {
-  computeSimplexClustering,
   defaultNormalizeTag,
   extractNormalizedItems,
   type ComputedItemPlacement,
+  type NormalizedContentItem,
   type PreviousClusterSnapshot,
 } from './clustering';
 import { hitTestConvexGeometry } from './geometry';
-import { solveTwoPhaseLayout } from './layout';
-import { buildSimplexMesh } from './mesh';
 import { hexToOklab, lerpOklabHex, mixOklabColors, type OklabTuple } from './oklab';
+import {
+  createAdaptiveHexMeshStrategy,
+  createJaccardAnnealingClusteringStrategy,
+  createOklabContrastColorStrategy,
+  createPbdUniformLayoutStrategy,
+  finalizeClusteringWithColors,
+  type ClusteringStrategyContext,
+  type ClusteringStrategyOutput,
+  type PipelineUpdateReason,
+  type PreviousNodeLayout,
+  type SimplexClusteringStrategy,
+  type SimplexColorStrategy,
+  type SimplexColorTheme,
+  type SimplexLayoutStrategy,
+  type SimplexMeshStrategy,
+} from './strategies';
 import type {
   CameraController,
   ClusterDerivationContext,
@@ -114,6 +128,12 @@ export class SimplexGraphEngine<
   private viewportHeight: number;
   private meshOptions: MeshOptions;
   private layoutOptions: LayoutSolverOptions;
+  private meshStrategy: SimplexMeshStrategy<TItem>;
+  private clusteringStrategy: SimplexClusteringStrategy<TItem, TTagMeta>;
+  private colorStrategy: SimplexColorStrategy<TItem, TTagMeta>;
+  private layoutStrategy: SimplexLayoutStrategy;
+  private theme: SimplexColorTheme;
+  private previousTheme: SimplexColorTheme | undefined;
   private showHulls: boolean;
   private interactions: InteractionHandlers<
     TItem,
@@ -130,6 +150,10 @@ export class SimplexGraphEngine<
   public readonly camera: CameraController;
 
   private currentMesh: SimplexMesh | null = null;
+  private previousMesh: SimplexMesh | null = null;
+  private previousNormalizedItems: readonly NormalizedContentItem<TItem>[] = [];
+  private lastClusteringOutput: ClusteringStrategyOutput<TItem, TTagMeta> | null = null;
+  private lastPrevClusterSnapshots: readonly PreviousClusterSnapshot[] = [];
   private currentClusters: readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[] = [];
   private currentPlacements: readonly ComputedItemPlacement<TItem, TTagMeta, TClusterMeta>[] =
     [];
@@ -199,6 +223,13 @@ export class SimplexGraphEngine<
     this.viewportHeight = Math.max(160, config.viewportHeight);
     this.meshOptions = config.meshOptions ?? {};
     this.layoutOptions = config.layoutOptions ?? {};
+    this.meshStrategy = config.meshStrategy ?? createAdaptiveHexMeshStrategy<TItem>();
+    this.clusteringStrategy =
+      config.clusteringStrategy ?? createJaccardAnnealingClusteringStrategy<TItem, TTagMeta>();
+    this.colorStrategy =
+      config.colorStrategy ?? createOklabContrastColorStrategy<TItem, TTagMeta>();
+    this.layoutStrategy = config.layoutStrategy ?? createPbdUniformLayoutStrategy();
+    this.theme = config.theme ?? 'dark';
     this.showHulls = config.showHulls ?? false;
     this.interactions = config.interactions ?? {};
     this.onMetricsChange = config.onMetricsChange;
@@ -208,7 +239,7 @@ export class SimplexGraphEngine<
       this.dirtyRender = true;
     });
 
-    this.recomputePipeline(true);
+    this.recomputePipeline('initial');
   }
 
   /**
@@ -297,7 +328,7 @@ export class SimplexGraphEngine<
     }
 
     this.rawItems = next;
-    this.recomputePipeline(false);
+    this.recomputePipeline('items');
   }
 
   /** Removes one or more items by ID and smoothly fades out exiting nodes. */
@@ -308,13 +339,83 @@ export class SimplexGraphEngine<
     const filtered = this.rawItems.filter((it) => !removeSet.has(this.getIdFn(it).trim()));
     if (filtered.length === this.rawItems.length) return;
     this.rawItems = filtered;
-    this.recomputePipeline(false);
+    this.recomputePipeline('items');
   }
 
   /** Replaces the entire item collection while smoothly morphing matching clusters & items. */
   setItems(items: readonly TItem[]): void {
     this.rawItems = [...items];
-    this.recomputePipeline(false);
+    this.recomputePipeline('items');
+  }
+
+  /** Swaps the mesh/triangulation strategy at runtime and recomputes the graph. */
+  setMeshStrategy(strategy: SimplexMeshStrategy<TItem>): void {
+    this.meshStrategy = strategy;
+    this.recomputePipeline('strategy');
+  }
+
+  /** Swaps the topic clustering & vertex assignment strategy at runtime and recomputes. */
+  setClusteringStrategy(strategy: SimplexClusteringStrategy<TItem, TTagMeta>): void {
+    this.clusteringStrategy = strategy;
+    this.recomputePipeline('strategy');
+  }
+
+  /** Swaps the cluster coloring & item mixing strategy at runtime with smooth transition. */
+  setColorStrategy(strategy: SimplexColorStrategy<TItem, TTagMeta>): void {
+    this.colorStrategy = strategy;
+    if (this.lastClusteringOutput && this.currentMesh) {
+      this.applyColorsAndDeriveDescriptors('strategy');
+      this.recomputeLayoutAndReconcile(false, this.currentMetrics.tagCount, 'strategy');
+    }
+  }
+
+  /** Swaps the node positioning & scaling layout strategy at runtime and re-solves cleanly. */
+  setLayoutStrategy(strategy: SimplexLayoutStrategy): void {
+    this.layoutStrategy = strategy;
+    this.recomputeLayoutOnly('strategy');
+  }
+
+  /** Returns active mesh strategy. */
+  getMeshStrategy(): SimplexMeshStrategy<TItem> {
+    return this.meshStrategy;
+  }
+
+  /** Returns active clustering strategy. */
+  getClusteringStrategy(): SimplexClusteringStrategy<TItem, TTagMeta> {
+    return this.clusteringStrategy;
+  }
+
+  /** Returns active color strategy. */
+  getColorStrategy(): SimplexColorStrategy<TItem, TTagMeta> {
+    return this.colorStrategy;
+  }
+
+  /** Returns active layout strategy. */
+  getLayoutStrategy(): SimplexLayoutStrategy {
+    return this.layoutStrategy;
+  }
+
+  /** Updates mesh generation options and recomputes triangulation + clustering. */
+  setMeshOptions(options: MeshOptions): void {
+    this.meshOptions = options;
+    this.recomputePipeline('mesh');
+  }
+
+  /** Updates layout solver options and re-solves overlap-free layout. */
+  setLayoutOptions(options: LayoutSolverOptions): void {
+    this.layoutOptions = options;
+    this.recomputeLayoutOnly('strategy');
+  }
+
+  /** Updates canvas theme hint for color strategies. */
+  setTheme(theme: SimplexColorTheme): void {
+    if (this.theme === theme) return;
+    this.previousTheme = this.theme;
+    this.theme = theme;
+    if (this.lastClusteringOutput && this.currentMesh) {
+      this.applyColorsAndDeriveDescriptors('strategy');
+      this.recomputeLayoutAndReconcile(false, this.currentMetrics.tagCount, 'strategy');
+    }
   }
 
   /** Swaps the `VisualResolver` at runtime (e.g. changing node visual presets) with smooth crossfade. */
@@ -328,7 +429,7 @@ export class SimplexGraphEngine<
     >,
   ): void {
     this.visualResolver = resolver;
-    this.recomputeLayoutOnly();
+    this.recomputeLayoutOnly('strategy');
   }
 
   /** Updates the uniform size multiplier and re-solves overlap-free layout. */
@@ -336,7 +437,7 @@ export class SimplexGraphEngine<
     const clamped = Math.max(0.35, Math.min(3.0, multiplier));
     if (Math.abs((this.layoutOptions.sizeMultiplier ?? 1) - clamped) < 1e-4) return;
     this.layoutOptions = { ...this.layoutOptions, sizeMultiplier: clamped };
-    this.recomputeLayoutOnly();
+    this.recomputeLayoutOnly('strategy');
   }
 
   /** Updates viewport dimensions and recomputes mesh + layout cleanly. */
@@ -346,7 +447,7 @@ export class SimplexGraphEngine<
     if (w === this.viewportWidth && h === this.viewportHeight) return;
     this.viewportWidth = w;
     this.viewportHeight = h;
-    this.recomputePipeline(false);
+    this.recomputePipeline('viewport');
   }
 
   /** Toggles convex hull debug wireframe rendering. */
@@ -394,7 +495,7 @@ export class SimplexGraphEngine<
     this.dirtyRender = false;
   }
 
-  private recomputePipeline(isInitial: boolean): void {
+  private recomputePipeline(reason: PipelineUpdateReason): void {
     const normalized = extractNormalizedItems(
       this.rawItems,
       this.getIdFn,
@@ -402,24 +503,44 @@ export class SimplexGraphEngine<
       this.normalizeTagFn,
     );
 
+    const prevIdSet = new Set(this.previousNormalizedItems.map((it) => it.id));
+    const nextIdSet = new Set(normalized.map((it) => it.id));
+    const addedItemIds = new Set<string>();
+    for (const id of nextIdSet) {
+      if (!prevIdSet.has(id)) addedItemIds.add(id);
+    }
+    const removedItemIds = new Set<string>();
+    for (const id of prevIdSet) {
+      if (!nextIdSet.has(id)) removedItemIds.add(id);
+    }
+
     const uniqueTagCount = new Set(normalized.flatMap((n) => n.tags)).size;
-    const mesh = buildSimplexMesh(
-      this.viewportWidth,
-      this.viewportHeight,
-      Math.max(3, uniqueTagCount),
-      this.meshOptions,
-    );
+    const mesh = this.meshStrategy.buildMesh({
+      viewportWidth: this.viewportWidth,
+      viewportHeight: this.viewportHeight,
+      uniqueTagCount,
+      itemCount: normalized.length,
+      normalizedItems: normalized,
+      meshOptions: this.meshOptions,
+      previousMesh: this.previousMesh,
+      reason,
+    });
     this.currentMesh = mesh;
 
     const prevClusterSnapshots: PreviousClusterSnapshot[] = [];
     for (const cNode of this.clusterNodes.values()) {
       if (cNode.status !== 'active') continue;
       const tags = new Set<string>();
-      for (const t of cNode.domain.coreTags) tags.add(t.tag);
+      const coreTags = new Set<string>();
+      for (const t of cNode.domain.coreTags) {
+        tags.add(t.tag);
+        coreTags.add(t.tag);
+      }
       for (const t of cNode.domain.sharedTags) tags.add(t.tag);
       prevClusterSnapshots.push({
         clusterUid: cNode.domain.clusterUid,
         tags,
+        coreTags,
         x: cNode.x.value,
         y: cNode.y.value,
         colorHex: cNode.domain.colorHex,
@@ -427,28 +548,82 @@ export class SimplexGraphEngine<
       });
     }
 
-    const clustering = computeSimplexClustering({
+    const clusteringCtx: ClusteringStrategyContext<TItem, TTagMeta> = {
       normalizedItems: normalized,
+      previousNormalizedItems: this.previousNormalizedItems,
+      addedItemIds,
+      removedItemIds,
       mesh,
-      resolveTagMeta: this.resolveTagMetaFn,
-      deriveClusterMeta: this.deriveClusterMetaFn,
+      previousMesh: this.previousMesh,
       previousClusters: prevClusterSnapshots,
-      nextClusterUidSeq: this.nextClusterUidSeq,
-      seed: this.layoutOptions.seed,
+      resolveTagMeta: this.resolveTagMetaFn,
+      allocateClusterUid: () => {
+        this.nextClusterUidSeq.value += 1;
+        return `cluster-${this.nextClusterUidSeq.value}`;
+      },
+      seed: this.layoutOptions.seed ?? 0x51a7c0de,
+      reason,
+    };
+
+    const clusteringOutput =
+      reason === 'initial' || prevClusterSnapshots.length === 0 || !this.clusteringStrategy.update
+        ? this.clusteringStrategy.initialize(clusteringCtx)
+        : this.clusteringStrategy.update(clusteringCtx);
+
+    this.lastClusteringOutput = clusteringOutput;
+    this.lastPrevClusterSnapshots = prevClusterSnapshots;
+    this.previousNormalizedItems = normalized;
+    this.previousMesh = mesh;
+
+    this.applyColorsAndDeriveDescriptors(reason);
+
+    this.recomputeLayoutAndReconcile(
+      reason === 'initial',
+      clusteringOutput.uniqueTags.length,
+      reason,
+    );
+  }
+
+  private applyColorsAndDeriveDescriptors(reason: PipelineUpdateReason): void {
+    const clusteringOutput = this.lastClusteringOutput;
+    const mesh = this.currentMesh;
+    if (!clusteringOutput || !mesh) return;
+
+    const finalized = finalizeClusteringWithColors<TItem, TTagMeta, TClusterMeta>({
+      clusteringOutput,
+      mesh,
+      colorStrategy: this.colorStrategy,
+      theme: this.theme,
+      previousTheme: this.previousTheme,
+      previousClusters: this.lastPrevClusterSnapshots,
+      reason,
+      seed: this.layoutOptions.seed ?? 0x51a7c0de,
+      deriveClusterMeta: this.deriveClusterMetaFn,
     });
 
-    this.currentClusters = clustering.clusters;
-    this.currentPlacements = clustering.items;
+    this.previousTheme = this.theme;
+    this.currentClusters = finalized.clusters as readonly ClusterDescriptor<
+      TItem,
+      TTagMeta,
+      TClusterMeta
+    >[];
+    this.currentPlacements = finalized.items as readonly ComputedItemPlacement<
+      TItem,
+      TTagMeta,
+      TClusterMeta
+    >[];
     this.onClustersChange?.(this.currentClusters);
-
-    this.recomputeLayoutAndReconcile(isInitial, clustering.uniqueTags.length);
   }
 
-  private recomputeLayoutOnly(): void {
-    this.recomputeLayoutAndReconcile(false, this.currentMetrics.tagCount);
+  private recomputeLayoutOnly(reason: PipelineUpdateReason = 'strategy'): void {
+    this.recomputeLayoutAndReconcile(false, this.currentMetrics.tagCount, reason);
   }
 
-  private recomputeLayoutAndReconcile(isInitial: boolean, tagCount: number): void {
+  private recomputeLayoutAndReconcile(
+    isInitial: boolean,
+    tagCount: number,
+    reason: PipelineUpdateReason,
+  ): void {
     const mesh = this.currentMesh;
     if (!mesh) return;
 
@@ -470,8 +645,29 @@ export class SimplexGraphEngine<
       return { placement, visual, cacheKey, hull };
     });
 
-    // 2. Solve strictly overlap-free two-phase convex layout
-    const solved = solveTwoPhaseLayout({
+    const previousClusterPositions = new Map<string, PreviousNodeLayout>();
+    for (const [uid, cNode] of this.clusterNodes) {
+      if (cNode.status === 'active') {
+        previousClusterPositions.set(uid, {
+          x: cNode.x.target,
+          y: cNode.y.target,
+          scale: cNode.scale.target,
+        });
+      }
+    }
+    const previousItemPositions = new Map<string, PreviousNodeLayout>();
+    for (const [id, iNode] of this.itemNodes) {
+      if (iNode.status === 'active') {
+        previousItemPositions.set(id, {
+          x: iNode.x.target,
+          y: iNode.y.target,
+          scale: iNode.scale.target,
+        });
+      }
+    }
+
+    // 2. Solve strictly overlap-free layout via active SimplexLayoutStrategy
+    const solved = this.layoutStrategy.solve({
       clusters: resolvedClusters.map((rc) => ({
         id: rc.cluster.clusterUid,
         targetX: rc.cluster.gridNode.x,
@@ -484,10 +680,14 @@ export class SimplexGraphEngine<
         anchorY: ri.placement.anchorY,
         hull: ri.hull,
       })),
+      mesh,
       viewportWidth: this.viewportWidth,
       viewportHeight: this.viewportHeight,
       viewportMargin: 8,
-      options: this.layoutOptions,
+      layoutOptions: this.layoutOptions,
+      previousClusterPositions,
+      previousItemPositions,
+      reason,
     });
 
     // 3. Reconcile cluster nodes (interruptible spring + dual-layer transition)

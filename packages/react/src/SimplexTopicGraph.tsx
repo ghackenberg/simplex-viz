@@ -12,6 +12,10 @@ import type {
   MeshOptions,
   NodeRenderState,
   NormalizedPointerEvent,
+  SimplexClusteringStrategy,
+  SimplexColorStrategy,
+  SimplexLayoutStrategy,
+  SimplexMeshStrategy,
   VisualResolver,
   WheelBehavior,
 } from '@simplex-viz/core';
@@ -124,6 +128,14 @@ export type SimplexTopicGraphProps<
     readonly resolveTagMeta?: (normalizedTag: string) => TTagMeta | undefined;
     readonly meshOptions?: MeshOptions;
     readonly layoutOptions?: LayoutSolverOptions;
+    /** Optional custom mesh/triangulation strategy. */
+    readonly meshStrategy?: SimplexMeshStrategy<TItem>;
+    /** Optional custom topic clustering & vertex assignment strategy. */
+    readonly clusteringStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>;
+    /** Optional custom cluster coloring & item color-mixing strategy. */
+    readonly colorStrategy?: SimplexColorStrategy<TItem, TTagMeta>;
+    /** Optional custom node positioning & scaling strategy. */
+    readonly layoutStrategy?: SimplexLayoutStrategy;
     readonly sizeMultiplier?: number;
     readonly showHulls?: boolean;
     readonly pinnedIds?: ReadonlySet<string> | readonly string[];
@@ -247,6 +259,11 @@ export function SimplexTopicGraph<
 
   const latestPropsRef = useRef(props);
   latestPropsRef.current = props;
+
+  const syncedMeshStrategyRef = useRef(props.meshStrategy);
+  const syncedClusteringStrategyRef = useRef(props.clusteringStrategy);
+  const syncedColorStrategyRef = useRef(props.colorStrategy);
+  const syncedLayoutStrategyRef = useRef(props.layoutStrategy);
 
   const resolveEffectiveResolver = (): VisualResolver<
     TItem,
@@ -427,6 +444,10 @@ export function SimplexTopicGraph<
         ...p.layoutOptions,
         sizeMultiplier: p.sizeMultiplier ?? p.layoutOptions?.sizeMultiplier ?? 1,
       },
+      meshStrategy: p.meshStrategy,
+      clusteringStrategy: p.clusteringStrategy,
+      colorStrategy: p.colorStrategy,
+      layoutStrategy: p.layoutStrategy,
       showHulls: p.showHulls,
       focusOnClusterClick: false,
       interactions: {
@@ -540,6 +561,39 @@ export function SimplexTopicGraph<
       ctrlRef.current?.setShowHulls(props.showHulls);
     }
   }, [props.showHulls]);
+
+  // Sync pluggable core algorithm strategies when props change after mount
+  useEffect(() => {
+    if (syncedMeshStrategyRef.current === props.meshStrategy) return;
+    syncedMeshStrategyRef.current = props.meshStrategy;
+    if (props.meshStrategy) {
+      ctrlRef.current?.setMeshStrategy(props.meshStrategy);
+    }
+  }, [props.meshStrategy]);
+
+  useEffect(() => {
+    if (syncedClusteringStrategyRef.current === props.clusteringStrategy) return;
+    syncedClusteringStrategyRef.current = props.clusteringStrategy;
+    if (props.clusteringStrategy) {
+      ctrlRef.current?.setClusteringStrategy(props.clusteringStrategy);
+    }
+  }, [props.clusteringStrategy]);
+
+  useEffect(() => {
+    if (syncedColorStrategyRef.current === props.colorStrategy) return;
+    syncedColorStrategyRef.current = props.colorStrategy;
+    if (props.colorStrategy) {
+      ctrlRef.current?.setColorStrategy(props.colorStrategy);
+    }
+  }, [props.colorStrategy]);
+
+  useEffect(() => {
+    if (syncedLayoutStrategyRef.current === props.layoutStrategy) return;
+    syncedLayoutStrategyRef.current = props.layoutStrategy;
+    if (props.layoutStrategy) {
+      ctrlRef.current?.setLayoutStrategy(props.layoutStrategy);
+    }
+  }, [props.layoutStrategy]);
 
   // Sync pinned / highlighted / focused cluster
   useEffect(() => {

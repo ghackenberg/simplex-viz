@@ -101,6 +101,37 @@ controller.removeItems('old-slug');
 controller.camera.reset();
 ```
 
+### Pluggable Core Strategies (Algorithm Swapping at Runtime)
+
+`@simplex-viz/svg` re-exports all built-in `@simplex-viz/core` strategy factories (`createAdaptiveHexMeshStrategy`, `createFixedLatticeMeshStrategy`, `createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`, `createOklabContrastColorStrategy`, `createThemeAdaptiveOklabColorStrategy`, `createPaletteColorStrategy`, `createPbdUniformLayoutStrategy`, `createWarmStartPbdLayoutStrategy`, `createLocalAdaptiveLayoutStrategy`). Combine them freely with any preset or custom `SvgNodeView`:
+
+```ts
+import {
+  SimplexSvgController,
+  createFixedLatticeMeshStrategy,
+  createIncrementalAnchorClusteringStrategy,
+  createThemeAdaptiveOklabColorStrategy,
+  createLocalAdaptiveLayoutStrategy,
+} from '@simplex-viz/svg';
+
+const controller = new SimplexSvgController('#graph', {
+  items,
+  preset: 'glyphs',
+  theme: 'light',
+  meshStrategy: createFixedLatticeMeshStrategy({ cols: 3, rows: 3 }),
+  clusteringStrategy: createIncrementalAnchorClusteringStrategy({
+    sharedTagRule: 'planar-hitting-set',
+    anchorRule: 'explaining-away',
+  }),
+  colorStrategy: createThemeAdaptiveOklabColorStrategy(),
+  layoutStrategy: createLocalAdaptiveLayoutStrategy({ warmStart: true }),
+});
+
+// Swap any pipeline stage live without resetting camera pan/zoom:
+controller.setColorStrategy(createOklabContrastColorStrategy());
+controller.setLayoutStrategy(createWarmStartPbdLayoutStrategy());
+```
+
 ## Progressive Customization: Custom `VisualResolver` & `SvgNodeView`
 
 Whenever built-in presets are not specific enough, swap in your own `VisualResolver`, view plugins, or root-SVG event handlers without rewriting the container lifecycle.
@@ -334,6 +365,13 @@ export const CustomCardSvgView: SvgNodeView<CardVisual> = {
 | Method / Option | Description |
 | --- | --- |
 | `preset` / `setPreset(preset, getLabel?)` | Switches between `'geometric'`, `'glyphs'`, and `'badges'` with smooth transitions. |
+| `theme` / `setTheme(theme)` | Switches `'dark'` / `'light'` presets and notifies theme-aware color strategies. |
+| `meshStrategy` / `setMeshStrategy(strategy)` | Swaps `SimplexMeshStrategy` (`createAdaptiveHexMeshStrategy`, `createFixedLatticeMeshStrategy`, or custom). |
+| `clusteringStrategy` / `setClusteringStrategy(strategy)` | Swaps `SimplexClusteringStrategy` (`createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`, or custom). |
+| `colorStrategy` / `setColorStrategy(strategy)` | Swaps `SimplexColorStrategy` (`createOklabContrastColorStrategy`, `createThemeAdaptiveOklabColorStrategy`, `createPaletteColorStrategy`, or custom). |
+| `layoutStrategy` / `setLayoutStrategy(strategy)` | Swaps `SimplexLayoutStrategy` (`createPbdUniformLayoutStrategy`, `createWarmStartPbdLayoutStrategy`, `createLocalAdaptiveLayoutStrategy`, or custom). |
+| `setMeshOptions(opts)` / `setLayoutOptions(opts)` | Updates `MeshOptions` or `LayoutSolverOptions` at runtime. |
+| `getMeshStrategy()` / `getClusteringStrategy()` / `getColorStrategy()` / `getLayoutStrategy()` | Inspects the currently active core strategy instances. |
 | `tooltip` / `setTooltip(tooltip)` | Enables a floating DOM hover tooltip (`boolean` or `(target) => string` formatter). |
 | `focusOnClusterClick` | Option (default `true`): toggles cluster focus on click when no custom `interactions.onLeftClick` is provided. |
 | `addItems(items)` | Appends one or more items and triggers an interruptible transition. |

@@ -35,11 +35,53 @@ export interface ClusteringResult<TItem, TTagMeta, TClusterMeta> {
 export interface PreviousClusterSnapshot {
   readonly clusterUid: string;
   readonly tags: ReadonlySet<string>;
+  readonly coreTags?: ReadonlySet<string>;
   readonly x: number;
   readonly y: number;
   readonly colorHex: string;
   readonly oklab: OklabTuple;
 }
+
+/**
+ * Analyzed tag corpus with frequency counts and regularized Jaccard similarity matrix.
+ */
+export interface AnalyzedTagCorpus {
+  readonly uniqueTags: readonly string[];
+  readonly tagIndexMap: ReadonlyMap<string, number>;
+  readonly tagFreqMap: ReadonlyMap<string, number>;
+  readonly cooccurrence: readonly Float64Array[];
+  readonly similarity: readonly Float64Array[];
+}
+
+/**
+ * Intermediate vertex-level tag assignment before color assignment & metadata derivation.
+ */
+export interface RawItemUnitAssignment<TItem> {
+  readonly entry: NormalizedContentItem<TItem>;
+  readonly tagIndices: readonly number[];
+  readonly unitVertices: readonly number[];
+  readonly weights: readonly {
+    readonly clusterIndex: number;
+    readonly coverage: number;
+    readonly normalizedWeight: number;
+  }[];
+  readonly anchor: Point2D;
+}
+
+/**
+ * Rule governing how shared tags are added across mesh vertices after core partitioning.
+ * - `'planar-hitting-set'`: Minimal weighted hitting-set + backward pruning guaranteeing 100% planar triangle coverage (default).
+ * - `'none'`: Keep strictly disjoint core partitions with zero shared tags.
+ */
+export type SharedTagRuleKind = 'planar-hitting-set' | 'none';
+
+/**
+ * Rule governing how each item's tags map onto mesh vertices / edges / triangles and compute its barycentric anchor.
+ * - `'explaining-away'`: Smallest covering simplex (`vertex ≺ edge ≺ triangle`), weighted by normalized tag coverage `|C_v ∩ T_k| / |T_v|` (default).
+ * - `'raw-overlap'`: Smallest covering simplex (`vertex ≺ edge ≺ triangle`), weighted by raw matching tag count `|C_v ∩ T_k|`.
+ * - `'barycentric-all'`: Soft barycentric blend across all clusters sharing >= 1 tag with the item (unrestricted centroid).
+ */
+export type SimplexAnchorRuleKind = 'explaining-away' | 'raw-overlap' | 'barycentric-all';
 
 /**
  * Hungarian (Munkres) minimum-cost bipartite matching for square/rectangular cost matrix.
@@ -160,6 +202,635 @@ export function extractNormalizedItems<TItem>(
 }
 
 /**
+ * Computes tag frequencies, co-occurrence matrix, and regularized Jaccard similarities.
+ */
+export function analyzeTagCorpus<TItem>(
+  normalizedItems: readonly NormalizedContentItem<TItem>[],
+  regularization = 1.0,
+): AnalyzedTagCorpus {
+  const tagFreqMap = new Map<string, number>();
+  for (const entry of normalizedItems) {
+    for (const tag of entry.tags) {
+      tagFreqMap.set(tag, (tagFreqMap.get(tag) ?? 0) + 1);
+    }
+  }
+  const uniqueTags = [...tagFreqMap.keys()].sort((a, b) => {
+    const fa = tagFreqMap.get(a) ?? 0;
+    const fb = tagFreqMap.get(b) ?? 0;
+    if (fb !== fa) return fb - fa;
+    return a.localeCompare(b);
+  });
+
+  const T = uniqueTags.length;
+  const tagIndexMap = new Map<string, number>();
+  uniqueTags.forEach((tag, idx) => tagIndexMap.set(tag, idx));
+
+  const cooccurrence = Array.from({ length: T }, () => new Float64Array(T));
+  for (const entry of normalizedItems) {
+    const indices = entry.tags.map((t) => tagIndexMap.get(t)!);
+    for (let i = 0; i < indices.length; i++) {
+      const ti = indices[i]!;
+      for (let j = i + 1; j < indices.length; j++) {
+        const tj = indices[j]!;
+        cooccurrence[ti]![tj] = cooccurrence[ti]![tj]! + 1;
+        cooccurrence[tj]![ti] = cooccurrence[tj]![ti]! + 1;
+      }
+    }
+  }
+
+  const similarity = Array.from({ length: T }, () => new Float64Array(T));
+  for (let i = 0; i < T; i++) {
+    const fi = tagFreqMap.get(uniqueTags[i]!) ?? 1;
+    for (let j = i + 1; j < T; j++) {
+      const fj = tagFreqMap.get(uniqueTags[j]!) ?? 1;
+      const cij = cooccurrence[i]![j]!;
+      const union = fi + fj - cij + regularization;
+      const val = union > 0 ? cij / union : 0;
+      similarity[i]![j] = val;
+      similarity[j]![i] = val;
+    }
+  }
+
+  return { uniqueTags, tagIndexMap, tagFreqMap, cooccurrence, similarity };
+}
+
+/**
+ * Phase 1: Balanced disjoint partition of unique tags into `clusterCount` topic cores.
+ */
+export function partitionTagsJaccard(
+  corpus: AnalyzedTagCorpus,
+  clusterCount: number,
+): {
+  readonly corePartitions: number[][];
+  readonly tagToCoreCluster: Int32Array;
+} {
+  const { uniqueTags, tagFreqMap, similarity } = corpus;
+  const T = uniqueTags.length;
+  const K = clusterCount;
+  const corePartitions: number[][] = Array.from({ length: K }, () => []);
+  const tagToCoreCluster = new Int32Array(T).fill(-1);
+  if (T === 0 || K === 0) {
+    return { corePartitions, tagToCoreCluster };
+  }
+
+  const targetMaxSize = Math.ceil(T / K);
+  const assignedSeeds = new Set<number>();
+
+  corePartitions[0]!.push(0);
+  tagToCoreCluster[0] = 0;
+  assignedSeeds.add(0);
+
+  for (let c = 1; c < K && assignedSeeds.size < T; c++) {
+    let bestTag = -1;
+    let bestScore = Infinity;
+    for (let t = 0; t < T; t++) {
+      if (assignedSeeds.has(t)) continue;
+      let maxSimToSeeds = 0;
+      for (const s of assignedSeeds) {
+        const sv = similarity[t]![s]!;
+        if (sv > maxSimToSeeds) maxSimToSeeds = sv;
+      }
+      const freq = tagFreqMap.get(uniqueTags[t]!) ?? 1;
+      const score = maxSimToSeeds - Math.min(0.15, freq * 0.002);
+      if (score < bestScore) {
+        bestScore = score;
+        bestTag = t;
+      }
+    }
+    if (bestTag >= 0) {
+      corePartitions[c]!.push(bestTag);
+      tagToCoreCluster[bestTag] = c;
+      assignedSeeds.add(bestTag);
+    }
+  }
+
+  for (let t = 0; t < T; t++) {
+    if (tagToCoreCluster[t] !== -1) continue;
+    let bestCluster = 0;
+    let bestAffinity = -Infinity;
+    for (let c = 0; c < K; c++) {
+      const members = corePartitions[c]!;
+      if (members.length >= targetMaxSize) continue;
+      let avgSim = 0;
+      for (const m of members) {
+        avgSim += similarity[t]![m]!;
+      }
+      avgSim = members.length > 0 ? avgSim / members.length : 0;
+      const balanceBonus = (targetMaxSize - members.length) * 0.015;
+      const score = avgSim + balanceBonus;
+      if (score > bestAffinity) {
+        bestAffinity = score;
+        bestCluster = c;
+      }
+    }
+    corePartitions[bestCluster]!.push(t);
+    tagToCoreCluster[t] = bestCluster;
+  }
+
+  return { corePartitions, tagToCoreCluster };
+}
+
+/**
+ * Computes all-pairs shortest hop distance matrix on `mesh`.
+ */
+export function computeMeshHopDistances(mesh: SimplexMesh): Int32Array[] {
+  const K = mesh.vertices.length;
+  const hopDist = Array.from({ length: K }, () => new Int32Array(K).fill(K));
+  for (let start = 0; start < K; start++) {
+    const queue = [start];
+    hopDist[start]![start] = 0;
+    let head = 0;
+    while (head < queue.length) {
+      const cur = queue[head++]!;
+      const d = hopDist[start]![cur]!;
+      const neighbors = mesh.vertices[cur]?.neighbors ?? [];
+      for (const nb of neighbors) {
+        if (hopDist[start]![nb]! > d + 1) {
+          hopDist[start]![nb] = d + 1;
+          queue.push(nb);
+        }
+      }
+    }
+  }
+  return hopDist;
+}
+
+/**
+ * Simulated Annealing QAP solver that maps `K` core tag partitions onto the `K` vertices
+ * of `mesh` such that frequently co-occurring partitions sit on adjacent mesh vertices.
+ */
+export function embedClustersQapAnnealing<TItem>(params: {
+  readonly normalizedItems: readonly NormalizedContentItem<TItem>[];
+  readonly tagIndexMap: ReadonlyMap<string, number>;
+  readonly tagToCoreCluster: Int32Array;
+  readonly corePartitions: readonly (readonly number[])[];
+  readonly mesh: SimplexMesh;
+  readonly seed?: number;
+}): Set<number>[] {
+  const {
+    normalizedItems,
+    tagIndexMap,
+    tagToCoreCluster,
+    corePartitions,
+    mesh,
+    seed = 0x51a7c0de,
+  } = params;
+  const K = mesh.vertices.length;
+  const rng = new DeterministicRng(seed);
+
+  const clusterAffinity = Array.from({ length: K }, () => new Float64Array(K));
+  for (const entry of normalizedItems) {
+    const touched = new Set<number>();
+    for (const tag of entry.tags) {
+      const idx = tagIndexMap.get(tag);
+      if (idx !== undefined) {
+        const c = tagToCoreCluster[idx]!;
+        if (c >= 0) touched.add(c);
+      }
+    }
+    const list = [...touched];
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i]!;
+        const b = list[j]!;
+        clusterAffinity[a]![b] = clusterAffinity[a]![b]! + 1;
+        clusterAffinity[b]![a] = clusterAffinity[b]![a]! + 1;
+      }
+    }
+  }
+
+  const hopDist = computeMeshHopDistances(mesh);
+  const perm = Array.from({ length: K }, (_, i) => i);
+  const evaluateQap = (p: readonly number[]): number => {
+    let cost = 0;
+    for (let i = 0; i < K; i++) {
+      for (let j = i + 1; j < K; j++) {
+        const aff = clusterAffinity[i]![j]!;
+        if (aff <= 0) continue;
+        const hd = hopDist[p[i]!]![p[j]!]!;
+        const penalty = hd <= 1 ? 0 : (hd - 1) * (hd - 1) + 1;
+        cost += aff * penalty;
+      }
+    }
+    return cost;
+  };
+
+  let curQapCost = evaluateQap(perm);
+  let bestPerm = [...perm];
+  let bestQapCost = curQapCost;
+  const saSteps = Math.min(900, Math.max(200, K * K * 12));
+  for (let step = 0; step < saSteps && K >= 3; step++) {
+    const temp = Math.max(0.02, 2.5 * (1 - step / saSteps));
+    const a = rng.nextInt(K);
+    let b = rng.nextInt(K);
+    if (a === b) b = (a + 1) % K;
+    const tmp = perm[a]!;
+    perm[a] = perm[b]!;
+    perm[b] = tmp;
+
+    const nextCost = evaluateQap(perm);
+    const delta = nextCost - curQapCost;
+    if (delta <= 0 || rng.next() < Math.exp(-delta / temp)) {
+      curQapCost = nextCost;
+      if (curQapCost < bestQapCost) {
+        bestQapCost = curQapCost;
+        bestPerm = [...perm];
+      }
+    } else {
+      perm[b] = perm[a]!;
+      perm[a] = tmp;
+    }
+  }
+
+  const vertexCoreTags: Set<number>[] = Array.from({ length: K }, () => new Set<number>());
+  for (let c = 0; c < K; c++) {
+    const vIdx = bestPerm[c]!;
+    for (const tagIdx of corePartitions[c] ?? []) {
+      vertexCoreTags[vIdx]!.add(tagIdx);
+    }
+  }
+  return vertexCoreTags;
+}
+
+/**
+ * Phase 2: Weighted hitting-set shared tag expansion + backward pruning pass
+ * guaranteeing 100% planar mesh face coverage for every item with minimal tag duplication.
+ */
+export function completePlanarSharedTags(params: {
+  readonly vertexCoreTags: readonly ReadonlySet<number>[];
+  readonly itemTagIndexLists: readonly (readonly number[])[];
+  readonly mesh: SimplexMesh;
+  readonly tagCount: number;
+}): Set<number>[] {
+  const { vertexCoreTags, itemTagIndexLists, mesh, tagCount: T } = params;
+  const K = mesh.vertices.length;
+  const vertexSharedTags: Set<number>[] = Array.from({ length: K }, () => new Set<number>());
+
+  const hasTag = (vIdx: number, tagIdx: number): boolean =>
+    (vertexCoreTags[vIdx]?.has(tagIdx) ?? false) ||
+    (vertexSharedTags[vIdx]?.has(tagIdx) ?? false);
+
+  const coveringUnits: readonly (readonly number[])[] =
+    mesh.triangles.length > 0
+      ? mesh.triangles.map((tr) => tr.vertices)
+      : mesh.edges.length > 0
+        ? mesh.edges.map((e) => [e.a, e.b])
+        : [Array.from({ length: K }, (_, i) => i)];
+
+  const isItemCoveredByUnit = (
+    itemTags: readonly number[],
+    unit: readonly number[],
+  ): boolean => {
+    for (const t of itemTags) {
+      let covered = false;
+      for (const v of unit) {
+        if (hasTag(v, t)) {
+          covered = true;
+          break;
+        }
+      }
+      if (!covered) return false;
+    }
+    return true;
+  };
+
+  const isItemCoveredPlanar = (itemTags: readonly number[]): boolean => {
+    for (const unit of coveringUnits) {
+      if (isItemCoveredByUnit(itemTags, unit)) return true;
+    }
+    return false;
+  };
+
+  const maxSharedIterations = T * K + 32;
+  for (let iter = 0; iter < maxSharedIterations; iter++) {
+    const uncoveredItems: number[] = [];
+    for (let i = 0; i < itemTagIndexLists.length; i++) {
+      if (!isItemCoveredPlanar(itemTagIndexLists[i]!)) {
+        uncoveredItems.push(i);
+      }
+    }
+    if (uncoveredItems.length === 0) break;
+
+    let bestTag = -1;
+    let bestVertex = -1;
+    let bestGain = -Infinity;
+    const candidateGain = new Map<string, number>();
+
+    for (const itemIdx of uncoveredItems) {
+      const iTags = itemTagIndexLists[itemIdx]!;
+      let minMissing = Infinity;
+      let bestTri: readonly number[] = coveringUnits[0]!;
+      for (const tri of coveringUnits) {
+        let missing = 0;
+        for (const t of iTags) {
+          let ok = false;
+          for (const v of tri) {
+            if (hasTag(v, t)) {
+              ok = true;
+              break;
+            }
+          }
+          if (!ok) missing++;
+        }
+        if (missing < minMissing) {
+          minMissing = missing;
+          bestTri = tri;
+        }
+      }
+
+      for (const t of iTags) {
+        let alreadyInTri = false;
+        for (const v of bestTri) {
+          if (hasTag(v, t)) {
+            alreadyInTri = true;
+            break;
+          }
+        }
+        if (alreadyInTri) continue;
+        for (const v of bestTri) {
+          const key = `${t}:${v}`;
+          let contiguityBonus = 0;
+          const neighbors = mesh.vertices[v]?.neighbors ?? [];
+          for (const nb of neighbors) {
+            if (hasTag(nb, t)) contiguityBonus += 0.35;
+          }
+          const score = 1 / Math.max(1, minMissing) + contiguityBonus;
+          candidateGain.set(key, (candidateGain.get(key) ?? 0) + score);
+        }
+      }
+    }
+
+    for (const [key, gain] of candidateGain) {
+      const [tStr, vStr] = key.split(':');
+      const t = Number(tStr);
+      const v = Number(vStr);
+      if (hasTag(v, t)) continue;
+      const sizePenalty =
+        ((vertexCoreTags[v]?.size ?? 0) + vertexSharedTags[v]!.size) * 0.02;
+      const adjusted = gain - sizePenalty;
+      if (adjusted > bestGain) {
+        bestGain = adjusted;
+        bestTag = t;
+        bestVertex = v;
+      }
+    }
+
+    if (bestTag >= 0 && bestVertex >= 0) {
+      vertexSharedTags[bestVertex]!.add(bestTag);
+    } else {
+      break;
+    }
+  }
+
+  // Backward pruning pass: strip redundant sharedTag copies while preserving 100% coverage
+  const sharedPairs: { v: number; t: number }[] = [];
+  for (let v = 0; v < K; v++) {
+    for (const t of vertexSharedTags[v]!) {
+      sharedPairs.push({ v, t });
+    }
+  }
+  for (const pair of sharedPairs) {
+    vertexSharedTags[pair.v]!.delete(pair.t);
+    let allStillCovered = true;
+    for (const iTags of itemTagIndexLists) {
+      if (!isItemCoveredPlanar(iTags)) {
+        allStillCovered = false;
+        break;
+      }
+    }
+    if (!allStillCovered) {
+      vertexSharedTags[pair.v]!.add(pair.t);
+    }
+  }
+
+  return vertexSharedTags;
+}
+
+/**
+ * Matches current cluster tag sets against previous snapshots using the Hungarian algorithm
+ * to preserve stable `clusterUid`s and colors across updates.
+ */
+export function matchClustersHungarian(params: {
+  readonly currentVertexTagSets: readonly ReadonlySet<string>[];
+  readonly mesh: SimplexMesh;
+  readonly previousClusters?: readonly PreviousClusterSnapshot[];
+  readonly allocateClusterUid: () => string;
+}): {
+  readonly matchedUids: readonly string[];
+  readonly preservedColors: ReadonlyMap<number, { readonly hex: string; readonly oklab: OklabTuple }>;
+} {
+  const { currentVertexTagSets, mesh, previousClusters, allocateClusterUid } = params;
+  const K = mesh.vertices.length;
+  const matchedUids: string[] = new Array(K).fill('');
+  const preservedColors = new Map<number, { readonly hex: string; readonly oklab: OklabTuple }>();
+
+  if (previousClusters && previousClusters.length > 0) {
+    const prevCount = previousClusters.length;
+    const maxDiag = Math.max(1, Math.hypot(mesh.width, mesh.height));
+    const costMatrix: number[][] = Array.from({ length: K }, (_, newIdx) => {
+      const newTags = currentVertexTagSets[newIdx]!;
+      const newPos = mesh.vertices[newIdx]!;
+      return Array.from({ length: prevCount }, (__, prevIdx) => {
+        const prev = previousClusters[prevIdx]!;
+        let intersection = 0;
+        for (const t of newTags) {
+          if (prev.tags.has(t)) intersection++;
+        }
+        const union = newTags.size + prev.tags.size - intersection;
+        const jaccardDist = union > 0 ? 1 - intersection / union : 1;
+        const euclidDist = Math.hypot(newPos.x - prev.x, newPos.y - prev.y) / maxDiag;
+        return jaccardDist * 0.78 + euclidDist * 0.22;
+      });
+    });
+
+    const assignment = solveHungarianAssignment(costMatrix);
+    for (let newIdx = 0; newIdx < K; newIdx++) {
+      const prevIdx = assignment[newIdx] ?? -1;
+      if (prevIdx >= 0 && prevIdx < prevCount) {
+        const cost = costMatrix[newIdx]![prevIdx]!;
+        if (cost < 0.88) {
+          const prev = previousClusters[prevIdx]!;
+          matchedUids[newIdx] = prev.clusterUid;
+          preservedColors.set(newIdx, { hex: prev.colorHex, oklab: prev.oklab });
+        }
+      }
+    }
+  }
+
+  for (let v = 0; v < K; v++) {
+    if (!matchedUids[v]) {
+      matchedUids[v] = allocateClusterUid();
+    }
+  }
+
+  return { matchedUids, preservedColors };
+}
+
+/**
+ * Anchors every content item onto its active simplex unit (or soft centroid)
+ * and computes normalized barycentric weights + ideal `(anchorX, anchorY)`.
+ */
+export function assignItemsToSimplexUnits<TItem>(params: {
+  readonly normalizedItems: readonly NormalizedContentItem<TItem>[];
+  readonly itemTagIndexLists: readonly (readonly number[])[];
+  readonly vertexCoreTags: readonly ReadonlySet<number>[];
+  readonly vertexSharedTags: readonly ReadonlySet<number>[];
+  readonly mesh: SimplexMesh;
+  readonly rule?: SimplexAnchorRuleKind;
+}): readonly RawItemUnitAssignment<TItem>[] {
+  const {
+    normalizedItems,
+    itemTagIndexLists,
+    vertexCoreTags,
+    vertexSharedTags,
+    mesh,
+    rule = 'explaining-away',
+  } = params;
+  const K = mesh.vertices.length;
+
+  const hasTag = (v: number, t: number): boolean =>
+    (vertexCoreTags[v]?.has(t) ?? false) || (vertexSharedTags[v]?.has(t) ?? false);
+
+  const clusterTotalSizes = Array.from({ length: K }, (_, v) =>
+    Math.max(1, (vertexCoreTags[v]?.size ?? 0) + (vertexSharedTags[v]?.size ?? 0)),
+  );
+
+  const computeHitCount = (itemTags: readonly number[], v: number): number => {
+    let hit = 0;
+    for (const t of itemTags) {
+      if (hasTag(v, t)) hit++;
+    }
+    return hit;
+  };
+
+  const computeCoverage = (itemTags: readonly number[], v: number): number => {
+    const hit = computeHitCount(itemTags, v);
+    if (rule === 'raw-overlap') {
+      return itemTags.length > 0 ? hit / itemTags.length : 0;
+    }
+    return hit / clusterTotalSizes[v]!;
+  };
+
+  const isItemCoveredByUnit = (
+    itemTags: readonly number[],
+    unit: readonly number[],
+  ): boolean => {
+    for (const t of itemTags) {
+      let covered = false;
+      for (const v of unit) {
+        if (hasTag(v, t)) {
+          covered = true;
+          break;
+        }
+      }
+      if (!covered) return false;
+    }
+    return true;
+  };
+
+  const vertexUnits: readonly (readonly number[])[] = Array.from({ length: K }, (_, v) => [v]);
+  const edgeUnits: readonly (readonly number[])[] = mesh.edges.map((e) => [e.a, e.b]);
+  const triangleUnits: readonly (readonly number[])[] = mesh.triangles.map((tr) => tr.vertices);
+
+  const pickBestFullUnit = (
+    iTags: readonly number[],
+    units: readonly (readonly number[])[],
+  ): readonly number[] | null => {
+    let best: readonly number[] | null = null;
+    let bestScore = -1;
+    for (const unit of units) {
+      if (!isItemCoveredByUnit(iTags, unit)) continue;
+      let sumCov = 0;
+      for (const v of unit) {
+        sumCov += computeCoverage(iTags, v);
+      }
+      if (sumCov > bestScore) {
+        bestScore = sumCov;
+        best = unit;
+      }
+    }
+    return best;
+  };
+
+  const pickBestPartialUnit = (iTags: readonly number[]): readonly number[] => {
+    const allUnits = [...triangleUnits, ...edgeUnits, ...vertexUnits];
+    let best: readonly number[] = [0];
+    let bestHits = -1;
+    let bestCov = -1;
+    for (const unit of allUnits) {
+      let distinctCovered = 0;
+      for (const t of iTags) {
+        if (unit.some((v) => hasTag(v, t))) distinctCovered++;
+      }
+      let sumCov = 0;
+      for (const v of unit) sumCov += computeCoverage(iTags, v);
+      if (
+        distinctCovered > bestHits ||
+        (distinctCovered === bestHits && sumCov > bestCov)
+      ) {
+        bestHits = distinctCovered;
+        bestCov = sumCov;
+        best = unit;
+      }
+    }
+    return best;
+  };
+
+  const assignments: RawItemUnitAssignment<TItem>[] = [];
+  for (let i = 0; i < normalizedItems.length; i++) {
+    const entry = normalizedItems[i]!;
+    const iTags = itemTagIndexLists[i]!;
+
+    let chosenUnit: readonly number[];
+    if (rule === 'barycentric-all') {
+      const matchingVertices: number[] = [];
+      for (let v = 0; v < K; v++) {
+        if (computeHitCount(iTags, v) > 0) {
+          matchingVertices.push(v);
+        }
+      }
+      chosenUnit = matchingVertices.length > 0 ? matchingVertices : [0];
+    } else {
+      chosenUnit =
+        pickBestFullUnit(iTags, vertexUnits) ??
+        pickBestFullUnit(iTags, edgeUnits) ??
+        pickBestFullUnit(iTags, triangleUnits) ??
+        pickBestPartialUnit(iTags);
+    }
+
+    const rawCoverages = chosenUnit.map((v) => ({
+      clusterIndex: v,
+      coverage: Math.max(1e-6, computeCoverage(iTags, v)),
+    }));
+    const totalCov = rawCoverages.reduce((acc, c) => acc + c.coverage, 0);
+
+    const weights = rawCoverages.map((c) => ({
+      clusterIndex: c.clusterIndex,
+      coverage: c.coverage,
+      normalizedWeight: c.coverage / totalCov,
+    }));
+
+    let bx = 0;
+    let by = 0;
+    for (const w of weights) {
+      const pt = mesh.vertices[w.clusterIndex]!;
+      bx += pt.x * w.normalizedWeight;
+      by += pt.y * w.normalizedWeight;
+    }
+
+    assignments.push({
+      entry,
+      tagIndices: iTags,
+      unitVertices: chosenUnit,
+      weights,
+      anchor: { x: bx, y: by },
+    });
+  }
+
+  return assignments;
+}
+
+/**
  * Executes the two-stage topic clustering pipeline, QAP mesh embedding,
  * planar triangle hitting-set completion, backward pruning, explaining-away unit selection,
  * OKLab color assignment & mixing, and bipartite identity matching.
@@ -207,28 +878,11 @@ export function computeSimplexClustering<TItem, TTagMeta, TClusterMeta>(params: 
     seed = 0x51a7c0de,
   } = params;
 
-  const rng = new DeterministicRng(seed);
   const K = mesh.vertices.length;
-
-  // Gather tag frequencies & item tag sets
-  const tagFreqMap = new Map<string, number>();
-  for (const entry of normalizedItems) {
-    for (const tag of entry.tags) {
-      tagFreqMap.set(tag, (tagFreqMap.get(tag) ?? 0) + 1);
-    }
-  }
-  const uniqueTags = [...tagFreqMap.keys()].sort((a, b) => {
-    const fa = tagFreqMap.get(a) ?? 0;
-    const fb = tagFreqMap.get(b) ?? 0;
-    if (fb !== fa) return fb - fa;
-    return a.localeCompare(b);
-  });
-
+  const corpus = analyzeTagCorpus(normalizedItems);
+  const { uniqueTags, tagIndexMap, tagFreqMap } = corpus;
   const T = uniqueTags.length;
-  const tagIndexMap = new Map<string, number>();
-  uniqueTags.forEach((tag, idx) => tagIndexMap.set(tag, idx));
 
-  // Edge case: 0 items or 0 tags
   if (T === 0 || K === 0) {
     return {
       clusters: [],
@@ -238,338 +892,27 @@ export function computeSimplexClustering<TItem, TTagMeta, TClusterMeta>(params: 
     };
   }
 
-  // Co-occurrence counts & regularized Jaccard similarity matrix
-  const cooccur = Array.from({ length: T }, () => new Float64Array(T));
-  for (const entry of normalizedItems) {
-    const indices = entry.tags.map((t) => tagIndexMap.get(t)!);
-    for (let i = 0; i < indices.length; i++) {
-      const ti = indices[i]!;
-      for (let j = i + 1; j < indices.length; j++) {
-        const tj = indices[j]!;
-        cooccur[ti]![tj] = cooccur[ti]![tj]! + 1;
-        cooccur[tj]![ti] = cooccur[tj]![ti]! + 1;
-      }
-    }
-  }
-
-  const sim = Array.from({ length: T }, () => new Float64Array(T));
-  const reg = 1.0;
-  for (let i = 0; i < T; i++) {
-    const fi = tagFreqMap.get(uniqueTags[i]!) ?? 1;
-    for (let j = i + 1; j < T; j++) {
-      const fj = tagFreqMap.get(uniqueTags[j]!) ?? 1;
-      const cij = cooccur[i]![j]!;
-      const union = fi + fj - cij + reg;
-      const val = union > 0 ? cij / union : 0;
-      sim[i]![j] = val;
-      sim[j]![i] = val;
-    }
-  }
-
-  // Phase 1: Balanced Core Partition into K disjoint tag sets
-  const corePartitions: number[][] = Array.from({ length: K }, () => []);
-  const targetMaxSize = Math.ceil(T / K);
-  const tagToCoreCluster = new Int32Array(T).fill(-1);
-
-  // Seed each cluster with farthest-first / highest-frequency weakly-coupled tags
-  const assignedSeeds = new Set<number>();
-  if (T > 0) {
-    corePartitions[0]!.push(0);
-    tagToCoreCluster[0] = 0;
-    assignedSeeds.add(0);
-  }
-  for (let c = 1; c < K && assignedSeeds.size < T; c++) {
-    let bestTag = -1;
-    let bestScore = Infinity;
-    for (let t = 0; t < T; t++) {
-      if (assignedSeeds.has(t)) continue;
-      let maxSimToSeeds = 0;
-      for (const s of assignedSeeds) {
-        const sv = sim[t]![s]!;
-        if (sv > maxSimToSeeds) maxSimToSeeds = sv;
-      }
-      // Prefer lower similarity to existing seeds, slight preference for higher frequency
-      const freq = tagFreqMap.get(uniqueTags[t]!) ?? 1;
-      const score = maxSimToSeeds - Math.min(0.15, freq * 0.002);
-      if (score < bestScore) {
-        bestScore = score;
-        bestTag = t;
-      }
-    }
-    if (bestTag >= 0) {
-      corePartitions[c]!.push(bestTag);
-      tagToCoreCluster[bestTag] = c;
-      assignedSeeds.add(bestTag);
-    }
-  }
-
-  // Assign remaining tags greedily to most cohesive core partition respecting capacity balance
-  for (let t = 0; t < T; t++) {
-    if (tagToCoreCluster[t] !== -1) continue;
-    let bestCluster = 0;
-    let bestAffinity = -Infinity;
-    for (let c = 0; c < K; c++) {
-      const members = corePartitions[c]!;
-      if (members.length >= targetMaxSize) continue;
-      let avgSim = 0;
-      for (const m of members) {
-        avgSim += sim[t]![m]!;
-      }
-      avgSim = members.length > 0 ? avgSim / members.length : 0;
-      // Tie-break by smallest partition to keep clusters balanced
-      const balanceBonus = (targetMaxSize - members.length) * 0.015;
-      const score = avgSim + balanceBonus;
-      if (score > bestAffinity) {
-        bestAffinity = score;
-        bestCluster = c;
-      }
-    }
-    corePartitions[bestCluster]!.push(t);
-    tagToCoreCluster[t] = bestCluster;
-  }
-
-  // Compute cluster-cluster co-occurrence affinity matrix for QAP mesh embedding
-  const clusterAffinity = Array.from({ length: K }, () => new Float64Array(K));
-  for (const entry of normalizedItems) {
-    const touched = new Set<number>();
-    for (const tag of entry.tags) {
-      const idx = tagIndexMap.get(tag);
-      if (idx !== undefined) {
-        const c = tagToCoreCluster[idx]!;
-        if (c >= 0) touched.add(c);
-      }
-    }
-    const list = [...touched];
-    for (let i = 0; i < list.length; i++) {
-      for (let j = i + 1; j < list.length; j++) {
-        const a = list[i]!;
-        const b = list[j]!;
-        clusterAffinity[a]![b] = clusterAffinity[a]![b]! + 1;
-        clusterAffinity[b]![a] = clusterAffinity[b]![a]! + 1;
-      }
-    }
-  }
-
-  // Compute all-pairs shortest hop distance on the mesh (BFS from each vertex)
-  const hopDist = Array.from({ length: K }, () => new Int32Array(K).fill(K));
-  for (let start = 0; start < K; start++) {
-    const queue = [start];
-    hopDist[start]![start] = 0;
-    let head = 0;
-    while (head < queue.length) {
-      const cur = queue[head++]!;
-      const d = hopDist[start]![cur]!;
-      const neighbors = mesh.vertices[cur]?.neighbors ?? [];
-      for (const nb of neighbors) {
-        if (hopDist[start]![nb]! > d + 1) {
-          hopDist[start]![nb] = d + 1;
-          queue.push(nb);
-        }
-      }
-    }
-  }
-
-  // Simulated Annealing QAP: perm[clusterId] = vertexIndex
-  const perm = Array.from({ length: K }, (_, i) => i);
-  const evaluateQap = (p: readonly number[]): number => {
-    let cost = 0;
-    for (let i = 0; i < K; i++) {
-      for (let j = i + 1; j < K; j++) {
-        const aff = clusterAffinity[i]![j]!;
-        if (aff <= 0) continue;
-        const hd = hopDist[p[i]!]![p[j]!]!;
-        // Strongly reward hop distance 1 (mesh neighbors)
-        const penalty = hd <= 1 ? 0 : (hd - 1) * (hd - 1) + 1;
-        cost += aff * penalty;
-      }
-    }
-    return cost;
-  };
-
-  let curQapCost = evaluateQap(perm);
-  let bestPerm = [...perm];
-  let bestQapCost = curQapCost;
-  const saSteps = Math.min(900, Math.max(200, K * K * 12));
-  for (let step = 0; step < saSteps && K >= 3; step++) {
-    const temp = Math.max(0.02, 2.5 * (1 - step / saSteps));
-    const a = rng.nextInt(K);
-    let b = rng.nextInt(K);
-    if (a === b) b = (a + 1) % K;
-    const tmp = perm[a]!;
-    perm[a] = perm[b]!;
-    perm[b] = tmp;
-
-    const nextCost = evaluateQap(perm);
-    const delta = nextCost - curQapCost;
-    if (delta <= 0 || rng.next() < Math.exp(-delta / temp)) {
-      curQapCost = nextCost;
-      if (curQapCost < bestQapCost) {
-        bestQapCost = curQapCost;
-        bestPerm = [...perm];
-      }
-    } else {
-      perm[b] = perm[a]!;
-      perm[a] = tmp;
-    }
-  }
-
-  // Map vertexIndex -> coreTagSet & sharedTagSet
-  const vertexCoreTags: Set<number>[] = Array.from({ length: K }, () => new Set<number>());
-  for (let c = 0; c < K; c++) {
-    const vIdx = bestPerm[c]!;
-    for (const tagIdx of corePartitions[c]!) {
-      vertexCoreTags[vIdx]!.add(tagIdx);
-    }
-  }
-
-  const vertexSharedTags: Set<number>[] = Array.from({ length: K }, () => new Set<number>());
-  const hasTag = (vIdx: number, tagIdx: number): boolean =>
-    vertexCoreTags[vIdx]!.has(tagIdx) || vertexSharedTags[vIdx]!.has(tagIdx);
-
-  // Build covering faces (mesh triangles; fallback to edges/vertices if no triangles)
-  const coveringUnits: readonly (readonly number[])[] =
-    mesh.triangles.length > 0
-      ? mesh.triangles.map((tr) => tr.vertices)
-      : mesh.edges.length > 0
-        ? mesh.edges.map((e) => [e.a, e.b])
-        : [Array.from({ length: K }, (_, i) => i)];
+  const { corePartitions, tagToCoreCluster } = partitionTagsJaccard(corpus, K);
+  const vertexCoreTags = embedClustersQapAnnealing({
+    normalizedItems,
+    tagIndexMap,
+    tagToCoreCluster,
+    corePartitions,
+    mesh,
+    seed,
+  });
 
   const itemTagIndexLists = normalizedItems.map((it) =>
     it.tags.map((t) => tagIndexMap.get(t)!),
   );
 
-  const isItemCoveredByUnit = (
-    itemTags: readonly number[],
-    unit: readonly number[],
-  ): boolean => {
-    for (const t of itemTags) {
-      let covered = false;
-      for (const v of unit) {
-        if (hasTag(v, t)) {
-          covered = true;
-          break;
-        }
-      }
-      if (!covered) return false;
-    }
-    return true;
-  };
+  const vertexSharedTags = completePlanarSharedTags({
+    vertexCoreTags,
+    itemTagIndexLists,
+    mesh,
+    tagCount: T,
+  });
 
-  const isItemCoveredPlanar = (itemTags: readonly number[]): boolean => {
-    for (const unit of coveringUnits) {
-      if (isItemCoveredByUnit(itemTags, unit)) return true;
-    }
-    return false;
-  };
-
-  // Phase 2: Weighted Hitting-Set greedy minimal shared tag expansion
-  const maxSharedIterations = T * K + 32;
-  for (let iter = 0; iter < maxSharedIterations; iter++) {
-    const uncoveredItems: number[] = [];
-    for (let i = 0; i < itemTagIndexLists.length; i++) {
-      if (!isItemCoveredPlanar(itemTagIndexLists[i]!)) {
-        uncoveredItems.push(i);
-      }
-    }
-    if (uncoveredItems.length === 0) break;
-
-    // Evaluate candidate pairs (tag t, vertex v) that heal the most uncovered items
-    let bestTag = -1;
-    let bestVertex = -1;
-    let bestGain = -Infinity;
-
-    // Collect deficit tags per vertex across best-effort triangles for uncovered items
-    const candidateGain = new Map<string, number>();
-    for (const itemIdx of uncoveredItems) {
-      const iTags = itemTagIndexLists[itemIdx]!;
-      // Find triangle requiring the fewest missing tags
-      let minMissing = Infinity;
-      let bestTri: readonly number[] = coveringUnits[0]!;
-      for (const tri of coveringUnits) {
-        let missing = 0;
-        for (const t of iTags) {
-          let ok = false;
-          for (const v of tri) {
-            if (hasTag(v, t)) {
-              ok = true;
-              break;
-            }
-          }
-          if (!ok) missing++;
-        }
-        if (missing < minMissing) {
-          minMissing = missing;
-          bestTri = tri;
-        }
-      }
-
-      for (const t of iTags) {
-        let alreadyInTri = false;
-        for (const v of bestTri) {
-          if (hasTag(v, t)) {
-            alreadyInTri = true;
-            break;
-          }
-        }
-        if (alreadyInTri) continue;
-        for (const v of bestTri) {
-          const key = `${t}:${v}`;
-          // Bonus if v is adjacent on the mesh to a vertex already owning t (contiguous tag zones)
-          let contiguityBonus = 0;
-          const neighbors = mesh.vertices[v]?.neighbors ?? [];
-          for (const nb of neighbors) {
-            if (hasTag(nb, t)) contiguityBonus += 0.35;
-          }
-          const score = 1 / Math.max(1, minMissing) + contiguityBonus;
-          candidateGain.set(key, (candidateGain.get(key) ?? 0) + score);
-        }
-      }
-    }
-
-    for (const [key, gain] of candidateGain) {
-      const [tStr, vStr] = key.split(':');
-      const t = Number(tStr);
-      const v = Number(vStr);
-      if (hasTag(v, t)) continue;
-      // Slight penalty to keep |T_k| balanced
-      const sizePenalty = (vertexCoreTags[v]!.size + vertexSharedTags[v]!.size) * 0.02;
-      const adjusted = gain - sizePenalty;
-      if (adjusted > bestGain) {
-        bestGain = adjusted;
-        bestTag = t;
-        bestVertex = v;
-      }
-    }
-
-    if (bestTag >= 0 && bestVertex >= 0) {
-      vertexSharedTags[bestVertex]!.add(bestTag);
-    } else {
-      break;
-    }
-  }
-
-  // Backward pruning pass: remove any redundant sharedTag copy without breaking 100% coverage
-  const sharedPairs: { v: number; t: number }[] = [];
-  for (let v = 0; v < K; v++) {
-    for (const t of vertexSharedTags[v]!) {
-      sharedPairs.push({ v, t });
-    }
-  }
-  for (const pair of sharedPairs) {
-    vertexSharedTags[pair.v]!.delete(pair.t);
-    let allStillCovered = true;
-    for (const iTags of itemTagIndexLists) {
-      if (!isItemCoveredPlanar(iTags)) {
-        allStillCovered = false;
-        break;
-      }
-    }
-    if (!allStillCovered) {
-      vertexSharedTags[pair.v]!.add(pair.t);
-    }
-  }
-
-  // Bipartite matching with previous clusters (Hungarian algorithm) to keep stable UIDs & colors
   const currentVertexTagSets = Array.from({ length: K }, (_, v) => {
     const s = new Set<string>();
     for (const tIdx of vertexCoreTags[v]!) s.add(uniqueTags[tIdx]!);
@@ -577,159 +920,48 @@ export function computeSimplexClustering<TItem, TTagMeta, TClusterMeta>(params: 
     return s;
   });
 
-  const matchedUids: string[] = new Array(K).fill('');
-  const preservedColors = new Map<number, { readonly hex: string; readonly oklab: OklabTuple }>();
-
-  if (previousClusters && previousClusters.length > 0) {
-    const prevCount = previousClusters.length;
-    const maxDiag = Math.max(1, Math.hypot(mesh.width, mesh.height));
-    const costMatrix: number[][] = Array.from({ length: K }, (_, newIdx) => {
-      const newTags = currentVertexTagSets[newIdx]!;
-      const newPos = mesh.vertices[newIdx]!;
-      return Array.from({ length: prevCount }, (__, prevIdx) => {
-        const prev = previousClusters[prevIdx]!;
-        let intersection = 0;
-        for (const t of newTags) {
-          if (prev.tags.has(t)) intersection++;
-        }
-        const union = newTags.size + prev.tags.size - intersection;
-        const jaccardDist = union > 0 ? 1 - intersection / union : 1;
-        const euclidDist =
-          Math.hypot(newPos.x - prev.x, newPos.y - prev.y) / maxDiag;
-        return jaccardDist * 0.78 + euclidDist * 0.22;
-      });
-    });
-
-    const assignment = solveHungarianAssignment(costMatrix);
-    for (let newIdx = 0; newIdx < K; newIdx++) {
-      const prevIdx = assignment[newIdx] ?? -1;
-      if (prevIdx >= 0 && prevIdx < prevCount) {
-        const cost = costMatrix[newIdx]![prevIdx]!;
-        if (cost < 0.88) {
-          const prev = previousClusters[prevIdx]!;
-          matchedUids[newIdx] = prev.clusterUid;
-          preservedColors.set(newIdx, { hex: prev.colorHex, oklab: prev.oklab });
-        }
-      }
-    }
-  }
-
-  for (let v = 0; v < K; v++) {
-    if (!matchedUids[v]) {
+  const { matchedUids, preservedColors } = matchClustersHungarian({
+    currentVertexTagSets,
+    mesh,
+    previousClusters,
+    allocateClusterUid: () => {
       nextClusterUidSeq.value += 1;
-      matchedUids[v] = `cluster-${nextClusterUidSeq.value}`;
-    }
-  }
+      return `cluster-${nextClusterUidSeq.value}`;
+    },
+  });
 
   const assignedColors = assignMeshClusterColors(K, mesh.edges, preservedColors);
 
-  // Build candidate units sorted by dimension (1: vertices, 2: edges, 3: triangles)
-  const vertexUnits: readonly (readonly number[])[] = Array.from({ length: K }, (_, v) => [v]);
-  const edgeUnits: readonly (readonly number[])[] = mesh.edges.map((e) => [e.a, e.b]);
-  const triangleUnits: readonly (readonly number[])[] = mesh.triangles.map((tr) => tr.vertices);
+  const rawAssignments = assignItemsToSimplexUnits({
+    normalizedItems,
+    itemTagIndexLists,
+    vertexCoreTags,
+    vertexSharedTags,
+    mesh,
+    rule: 'explaining-away',
+  });
 
-  const clusterTotalSizes = Array.from(
-    { length: K },
-    (_, v) => Math.max(1, vertexCoreTags[v]!.size + vertexSharedTags[v]!.size),
-  );
-
-  // Explaining-away smallest unit assignment & normalized weights
-  interface RawItemAssignment {
-    readonly entry: NormalizedContentItem<TItem>;
-    readonly tagIndices: readonly number[];
-    readonly unitVertices: readonly number[];
-    readonly weights: readonly { readonly clusterIndex: number; readonly coverage: number; readonly normalizedWeight: number }[];
-    readonly anchor: Point2D;
-    readonly mixedColor: { readonly hex: string; readonly oklab: OklabTuple };
-  }
-
-  const rawAssignments: RawItemAssignment[] = [];
   const membersPerCluster: ClusterMemberRef<TItem>[][] = Array.from({ length: K }, () => []);
-
-  const computeCoverage = (itemTags: readonly number[], v: number): number => {
-    let hit = 0;
-    for (const t of itemTags) {
-      if (hasTag(v, t)) hit++;
-    }
-    return hit / clusterTotalSizes[v]!;
-  };
-
-  for (let i = 0; i < normalizedItems.length; i++) {
-    const entry = normalizedItems[i]!;
-    const iTags = itemTagIndexLists[i]!;
-
-    const pickBestUnit = (units: readonly (readonly number[])[]): readonly number[] | null => {
-      let best: readonly number[] | null = null;
-      let bestScore = -1;
-      for (const unit of units) {
-        if (!isItemCoveredByUnit(iTags, unit)) continue;
-        let sumCov = 0;
-        for (const v of unit) {
-          sumCov += computeCoverage(iTags, v);
-        }
-        if (sumCov > bestScore) {
-          bestScore = sumCov;
-          best = unit;
-        }
-      }
-      return best;
-    };
-
-    const chosenUnit =
-      pickBestUnit(vertexUnits) ??
-      pickBestUnit(edgeUnits) ??
-      pickBestUnit(triangleUnits) ??
-      [0];
-
-    const rawCoverages = chosenUnit.map((v) => ({
-      clusterIndex: v,
-      coverage: Math.max(1e-6, computeCoverage(iTags, v)),
-    }));
-    const totalCov = rawCoverages.reduce((acc, c) => acc + c.coverage, 0);
-
-    const weights = rawCoverages.map((c) => ({
-      clusterIndex: c.clusterIndex,
-      coverage: c.coverage,
-      normalizedWeight: c.coverage / totalCov,
-    }));
-
-    let bx = 0;
-    let by = 0;
-    for (const w of weights) {
-      const pt = mesh.vertices[w.clusterIndex]!;
-      bx += pt.x * w.normalizedWeight;
-      by += pt.y * w.normalizedWeight;
-    }
-
+  const rawWithColor = rawAssignments.map((raw) => {
     const mixedColor = mixOklabColors(
-      weights.map((w) => ({
+      raw.weights.map((w) => ({
         oklab: assignedColors[w.clusterIndex]!.oklab,
         weight: w.normalizedWeight,
       })),
     );
-
-    const isExclusive = weights.length === 1;
-    for (const w of weights) {
+    const isExclusive = raw.weights.length === 1;
+    for (const w of raw.weights) {
       membersPerCluster[w.clusterIndex]!.push({
-        item: entry.item,
-        itemId: entry.id,
+        item: raw.entry.item,
+        itemId: raw.entry.id,
         coverage: w.coverage,
         normalizedWeight: w.normalizedWeight,
         isExclusiveVertexMember: isExclusive,
       });
     }
+    return { ...raw, mixedColor };
+  });
 
-    rawAssignments.push({
-      entry,
-      tagIndices: iTags,
-      unitVertices: chosenUnit,
-      weights,
-      anchor: { x: bx, y: by },
-      mixedColor,
-    });
-  }
-
-  // Construct typed TagDescriptors and ClusterDescriptors (calling deriveClusterMeta once per cluster)
   const buildTagDescriptor = (tag: string): TagDescriptor<TTagMeta> => ({
     tag,
     frequency: tagFreqMap.get(tag) ?? 0,
@@ -779,7 +1011,7 @@ export function computeSimplexClustering<TItem, TTagMeta, TClusterMeta>(params: 
   }
 
   const items: ComputedItemPlacement<TItem, TTagMeta, TClusterMeta | undefined>[] =
-    rawAssignments.map((raw) => {
+    rawWithColor.map((raw) => {
       const tags = raw.tagIndices.map((tIdx) => buildTagDescriptor(uniqueTags[tIdx]!));
       const unitClusters = raw.weights.map((w) => ({
         cluster: clusters[w.clusterIndex]!,

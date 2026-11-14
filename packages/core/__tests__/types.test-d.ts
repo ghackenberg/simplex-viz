@@ -1,6 +1,12 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import { solveSimplexSnapshot } from '../src/snapshot';
 import type {
+  SimplexClusteringStrategy,
+  SimplexColorStrategy,
+  SimplexLayoutStrategy,
+  SimplexMeshStrategy,
+} from '../src/strategies';
+import type {
   ClusterDescriptor,
   ContentHoverEvent,
   ContentLayoutContext,
@@ -87,6 +93,18 @@ describe('End-to-end compile-time type safety', () => {
       CustomClusterMeta
     >;
     expectTypeOf<Cfg['deriveClusterMeta']>().not.toBeUndefined();
+    expectTypeOf<Cfg['meshStrategy']>().toEqualTypeOf<
+      SimplexMeshStrategy<CustomArticle> | undefined
+    >();
+    expectTypeOf<Cfg['clusteringStrategy']>().toEqualTypeOf<
+      SimplexClusteringStrategy<CustomArticle, CustomTagMeta> | undefined
+    >();
+    expectTypeOf<Cfg['colorStrategy']>().toEqualTypeOf<
+      SimplexColorStrategy<CustomArticle, CustomTagMeta> | undefined
+    >();
+    expectTypeOf<Cfg['layoutStrategy']>().toEqualTypeOf<
+      SimplexLayoutStrategy | undefined
+    >();
   });
 
   it('supports zero-config solveSimplexSnapshot on DefaultTaggedItem and preserves custom item types', () => {

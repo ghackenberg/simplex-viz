@@ -26,9 +26,10 @@ Before diving into the TypeScript API, the schematic diagram below traces a sing
 
 - **Zero dependencies & zero DOM**: Compiled strictly against `lib: ["ES2022"]` with `"dependencies": {}`. Runs identically in browsers, Node.js, Deno, Bun, Web Workers, and Edge runtimes.
 - **Schema-free & end-to-end type safe**: Works with arbitrary `<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>` via conditional hybrid accessors (`ItemIdentityConfig<TItem>` and `ClusterMetaConfig`). If your items don't use `{ id, tags }`, TypeScript enforces `getId` and `getTags` at compile time without any `any` casts.
+- **Pluggable 4-stage pipeline**: Swap algorithms cleanly at construction or runtime via `SimplexMeshStrategy`, `SimplexClusteringStrategy` (`initialize` + incremental `update`, plus `sharedTagRule` and `anchorRule`), `SimplexColorStrategy`, and `SimplexLayoutStrategy`.
 - **Two-stage topic clustering**: Regularized Jaccard tag partitioning, Simulated Annealing QAP mesh embedding, Weighted Hitting-Set planar triangle completion, backward tag pruning, and Hungarian bipartite identity matching for stable cluster UIDs across mutations.
-- **Perceptual OKLab palette & mixing**: Edge-contrast-optimized cluster colors and chroma-preserving barycentric OKLab blending.
-- **Guaranteed 0.0 px overlap**: Hierarchical two-phase convex hull solver combining Separating Axis Theorem (SAT), circle-polygon Minimum Translation Vectors (MTV), uniform spatial hash grids, and binary scale search.
+- **Perceptual OKLab palette & mixing**: Edge-contrast-optimized cluster colors (static dark-tuned, theme-adaptive dark/light, or custom hex palettes) and chroma-preserving barycentric OKLab blending.
+- **Guaranteed 0.0 px overlap**: Hierarchical two-phase convex hull solver (`solveTwoPhaseLayout`, optional warm-starting, and `solveLocalAdaptiveLayout`) combining Separating Axis Theorem (SAT), circle-polygon Minimum Translation Vectors (MTV), uniform spatial hash grids, and binary scale search.
 - **Interruptible C1-continuous animation**: Critically damped scalar springs and retargetable dual-layer transition state machines.
 - **Mathematical hit-testing**: Resolution-independent convex-hull pointer hit-testing in world coordinates.
 
@@ -262,6 +263,75 @@ engine.handleLeftClick({
 engine.camera.zoomToCursor(screenX, screenY, 1.15);
 ```
 
+## Pluggable Core Strategies
+
+Every algorithmic phase of `SimplexGraphEngine` and `solveSimplexSnapshot` is backed by a minimal typed strategy interface. All four default to zero-config implementations and can be replaced independently at construction time or hot-swapped at runtime (`setMeshStrategy`, `setClusteringStrategy`, `setColorStrategy`, `setLayoutStrategy`, `setTheme`).
+
+### 1. `SimplexMeshStrategy` (Triangulation & Lattice Sizing)
+
+- `createAdaptiveHexMeshStrategy(defaults?)` *(default)* — Automatically chooses `horizontal` / `vertical` orientation and `wideFirst` parity via `buildSimplexMesh`.
+- `createFixedLatticeMeshStrategy({ cols, rows, orientation?, wideFirst?, innerPadding? })` — Pins an exact `(cols × rows)` 60° equilateral lattice (fixed cluster count `K = cols * rows`) across resizes.
+
+### 2. `SimplexClusteringStrategy` (Topic Partitioning, Shared Tags & Anchoring)
+
+Supports distinct `initialize(ctx)` (initial corpus) and optional `update(ctx)` (subsequent item mutations, viewport resizes, or mesh edits):
+
+- `createJaccardAnnealingClusteringStrategy({ sharedTagRule?, anchorRule? })` *(default)* — Full Jaccard tag partitioning + Simulated Annealing QAP vertex embedding + Hungarian identity matching on every update.
+- `createIncrementalAnchorClusteringStrategy({ sharedTagRule?, anchorRule? })` — Runs full Jaccard + SA QAP on `initialize`, then on `update` preserves existing vertex topics/UIDs/colors spatially, incrementally attaches newly seen tags to the best-matching cluster, and prunes vanished tags.
+- **`sharedTagRule`** (`SharedTagRule<TItem>`):
+  - `'planar-hitting-set'` *(default)* — Adds minimal cross-cluster `sharedTags` so items stay planar-covered inside single mesh triangles.
+  - `'none'` — Keeps cluster tags strictly disjoint (`sharedTags` always empty).
+  - Or pass a custom `(ctx: SharedTagExpansionContext<TItem>) => readonly Set<number>[]` function.
+- **`anchorRule`** (`SimplexAnchorRule<TItem>`):
+  - `'explaining-away'` *(default)* — Greedy minimal covering simplex unit (`vertex ≺ edge ≺ triangle`) with normalized barycentric weights.
+  - `'raw-overlap'` — Proportional overlap weights across all units sharing item tags.
+  - `'barycentric-all'` — Normalized overlap across *all* vertices sharing at least one tag with the item (centroid pull across the full mesh).
+  - Or pass a custom `(ctx: SimplexItemAnchorContext<TItem>) => readonly RawItemUnitAssignment<TItem>[]` function.
+
+### 3. `SimplexColorStrategy` (Cluster Colors & Item Mixing)
+
+- `createOklabContrastColorStrategy()` *(default)* — Optimizes perceptual OKLab edge contrast across adjacent mesh vertices and mixes item colors barycentrically in OKLab.
+- `createThemeAdaptiveOklabColorStrategy()` — Dynamically adapts lightness & chroma contrast targets for `'dark'` vs. `'light'` canvases (`engine.setTheme(theme)`).
+- `createPaletteColorStrategy(hexColors, { mode?: 'edge-contrast' | 'sequential', preserveMatchedColors? })` — Assigns colors from your curated hex palette along mesh edges (maximizing OKLab contrast) or sequentially.
+
+### 4. `SimplexLayoutStrategy` (Positioning, Scaling & Overlap Resolution)
+
+- `createPbdUniformLayoutStrategy()` *(default)* — Deterministic phyllotaxis tie-breaking + uniform global scale binary search + PBD convex relaxation + hard-separation polish (`0.0 px` overlap).
+- `createWarmStartPbdLayoutStrategy()` — Seeds updates from each item's previous solved `(x, y)` coordinates to minimize spatial jumps during mutations (`0.0 px` overlap).
+- `createLocalAdaptiveLayoutStrategy({ crowdRadiusPx?, minLocalScale?, warmStart? })` — Shrinks content items primarily around locally crowded simplex anchors so sparse areas preserve full `1.0` scale legibility (`0.0 px` overlap).
+
+### Example: Passing & Swapping Strategies at Runtime
+
+```ts
+import {
+  solveSimplexSnapshot,
+  createFixedLatticeMeshStrategy,
+  createIncrementalAnchorClusteringStrategy,
+  createThemeAdaptiveOklabColorStrategy,
+  createLocalAdaptiveLayoutStrategy,
+} from '@simplex-viz/core';
+
+const snapshot = solveSimplexSnapshot(items, {
+  width: 1200,
+  height: 760,
+  theme: 'light',
+  meshStrategy: createFixedLatticeMeshStrategy({ cols: 3, rows: 3 }),
+  clusteringStrategy: createIncrementalAnchorClusteringStrategy({
+    sharedTagRule: 'planar-hitting-set',
+    anchorRule: 'barycentric-all',
+  }),
+  colorStrategy: createThemeAdaptiveOklabColorStrategy(),
+  layoutStrategy: createLocalAdaptiveLayoutStrategy({ warmStart: true }),
+});
+
+// Or swap any strategy dynamically on a running SimplexGraphEngine:
+engine.setTheme('light');
+engine.setColorStrategy(createThemeAdaptiveOklabColorStrategy());
+engine.setLayoutStrategy(createLocalAdaptiveLayoutStrategy({ crowdRadiusPx: 72 }));
+engine.setMeshStrategy(createFixedLatticeMeshStrategy({ cols: 4, rows: 3 }));
+engine.setClusteringStrategy(createIncrementalAnchorClusteringStrategy());
+```
+
 ## Configuration Reference
 
 ### `ItemIdentityConfig<TItem>` & `ClusterMetaConfig`
@@ -293,11 +363,11 @@ engine.camera.zoomToCursor(screenX, screenY, 1.15);
 
 Every algorithmic building block can also be imported standalone:
 
-- **Mesh**: `buildSimplexMesh(width, height, tagCount, options)`
-- **Clustering**: `computeSimplexClustering(...)`, `extractNormalizedItems(...)`, `defaultNormalizeTag(...)`
-- **Layout Solver**: `solveTwoPhaseLayout(...)`
+- **Mesh**: `buildSimplexMesh(width, height, tagCount, options)`, `buildSimplexLattice(...)`
+- **Clustering**: `computeSimplexClustering(...)`, `analyzeTagCorpus(...)`, `partitionTagsJaccard(...)`, `computeMeshHopDistances(...)`, `embedClustersQapAnnealing(...)`, `completePlanarSharedTags(...)`, `matchClustersHungarian(...)`, `assignItemsToSimplexUnits(...)`, `extractNormalizedItems(...)`, `defaultNormalizeTag(...)`
+- **Layout Solver**: `solveTwoPhaseLayout(...)`, `solveLocalAdaptiveLayout(...)`, `solveClusterPhase(...)`, `buildPhyllotaxisStarts(...)`, `runPerItemPbdRelaxation(...)`
 - **Geometry & Collision**: `computeConvexHull`, `rectToConvexPolygon`, `regularPolygon`, `starConvexHull`, `computeConvexMtv`, `computeCirclePolygonMtv`, `hitTestConvexGeometry`, `UniformSpatialHashGrid`
-- **Color Science**: `hexToOklab`, `oklabToHex`, `mixOklabColors`, `lerpOklabHex`, `generatePerceptualClusterPalette`
+- **Color Science**: `hexToOklab`, `oklabToHex`, `mixOklabColors`, `lerpOklabHex`, `generatePerceptualClusterPalette`, `buildDistinctOklabPalette`, `assignMeshClusterColors`, `assignGreedyEdgeContrastColors`
 - **Animation & Camera**: `stepCriticallyDampedSpring`, `retargetVisualTransition`, `stepVisualTransition`, `SimplexCamera`
 
 ## License
