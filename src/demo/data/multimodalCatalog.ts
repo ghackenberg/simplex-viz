@@ -91,6 +91,8 @@ export interface DemoClusterSummary {
   readonly metricBadge: string;
   readonly avgReadingMinutes?: number;
   readonly dominantType: string;
+  readonly isIntermediate?: boolean;
+  readonly shortBridgeTag?: string;
 }
 
 export const DATASET_DESCRIPTIONS: Record<
@@ -834,6 +836,31 @@ export function createDynamicDemoEntity(
 export function deriveDemoEntityClusterMeta(
   ctx: ClusterDerivationContext<DemoEntity, TagTaxonomyInfo>,
 ): DemoClusterSummary {
+  if (ctx.role === 'intermediate') {
+    const memberCount = ctx.members.length;
+    const exclusiveCount = ctx.members.filter((m) => m.isExclusiveVertexMember).length;
+    let shortBridgeTag = '';
+    if (ctx.coreTags.length > 0) {
+      shortBridgeTag = `#${ctx.coreTags[0]!.tag.slice(0, 10)}`;
+    } else if (
+      ctx.mixWeights &&
+      ctx.mixWeights.length === 2 &&
+      Math.abs(ctx.mixWeights[0]!.weight - 0.5) > 0.03
+    ) {
+      shortBridgeTag = `${Math.round(ctx.mixWeights[0]!.weight * 100)}%`;
+    }
+    return {
+      title: ctx.defaultLabel,
+      subtitle: `${memberCount} ${memberCount === 1 ? 'item' : 'items'} · Bridge`,
+      memberCount,
+      exclusiveCount,
+      metricBadge: shortBridgeTag || 'bridge',
+      dominantType: 'bridge',
+      isIntermediate: true,
+      shortBridgeTag,
+    };
+  }
+
   const firstKind = ctx.members[0]?.item.kind;
 
   if (firstKind === 'knowledge' && ctx.coreTags.length > 0) {

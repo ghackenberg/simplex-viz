@@ -308,6 +308,9 @@ export function solveSimplexSnapshot<
         : { kind: 'circle', radius: itemRadius },
   );
 
+  const worldWidth = Math.max(width, mesh.width);
+  const worldHeight = Math.max(height, mesh.height);
+
   const solved = layoutStrategy.solve({
     clusters: clustering.clusters.map((cluster, idx) => ({
       id: cluster.clusterUid,
@@ -325,8 +328,8 @@ export function solveSimplexSnapshot<
       ),
     })),
     mesh,
-    viewportWidth: width,
-    viewportHeight: height,
+    viewportWidth: worldWidth,
+    viewportHeight: worldHeight,
     viewportMargin: 8,
     layoutOptions: opts.layoutOptions ?? {},
     reason: 'initial',
@@ -460,8 +463,8 @@ export function solveSimplexSnapshot<
   };
 
   return {
-    width,
-    height,
+    width: worldWidth,
+    height: worldHeight,
     mesh,
     triangles,
     edges,

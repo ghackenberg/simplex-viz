@@ -15,7 +15,7 @@ function clearGroup(groupEl: SVGGElement): void {
 }
 
 function formatPoints(pts: readonly Point2D[]): string {
-  return pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  return pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
 }
 
 function lerpPoint(a: Point2D, b: Point2D, t: number): Point2D {
@@ -24,6 +24,66 @@ function lerpPoint(a: Point2D, b: Point2D, t: number): Point2D {
     y: a.y + (b.y - a.y) * t,
   };
 }
+
+function appendBoundaryOutline(
+  doc: Document,
+  groupEl: SVGGElement,
+  points: readonly [Point2D, Point2D, Point2D],
+  boundaryEdges: readonly [boolean, boolean, boolean] | undefined,
+  stroke: string,
+  strokeWidth: string,
+  strokeOpacity: string,
+  dasharray?: string,
+): void {
+  if (!boundaryEdges || (boundaryEdges[0] && boundaryEdges[1] && boundaryEdges[2])) {
+    const outline = doc.createElementNS(SVG_NS, 'polygon');
+    outline.setAttribute('points', formatPoints(points));
+    outline.setAttribute('fill', 'none');
+    outline.setAttribute('stroke', stroke);
+    outline.setAttribute('stroke-width', strokeWidth);
+    outline.setAttribute('stroke-opacity', strokeOpacity);
+    if (dasharray) {
+      outline.setAttribute('stroke-dasharray', dasharray);
+    }
+    outline.setAttribute('stroke-linejoin', 'round');
+    groupEl.appendChild(outline);
+    return;
+  }
+
+  const dParts: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    if (!boundaryEdges[i]) continue;
+    const a = points[i]!;
+    const b = points[(i + 1) % 3]!;
+    dParts.push(
+      `M ${a.x.toFixed(2)} ${a.y.toFixed(2)} L ${b.x.toFixed(2)} ${b.y.toFixed(2)}`,
+    );
+  }
+  if (dParts.length === 0) return;
+
+  const path = doc.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', dParts.join(' '));
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', stroke);
+  path.setAttribute('stroke-width', strokeWidth);
+  path.setAttribute('stroke-opacity', strokeOpacity);
+  if (dasharray) {
+    path.setAttribute('stroke-dasharray', dasharray);
+  }
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
+  groupEl.appendChild(path);
+}
+
+function shouldShowHighlightCorner<TItem, TTagMeta, TClusterMeta>(
+  triangle: MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta>,
+  cornerIndex: number,
+): boolean {
+  const { isHovered, isFocused } = triangle.interaction;
+  if (isHovered || isFocused || !triangle.highlightBoundary) return true;
+  return Boolean(triangle.highlightBoundary.corners[cornerIndex]);
+}
+
 
 export interface OklabTintTriangleViewOptions {
   /** Base face opacity at rest. Default: `0.09`. */
@@ -67,14 +127,28 @@ export class OklabTintTriangleSvgView<
     const doc = groupEl.ownerDocument;
     clearGroup(groupEl);
 
-    const { isHovered, isFocused, isDimmed } = triangle.interaction;
+    const { isHovered, isFocused, isDimmed, isHighlighted } = triangle.interaction;
+    const isEmphasized = Boolean(isHovered || isFocused || isHighlighted);
+    const hasPartialBoundary =
+      Boolean(isHighlighted && triangle.highlightBoundary) && !isHovered && !isFocused;
+
     let fillOpacity = this.baseOpacity;
-    if (isDimmed && !isHovered && !isFocused) {
+    if (isDimmed && !isEmphasized) {
       fillOpacity = this.baseOpacity * 0.3;
+    } else if (triangle.isContext && isHovered) {
+      fillOpacity = Math.min(0.45, this.baseOpacity + this.hoverOpacityBoost * 0.65);
     } else if (isFocused) {
       fillOpacity = Math.min(0.65, this.baseOpacity + this.hoverOpacityBoost * 1.15);
+    } else if (isHovered && isHighlighted) {
+      fillOpacity = Math.min(0.65, this.baseOpacity + this.hoverOpacityBoost * 1.25);
     } else if (isHovered) {
       fillOpacity = Math.min(0.6, this.baseOpacity + this.hoverOpacityBoost);
+    } else if (isHighlighted) {
+      fillOpacity = Math.min(
+        0.6,
+        this.baseOpacity +
+          this.hoverOpacityBoost * (triangle.highlightBoundary ? 0.85 : 1.0),
+      );
     }
 
     const poly = doc.createElementNS(SVG_NS, 'polygon');
@@ -82,20 +156,43 @@ export class OklabTintTriangleSvgView<
     poly.setAttribute('fill', triangle.fillHex);
     poly.setAttribute('fill-opacity', fillOpacity.toFixed(3));
 
-    if (this.strokeOnHover && (isHovered || isFocused)) {
+    if (this.strokeOnHover && isEmphasized && !hasPartialBoundary) {
       poly.setAttribute('stroke', triangle.fillHex);
-      poly.setAttribute('stroke-width', isFocused ? '2.2' : '1.5');
-      poly.setAttribute('stroke-opacity', isFocused ? '0.92' : '0.78');
+      poly.setAttribute(
+        'stroke-width',
+        isFocused ? '2.2' : isHovered && isHighlighted ? '1.8' : '1.5',
+      );
+      poly.setAttribute(
+        'stroke-opacity',
+        triangle.isContext ? '0.68' : isFocused ? '0.92' : '0.78',
+      );
+      if (triangle.isContext) {
+        poly.setAttribute('stroke-dasharray', '4 3');
+      }
       poly.setAttribute('stroke-linejoin', 'round');
     } else {
       poly.setAttribute('stroke', theme === 'light' ? '#0f172a' : '#e2e8f0');
       poly.setAttribute('stroke-width', '0.5');
-      poly.setAttribute('stroke-opacity', isDimmed ? '0.02' : '0.06');
+      poly.setAttribute('stroke-opacity', isDimmed ? '0.04' : '0.06');
     }
     groupEl.appendChild(poly);
 
-    if (isHovered || isFocused) {
-      for (const pt of triangle.points) {
+    if (this.strokeOnHover && hasPartialBoundary) {
+      appendBoundaryOutline(
+        doc,
+        groupEl,
+        triangle.points,
+        triangle.highlightBoundary?.edges,
+        triangle.fillHex,
+        '1.6',
+        '0.82',
+      );
+    }
+
+    if (isEmphasized) {
+      for (let i = 0; i < 3; i++) {
+        if (!shouldShowHighlightCorner(triangle, i)) continue;
+        const pt = triangle.points[i]!;
         const dot = doc.createElementNS(SVG_NS, 'circle');
         dot.setAttribute('cx', pt.x.toFixed(1));
         dot.setAttribute('cy', pt.y.toFixed(1));
@@ -161,14 +258,25 @@ export class GradientTriangleSvgView<
     const doc = groupEl.ownerDocument;
     clearGroup(groupEl);
 
-    const { isHovered, isFocused, isDimmed } = triangle.interaction;
+    const { isHovered, isFocused, isDimmed, isHighlighted } = triangle.interaction;
+    const isEmphasized = Boolean(isHovered || isFocused || isHighlighted);
     let fillOpacity = this.baseOpacity;
-    if (isDimmed && !isHovered && !isFocused) {
+    if (isDimmed && !isEmphasized) {
       fillOpacity = this.baseOpacity * 0.28;
+    } else if (triangle.isContext && isHovered) {
+      fillOpacity = Math.min(0.55, this.baseOpacity + this.hoverOpacityBoost * 0.6);
     } else if (isFocused) {
       fillOpacity = Math.min(0.75, this.baseOpacity + this.hoverOpacityBoost * 1.15);
+    } else if (isHovered && isHighlighted) {
+      fillOpacity = Math.min(0.75, this.baseOpacity + this.hoverOpacityBoost * 1.25);
     } else if (isHovered) {
       fillOpacity = Math.min(0.7, this.baseOpacity + this.hoverOpacityBoost);
+    } else if (isHighlighted) {
+      fillOpacity = Math.min(
+        0.7,
+        this.baseOpacity +
+          this.hoverOpacityBoost * (triangle.highlightBoundary ? 0.85 : 1.0),
+      );
     }
 
     const fallbackColor =
@@ -257,17 +365,19 @@ export class GradientTriangleSvgView<
       groupEl.appendChild(poly);
     }
 
-    if (this.strokeOnHover && (isHovered || isFocused)) {
-      const outline = doc.createElementNS(SVG_NS, 'polygon');
-      outline.setAttribute('points', ptsStr);
-      outline.setAttribute('fill', 'none');
-      outline.setAttribute('stroke', triangle.fillHex);
-      outline.setAttribute('stroke-width', isFocused ? '2.2' : '1.5');
-      outline.setAttribute('stroke-opacity', isFocused ? '0.92' : '0.8');
-      outline.setAttribute('stroke-linejoin', 'round');
-      groupEl.appendChild(outline);
+    if (this.strokeOnHover && isEmphasized) {
+      appendBoundaryOutline(
+        doc,
+        groupEl,
+        triangle.points,
+        isHovered || isFocused ? undefined : triangle.highlightBoundary?.edges,
+        triangle.fillHex,
+        isFocused ? '2.2' : isHovered && isHighlighted ? '1.8' : '1.5',
+        isFocused ? '0.92' : '0.8',
+      );
 
       for (let i = 0; i < 3; i++) {
+        if (!shouldShowHighlightCorner(triangle, i)) continue;
         const pt = triangle.points[i]!;
         const dot = doc.createElementNS(SVG_NS, 'circle');
         dot.setAttribute('cx', pt.x.toFixed(1));
@@ -317,14 +427,28 @@ export class BarycentricSectorTriangleSvgView<
     const doc = groupEl.ownerDocument;
     clearGroup(groupEl);
 
-    const { isHovered, isFocused, isDimmed } = triangle.interaction;
-    const opacity = isDimmed
-      ? this.baseOpacity * 0.25
-      : isFocused
-        ? Math.min(0.65, this.baseOpacity + 0.16)
-        : isHovered
-          ? Math.min(0.6, this.baseOpacity + 0.11)
-          : this.baseOpacity;
+    const { isHovered, isFocused, isDimmed, isHighlighted } = triangle.interaction;
+    const isEmphasized = Boolean(isHovered || isFocused || isHighlighted);
+    const fullEmphasis = Boolean(
+      isHovered || isFocused || (isHighlighted && !triangle.highlightBoundary),
+    );
+    const opacity =
+      isDimmed && !isEmphasized
+        ? this.baseOpacity * 0.25
+        : triangle.isContext && isHovered
+          ? Math.min(0.45, this.baseOpacity + 0.08)
+          : isFocused
+            ? Math.min(0.65, this.baseOpacity + 0.16)
+            : isHovered && isHighlighted
+              ? Math.min(0.65, this.baseOpacity + 0.14)
+              : isHovered
+                ? Math.min(0.6, this.baseOpacity + 0.11)
+                : isHighlighted
+                  ? Math.min(
+                      0.6,
+                      this.baseOpacity + (triangle.highlightBoundary ? 0.09 : 0.11),
+                    )
+                  : this.baseOpacity;
 
     const [pA, pB, pC] = triangle.points;
     const mAB = lerpPoint(pA, pB, 0.5);
@@ -358,21 +482,26 @@ export class BarycentricSectorTriangleSvgView<
         line.setAttribute('x2', center.x.toFixed(1));
         line.setAttribute('y2', center.y.toFixed(1));
         line.setAttribute('stroke', stroke);
-        line.setAttribute('stroke-width', isHovered || isFocused ? '1.1' : '0.75');
+        line.setAttribute('stroke-width', fullEmphasis ? '1.1' : '0.75');
         line.setAttribute('stroke-dasharray', '2 3');
-        line.setAttribute('stroke-opacity', isDimmed ? '0.08' : isHovered || isFocused ? '0.5' : '0.22');
+        line.setAttribute(
+          'stroke-opacity',
+          isDimmed ? '0.08' : fullEmphasis ? '0.5' : '0.22',
+        );
         groupEl.appendChild(line);
       }
     }
 
-    if (isHovered || isFocused) {
-      const outline = doc.createElementNS(SVG_NS, 'polygon');
-      outline.setAttribute('points', formatPoints(triangle.points));
-      outline.setAttribute('fill', 'none');
-      outline.setAttribute('stroke', triangle.fillHex);
-      outline.setAttribute('stroke-width', isFocused ? '2.2' : '1.5');
-      outline.setAttribute('stroke-linejoin', 'round');
-      groupEl.appendChild(outline);
+    if (isEmphasized) {
+      appendBoundaryOutline(
+        doc,
+        groupEl,
+        triangle.points,
+        fullEmphasis ? undefined : triangle.highlightBoundary?.edges,
+        triangle.fillHex,
+        isFocused ? '2.2' : '1.5',
+        '0.85',
+      );
     }
   }
 }
@@ -411,25 +540,48 @@ export class BlueprintInsetTriangleSvgView<
     const doc = groupEl.ownerDocument;
     clearGroup(groupEl);
 
-    const { isHovered, isFocused, isDimmed } = triangle.interaction;
-    const outerOpacity = isDimmed
-      ? this.baseOpacity * 0.25
-      : isFocused
-        ? this.baseOpacity + 0.14
-        : isHovered
-          ? this.baseOpacity + 0.09
-          : this.baseOpacity;
+    const { isHovered, isFocused, isDimmed, isHighlighted } = triangle.interaction;
+    const isEmphasized = Boolean(isHovered || isFocused || isHighlighted);
+    const fullEmphasis = Boolean(
+      isHovered || isFocused || (isHighlighted && !triangle.highlightBoundary),
+    );
+    const outerOpacity =
+      isDimmed && !isEmphasized
+        ? this.baseOpacity * 0.25
+        : triangle.isContext && isHovered
+          ? this.baseOpacity + 0.06
+          : isFocused
+            ? this.baseOpacity + 0.14
+            : isHovered && isHighlighted
+              ? this.baseOpacity + 0.12
+              : isHovered
+                ? this.baseOpacity + 0.09
+                : isHighlighted
+                  ? this.baseOpacity + (triangle.highlightBoundary ? 0.075 : 0.09)
+                  : this.baseOpacity;
 
     const outer = doc.createElementNS(SVG_NS, 'polygon');
     outer.setAttribute('points', formatPoints(triangle.points));
     outer.setAttribute('fill', triangle.fillHex);
     outer.setAttribute('fill-opacity', outerOpacity.toFixed(3));
-    if (isHovered || isFocused) {
+    if (fullEmphasis) {
       outer.setAttribute('stroke', triangle.fillHex);
       outer.setAttribute('stroke-width', isFocused ? '2' : '1.4');
       outer.setAttribute('stroke-opacity', '0.85');
     }
     groupEl.appendChild(outer);
+
+    if (isEmphasized && !fullEmphasis) {
+      appendBoundaryOutline(
+        doc,
+        groupEl,
+        triangle.points,
+        triangle.highlightBoundary?.edges,
+        triangle.fillHex,
+        '1.5',
+        '0.85',
+      );
+    }
 
     const insetPoints = triangle.points.map((p) =>
       lerpPoint(triangle.centroid, p, this.insetRatio),
@@ -439,21 +591,21 @@ export class BlueprintInsetTriangleSvgView<
     inner.setAttribute('fill', 'none');
     inner.setAttribute(
       'stroke',
-      isHovered || isFocused
+      fullEmphasis
         ? triangle.fillHex
         : theme === 'light'
           ? '#475569'
           : '#94a3b8',
     );
-    inner.setAttribute('stroke-width', isHovered || isFocused ? '1.3' : '0.85');
+    inner.setAttribute('stroke-width', fullEmphasis ? '1.3' : '0.85');
     inner.setAttribute(
       'stroke-opacity',
-      isDimmed ? '0.08' : isHovered || isFocused ? '0.78' : '0.28',
+      isDimmed ? '0.08' : fullEmphasis ? '0.78' : '0.28',
     );
     inner.setAttribute('stroke-linejoin', 'round');
     groupEl.appendChild(inner);
 
-    if (isHovered || isFocused) {
+    if (fullEmphasis) {
       const c = triangle.centroid;
       const cross = doc.createElementNS(SVG_NS, 'path');
       cross.setAttribute(
@@ -507,29 +659,52 @@ export class DensityHeatmapTriangleSvgView<
     const doc = groupEl.ownerDocument;
     clearGroup(groupEl);
 
-    const { isHovered, isFocused, isDimmed } = triangle.interaction;
+    const { isHovered, isFocused, isDimmed, isHighlighted } = triangle.interaction;
+    const isEmphasized = Boolean(isHovered || isFocused || isHighlighted);
+    const fullEmphasis = Boolean(
+      isHovered || isFocused || (isHighlighted && !triangle.highlightBoundary),
+    );
     const ratio = Math.min(1, triangle.coveredItemCount / this.peakItemCount);
     let fillOpacity = this.baseOpacity + ratio * 0.28;
-    if (isDimmed && !isHovered && !isFocused) {
+    if (isDimmed && !isEmphasized) {
       fillOpacity *= 0.28;
     } else if (isFocused) {
       fillOpacity = Math.min(0.65, fillOpacity + 0.16);
+    } else if (isHovered && isHighlighted) {
+      fillOpacity = Math.min(0.65, fillOpacity + 0.14);
     } else if (isHovered) {
       fillOpacity = Math.min(0.6, fillOpacity + 0.11);
+    } else if (isHighlighted) {
+      fillOpacity = Math.min(
+        0.6,
+        fillOpacity + (triangle.highlightBoundary ? 0.09 : 0.11),
+      );
     }
 
     const poly = doc.createElementNS(SVG_NS, 'polygon');
     poly.setAttribute('points', formatPoints(triangle.points));
     poly.setAttribute('fill', triangle.fillHex);
     poly.setAttribute('fill-opacity', fillOpacity.toFixed(3));
-    if (isHovered || isFocused) {
+    if (fullEmphasis) {
       poly.setAttribute('stroke', triangle.fillHex);
       poly.setAttribute('stroke-width', isFocused ? '2.2' : '1.5');
       poly.setAttribute('stroke-opacity', '0.88');
     }
     groupEl.appendChild(poly);
 
-    if (this.showCountBadge && (triangle.coveredItemCount > 0 || isHovered || isFocused)) {
+    if (isEmphasized && !fullEmphasis) {
+      appendBoundaryOutline(
+        doc,
+        groupEl,
+        triangle.points,
+        triangle.highlightBoundary?.edges,
+        triangle.fillHex,
+        '1.6',
+        '0.88',
+      );
+    }
+
+    if (this.showCountBadge && (triangle.coveredItemCount > 0 || fullEmphasis)) {
       const label = `${triangle.coveredItemCount}`;
       const w = Math.max(20, label.length * 7 + 12);
       const pill = doc.createElementNS(SVG_NS, 'rect');
@@ -543,7 +718,7 @@ export class DensityHeatmapTriangleSvgView<
         theme === 'light' ? 'rgba(255,255,255,0.82)' : 'rgba(9,13,22,0.78)',
       );
       pill.setAttribute('stroke', triangle.fillHex);
-      pill.setAttribute('stroke-width', isHovered || isFocused ? '1.2' : '0.8');
+      pill.setAttribute('stroke-width', fullEmphasis ? '1.2' : '0.8');
       pill.setAttribute('opacity', isDimmed ? '0.25' : '0.9');
       groupEl.appendChild(pill);
 
@@ -602,18 +777,19 @@ export class DashedMeshEdgeSvgView<
     clearGroup(groupEl);
 
     const line = doc.createElementNS(SVG_NS, 'line');
-    line.setAttribute('x1', edge.a.x.toFixed(1));
-    line.setAttribute('y1', edge.a.y.toFixed(1));
-    line.setAttribute('x2', edge.b.x.toFixed(1));
-    line.setAttribute('y2', edge.b.y.toFixed(1));
+    line.setAttribute('x1', edge.a.x.toFixed(2));
+    line.setAttribute('y1', edge.a.y.toFixed(2));
+    line.setAttribute('x2', edge.b.x.toFixed(2));
+    line.setAttribute('y2', edge.b.y.toFixed(2));
     if (edge.isHighlighted) {
       line.setAttribute('stroke', edge.mixedColorHex);
       line.setAttribute('stroke-width', (this.strokeWidth + 0.9).toFixed(2));
       line.setAttribute('stroke-opacity', '0.88');
     } else {
+      const effectiveOpacity = edge.isDimmed ? this.opacity * 0.42 : this.opacity;
       line.setAttribute('stroke', theme === 'light' ? '#475569' : '#94a3b8');
       line.setAttribute('stroke-width', this.strokeWidth.toFixed(2));
-      line.setAttribute('stroke-opacity', this.opacity.toFixed(2));
+      line.setAttribute('stroke-opacity', effectiveOpacity.toFixed(2));
       line.setAttribute('stroke-dasharray', this.dasharray);
     }
     groupEl.appendChild(line);
@@ -659,7 +835,11 @@ export class ClusterTintedEdgeSvgView<
     const colorA = edge.clusters[0]?.colorHex ?? edge.mixedColorHex;
     const colorB = edge.clusters[1]?.colorHex ?? edge.mixedColorHex;
     const width = edge.isHighlighted ? this.strokeWidth + 1.0 : this.strokeWidth;
-    const op = edge.isHighlighted ? 0.92 : this.opacity;
+    const op = edge.isHighlighted
+      ? 0.92
+      : edge.isDimmed
+        ? this.opacity * 0.38
+        : this.opacity;
 
     const segs: Array<readonly [Point2D, Point2D, string]> = [
       [edge.a, p1, colorA],
@@ -668,10 +848,10 @@ export class ClusterTintedEdgeSvgView<
     ];
     for (const [start, end, stroke] of segs) {
       const line = doc.createElementNS(SVG_NS, 'line');
-      line.setAttribute('x1', start.x.toFixed(1));
-      line.setAttribute('y1', start.y.toFixed(1));
-      line.setAttribute('x2', end.x.toFixed(1));
-      line.setAttribute('y2', end.y.toFixed(1));
+      line.setAttribute('x1', start.x.toFixed(2));
+      line.setAttribute('y1', start.y.toFixed(2));
+      line.setAttribute('x2', end.x.toFixed(2));
+      line.setAttribute('y2', end.y.toFixed(2));
       line.setAttribute('stroke', stroke);
       line.setAttribute('stroke-width', width.toFixed(2));
       line.setAttribute('stroke-opacity', op.toFixed(2));
@@ -725,15 +905,15 @@ export class PrecisionRailEdgeSvgView<
       : theme === 'light'
         ? '#475569'
         : '#94a3b8';
-    const op = edge.isHighlighted ? 0.85 : 0.28;
+    const op = edge.isHighlighted ? 0.85 : edge.isDimmed ? 0.12 : 0.28;
     const width = edge.isHighlighted ? this.strokeWidth + 0.5 : this.strokeWidth;
 
     for (const sign of [-1, 1] as const) {
       const line = doc.createElementNS(SVG_NS, 'line');
-      line.setAttribute('x1', (edge.a.x + nx * sign).toFixed(1));
-      line.setAttribute('y1', (edge.a.y + ny * sign).toFixed(1));
-      line.setAttribute('x2', (edge.b.x + nx * sign).toFixed(1));
-      line.setAttribute('y2', (edge.b.y + ny * sign).toFixed(1));
+      line.setAttribute('x1', (edge.a.x + nx * sign).toFixed(2));
+      line.setAttribute('y1', (edge.a.y + ny * sign).toFixed(2));
+      line.setAttribute('x2', (edge.b.x + nx * sign).toFixed(2));
+      line.setAttribute('y2', (edge.b.y + ny * sign).toFixed(2));
       line.setAttribute('stroke', stroke);
       line.setAttribute('stroke-width', width.toFixed(2));
       line.setAttribute('stroke-opacity', op.toFixed(2));
@@ -788,10 +968,10 @@ export class MinimalHighlightEdgeSvgView<
     clearGroup(groupEl);
 
     const line = doc.createElementNS(SVG_NS, 'line');
-    line.setAttribute('x1', edge.a.x.toFixed(1));
-    line.setAttribute('y1', edge.a.y.toFixed(1));
-    line.setAttribute('x2', edge.b.x.toFixed(1));
-    line.setAttribute('y2', edge.b.y.toFixed(1));
+    line.setAttribute('x1', edge.a.x.toFixed(2));
+    line.setAttribute('y1', edge.a.y.toFixed(2));
+    line.setAttribute('x2', edge.b.x.toFixed(2));
+    line.setAttribute('y2', edge.b.y.toFixed(2));
     line.setAttribute(
       'stroke',
       edge.isHighlighted
@@ -806,7 +986,12 @@ export class MinimalHighlightEdgeSvgView<
     );
     line.setAttribute(
       'stroke-opacity',
-      (edge.isHighlighted ? 0.9 : this.restOpacity).toFixed(2),
+      (edge.isHighlighted
+        ? 0.9
+        : edge.isDimmed
+          ? this.restOpacity * 0.45
+          : this.restOpacity
+      ).toFixed(2),
     );
     line.setAttribute('stroke-linecap', 'round');
     groupEl.appendChild(line);

@@ -13,26 +13,38 @@ import type {
 import {
   SimplexTopicGraph,
   createAdaptiveHexMeshStrategy,
-  createCollisionDrivenLayoutStrategy,
+  createBarycentricPbdRelaxer,
+  createBarycentricZoomStrategy,
+  createCollisionLocalScaleController,
+  createComposedLayoutStrategy,
+  createDensityPriorScaleController,
   createEmbeddingClusteringStrategy,
   createFixedLatticeMeshStrategy,
+  createFixedScaleController,
+  createFreeCameraZoomStrategy,
   createIncrementalAnchorClusteringStrategy,
   createJaccardAnnealingClusteringStrategy,
-  createLocalAdaptiveLayoutStrategy,
+  createMeshInwardFanSeeder,
   createOklabContrastColorStrategy,
   createPaletteColorStrategy,
-  createPbdUniformLayoutStrategy,
+  createPhyllotaxisSeeder,
+  createSemanticZoomStrategy,
   createSimilarityClusteringStrategy,
   createSoftSimplexEmbeddingClusteringStrategy,
   createSoftSimplexTagClusteringStrategy,
+  createSpaceFillingPbdRelaxer,
   createThemeAdaptiveOklabColorStrategy,
-  createWarmStartPbdLayoutStrategy,
+  createUniformScaleController,
   useSimplexGraphController,
+  type BarycentricClusterZoomMode,
   type SharedTagRuleKind,
   type SimplexAnchorRuleKind,
   type SimplexTheme,
+  type SimplexZoomState,
 } from '@simplex-viz/react';
 import {
+  ArrowLeft,
+  ChevronRight,
   Crosshair,
   Minus,
   Monitor,
@@ -106,11 +118,16 @@ type ColorStrategyId =
   | 'theme-adaptive'
   | 'curated-palette'
   | 'nordic-palette';
-type LayoutStrategyId =
-  | 'collision-adaptive'
-  | 'pbd-uniform'
-  | 'pbd-warm-start'
-  | 'local-adaptive';
+type PositioningStrategyId =
+  | 'space-filling-fan'
+  | 'mesh-fan-barycentric'
+  | 'phyllotaxis-barycentric';
+type ScalingStrategyId =
+  | 'collision-local'
+  | 'uniform'
+  | 'density-prior'
+  | 'fixed';
+type ZoomStrategyId = 'barycentric' | 'semantic' | 'free-camera';
 
 interface ContextMenuState {
   readonly x: number;
@@ -222,6 +239,7 @@ export function DemoApp() {
 
   // Pluggable Core Strategy selections
   const [meshStrategyId, setMeshStrategyId] = useState<MeshStrategyId>('adaptive');
+  const [triangleSideLength, setTriangleSideLength] = useState<number | null>(null);
   const [tagClusteringStrategyId, setTagClusteringStrategyId] =
     useState<TagClusteringStrategyId>('soft-simplex-tags');
   const [sharedTagRule, setSharedTagRule] =
@@ -241,8 +259,16 @@ export function DemoApp() {
 
   const [colorStrategyId, setColorStrategyId] =
     useState<ColorStrategyId>('oklab-contrast');
-  const [layoutStrategyId, setLayoutStrategyId] =
-    useState<LayoutStrategyId>('collision-adaptive');
+  const [positioningStrategyId, setPositioningStrategyId] =
+    useState<PositioningStrategyId>('space-filling-fan');
+  const [scalingStrategyId, setScalingStrategyId] =
+    useState<ScalingStrategyId>('collision-local');
+  const [layoutWarmStart, setLayoutWarmStart] = useState<boolean>(true);
+  const [zoomStrategyId, setZoomStrategyId] =
+    useState<ZoomStrategyId>('barycentric');
+  const [clusterZoomMode, setClusterZoomMode] =
+    useState<BarycentricClusterZoomMode>('incident-star');
+  const [zoomState, setZoomState] = useState<SimplexZoomState | null>(null);
 
   // Privacy-safe in-memory theme state (never persisted to storage or cookies)
   const [themePreference, setThemePreference] = useState<ThemePreference>('auto');
@@ -363,29 +389,33 @@ export function DemoApp() {
   const responsiveMeshOptions: MeshOptions = useMemo(() => {
     const minDim = Math.min(stageSize.width, stageSize.height);
     const maxDim = Math.max(stageSize.width, stageSize.height);
+    const explicitSide = triangleSideLength ?? undefined;
     if (minDim < 460) {
       return {
         innerPadding: 28,
+        sideLength: explicitSide,
         minSideLength: 88,
         maxSideLength: 195,
-        maxClusters: 8,
+        maxClusters: explicitSide !== undefined ? 12 : 8,
       };
     }
     if (minDim < 920 && maxDim < 1800) {
       return {
-        innerPadding: 44,
-        minSideLength: 125,
+        innerPadding: 62,
+        sideLength: explicitSide,
+        minSideLength: 118,
         maxSideLength: 280,
-        maxClusters: 10,
+        maxClusters: explicitSide !== undefined ? 14 : 10,
       };
     }
     return {
-      innerPadding: 56,
-      minSideLength: 160,
+      innerPadding: 76,
+      sideLength: explicitSide,
+      minSideLength: 148,
       maxSideLength: Math.min(440, Math.max(280, Math.round(maxDim * 0.22))),
-      maxClusters: 12,
+      maxClusters: explicitSide !== undefined ? 14 : 12,
     };
-  }, [stageSize.width, stageSize.height]);
+  }, [stageSize.width, stageSize.height, triangleSideLength]);
 
   const { controllerRef, handle } = useSimplexGraphController<
     DemoEntity,
@@ -395,30 +425,34 @@ export function DemoApp() {
     DemoClusterSummary
   >();
 
-  const switchDataset = useCallback((nextDataset: DemoDatasetId) => {
-    setRapidFireActive(false);
-    setPinnedIds(new Set());
-    setHighlightedIds(new Set());
-    setFocusedClusterUid(null);
-    setFocusedTriangleIndex(null);
-    setHoveredContent(null);
-    setHoveredCluster(null);
-    setHoveredTriangle(null);
-    setInspected(null);
-    setContextMenu(null);
-    setDatasetId(nextDataset);
-    setItems(buildDemoCatalog(nextDataset));
-    setRenderConfig((prev) => {
-      if (nextDataset === 'knowledge') {
-        return prev.contentRenderer === 'domain'
-          ? { ...prev, contentRenderer: 'geometric' }
+  const switchDataset = useCallback(
+    (nextDataset: DemoDatasetId) => {
+      setRapidFireActive(false);
+      setPinnedIds(new Set());
+      setHighlightedIds(new Set());
+      setFocusedClusterUid(null);
+      setFocusedTriangleIndex(null);
+      setHoveredContent(null);
+      setHoveredCluster(null);
+      setHoveredTriangle(null);
+      setInspected(null);
+      setContextMenu(null);
+      handle.drillToRoot();
+      setDatasetId(nextDataset);
+      setItems(buildDemoCatalog(nextDataset));
+      setRenderConfig((prev) => {
+        if (nextDataset === 'knowledge') {
+          return prev.contentRenderer === 'domain'
+            ? { ...prev, contentRenderer: 'geometric' }
+            : prev;
+        }
+        return prev.contentRenderer === 'geometric'
+          ? { ...prev, contentRenderer: 'domain' }
           : prev;
-      }
-      return prev.contentRenderer === 'geometric'
-        ? { ...prev, contentRenderer: 'domain' }
-        : prev;
-    });
-  }, []);
+      });
+    },
+    [handle],
+  );
 
   const visualResolver = useMemo(
     () => createDemoVisualResolver(renderConfig, resolvedTheme),
@@ -634,28 +668,75 @@ export function DemoApp() {
   }, [colorStrategyId]);
 
   const layoutStrategy = useMemo(() => {
-    if (layoutStrategyId === 'collision-adaptive') {
-      return createCollisionDrivenLayoutStrategy({
-        minLocalScale: 0.34,
-        shrinkFactor: 0.85,
-        warmStart: true,
+    const seeder =
+      positioningStrategyId === 'phyllotaxis-barycentric'
+        ? createPhyllotaxisSeeder()
+        : createMeshInwardFanSeeder();
+
+    const relaxer =
+      positioningStrategyId === 'space-filling-fan'
+        ? createSpaceFillingPbdRelaxer({
+            springFactor: 0.7,
+            springZeroTailRatio: 0.35,
+            dispersionGapPx: 18,
+            dispersionStrength: 0.35,
+          })
+        : createBarycentricPbdRelaxer();
+
+    const scaleController =
+      scalingStrategyId === 'uniform'
+        ? createUniformScaleController()
+        : scalingStrategyId === 'density-prior'
+          ? createDensityPriorScaleController({
+              crowdRadiusPx: 72,
+              minLocalScale: 0.42,
+            })
+          : scalingStrategyId === 'fixed'
+            ? createFixedScaleController({ scale: 1.0 })
+            : createCollisionLocalScaleController({
+                minLocalScale: 0.34,
+                shrinkFactor: 0.85,
+              });
+
+    return createComposedLayoutStrategy({
+      seeder,
+      relaxer,
+      scaleController,
+      warmStart: layoutWarmStart,
+      defaultRelaxationIterations:
+        positioningStrategyId === 'space-filling-fan' ? 46 : 40,
+    });
+  }, [positioningStrategyId, scalingStrategyId, layoutWarmStart]);
+
+  const zoomStrategy = useMemo(() => {
+    if (zoomStrategyId === 'free-camera') {
+      return createFreeCameraZoomStrategy<
+        DemoEntity,
+        TagTaxonomyInfo,
+        DemoClusterSummary
+      >();
+    }
+    if (zoomStrategyId === 'semantic') {
+      return createSemanticZoomStrategy<
+        DemoEntity,
+        TagTaxonomyInfo,
+        DemoClusterSummary
+      >({
+        clusterZoomMode,
       });
     }
-    if (layoutStrategyId === 'pbd-warm-start') {
-      return createWarmStartPbdLayoutStrategy();
-    }
-    if (layoutStrategyId === 'local-adaptive') {
-      return createLocalAdaptiveLayoutStrategy({
-        crowdRadiusPx: 72,
-        minLocalScale: 0.42,
-        warmStart: true,
-      });
-    }
-    return createPbdUniformLayoutStrategy();
-  }, [layoutStrategyId]);
+    return createBarycentricZoomStrategy<
+      DemoEntity,
+      TagTaxonomyInfo,
+      DemoClusterSummary
+    >({
+      clusterZoomMode,
+    });
+  }, [zoomStrategyId, clusterZoomMode]);
 
   const resetCoreStrategies = useCallback(() => {
     setMeshStrategyId('adaptive');
+    setTriangleSideLength(null);
     setTagClusteringStrategyId('soft-simplex-tags');
     setSharedTagRule('planar-hitting-set');
     setAnchorRule('explaining-away');
@@ -665,7 +746,11 @@ export function DemoApp() {
     setEmbeddingAnchorRule('simplex-projection');
     setSemanticWeightPct(65);
     setColorStrategyId('oklab-contrast');
-    setLayoutStrategyId('collision-adaptive');
+    setPositioningStrategyId('space-filling-fan');
+    setScalingStrategyId('collision-local');
+    setLayoutWarmStart(true);
+    setZoomStrategyId('barycentric');
+    setClusterZoomMode('incident-star');
   }, []);
 
   const effectivePinnedIds = useMemo(() => {
@@ -705,8 +790,9 @@ export function DemoApp() {
     setFocusedClusterUid(null);
     setFocusedTriangleIndex(null);
     setInspected(null);
+    handle.drillToRoot();
     setItems(buildDemoCatalog(datasetId));
-  }, [datasetId]);
+  }, [datasetId, handle]);
 
   // Rapid-Fire Mutation Stress Test (mutates every 250ms mid-transition!)
   useEffect(() => {
@@ -742,6 +828,24 @@ export function DemoApp() {
     };
   }, [contextMenu]);
 
+  // Escape closes detail inspector first, then drills up one level in drill-down mode
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || contextMenu) return;
+      if (inspected) {
+        setInspected(null);
+        setFocusedClusterUid(null);
+        setFocusedTriangleIndex(null);
+        return;
+      }
+      if (zoomStrategy.mode === 'drill-down' && zoomState?.canDrillUp) {
+        handle.drillUp();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [contextMenu, inspected, zoomStrategy.mode, zoomState?.canDrillUp, handle]);
+
   useEffect(() => {
     if (triangleHoverPolicy === 'none') {
       setHoveredTriangle(null);
@@ -763,9 +867,9 @@ export function DemoApp() {
         return;
       }
       if (contentHoverPolicy === 'highlight-unit') {
-        if (!ev) {
+        if (!ev || ev.isContext) {
           setHighlightedIds(new Set());
-          setHoveredContent(null);
+          setHoveredContent(ev);
           return;
         }
         const neighborIds = new Set<string>([ev.layoutContext.id]);
@@ -797,7 +901,9 @@ export function DemoApp() {
         return;
       }
       if (clusterHoverPolicy === 'focus-members') {
-        setFocusedClusterUid(ev ? ev.cluster.clusterUid : null);
+        setFocusedClusterUid(
+          ev && !ev.neighborId ? ev.cluster.clusterUid : null,
+        );
         setHoveredCluster(ev);
         return;
       }
@@ -819,7 +925,9 @@ export function DemoApp() {
         return;
       }
       if (triangleHoverPolicy === 'focus-preview') {
-        setFocusedTriangleIndex(ev ? ev.triangle.index : null);
+        setFocusedTriangleIndex(
+          ev && !ev.triangle.isContext ? ev.triangle.index : null,
+        );
         setHoveredTriangle(ev);
         return;
       }
@@ -861,15 +969,23 @@ export function DemoApp() {
       >,
     ) => {
       setContextMenu(null);
+      const isDrillDown = zoomStrategy.mode === 'drill-down';
+
       if (target.kind === 'background') {
-        if (leftClickPolicy === 'focus-toggle') {
-          setFocusedClusterUid(null);
-          setFocusedTriangleIndex(null);
-          setHighlightedIds(new Set());
-        } else if (leftClickPolicy === 'inspect') {
+        const hadLocalSelection =
+          inspected !== null ||
+          focusedClusterUid !== null ||
+          focusedTriangleIndex !== null ||
+          highlightedIds.size > 0;
+        if (hadLocalSelection) {
           setInspected(null);
           setFocusedClusterUid(null);
           setFocusedTriangleIndex(null);
+          setHighlightedIds(new Set());
+          return;
+        }
+        if (isDrillDown) {
+          handle.drillUp();
         }
         return;
       }
@@ -879,6 +995,44 @@ export function DemoApp() {
           removeItemById(target.item.id);
         }
         return;
+      }
+
+      if (isDrillDown) {
+        if (target.kind === 'triangle') {
+          const navigated = target.triangle.neighborId
+            ? handle.drillToNeighbor(target.triangle.neighborId)
+            : !target.triangle.isContext &&
+              handle.drillDownTriangle(target.triangle.index);
+          if (navigated) {
+            setInspected(null);
+            setFocusedClusterUid(null);
+            setFocusedTriangleIndex(null);
+            setHighlightedIds(new Set());
+            return;
+          }
+          if (target.triangle.isContext) {
+            return;
+          }
+        } else if (target.kind === 'cluster') {
+          const navigated = target.neighborId
+            ? handle.drillToNeighbor(target.neighborId)
+            : handle.drillDownCluster(target.cluster.clusterUid);
+          if (navigated) {
+            setInspected(null);
+            setFocusedClusterUid(null);
+            setFocusedTriangleIndex(null);
+            setHighlightedIds(new Set());
+            return;
+          }
+        } else if (target.kind === 'content' && target.isContext) {
+          if (target.neighborId && handle.drillToNeighbor(target.neighborId)) {
+            setInspected(null);
+            setFocusedClusterUid(null);
+            setFocusedTriangleIndex(null);
+            setHighlightedIds(new Set());
+          }
+          return;
+        }
       }
 
       if (leftClickPolicy === 'focus-toggle') {
@@ -908,7 +1062,7 @@ export function DemoApp() {
         return;
       }
 
-      // Default: 'inspect'
+      // Default: 'inspect' (or leaf triangle/cluster inspection in drill-down mode)
       if (target.kind === 'content') {
         setFocusedClusterUid(null);
         setFocusedTriangleIndex(null);
@@ -955,7 +1109,16 @@ export function DemoApp() {
         );
       }
     },
-    [leftClickPolicy, removeItemById],
+    [
+      zoomStrategy.mode,
+      inspected,
+      focusedClusterUid,
+      focusedTriangleIndex,
+      highlightedIds.size,
+      leftClickPolicy,
+      removeItemById,
+      handle,
+    ],
   );
 
   const onRightClick = useCallback(
@@ -980,7 +1143,8 @@ export function DemoApp() {
     [rightClickPolicy],
   );
 
-  const wheelBehavior: WheelBehavior = wheelPolicy;
+  const wheelBehavior: WheelBehavior =
+    zoomStrategy.mode === 'drill-down' ? 'none' : wheelPolicy;
   const activeDatasetInfo = DATASET_DESCRIPTIONS[datasetId];
 
   return (
@@ -1700,6 +1864,46 @@ export function DemoApp() {
                   </select>
                 </label>
 
+                <div className="rounded-md border border-slate-200/80 bg-slate-50/70 p-2 dark:border-slate-800 dark:bg-[#0E131D]/70">
+                  <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                    <label htmlFor="demo-triangle-side-length" className="cursor-pointer">
+                      Triangle Side Length
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono tabular-nums text-cyan-700 dark:text-cyan-300">
+                        {triangleSideLength === null
+                          ? `Auto · ${Math.round(metrics.meshSideLength || 220)} px`
+                          : `${triangleSideLength} px`}
+                      </span>
+                      {triangleSideLength !== null && (
+                        <button
+                          type="button"
+                          onClick={() => setTriangleSideLength(null)}
+                          className="cursor-pointer rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:border-cyan-600/50 hover:text-cyan-700 dark:border-slate-700 dark:bg-[#0B0F17] dark:text-slate-300 dark:hover:border-cyan-400/50 dark:hover:text-cyan-300 transition-colors"
+                        >
+                          Auto
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <input
+                    id="demo-triangle-side-length"
+                    type="range"
+                    min={100}
+                    max={560}
+                    step={10}
+                    value={
+                      triangleSideLength ??
+                      Math.max(
+                        100,
+                        Math.min(560, Math.round((metrics.meshSideLength || 220) / 10) * 10),
+                      )
+                    }
+                    onChange={(e) => setTriangleSideLength(parseInt(e.target.value, 10))}
+                    className="w-full accent-cyan-600 dark:accent-cyan-400 cursor-pointer"
+                  />
+                </div>
+
                 {datasetId === 'knowledge' ? (
                   <>
                     <label className="block">
@@ -1939,29 +2143,114 @@ export function DemoApp() {
 
                 <label className="block">
                   <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
-                    4 · Layout Strategy
+                    4a · Node Positioning
                   </span>
                   <select
-                    value={layoutStrategyId}
+                    value={positioningStrategyId}
                     onChange={(e) =>
-                      setLayoutStrategyId(e.target.value as LayoutStrategyId)
+                      setPositioningStrategyId(
+                        e.target.value as PositioningStrategyId,
+                      )
                     }
                     className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
                   >
-                    <option value="collision-adaptive">
-                      Collision-Driven Adaptive Scale
+                    <option value="space-filling-fan">
+                      Space-Filling Triangle Fan (Default)
                     </option>
-                    <option value="pbd-uniform">
-                      PBD Uniform Scale (Classic)
+                    <option value="mesh-fan-barycentric">
+                      Mesh Fan + Tight Barycentric Spring
                     </option>
-                    <option value="pbd-warm-start">
-                      Warm-Start PBD (Preserve Positions)
-                    </option>
-                    <option value="local-adaptive">
-                      Local Density-Adaptive Scale
+                    <option value="phyllotaxis-barycentric">
+                      Phyllotaxis Spiral + Barycentric PBD
                     </option>
                   </select>
                 </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                    4b · Node Scaling
+                  </span>
+                  <select
+                    value={scalingStrategyId}
+                    onChange={(e) =>
+                      setScalingStrategyId(e.target.value as ScalingStrategyId)
+                    }
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                  >
+                    <option value="collision-local">
+                      Collision-Driven Local (Pocket Only)
+                    </option>
+                    <option value="uniform">
+                      Global Uniform (Preserve Ratios)
+                    </option>
+                    <option value="density-prior">
+                      Neighborhood Density Prior
+                    </option>
+                    <option value="fixed">
+                      Fixed 1.0x (No Auto-Shrink)
+                    </option>
+                  </select>
+                </label>
+
+                <label className="flex cursor-pointer items-center justify-between gap-2 pt-0.5 text-[11px] text-slate-600 dark:text-slate-400">
+                  <span>Warm-Start Transitions</span>
+                  <input
+                    type="checkbox"
+                    checked={layoutWarmStart}
+                    onChange={(e) => setLayoutWarmStart(e.target.checked)}
+                    className="h-3.5 w-3.5 cursor-pointer accent-cyan-600"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                    5 · Zoom &amp; Drill-Down
+                  </span>
+                  <select
+                    value={zoomStrategyId}
+                    onChange={(e) =>
+                      setZoomStrategyId(e.target.value as ZoomStrategyId)
+                    }
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                  >
+                    <option value="barycentric">
+                      Barycentric 1:4 Subdivision (Default)
+                    </option>
+                    <option value="semantic">
+                      Semantic Tag-Split 3→6 + Fallback
+                    </option>
+                    <option value="free-camera">
+                      Free Camera (Continuous Pan &amp; Wheel)
+                    </option>
+                  </select>
+                </label>
+
+                {zoomStrategyId !== 'free-camera' && (
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                      Cluster Click Action
+                    </span>
+                    <select
+                      value={clusterZoomMode}
+                      onChange={(e) =>
+                        setClusterZoomMode(
+                          e.target.value as BarycentricClusterZoomMode,
+                        )
+                      }
+                      className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                    >
+                      <option value="incident-star">
+                        1-Ring Incident Triangles (Focus Star)
+                      </option>
+                      <option value="spotlight">
+                        Direct Cluster Spotlight (Split Sectors)
+                      </option>
+                      <option value="none">
+                        Triangles Only (Inspect Cluster)
+                      </option>
+                    </select>
+                  </label>
+                )}
               </div>
             </section>
 
@@ -2215,17 +2504,24 @@ export function DemoApp() {
                     Mouse Scroll
                   </span>
                   <select
-                    value={wheelPolicy}
+                    value={
+                      zoomStrategy.mode === 'drill-down' ? 'none' : wheelPolicy
+                    }
+                    disabled={zoomStrategy.mode === 'drill-down'}
                     onChange={(e) =>
                       setWheelPolicy(
                         e.target.value as 'zoom-to-cursor' | 'pan-vertical' | 'none',
                       )
                     }
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800 disabled:opacity-60 disabled:cursor-not-allowed dark:border-slate-700/80 dark:bg-[#0E131D] dark:text-slate-200"
                   >
                     <option value="zoom-to-cursor">Zoom to Cursor</option>
                     <option value="pan-vertical">Pan Vertical / Horizontal</option>
-                    <option value="none">Disabled</option>
+                    <option value="none">
+                      {zoomStrategy.mode === 'drill-down'
+                        ? 'Disabled in Drill-Down Mode'
+                        : 'Disabled'}
+                    </option>
                   </select>
                 </label>
               </div>
@@ -2250,6 +2546,65 @@ export function DemoApp() {
               <span>Controls</span>
             </button>
           )}
+          {/* Drill-Down Breadcrumb & Leaf Status Bar */}
+          {zoomStrategy.mode === 'drill-down' && zoomState && (
+            <div className="pointer-events-none absolute top-14 left-3 right-3 sm:top-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:max-w-[calc(100%-17rem)] z-20 flex justify-center">
+              <div className="pointer-events-auto flex max-w-full flex-wrap items-center gap-1 rounded-md border border-slate-200/90 bg-white/95 px-2 py-1 text-xs shadow-sm backdrop-blur-xs dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:shadow-none">
+                {zoomState.canDrillUp && (
+                  <button
+                    type="button"
+                    aria-label="Drill up one level"
+                    onClick={() => handle.drillUp()}
+                    className="cursor-pointer flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-slate-50 transition-colors shrink-0"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" />
+                    <span>Back</span>
+                  </button>
+                )}
+
+                <nav
+                  aria-label="Zoom hierarchy"
+                  className="flex items-center gap-0.5 overflow-x-auto px-1"
+                >
+                  {zoomState.breadcrumbs.map((crumb, idx) => {
+                    const isLast = idx === zoomState.breadcrumbs.length - 1;
+                    return (
+                      <div key={crumb.frameId} className="flex items-center gap-0.5 shrink-0">
+                        {idx > 0 && (
+                          <ChevronRight className="h-3 w-3 text-slate-400 dark:text-slate-500 shrink-0" />
+                        )}
+                        <button
+                          type="button"
+                          disabled={isLast}
+                          onClick={() => handle.drillToDepth(crumb.depth)}
+                          className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] whitespace-nowrap transition-colors ${
+                            isLast
+                              ? 'font-semibold text-slate-900 dark:text-slate-100 cursor-default'
+                              : 'cursor-pointer font-medium text-slate-600 hover:bg-slate-100 hover:text-cyan-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-cyan-300'
+                          }`}
+                        >
+                          {crumb.accentHex && (
+                            <span
+                              className="inline-block h-2 w-2 rounded-full shrink-0"
+                              style={{ backgroundColor: crumb.accentHex }}
+                            />
+                          )}
+                          <span>{crumb.shortLabel}</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </nav>
+
+                <span className="border-l border-slate-200 pl-2 pr-1 font-mono tabular-nums text-[10px] whitespace-nowrap text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                  {zoomState.isLeafReached
+                    ? `Leaf 1.0× (${Math.round(zoomState.fullScaleItemRatio * 100)}%)`
+                    : `${Math.round(zoomState.fullScaleItemRatio * 100)}% at 1.0×`}
+                </span>
+              </div>
+            </div>
+          )}
+
           <SimplexTopicGraph<
             DemoEntity,
             DemoContentVisual,
@@ -2308,6 +2663,9 @@ export function DemoApp() {
             clusteringStrategy={clusteringStrategy}
             colorStrategy={colorStrategy}
             layoutStrategy={layoutStrategy}
+            zoomStrategy={zoomStrategy}
+            showZoomBreadcrumbs={false}
+            onZoomStateChange={setZoomState}
             onContentHover={onContentHover}
             onClusterHover={onClusterHover}
             onTriangleHover={onTriangleHover}
@@ -2318,25 +2676,27 @@ export function DemoApp() {
             onFpsUpdate={setFps}
           />
 
-          {/* Camera Zoom Overlay Controls */}
-          <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-20 flex items-center gap-1 rounded-md border border-slate-200 bg-white/95 p-1 shadow-sm backdrop-blur-xs dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:shadow-none">
-            <button
-              type="button"
-              aria-label="Zoom in"
-              onClick={() => handle.zoomBy(1.22)}
-              className="cursor-pointer flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              aria-label="Zoom out"
-              onClick={() => handle.zoomBy(0.82)}
-              className="cursor-pointer flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 transition-colors"
-            >
-              <Minus className="h-4 w-4" />
-            </button>
-          </div>
+          {/* Continuous Camera Zoom Controls (shown only in Free Camera mode) */}
+          {zoomStrategy.mode === 'free-camera' && (
+            <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-20 flex items-center gap-1 rounded-md border border-slate-200 bg-white/95 p-1 shadow-sm backdrop-blur-xs dark:border-slate-800 dark:bg-[#0B0F17]/95 dark:shadow-none">
+              <button
+                type="button"
+                aria-label="Zoom in"
+                onClick={() => handle.zoomBy(1.22)}
+                className="cursor-pointer flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="Zoom out"
+                onClick={() => handle.zoomBy(0.82)}
+                className="cursor-pointer flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 transition-colors"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+            </div>
+          )}
 
           {/* Floating Content Hover Tooltip */}
           {hoveredContent && !contextMenu && (
@@ -2374,6 +2734,11 @@ export function DemoApp() {
                       .map((uc) => `${uc.cluster.code} ${Math.round(uc.weight * 100)}%`)
                       .join(' · ')}
               </div>
+              {zoomStrategy.mode === 'drill-down' && hoveredContent.neighborId && (
+                <div className="mt-1 font-mono text-[10px] text-cyan-700 dark:text-cyan-300">
+                  Click to switch to neighbor
+                </div>
+              )}
             </div>
           )}
 
@@ -2419,6 +2784,22 @@ export function DemoApp() {
                   {hoveredCluster.cluster.featureSummary}
                 </div>
               ) : null}
+              {zoomStrategy.mode === 'drill-down' && hoveredCluster.neighborId ? (
+                <div className="mt-1 font-mono text-[10px] text-cyan-700 dark:text-cyan-300">
+                  Click to switch to neighbor
+                </div>
+              ) : (
+                zoomStrategy.mode === 'drill-down' &&
+                zoomState?.drillableClusterUids.includes(
+                  hoveredCluster.cluster.clusterUid,
+                ) && (
+                  <div className="mt-1 font-mono text-[10px] text-cyan-700 dark:text-cyan-300">
+                    {clusterZoomMode === 'incident-star'
+                      ? 'Click to focus 1-ring triangles'
+                      : 'Click to spotlight cluster'}
+                  </div>
+                )
+              )}
             </div>
           )}
 
@@ -2452,7 +2833,11 @@ export function DemoApp() {
                       className="inline-block h-2.5 w-2.5 rounded-xs"
                       style={{ backgroundColor: hoveredTriangle.triangle.fillHex }}
                     />
-                    <span>Triangle #{hoveredTriangle.triangle.index + 1}</span>
+                    <span>
+                      {hoveredTriangle.triangle.isContext
+                        ? 'Neighbor Triangle'
+                        : `Triangle #${hoveredTriangle.triangle.index + 1}`}
+                    </span>
                   </span>
                   <span className="font-mono tabular-nums text-[11px] font-normal text-cyan-700 dark:text-cyan-300">
                     {hoveredTriangle.triangle.coveredItemCount} items
@@ -2461,7 +2846,7 @@ export function DemoApp() {
                 <div className="mt-1 space-y-0.5 text-[11px] text-slate-700 dark:text-slate-300">
                   {hoveredTriangle.triangle.clusters.map((corner, idx) => (
                     <div
-                      key={hoveredTriangle.triangle.vertexIndices[idx]}
+                      key={`${hoveredTriangle.triangle.vertexIndices[idx]}-${idx}`}
                       className="flex items-center gap-1.5 truncate"
                     >
                       <span
@@ -2481,8 +2866,18 @@ export function DemoApp() {
                   ))}
                 </div>
                 <div className="mt-1 font-mono tabular-nums text-[10px] text-slate-500 dark:text-slate-400">
-                  {hoveredTriangle.triangle.interiorItemCount} 3-way interior · Click to
-                  inspect
+                  {hoveredTriangle.triangle.interiorItemCount} 3-way interior ·{' '}
+                  {zoomStrategy.mode === 'drill-down'
+                    ? hoveredTriangle.triangle.isContext
+                      ? hoveredTriangle.triangle.neighborId
+                        ? 'Click to switch to neighbor'
+                        : 'Surrounding context'
+                      : zoomState?.drillableTriangleIndices.includes(
+                            hoveredTriangle.triangle.index,
+                          )
+                        ? 'Click or pinch out to drill down'
+                        : 'Leaf scale · Click to inspect'
+                    : 'Click to inspect'}
                 </div>
               </div>
             )}
@@ -2597,6 +2992,7 @@ export function DemoApp() {
                 <button
                   type="button"
                   onClick={() => {
+                    handle.drillToRoot();
                     handle.resetCamera();
                     setFocusedClusterUid(null);
                     setFocusedTriangleIndex(null);
@@ -2606,21 +3002,30 @@ export function DemoApp() {
                   className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   <RotateCcw className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" />
-                  Reset camera &amp; focus
+                  {zoomStrategy.mode === 'drill-down'
+                    ? 'Reset to overview'
+                    : 'Reset camera & focus'}
                 </button>
               )}
             </div>
           )}
 
-          {/* Top-Right Reset Camera Button */}
-          <button
-            type="button"
-            onClick={() => handle.resetCamera()}
-            className="cursor-pointer absolute top-3 right-3 sm:top-4 sm:right-4 z-20 flex min-h-9 items-center gap-1.5 rounded-md border border-cyan-600/35 bg-white/95 px-3 py-1.5 text-xs font-semibold text-cyan-800 shadow-sm backdrop-blur-xs hover:bg-cyan-50 dark:border-cyan-500/40 dark:bg-[#0B0F17]/95 dark:text-cyan-200 dark:shadow-none dark:hover:bg-cyan-500/15 transition-colors whitespace-nowrap shrink-0"
-          >
-            <RotateCcw className="h-3.5 w-3.5 shrink-0" />
-            <span>Reset Camera</span>
-          </button>
+          {/* Top-Right Reset Camera / Overview Button */}
+          {(zoomStrategy.mode === 'free-camera' || zoomState?.canDrillUp) && (
+            <button
+              type="button"
+              onClick={() => {
+                handle.drillToRoot();
+                handle.resetCamera();
+              }}
+              className="cursor-pointer absolute top-3 right-3 sm:top-4 sm:right-4 z-20 flex min-h-9 items-center gap-1.5 rounded-md border border-cyan-600/35 bg-white/95 px-3 py-1.5 text-xs font-semibold text-cyan-800 shadow-sm backdrop-blur-xs hover:bg-cyan-50 dark:border-cyan-500/40 dark:bg-[#0B0F17]/95 dark:text-cyan-200 dark:shadow-none dark:hover:bg-cyan-500/15 transition-colors whitespace-nowrap shrink-0"
+            >
+              <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                {zoomStrategy.mode === 'drill-down' ? 'Overview' : 'Reset Camera'}
+              </span>
+            </button>
+          )}
 
           {/* Responsive Selected / Inspected Node or Triangle Detail Panel */}
           {inspected && (

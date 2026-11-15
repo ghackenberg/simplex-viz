@@ -7,8 +7,16 @@ import {
   starConvexHull,
 } from '../src/geometry';
 import {
+  createBarycentricPbdRelaxer,
+  createCollisionLocalScaleController,
+  createFixedScaleController,
+  createMeshInwardFanSeeder,
+  createPhyllotaxisSeeder,
+  createSpaceFillingPbdRelaxer,
+  createUniformScaleController,
   measureLayoutOverlaps,
   solveCollisionDrivenLayout,
+  solveComposedLayout,
   solveTwoPhaseLayout,
 } from '../src/layout';
 import { buildSimplexMesh } from '../src/mesh';
@@ -255,5 +263,183 @@ describe('SAT & Two-Phase Overlap-Free Layout Solver', () => {
     expect(collisionDriven.overlapCount).toBe(0);
     expect(collisionDriven.maxPenetrationPx).toBeLessThanOrEqual(1e-4);
     verifyContainment(collisionDriven.items);
+  });
+
+  it('allows freely combining orthogonal PositionRelaxer and ScaleController building blocks via solveComposedLayout', () => {
+    const width = 880;
+    const height = 560;
+    const mesh = buildSimplexMesh(width, height, 12, { maxClusters: 6 });
+
+    const clusterInputs = mesh.vertices.map((v, i) => ({
+      id: `cluster-${i}`,
+      targetX: v.x,
+      targetY: v.y,
+      hull: rectToConvexPolygon(136, 40, 8),
+    }));
+
+    const tri0 = mesh.triangles[0]!;
+    const [a0, b0, c0] = tri0.vertices;
+    const va0 = mesh.vertices[a0]!;
+    const vb0 = mesh.vertices[b0]!;
+    const vc0 = mesh.vertices[c0]!;
+    const tri0Cx = (va0.x + vb0.x + vc0.x) / 3;
+    const tri0Cy = (va0.y + vb0.y + vc0.y) / 3;
+
+    const triLast = mesh.triangles[mesh.triangles.length - 1]!;
+    const tLA = mesh.vertices[triLast.vertices[0]]!;
+    const tLB = mesh.vertices[triLast.vertices[1]]!;
+    const tLC = mesh.vertices[triLast.vertices[2]]!;
+
+    const mixedItems = [
+      ...Array.from({ length: 20 }, (_, i) => ({
+        id: `crowd-${i}`,
+        anchorX: tri0Cx,
+        anchorY: tri0Cy,
+        hull: rectToConvexPolygon(52, 24, 4),
+        unitVertexIndices: [a0, b0, c0] as readonly number[],
+      })),
+      {
+        id: 'sparse-a',
+        anchorX: (tLA.x + tLB.x + tLC.x) / 3,
+        anchorY: (tLA.y + tLB.y + tLC.y) / 3,
+        hull: rectToConvexPolygon(48, 24, 4),
+        unitVertexIndices: [...triLast.vertices] as readonly number[],
+      },
+    ];
+
+    // Combination 1: Space-Filling Positioning + Global Uniform Scaling
+    // -> Zero overlap, strict triangle containment, AND identical uniform scale across all items!
+    const spaceFillingUniform = solveComposedLayout({
+      clusters: clusterInputs,
+      items: mixedItems,
+      mesh,
+      viewportWidth: width,
+      viewportHeight: height,
+      seeder: createMeshInwardFanSeeder(),
+      relaxer: createSpaceFillingPbdRelaxer(),
+      scaleController: createUniformScaleController(),
+    });
+    expect(spaceFillingUniform.overlapCount).toBe(0);
+    const uniformScales = new Set(
+      spaceFillingUniform.items.map((it) => it.scale.toFixed(6)),
+    );
+    expect(uniformScales.size).toBe(1);
+    for (const it of spaceFillingUniform.items.filter((x) => x.id.startsWith('crowd-'))) {
+      expect(isPointInTriangle(it.x, it.y, va0, vb0, vc0, 1e-4)).toBe(true);
+    }
+
+    // Combination 2: Classic Phyllotaxis + Tight Barycentric PBD + Collision-Local Scaling
+    // -> Zero overlap, strict triangle containment, AND sparse-a stays at 1.0x while crowded pocket shrinks!
+    const barycentricLocal = solveComposedLayout({
+      clusters: clusterInputs,
+      items: mixedItems,
+      mesh,
+      viewportWidth: width,
+      viewportHeight: height,
+      seeder: createPhyllotaxisSeeder(),
+      relaxer: createBarycentricPbdRelaxer(),
+      scaleController: createCollisionLocalScaleController({ minLocalScale: 0.28 }),
+    });
+    expect(barycentricLocal.overlapCount).toBe(0);
+    const sparsePlaced = barycentricLocal.items.find((it) => it.id === 'sparse-a')!;
+    expect(sparsePlaced.scale).toBeCloseTo(1.0, 5);
+    const minCrowdScale = Math.min(
+      ...barycentricLocal.items
+        .filter((it) => it.id.startsWith('crowd-'))
+        .map((it) => it.scale),
+    );
+    expect(minCrowdScale).toBeLessThan(1.0);
+
+    // Combination 3: Fixed Scale Controller preserves exact requested scale without auto-shrinking
+    const fixedScaleSolved = solveComposedLayout({
+      clusters: clusterInputs,
+      items: mixedItems.slice(-4),
+      mesh,
+      viewportWidth: width,
+      viewportHeight: height,
+      seeder: createMeshInwardFanSeeder(),
+      relaxer: createSpaceFillingPbdRelaxer(),
+      scaleController: createFixedScaleController({ scale: 0.9 }),
+    });
+    for (const it of fixedScaleSolved.items) {
+      expect(it.scale).toBeCloseTo(0.9, 5);
+    }
+  });
+
+  it('arranges single-cluster items all around a boundary triangulation vertex instead of trapping them inside its single incident triangle', () => {
+    const width = 920;
+    const height = 620;
+    // Use generous innerPadding so a corner vertex has open canvas on all sides outside the mesh
+    const mesh = buildSimplexMesh(width, height, 110, { maxClusters: 6 });
+
+    // Find a boundary/corner vertex that belongs to ONLY ONE mesh triangle
+    let cornerV = 0;
+    let incidentTris = mesh.triangles.filter((tr) => tr.vertices.includes(0));
+    for (let v = 0; v < mesh.vertices.length; v++) {
+      const inc = mesh.triangles.filter((tr) => tr.vertices.includes(v));
+      if (inc.length === 1) {
+        cornerV = v;
+        incidentTris = inc;
+        break;
+      }
+    }
+    expect(incidentTris.length).toBe(1);
+    const onlyTri = incidentTris[0]!;
+    const va = mesh.vertices[onlyTri.vertices[0]]!;
+    const vb = mesh.vertices[onlyTri.vertices[1]]!;
+    const vc = mesh.vertices[onlyTri.vertices[2]]!;
+    const cornerPt = mesh.vertices[cornerV]!;
+
+    const clusterInputs = mesh.vertices.map((v, i) => ({
+      id: `cluster-${i}`,
+      targetX: v.x,
+      targetY: v.y,
+      hull: { kind: 'circle' as const, radius: 22 },
+    }));
+
+    // 10 single-cluster items assigned exclusively to the boundary corner cluster
+    const singleClusterItems = Array.from({ length: 10 }, (_, i) => ({
+      id: `halo-${i}`,
+      anchorX: cornerPt.x,
+      anchorY: cornerPt.y,
+      hull: { kind: 'circle' as const, radius: 12 },
+      unitVertexIndices: [cornerV] as readonly number[],
+    }));
+
+    // Plus 6 multi-cluster items assigned to all 3 vertices of onlyTri (must stay inside onlyTri)
+    const triCx = (va.x + vb.x + vc.x) / 3;
+    const triCy = (va.y + vb.y + vc.y) / 3;
+    const multiClusterItems = Array.from({ length: 6 }, (_, i) => ({
+      id: `inside-${i}`,
+      anchorX: triCx,
+      anchorY: triCy,
+      hull: { kind: 'circle' as const, radius: 12 },
+      unitVertexIndices: [...onlyTri.vertices] as readonly number[],
+    }));
+
+    const solved = solveCollisionDrivenLayout({
+      clusters: clusterInputs,
+      items: [...singleClusterItems, ...multiClusterItems],
+      mesh,
+      viewportWidth: width,
+      viewportHeight: height,
+      viewportMargin: 8,
+    });
+
+    expect(solved.overlapCount).toBe(0);
+    expect(solved.maxPenetrationPx).toBeLessThanOrEqual(1e-4);
+
+    // Every 3-cluster item MUST be inside onlyTri
+    for (const it of solved.items.filter((x) => x.id.startsWith('inside-'))) {
+      expect(isPointInTriangle(it.x, it.y, va, vb, vc, 1e-4)).toBe(true);
+    }
+
+    // Single-cluster items at cornerV are exempt from triangle clamping and surround cornerV
+    // outside its lone 60° incident triangle!
+    const haloItems = solved.items.filter((x) => x.id.startsWith('halo-'));
+    const outsideSingleTri = haloItems.filter(
+      (it) => !isPointInTriangle(it.x, it.y, va, vb, vc, 1e-4),
+    );
+    expect(outsideSingleTri.length).toBeGreaterThanOrEqual(5);
   });
 });

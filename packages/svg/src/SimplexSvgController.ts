@@ -1,5 +1,6 @@
 import {
   SimplexGraphEngine,
+  isPointInTriangle,
   type CameraController,
   type ClusterDerivationContext,
   type ClusterDescriptor,
@@ -15,6 +16,8 @@ import {
   type SimplexColorStrategy,
   type SimplexLayoutStrategy,
   type SimplexMeshStrategy,
+  type SimplexZoomState,
+  type SimplexZoomStrategy,
   type StrategyItemIdentityConfig,
   type TriangleHoverEvent,
   type VisualResolver,
@@ -113,7 +116,10 @@ export interface SimplexSvgControllerResolvedOptions<
   readonly clusteringStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>;
   readonly colorStrategy?: SimplexColorStrategy<TItem, TTagMeta>;
   readonly layoutStrategy?: SimplexLayoutStrategy;
+  readonly zoomStrategy?: SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>;
   readonly showHulls?: boolean;
+  /** Renders the built-in breadcrumb bar when drilled into sub-levels. Default: `true`. */
+  readonly showZoomBreadcrumbs?: boolean;
   /**
    * Automatically toggles cluster focus when clicking a topic cluster (and clears on background click)
    * unless a custom `interactions.onLeftClick` handler is provided. Default: `true`.
@@ -139,6 +145,7 @@ export interface SimplexSvgControllerResolvedOptions<
   readonly onClustersChange?: (
     clusters: readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[],
   ) => void;
+  readonly onZoomStateChange?: (state: SimplexZoomState) => void;
   readonly onFpsUpdate?: (fps: number) => void;
 }
 
@@ -211,14 +218,17 @@ export class SimplexSvgController<
   >;
   private readonly resizeObserver: ResizeObserver | null = null;
   private readonly onFpsUpdate?: (fps: number) => void;
+  private onZoomStateChangeCallback?: (state: SimplexZoomState) => void;
   private readonly focusOnClusterClick: boolean;
   private readonly focusOnTriangleClick: boolean;
+  private showZoomBreadcrumbs: boolean;
   private readonly getIdExtractor: (item: TItem) => string;
   private getLabelExtractor?: (item: TItem) => string;
   private tooltipOption:
     | boolean
     | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
   private tooltipEl: HTMLDivElement | null = null;
+  private breadcrumbOverlayEl: HTMLDivElement | null = null;
   private focusedClusterUidState: string | null = null;
   private focusedTriangleIndexState: number | null = null;
   private currentPreset: SimplexVisualPreset;
@@ -239,7 +249,11 @@ export class SimplexSvgController<
   private dragMoved = false;
   private readonly activePointers = new Map<number, { x: number; y: number }>();
   private lastPinchDist: number | null = null;
+  private pinchStartDist: number | null = null;
+  private pinchHandledInGesture = false;
   private lastPinchMid: { x: number; y: number } | null = null;
+  private wheelPinchAccum = 0;
+  private wheelPinchCooldownUntil = 0;
 
   constructor(
     containerEl: HTMLElement | string,
@@ -263,8 +277,10 @@ export class SimplexSvgController<
   ) {
     this.containerEl = resolveContainerElement(containerEl);
     this.onFpsUpdate = options.onFpsUpdate;
+    this.onZoomStateChangeCallback = options.onZoomStateChange;
     this.focusOnClusterClick = options.focusOnClusterClick ?? true;
     this.focusOnTriangleClick = options.focusOnTriangleClick ?? true;
+    this.showZoomBreadcrumbs = options.showZoomBreadcrumbs ?? true;
     this.getLabelExtractor = options.getLabel;
     this.tooltipOption = options.tooltip ?? false;
     this.getIdExtractor =
@@ -339,12 +355,19 @@ export class SimplexSvgController<
       clusteringStrategy: options.clusteringStrategy,
       colorStrategy: options.colorStrategy,
       layoutStrategy: options.layoutStrategy,
+      zoomStrategy: options.zoomStrategy,
       theme: this.currentTheme,
       showHulls: options.showHulls,
       interactions: this.wrapInteractions(options.interactions),
       onMetricsChange: options.onMetricsChange,
       onClustersChange: options.onClustersChange,
+      onZoomStateChange: (state) => {
+        this.syncZoomOverlays(state);
+        this.onZoomStateChangeCallback?.(state);
+      },
     });
+    this.syncZoomOverlays(this.engine.getZoomState());
+    this.onZoomStateChangeCallback?.(this.engine.getZoomState());
 
     const baseCamera = this.engine.camera;
     const syncCameraRender = (): void => {
@@ -489,6 +512,26 @@ export class SimplexSvgController<
           userInteractions.onLeftClick(target, rawEvent);
           return;
         }
+        if (this.engine.getZoomStrategy().mode === 'drill-down') {
+          if (target.kind === 'triangle') {
+            if (target.triangle.neighborId) {
+              this.drillToNeighbor(target.triangle.neighborId);
+            } else {
+              this.drillDownTriangle(target.triangle.index);
+            }
+          } else if (target.kind === 'cluster') {
+            if (target.neighborId) {
+              this.drillToNeighbor(target.neighborId);
+            } else {
+              this.drillDownCluster(target.cluster.clusterUid);
+            }
+          } else if (target.kind === 'content' && target.neighborId) {
+            this.drillToNeighbor(target.neighborId);
+          } else if (target.kind === 'background') {
+            this.drillUp();
+          }
+          return;
+        }
         if (target.kind === 'cluster' && this.focusOnClusterClick) {
           if (this.focusedTriangleIndexState !== null) {
             this.setFocusedTriangleIndex(null);
@@ -533,13 +576,14 @@ export class SimplexSvgController<
       this.getLabelExtractor,
     );
     const tagList = ev.layoutContext.tags.map((t) => `#${t.tag}`).slice(0, 5).join(' · ');
+    const neighborHint = ev.neighborId ? '\nClick to switch to neighbor' : '';
     if (tagList) {
-      return `${label}\n${tagList}`;
+      return `${label}\n${tagList}${neighborHint}`;
     }
     const weightList = ev.layoutContext.unitClusters
       .map((uc) => `${uc.cluster.code} ${Math.round(uc.weight * 100)}%`)
       .join(' · ');
-    return weightList ? `${label}\n${weightList}` : label;
+    return `${weightList ? `${label}\n${weightList}` : label}${neighborHint}`;
   }
 
   private formatClusterTooltip(
@@ -549,7 +593,8 @@ export class SimplexSvgController<
       return this.tooltipOption({ kind: 'cluster', ...ev });
     }
     const count = ev.cluster.members.length;
-    return `${ev.cluster.code} · ${ev.cluster.defaultLabel}\n${count} ${count === 1 ? 'item' : 'items'}`;
+    const base = `${ev.cluster.code} · ${ev.cluster.defaultLabel}\n${count} ${count === 1 ? 'item' : 'items'}`;
+    return ev.neighborId ? `${base}\nClick to switch to neighbor` : base;
   }
 
   private formatTriangleTooltip(
@@ -564,7 +609,13 @@ export class SimplexSvgController<
       )
       .join(' · ');
     const count = ev.triangle.coveredItemCount;
-    return `Triangle #${ev.triangle.index + 1} (${corners})\n${count} ${count === 1 ? 'item' : 'items'}`;
+    if (ev.triangle.isContext) {
+      return `Neighbor (${corners})\n${count} ${count === 1 ? 'item' : 'items'}${ev.triangle.neighborId ? '\nClick to switch to neighbor' : ''}`;
+    }
+    const isDrillable =
+      this.engine.getZoomStrategy().mode === 'drill-down' &&
+      this.engine.getZoomState().drillableTriangleIndices.includes(ev.triangle.index);
+    return `Triangle #${ev.triangle.index + 1} (${corners})\n${count} ${count === 1 ? 'item' : 'items'}${isDrillable ? '\nClick to zoom in' : ''}`;
   }
 
   private applyTooltipThemeStyles(el: HTMLDivElement): void {
@@ -721,6 +772,7 @@ export class SimplexSvgController<
         >,
       );
     }
+    this.syncZoomOverlays(this.engine.getZoomState());
     this.engine.renderNow();
     this.ensureLoopRunning();
   }
@@ -745,6 +797,22 @@ export class SimplexSvgController<
     this.ensureLoopRunning();
   }
 
+  setZoomStrategy(
+    strategy: SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>,
+  ): void {
+    this.engine.setZoomStrategy(strategy);
+    this.ensureLoopRunning();
+  }
+
+  setZoomUiOptions(options: {
+    readonly showZoomBreadcrumbs?: boolean;
+  }): void {
+    if (options.showZoomBreadcrumbs !== undefined) {
+      this.showZoomBreadcrumbs = options.showZoomBreadcrumbs;
+    }
+    this.syncZoomOverlays(this.engine.getZoomState());
+  }
+
   getMeshStrategy(): SimplexMeshStrategy<TItem> {
     return this.engine.getMeshStrategy();
   }
@@ -759,6 +827,50 @@ export class SimplexSvgController<
 
   getLayoutStrategy(): SimplexLayoutStrategy {
     return this.engine.getLayoutStrategy();
+  }
+
+  getZoomStrategy(): SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta> {
+    return this.engine.getZoomStrategy();
+  }
+
+  getZoomState(): SimplexZoomState {
+    return this.engine.getZoomState();
+  }
+
+  drillDownTriangle(triangleIndex: number): boolean {
+    const ok = this.engine.drillDownTriangle(triangleIndex);
+    if (ok) this.ensureLoopRunning();
+    return ok;
+  }
+
+  drillDownCluster(clusterUid: string): boolean {
+    const ok = this.engine.drillDownCluster(clusterUid);
+    if (ok) this.ensureLoopRunning();
+    return ok;
+  }
+
+  drillToNeighbor(neighborId: string): boolean {
+    const ok = this.engine.drillToNeighbor(neighborId);
+    if (ok) this.ensureLoopRunning();
+    return ok;
+  }
+
+  drillUp(): boolean {
+    const ok = this.engine.drillUp();
+    if (ok) this.ensureLoopRunning();
+    return ok;
+  }
+
+  drillToDepth(depth: number): boolean {
+    const ok = this.engine.drillToDepth(depth);
+    if (ok) this.ensureLoopRunning();
+    return ok;
+  }
+
+  drillToRoot(): boolean {
+    const ok = this.engine.drillToRoot();
+    if (ok) this.ensureLoopRunning();
+    return ok;
   }
 
   setMeshOptions(options: MeshOptions): void {
@@ -890,7 +1002,160 @@ export class SimplexSvgController<
 
   private resetTouchPinchState(): void {
     this.lastPinchDist = null;
+    this.pinchStartDist = null;
+    this.pinchHandledInGesture = false;
     this.lastPinchMid = null;
+  }
+
+  private triggerPinchDrillIn(screenX: number, screenY: number): boolean {
+    const zState = this.engine.getZoomState();
+    const hit = this.engine.hitTest(screenX, screenY);
+    if (hit.kind === 'triangle') {
+      if (hit.triangle.neighborId) {
+        return this.drillToNeighbor(hit.triangle.neighborId);
+      }
+      if (!hit.triangle.isContext) {
+        return this.drillDownTriangle(hit.triangle.index);
+      }
+      return false;
+    }
+    if (hit.kind === 'cluster') {
+      if (hit.neighborId) {
+        return this.drillToNeighbor(hit.neighborId);
+      }
+      return this.drillDownCluster(hit.cluster.clusterUid);
+    }
+    if (hit.kind === 'content') {
+      const mesh = this.engine.getMesh();
+      if (mesh) {
+        for (const triIdx of zState.drillableTriangleIndices) {
+          const tri = mesh.triangles[triIdx];
+          if (!tri) continue;
+          const p0 = mesh.vertices[tri.vertices[0]]!;
+          const p1 = mesh.vertices[tri.vertices[1]]!;
+          const p2 = mesh.vertices[tri.vertices[2]]!;
+          if (isPointInTriangle(hit.worldPosition.x, hit.worldPosition.y, p0, p1, p2)) {
+            return this.drillDownTriangle(triIdx);
+          }
+        }
+      }
+      const primaryCluster = hit.layoutContext.unitClusters[0]?.cluster;
+      if (primaryCluster && zState.drillableClusterUids.includes(primaryCluster.clusterUid)) {
+        return this.drillDownCluster(primaryCluster.clusterUid);
+      }
+    }
+    // Background fallback: drill into the closest drillable triangle
+    if (zState.drillableTriangleIndices.length > 0) {
+      const mesh = this.engine.getMesh();
+      if (mesh) {
+        let bestIdx = zState.drillableTriangleIndices[0]!;
+        let bestDist = Infinity;
+        for (const triIdx of zState.drillableTriangleIndices) {
+          const tri = mesh.triangles[triIdx];
+          if (!tri) continue;
+          const p0 = mesh.vertices[tri.vertices[0]]!;
+          const p1 = mesh.vertices[tri.vertices[1]]!;
+          const p2 = mesh.vertices[tri.vertices[2]]!;
+          const cx = (p0.x + p1.x + p2.x) / 3;
+          const cy = (p0.y + p1.y + p2.y) / 3;
+          const d = Math.hypot(cx - hit.worldPosition.x, cy - hit.worldPosition.y);
+          if (d < bestDist) {
+            bestDist = d;
+            bestIdx = triIdx;
+          }
+        }
+        return this.drillDownTriangle(bestIdx);
+      }
+    }
+    return false;
+  }
+
+  private ensureContainerPositioned(): void {
+    const computedPos =
+      typeof getComputedStyle !== 'undefined'
+        ? getComputedStyle(this.containerEl).position
+        : this.containerEl.style.position;
+    if (!computedPos || computedPos === 'static') {
+      this.containerEl.style.position = 'relative';
+    }
+  }
+
+  private syncZoomOverlays(state: SimplexZoomState): void {
+    if (this.destroyed) return;
+    const isLight = this.currentTheme === 'light';
+
+    // Built-in Drill Breadcrumb Strip (unless disabled by host wrapper)
+    if (
+      this.showZoomBreadcrumbs &&
+      state.mode === 'drill-down' &&
+      state.depth > 0
+    ) {
+      this.ensureContainerPositioned();
+      const doc = this.containerEl.ownerDocument;
+      if (!this.breadcrumbOverlayEl) {
+        const el = doc.createElement('div');
+        el.className = 'sv-zoom-breadcrumbs';
+        el.style.position = 'absolute';
+        el.style.top = '12px';
+        el.style.left = '50%';
+        el.style.transform = 'translateX(-50%)';
+        el.style.zIndex = '16';
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.gap = '4px';
+        el.style.padding = '4px 8px';
+        el.style.borderRadius = '6px';
+        el.style.fontFamily =
+          'Plus Jakarta Sans, ui-sans-serif, system-ui, sans-serif';
+        el.style.fontSize = '11px';
+        this.containerEl.appendChild(el);
+        this.breadcrumbOverlayEl = el;
+      }
+      this.breadcrumbOverlayEl.style.display = 'flex';
+      this.breadcrumbOverlayEl.style.background = isLight
+        ? 'rgba(255, 255, 255, 0.94)'
+        : 'rgba(11, 15, 23, 0.92)';
+      this.breadcrumbOverlayEl.style.border = isLight
+        ? '1px solid rgba(203, 213, 225, 0.95)'
+        : '1px solid rgba(51, 65, 85, 0.9)';
+      this.breadcrumbOverlayEl.style.color = isLight ? '#0f172a' : '#e2e8f0';
+
+      while (this.breadcrumbOverlayEl.firstChild) {
+        this.breadcrumbOverlayEl.removeChild(this.breadcrumbOverlayEl.firstChild);
+      }
+
+      state.breadcrumbs.forEach((crumb, idx) => {
+        if (idx > 0) {
+          const sep = doc.createElement('span');
+          sep.textContent = '/';
+          sep.style.opacity = '0.45';
+          this.breadcrumbOverlayEl!.appendChild(sep);
+        }
+        const btn = doc.createElement('button');
+        btn.type = 'button';
+        btn.textContent = crumb.shortLabel;
+        btn.style.cursor = idx === state.depth ? 'default' : 'pointer';
+        btn.style.fontWeight = idx === state.depth ? '600' : '500';
+        btn.style.color =
+          idx === state.depth
+            ? isLight
+              ? '#0e7490'
+              : '#22d3ee'
+            : 'inherit';
+        btn.style.background = 'transparent';
+        btn.style.border = 'none';
+        btn.style.padding = '2px 5px';
+        if (idx < state.depth) {
+          btn.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            this.drillToDepth(crumb.depth);
+          });
+        }
+        this.breadcrumbOverlayEl!.appendChild(btn);
+      });
+    } else if (this.breadcrumbOverlayEl) {
+      this.breadcrumbOverlayEl.style.display = 'none';
+    }
   }
 
   private readonly onPointerDown = (e: PointerEvent): void => {
@@ -904,9 +1169,18 @@ export class SimplexSvgController<
       const pts = [...this.activePointers.values()];
       const p0 = pts[0]!;
       const p1 = pts[1]!;
-      this.lastPinchDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+      const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+      this.lastPinchDist = dist;
+      this.pinchStartDist = dist;
+      this.pinchHandledInGesture = false;
       this.lastPinchMid = { x: (p0.x + p1.x) * 0.5, y: (p0.y + p1.y) * 0.5 };
       this.hideTooltip();
+      return;
+    }
+
+    if (this.engine.getZoomStrategy().mode === 'drill-down') {
+      this.isDraggingPan = false;
+      this.dragMoved = false;
       return;
     }
 
@@ -931,12 +1205,37 @@ export class SimplexSvgController<
       this.activePointers.set(e.pointerId, { x, y });
     }
 
+    const zoomMode = this.engine.getZoomStrategy().mode;
+
     if (this.activePointers.size >= 2) {
       const pts = [...this.activePointers.values()];
       const p0 = pts[0]!;
       const p1 = pts[1]!;
       const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
       const mid = { x: (p0.x + p1.x) * 0.5, y: (p0.y + p1.y) * 0.5 };
+
+      if (zoomMode === 'drill-down') {
+        if (
+          !this.pinchHandledInGesture &&
+          this.pinchStartDist !== null &&
+          this.pinchStartDist > 10 &&
+          dist > 8
+        ) {
+          const ratio = dist / this.pinchStartDist;
+          if (ratio >= 1.28) {
+            this.pinchHandledInGesture = true;
+            this.triggerPinchDrillIn(mid.x, mid.y);
+          } else if (ratio <= 0.78) {
+            this.pinchHandledInGesture = true;
+            this.drillUp();
+          }
+        }
+        this.dragMoved = true;
+        this.lastPinchDist = dist;
+        this.lastPinchMid = mid;
+        this.hideTooltip();
+        return;
+      }
 
       if (this.lastPinchDist !== null && this.lastPinchMid !== null && this.lastPinchDist > 8 && dist > 8) {
         const dx = mid.x - this.lastPinchMid.x;
@@ -953,7 +1252,7 @@ export class SimplexSvgController<
       return;
     }
 
-    if (this.isDraggingPan) {
+    if (this.isDraggingPan && zoomMode === 'free-camera') {
       const dx = e.clientX - this.dragStartX;
       const dy = e.clientY - this.dragStartY;
       const dragThreshold = e.pointerType === 'touch' ? 6 : 3;
@@ -976,7 +1275,36 @@ export class SimplexSvgController<
     }
     this.engine.handlePointerMove(x, y);
     const hit = this.engine.hitTest(x, y);
-    this.svgEl.style.cursor = hit.kind === 'background' ? 'grab' : 'pointer';
+    if (zoomMode === 'drill-down') {
+      const zState = this.engine.getZoomState();
+      if (hit.kind === 'triangle') {
+        if (hit.triangle.neighborId) {
+          this.svgEl.style.cursor = 'pointer';
+        } else {
+          this.svgEl.style.cursor = zState.drillableTriangleIndices.includes(
+            hit.triangle.index,
+          )
+            ? 'zoom-in'
+            : 'default';
+        }
+      } else if (hit.kind === 'cluster') {
+        if (hit.neighborId) {
+          this.svgEl.style.cursor = 'pointer';
+        } else {
+          this.svgEl.style.cursor = zState.drillableClusterUids.includes(
+            hit.cluster.clusterUid,
+          )
+            ? 'zoom-in'
+            : 'pointer';
+        }
+      } else if (hit.kind === 'content') {
+        this.svgEl.style.cursor = 'pointer';
+      } else {
+        this.svgEl.style.cursor = zState.canDrillUp ? 'zoom-out' : 'default';
+      }
+    } else {
+      this.svgEl.style.cursor = hit.kind === 'background' ? 'grab' : 'pointer';
+    }
     this.ensureLoopRunning();
   };
 
@@ -985,9 +1313,14 @@ export class SimplexSvgController<
     if (this.activePointers.size < 2) {
       this.resetTouchPinchState();
     }
-    if (this.activePointers.size === 0 && this.isDraggingPan) {
-      this.isDraggingPan = false;
-      this.svgEl.style.cursor = 'grab';
+    if (this.activePointers.size === 0) {
+      if (this.isDraggingPan) {
+        this.isDraggingPan = false;
+        this.svgEl.style.cursor =
+          this.engine.getZoomStrategy().mode === 'drill-down' ? 'default' : 'grab';
+      } else {
+        this.dragMoved = false;
+      }
     }
   };
 
@@ -999,7 +1332,8 @@ export class SimplexSvgController<
     if (this.activePointers.size === 0) {
       this.isDraggingPan = false;
       this.dragMoved = false;
-      this.svgEl.style.cursor = 'grab';
+      this.svgEl.style.cursor =
+        this.engine.getZoomStrategy().mode === 'drill-down' ? 'default' : 'grab';
     }
   };
 
@@ -1053,6 +1387,23 @@ export class SimplexSvgController<
 
   private readonly onWheel = (e: WheelEvent): void => {
     const { x, y } = this.toLocalCoords(e.clientX, e.clientY);
+    // Support discrete trackpad pinch-in / pinch-out when in drill-down mode
+    if (this.engine.getZoomStrategy().mode === 'drill-down' && e.ctrlKey) {
+      e.preventDefault();
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      if (now < this.wheelPinchCooldownUntil) return;
+      this.wheelPinchAccum += e.deltaY;
+      if (this.wheelPinchAccum <= -22) {
+        this.wheelPinchAccum = 0;
+        this.wheelPinchCooldownUntil = now + 360;
+        this.triggerPinchDrillIn(x, y);
+      } else if (this.wheelPinchAccum >= 22) {
+        this.wheelPinchAccum = 0;
+        this.wheelPinchCooldownUntil = now + 360;
+        this.drillUp();
+      }
+      return;
+    }
     const handled = this.engine.handleWheel({
       screenX: x,
       screenY: y,
@@ -1138,6 +1489,10 @@ export class SimplexSvgController<
     if (this.tooltipEl && this.tooltipEl.parentElement === this.containerEl) {
       this.containerEl.removeChild(this.tooltipEl);
       this.tooltipEl = null;
+    }
+    if (this.breadcrumbOverlayEl && this.breadcrumbOverlayEl.parentElement === this.containerEl) {
+      this.containerEl.removeChild(this.breadcrumbOverlayEl);
+      this.breadcrumbOverlayEl = null;
     }
     if (this.svgEl.parentElement === this.containerEl) {
       this.containerEl.removeChild(this.svgEl);

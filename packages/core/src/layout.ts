@@ -6,7 +6,13 @@ import {
   scaleConvexGeometry,
   UniformSpatialHashGrid,
 } from './geometry';
-import type { ConvexGeometry, LayoutSolverOptions, Point2D, SimplexMesh } from './types';
+import type {
+  BoundingBox2D,
+  ConvexGeometry,
+  LayoutSolverOptions,
+  Point2D,
+  SimplexMesh,
+} from './types';
 
 export interface LayoutClusterInput {
   readonly id: string;
@@ -23,7 +29,125 @@ export interface LayoutItemInput {
   readonly unitVertexIndices?: readonly number[];
 }
 
-type TrianglePoints = readonly [Point2D, Point2D, Point2D];
+export interface PlacedNode {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly scale: number;
+  readonly hull: ConvexGeometry;
+}
+
+export interface TwoPhaseLayoutResult {
+  readonly clusters: readonly PlacedNode[];
+  readonly items: readonly PlacedNode[];
+  readonly clusterScale: number;
+  readonly contentScale: number;
+  readonly overlapCount: number;
+  readonly maxPenetrationPx: number;
+}
+
+export type TrianglePoints = readonly [Point2D, Point2D, Point2D];
+
+// ============================================================================
+// Orthogonal Layout Building-Block Interfaces (Seeder × Relaxer × ScaleController)
+// ============================================================================
+
+export interface LayoutSeedContext {
+  readonly scaledItems: readonly LayoutItemInput[];
+  readonly placedClusters: readonly PlacedNode[];
+  readonly mesh?: SimplexMesh;
+  readonly itemCoveringTriangles: readonly (readonly TrianglePoints[] | null)[];
+  readonly previousItemPositions?: ReadonlyMap<string, { readonly x: number; readonly y: number }>;
+  readonly viewportWidth: number;
+  readonly viewportHeight: number;
+  readonly viewportMargin: number;
+}
+
+/**
+ * Computes deterministic initial `(x, y)` coordinates for content items prior to relaxation.
+ */
+export interface LayoutSeeder {
+  readonly name: string;
+  seed(ctx: LayoutSeedContext): Point2D[];
+}
+
+export interface PositionRelaxationInput {
+  readonly scaledItems: readonly LayoutItemInput[];
+  readonly initialStarts: readonly Point2D[];
+  readonly itemScales: readonly number[];
+  readonly placedClusters: readonly PlacedNode[];
+  readonly placedClusterBoxes: readonly BoundingBox2D[];
+  readonly itemCoveringTriangles: readonly (readonly TrianglePoints[] | null)[];
+  readonly mesh?: SimplexMesh;
+  readonly viewportWidth: number;
+  readonly viewportHeight: number;
+  readonly viewportMargin: number;
+  readonly itemGapPx: number;
+  readonly relaxationIterations: number;
+  /** True when invoked from an iterative scale-refinement warm pass. */
+  readonly isRefinementPass?: boolean;
+}
+
+export interface PositionRelaxationOutput {
+  readonly positions: Point2D[];
+  readonly overlapCount: number;
+  readonly maxPenetration: number;
+  readonly collidingIndices: ReadonlySet<number>;
+}
+
+/**
+ * Resolves content item positions `(x, y)` for a given per-item scale vector `itemScales`,
+ * enforcing cluster obstacles, viewport boundaries, and covering-triangle containment.
+ */
+export interface PositionRelaxer {
+  readonly name: string;
+  relax(input: PositionRelaxationInput): PositionRelaxationOutput;
+}
+
+export interface ScaleControlContext {
+  readonly scaledItems: readonly LayoutItemInput[];
+  readonly initialStarts: readonly Point2D[];
+  readonly placedClusters: readonly PlacedNode[];
+  readonly placedClusterBoxes: readonly BoundingBox2D[];
+  readonly itemCoveringTriangles: readonly (readonly TrianglePoints[] | null)[];
+  readonly mesh?: SimplexMesh;
+  readonly viewportWidth: number;
+  readonly viewportHeight: number;
+  readonly viewportMargin: number;
+  readonly itemGapPx: number;
+  readonly minContentScale: number;
+  readonly relaxationIterations: number;
+  /**
+   * Runs the active `PositionRelaxer` for a candidate per-item scale vector and returns
+   * settled positions plus exact collision diagnostics.
+   */
+  readonly evaluate: (
+    itemScales: readonly number[],
+    options?: {
+      readonly starts?: readonly Point2D[];
+      readonly iterations?: number;
+      readonly isRefinementPass?: boolean;
+    },
+  ) => PositionRelaxationOutput;
+}
+
+export interface ScaleControlResult {
+  readonly scales: readonly number[];
+  readonly relaxation: PositionRelaxationOutput;
+}
+
+/**
+ * Outer-loop scale adaptation controller coupled via geometric feedback (`ctx.evaluate`)
+ * to any `PositionRelaxer`.
+ */
+export interface ScaleController {
+  readonly name: string;
+  solveScales(ctx: ScaleControlContext): ScaleControlResult;
+}
+
+// ============================================================================
+// Geometry & Containment Helpers
+// ============================================================================
 
 function closestPointOnSegment(
   px: number,
@@ -104,7 +228,7 @@ function clampPointToTriangles(
   return best;
 }
 
-function buildItemCoveringTriangles(
+export function buildItemCoveringTriangles(
   items: readonly LayoutItemInput[],
   mesh?: SimplexMesh,
 ): (readonly TrianglePoints[] | null)[] {
@@ -143,23 +267,6 @@ function buildItemCoveringTriangles(
     }
     return matched.length > 0 ? matched : null;
   });
-}
-
-export interface PlacedNode {
-  readonly id: string;
-  readonly x: number;
-  readonly y: number;
-  readonly scale: number;
-  readonly hull: ConvexGeometry;
-}
-
-export interface TwoPhaseLayoutResult {
-  readonly clusters: readonly PlacedNode[];
-  readonly items: readonly PlacedNode[];
-  readonly clusterScale: number;
-  readonly contentScale: number;
-  readonly overlapCount: number;
-  readonly maxPenetrationPx: number;
 }
 
 function clampNodeInsideViewport(
@@ -220,7 +327,7 @@ export function measureLayoutOverlaps(
     }
   };
 
-  const clusterBoxes = new Array<ReturnType<typeof getHullBoundingBox>>(clusters.length);
+  const clusterBoxes = new Array<BoundingBox2D>(clusters.length);
   for (let i = 0; i < clusters.length; i++) {
     const ci = clusters[i]!;
     const box = getHullBoundingBox(ci.hull, ci.x, ci.y, ci.scale);
@@ -242,7 +349,6 @@ export function measureLayoutOverlaps(
     }
   }
 
-  // Broad-phase grid for items
   let maxR = 24;
   for (let i = 0; i < clusters.length; i++) {
     const c = clusters[i]!;
@@ -253,7 +359,7 @@ export function measureLayoutOverlaps(
     maxR = Math.max(maxR, getHullBoundingRadius(it.hull) * it.scale);
   }
   const grid = new UniformSpatialHashGrid(Math.max(32, maxR * 2));
-  const itemBoxes = new Array<ReturnType<typeof getHullBoundingBox>>(items.length);
+  const itemBoxes = new Array<BoundingBox2D>(items.length);
 
   for (let i = 0; i < items.length; i++) {
     const it = items[i]!;
@@ -395,34 +501,361 @@ function solveClusterPhase(params: {
   return { clusterScale, placedClusters };
 }
 
-function buildPhyllotaxisStarts(
-  scaledItems: readonly LayoutItemInput[],
-  previousItemPositions?: ReadonlyMap<string, { readonly x: number; readonly y: number }>,
-): { x: number; y: number }[] {
-  const anchorBuckets = new Map<string, number>();
-  return scaledItems.map((it) => {
-    const prev = previousItemPositions?.get(it.id);
-    if (prev && Number.isFinite(prev.x) && Number.isFinite(prev.y)) {
-      return { x: prev.x, y: prev.y };
+function findCollidingItemIndices(params: {
+  readonly scaledItems: readonly LayoutItemInput[];
+  readonly positions: readonly { readonly x: number; readonly y: number }[];
+  readonly itemScales: readonly number[];
+  readonly itemCoveringTriangles?: readonly (readonly TrianglePoints[] | null)[];
+  readonly placedClusters: readonly PlacedNode[];
+  readonly placedClusterBoxes: readonly BoundingBox2D[];
+  readonly viewportWidth: number;
+  readonly viewportHeight: number;
+  readonly viewportMargin: number;
+}): Set<number> {
+  const {
+    scaledItems,
+    positions,
+    itemScales,
+    itemCoveringTriangles,
+    placedClusters,
+    placedClusterBoxes,
+    viewportWidth,
+    viewportHeight,
+    viewportMargin,
+  } = params;
+  const colliding = new Set<number>();
+  const n = scaledItems.length;
+  let maxR = 16;
+  const boxes = new Array<BoundingBox2D>(n);
+
+  for (let i = 0; i < n; i++) {
+    const s = itemScales[i]!;
+    maxR = Math.max(maxR, getHullBoundingRadius(scaledItems[i]!.hull) * s);
+    boxes[i] = getHullBoundingBox(
+      scaledItems[i]!.hull,
+      positions[i]!.x,
+      positions[i]!.y,
+      s,
+    );
+  }
+
+  const grid = new UniformSpatialHashGrid(Math.max(24, maxR * 2.1));
+  for (let i = 0; i < n; i++) {
+    grid.insert(i, boxes[i]!, 1);
+  }
+  const queryBuf: number[] = [];
+
+  for (let i = 0; i < n; i++) {
+    const box = boxes[i]!;
+    const pA = positions[i]!;
+    const hA = scaledItems[i]!.hull;
+    const sA = itemScales[i]!;
+
+    if (
+      box.minX < viewportMargin - 0.5 ||
+      box.maxX > viewportWidth - viewportMargin + 0.5 ||
+      box.minY < viewportMargin - 0.5 ||
+      box.maxY > viewportHeight - viewportMargin + 0.5
+    ) {
+      colliding.add(i);
     }
-    const key = `${Math.round(it.anchorX * 2)}:${Math.round(it.anchorY * 2)}`;
-    const idx = anchorBuckets.get(key) ?? 0;
-    anchorBuckets.set(key, idx + 1);
-    if (idx === 0) return { x: it.anchorX, y: it.anchorY };
-    const angle = idx * 2.399963229728653;
-    const radius = 2.5 * Math.sqrt(idx);
-    return {
-      x: it.anchorX + Math.cos(angle) * radius,
-      y: it.anchorY + Math.sin(angle) * radius,
-    };
-  });
+
+    const triGroup = itemCoveringTriangles?.[i];
+    if (triGroup) {
+      let inside = false;
+      for (let t = 0; t < triGroup.length; t++) {
+        const [a, b, c] = triGroup[t]!;
+        if (isPointInTriangle(pA.x, pA.y, a, b, c, 1e-4)) {
+          inside = true;
+          break;
+        }
+      }
+      if (!inside) {
+        colliding.add(i);
+      }
+    }
+
+    for (let cIdx = 0; cIdx < placedClusters.length; cIdx++) {
+      const cb = placedClusterBoxes[cIdx]!;
+      if (
+        box.maxX <= cb.minX ||
+        cb.maxX <= box.minX ||
+        box.maxY <= cb.minY ||
+        cb.maxY <= box.minY
+      ) {
+        continue;
+      }
+      const c = placedClusters[cIdx]!;
+      const mtv = computeConvexMtv(
+        hA,
+        pA.x,
+        pA.y,
+        sA,
+        c.hull,
+        c.x,
+        c.y,
+        c.scale,
+        0,
+      );
+      if (mtv && mtv.depth > 1e-4) {
+        colliding.add(i);
+      }
+    }
+
+    const candidates = grid.query(box, 1, queryBuf);
+    for (let k = 0; k < candidates.length; k++) {
+      const j = candidates[k]!;
+      if (j <= i) continue;
+      const boxB = boxes[j]!;
+      if (
+        box.maxX <= boxB.minX ||
+        boxB.maxX <= box.minX ||
+        box.maxY <= boxB.minY ||
+        boxB.maxY <= box.minY
+      ) {
+        continue;
+      }
+      const pB = positions[j]!;
+      const mtv = computeConvexMtv(
+        hA,
+        pA.x,
+        pA.y,
+        sA,
+        scaledItems[j]!.hull,
+        pB.x,
+        pB.y,
+        itemScales[j]!,
+        0,
+      );
+      if (mtv && mtv.depth > 1e-4) {
+        colliding.add(i);
+        colliding.add(j);
+      }
+    }
+  }
+
+  return colliding;
 }
+
+// ============================================================================
+// Built-In Layout Seeders (Initial Placement)
+// ============================================================================
+
+export interface PhyllotaxisSeederOptions {
+  /** Reuse `previousItemPositions` when provided. Default: `false`. */
+  readonly warmStart?: boolean;
+  /** Radial spacing factor in px for co-located anchors. Default: `2.5`. */
+  readonly stepRadiusPx?: number;
+}
+
+/**
+ * Deterministic golden-angle phyllotaxis spiral around each item's barycentric anchor,
+ * clamped inside covering mesh triangles when present.
+ */
+export function createPhyllotaxisSeeder(
+  options?: PhyllotaxisSeederOptions,
+): LayoutSeeder {
+  const warmStart = options?.warmStart ?? false;
+  const stepRadiusPx = options?.stepRadiusPx ?? 2.5;
+  return {
+    name: warmStart ? 'phyllotaxis-warm' : 'phyllotaxis',
+    seed(ctx) {
+      const { scaledItems, placedClusters, itemCoveringTriangles, previousItemPositions } = ctx;
+      const anchorBuckets = new Map<string, number>();
+      return scaledItems.map((it, itemIdx) => {
+        const triGroup = itemCoveringTriangles[itemIdx];
+        if (warmStart && previousItemPositions) {
+          const prev = previousItemPositions.get(it.id);
+          if (prev && Number.isFinite(prev.x) && Number.isFinite(prev.y)) {
+            return triGroup
+              ? clampPointToTriangles(prev.x, prev.y, triGroup)
+              : { x: prev.x, y: prev.y };
+          }
+        }
+        const singleV =
+          !triGroup && it.unitVertexIndices?.length === 1
+            ? it.unitVertexIndices[0]
+            : undefined;
+        const hostCluster =
+          singleV !== undefined ? placedClusters[singleV] : undefined;
+        const baseX = hostCluster ? hostCluster.x : it.anchorX;
+        const baseY = hostCluster ? hostCluster.y : it.anchorY;
+
+        const key = `${Math.round(baseX * 2)}:${Math.round(baseY * 2)}`;
+        const idx = anchorBuckets.get(key) ?? 0;
+        anchorBuckets.set(key, idx + 1);
+        if (idx === 0 && !hostCluster) {
+          return triGroup
+            ? clampPointToTriangles(baseX, baseY, triGroup)
+            : { x: baseX, y: baseY };
+        }
+        const angle = (idx + 0.5) * 2.399963229728653;
+        const orbitBase = hostCluster
+          ? getHullBoundingRadius(hostCluster.hull) * hostCluster.scale * 0.45 + 4
+          : 0;
+        const radius = orbitBase + stepRadiusPx * Math.sqrt(idx);
+        const px = baseX + Math.cos(angle) * radius;
+        const py = baseY + Math.sin(angle) * radius;
+        return triGroup ? clampPointToTriangles(px, py, triGroup) : { x: px, y: py };
+      });
+    },
+  };
+}
+
+export interface MeshInwardFanSeederOptions {
+  /** Reuse `previousItemPositions` when provided. Default: `false`. */
+  readonly warmStart?: boolean;
+  /** Radial fan step in px. Default: `5.5`. */
+  readonly stepRadiusPx?: number;
+  /** Angular cone width in radians for multi-cluster triangle items. Default: `Math.PI * 1.15`. */
+  readonly coneRadians?: number;
+}
+
+/**
+ * Mesh-aware seeder:
+ * - Multi-cluster items (`triGroup !== null`) fan inward toward the centroid of their covering
+ *   mesh triangle(s).
+ * - Single-cluster items (`triGroup === null`) are exempt from triangle cones and arrange in a
+ *   full `360°` golden-angle halo all around their topic cluster (even at boundary/corner
+ *   triangulation vertices that only border a single triangle).
+ */
+export function createMeshInwardFanSeeder(
+  options?: MeshInwardFanSeederOptions,
+): LayoutSeeder {
+  const warmStart = options?.warmStart ?? false;
+  const stepRadiusPx = options?.stepRadiusPx ?? 5.5;
+  const coneRadians = options?.coneRadians ?? Math.PI * 1.15;
+
+  return {
+    name: warmStart ? 'mesh-inward-fan-warm' : 'mesh-inward-fan',
+    seed(ctx) {
+      const { scaledItems, placedClusters, itemCoveringTriangles, previousItemPositions } = ctx;
+      const anchorBuckets = new Map<string, number>();
+
+      const resolveTriangleDir = (
+        ax: number,
+        ay: number,
+        triGroup: readonly TrianglePoints[],
+      ): { dx: number; dy: number } => {
+        let sumCx = 0;
+        let sumCy = 0;
+        for (let t = 0; t < triGroup.length; t++) {
+          const [va, vb, vc] = triGroup[t]!;
+          sumCx += (va.x + vb.x + vc.x) / 3;
+          sumCy += (va.y + vb.y + vc.y) / 3;
+        }
+        const tx = sumCx / triGroup.length - ax;
+        const ty = sumCy / triGroup.length - ay;
+        const len = Math.hypot(tx, ty);
+        if (len > 1e-6) return { dx: tx / len, dy: ty / len };
+        return { dx: 1, dy: 0 };
+      };
+
+      return scaledItems.map((it, itemIdx) => {
+        const triGroup = itemCoveringTriangles[itemIdx];
+        if (warmStart && previousItemPositions) {
+          const prev = previousItemPositions.get(it.id);
+          if (prev && Number.isFinite(prev.x) && Number.isFinite(prev.y)) {
+            return triGroup
+              ? clampPointToTriangles(prev.x, prev.y, triGroup)
+              : { x: prev.x, y: prev.y };
+          }
+        }
+
+        // Single-cluster / unconstrained items: 360° isotropic golden-angle halo around their cluster
+        if (!triGroup || triGroup.length === 0) {
+          const singleV =
+            it.unitVertexIndices?.length === 1 ? it.unitVertexIndices[0] : undefined;
+          let hostCluster =
+            singleV !== undefined ? placedClusters[singleV] : undefined;
+          if (!hostCluster && !it.unitVertexIndices) {
+            for (let cIdx = 0; cIdx < placedClusters.length; cIdx++) {
+              const cand = placedClusters[cIdx]!;
+              if (Math.hypot(cand.x - it.anchorX, cand.y - it.anchorY) <= 4) {
+                hostCluster = cand;
+                break;
+              }
+            }
+          }
+          const cx = hostCluster ? hostCluster.x : it.anchorX;
+          const cy = hostCluster ? hostCluster.y : it.anchorY;
+          const key = `halo:${Math.round(cx * 0.5)}:${Math.round(cy * 0.5)}`;
+          const idx = anchorBuckets.get(key) ?? 0;
+          anchorBuckets.set(key, idx + 1);
+
+          if (!hostCluster && idx === 0) {
+            return { x: cx, y: cy };
+          }
+          const angle = (idx + 0.5) * 2.399963229728653;
+          const orbitBase = hostCluster
+            ? getHullBoundingRadius(hostCluster.hull) * hostCluster.scale * 0.55 +
+              getHullBoundingRadius(it.hull) * 0.75 +
+              4
+            : 0;
+          const radius = orbitBase + stepRadiusPx * Math.sqrt(idx);
+          return {
+            x: cx + Math.cos(angle) * radius,
+            y: cy + Math.sin(angle) * radius,
+          };
+        }
+
+        // Multi-cluster items (2 or 3 clusters): inward cone into covering mesh triangle(s)
+        const key = `tri:${Math.round(it.anchorX * 0.5)}:${Math.round(it.anchorY * 0.5)}`;
+        const idx = anchorBuckets.get(key) ?? 0;
+        anchorBuckets.set(key, idx + 1);
+        if (idx === 0) {
+          return clampPointToTriangles(it.anchorX, it.anchorY, triGroup);
+        }
+
+        const inward = resolveTriangleDir(it.anchorX, it.anchorY, triGroup);
+        const baseAngle = Math.atan2(inward.dy, inward.dx);
+        const offsetAngle = (((idx * 0.61803398875) % 1) - 0.5) * coneRadians;
+        const angle = baseAngle + offsetAngle;
+        const radius = stepRadiusPx * Math.sqrt(idx);
+        const fx = it.anchorX + Math.cos(angle) * radius;
+        const fy = it.anchorY + Math.sin(angle) * radius;
+        return clampPointToTriangles(fx, fy, triGroup);
+      });
+    },
+  };
+}
+
+/**
+ * Wraps any `LayoutSeeder` so existing items reuse their settled coordinates from the
+ * previous layout frame (clamped to their current covering triangles), while newly added
+ * items fall back to `baseSeeder`.
+ */
+export function withWarmStartSeeder(baseSeeder: LayoutSeeder): LayoutSeeder {
+  return {
+    name: `${baseSeeder.name}:warm-start`,
+    seed(ctx) {
+      const seeded = baseSeeder.seed(ctx);
+      if (!ctx.previousItemPositions || ctx.previousItemPositions.size === 0) {
+        return seeded;
+      }
+      return ctx.scaledItems.map((it, idx) => {
+        const prev = ctx.previousItemPositions?.get(it.id);
+        if (prev && Number.isFinite(prev.x) && Number.isFinite(prev.y)) {
+          const triGroup = ctx.itemCoveringTriangles[idx];
+          return triGroup
+            ? clampPointToTriangles(prev.x, prev.y, triGroup)
+            : { x: prev.x, y: prev.y };
+        }
+        return seeded[idx]!;
+      });
+    },
+  };
+}
+
+// ============================================================================
+// Built-In Position Relaxers (Inner Position Solver at Fixed Scales)
+// ============================================================================
 
 function runPerItemPbdRelaxation(params: {
   readonly scaledItems: readonly LayoutItemInput[];
   readonly initialStarts: readonly { readonly x: number; readonly y: number }[];
   readonly placedClusters: readonly PlacedNode[];
-  readonly placedClusterBoxes: readonly ReturnType<typeof getHullBoundingBox>[];
+  readonly placedClusterBoxes: readonly BoundingBox2D[];
   readonly itemScales: readonly number[];
   readonly itemCoveringTriangles?: readonly (readonly TrianglePoints[] | null)[];
   readonly viewportWidth: number;
@@ -432,11 +865,9 @@ function runPerItemPbdRelaxation(params: {
   readonly relaxationIterations: number;
   readonly springFactor?: number;
   readonly springZeroTailRatio?: number;
-}): {
-  readonly overlapCount: number;
-  readonly maxPenetration: number;
-  readonly positions: { x: number; y: number }[];
-} {
+  readonly dispersionGapPx?: number;
+  readonly dispersionStrength?: number;
+}): PositionRelaxationOutput {
   const {
     scaledItems,
     initialStarts,
@@ -451,6 +882,8 @@ function runPerItemPbdRelaxation(params: {
     relaxationIterations,
     springFactor = 1.0,
     springZeroTailRatio = 0.0,
+    dispersionGapPx = 0.0,
+    dispersionStrength = 0.0,
   } = params;
 
   const n = scaledItems.length;
@@ -479,15 +912,30 @@ function runPerItemPbdRelaxation(params: {
       getHullBoundingRadius(scaledItems[i]!.hull) * itemScales[i]!,
     );
   }
-  const cellSize = Math.max(24, maxRadius * 2.2 + itemGapPx);
+  const hasDispersion = dispersionGapPx > 1e-3 && dispersionStrength > 1e-3;
+  const maxExtraGap = hasDispersion ? dispersionGapPx : 0;
+  const cellSize = Math.max(24, maxRadius * 2.2 + itemGapPx + maxExtraGap);
   const grid = new UniformSpatialHashGrid(cellSize);
-  const boxes = new Array<ReturnType<typeof getHullBoundingBox>>(n);
+  const boxes = new Array<BoundingBox2D>(n);
   const queryBuf: number[] = [];
 
   const activeSpringIters = Math.max(
     1,
     Math.round(relaxationIterations * (1 - Math.max(0, Math.min(0.8, springZeroTailRatio)))),
   );
+  const dispersionEndIter = hasDispersion
+    ? Math.max(1, Math.round(relaxationIterations * 0.58))
+    : 0;
+
+  // Resolve effective spring targets: single-cluster items pull symmetrically toward
+  // their placed host cluster center so 360° halos stay centered even on clamped edge clusters.
+  const springTargets: Point2D[] = scaledItems.map((it, idx) => {
+    if (!itemCoveringTriangles?.[idx] && it.unitVertexIndices?.length === 1) {
+      const host = placedClusters[it.unitVertexIndices[0]!];
+      if (host) return { x: host.x, y: host.y };
+    }
+    return { x: it.anchorX, y: it.anchorY };
+  });
 
   for (let iter = 0; iter < relaxationIterations; iter++) {
     const springK =
@@ -496,19 +944,25 @@ function runPerItemPbdRelaxation(params: {
         : 0.18 * springFactor * (1 - (iter / activeSpringIters) * 0.85);
     if (springK > 0) {
       for (let i = 0; i < n; i++) {
-        const it = scaledItems[i]!;
+        const target = springTargets[i]!;
         const p = pos[i]!;
-        p.x += (it.anchorX - p.x) * springK;
-        p.y += (it.anchorY - p.y) * springK;
+        p.x += (target.x - p.x) * springK;
+        p.y += (target.y - p.y) * springK;
       }
     }
+
+    const extraComfortGap =
+      hasDispersion && iter < dispersionEndIter
+        ? dispersionGapPx * (1 - iter / dispersionEndIter)
+        : 0;
+    const effectiveGap = itemGapPx + extraComfortGap;
 
     grid.clear();
     for (let i = 0; i < n; i++) {
       const p = pos[i]!;
       const box = getHullBoundingBox(scaledItems[i]!.hull, p.x, p.y, itemScales[i]!);
       boxes[i] = box;
-      grid.insert(i, box, itemGapPx + 2);
+      grid.insert(i, box, effectiveGap + 2);
     }
 
     for (let i = 0; i < n; i++) {
@@ -516,17 +970,17 @@ function runPerItemPbdRelaxation(params: {
       const hA = scaledItems[i]!.hull;
       const sA = itemScales[i]!;
       const boxA = boxes[i]!;
-      const candidates = grid.query(boxA, itemGapPx + 2, queryBuf);
+      const candidates = grid.query(boxA, effectiveGap + 2, queryBuf);
 
       for (let k = 0; k < candidates.length; k++) {
         const j = candidates[k]!;
         if (j <= i) continue;
         const boxB = boxes[j]!;
         if (
-          boxA.maxX + itemGapPx <= boxB.minX ||
-          boxB.maxX + itemGapPx <= boxA.minX ||
-          boxA.maxY + itemGapPx <= boxB.minY ||
-          boxB.maxY + itemGapPx <= boxA.minY
+          boxA.maxX + effectiveGap <= boxB.minX ||
+          boxB.maxX + effectiveGap <= boxA.minX ||
+          boxA.maxY + effectiveGap <= boxB.minY ||
+          boxB.maxY + effectiveGap <= boxA.minY
         ) {
           continue;
         }
@@ -542,17 +996,28 @@ function runPerItemPbdRelaxation(params: {
           pB.x,
           pB.y,
           sB,
-          itemGapPx,
+          effectiveGap,
         );
         if (mtv && mtv.depth > 1e-5) {
-          const half = mtv.depth * 0.52;
-          pA.x += mtv.nx * half;
-          pA.y += mtv.ny * half;
-          pB.x -= mtv.nx * half;
-          pB.y -= mtv.ny * half;
+          let pushHalf: number;
+          if (extraComfortGap > 0) {
+            const hardDepth = Math.max(0, mtv.depth - extraComfortGap);
+            const softDepth = Math.min(mtv.depth, extraComfortGap);
+            const softStep = Math.min(2.2, softDepth * 0.14 * dispersionStrength);
+            pushHalf = hardDepth * 0.52 + softStep;
+          } else {
+            pushHalf = mtv.depth * 0.52;
+          }
+          pA.x += mtv.nx * pushHalf;
+          pA.y += mtv.ny * pushHalf;
+          pB.x -= mtv.nx * pushHalf;
+          pB.y -= mtv.ny * pushHalf;
         }
       }
     }
+
+    const clusterExtraGap = extraComfortGap * 0.3;
+    const effectiveClusterGap = itemGapPx + clusterExtraGap;
 
     for (let i = 0; i < n; i++) {
       const pA = pos[i]!;
@@ -562,10 +1027,10 @@ function runPerItemPbdRelaxation(params: {
       for (let cIdx = 0; cIdx < placedClusters.length; cIdx++) {
         const cb = placedClusterBoxes[cIdx]!;
         if (
-          boxA.maxX + itemGapPx <= cb.minX ||
-          cb.maxX + itemGapPx <= boxA.minX ||
-          boxA.maxY + itemGapPx <= cb.minY ||
-          cb.maxY + itemGapPx <= boxA.minY
+          boxA.maxX + effectiveClusterGap <= cb.minX ||
+          cb.maxX + effectiveClusterGap <= boxA.minX ||
+          boxA.maxY + effectiveClusterGap <= cb.minY ||
+          cb.maxY + effectiveClusterGap <= boxA.minY
         ) {
           continue;
         }
@@ -579,11 +1044,21 @@ function runPerItemPbdRelaxation(params: {
           c.x,
           c.y,
           c.scale,
-          itemGapPx,
+          effectiveClusterGap,
         );
         if (mtv && mtv.depth > 1e-5) {
-          pA.x += mtv.nx * (mtv.depth + 0.05);
-          pA.y += mtv.ny * (mtv.depth + 0.05);
+          if (clusterExtraGap > 0) {
+            const hardDepth = Math.max(0, mtv.depth - clusterExtraGap);
+            const softDepth = Math.min(mtv.depth, clusterExtraGap);
+            const push =
+              (hardDepth > 0 ? hardDepth + 0.05 : 0) +
+              Math.min(1.6, softDepth * 0.15 * dispersionStrength);
+            pA.x += mtv.nx * push;
+            pA.y += mtv.ny * push;
+          } else {
+            pA.x += mtv.nx * (mtv.depth + 0.05);
+            pA.y += mtv.ny * (mtv.depth + 0.05);
+          }
         }
       }
       const preClampX = pA.x;
@@ -738,7 +1213,6 @@ function runPerItemPbdRelaxation(params: {
             itemGapPx,
           );
           if (mtv && mtv.depth > 1e-4) {
-            // Slide along cluster perimeter toward viewport center instead of oscillating into the wall
             const vx = viewportWidth * 0.5 - c.x;
             const vy = viewportHeight * 0.5 - c.y;
             const len = Math.hypot(vx, vy) || 1;
@@ -785,25 +1259,412 @@ function runPerItemPbdRelaxation(params: {
     viewportHeight,
     viewportMargin,
   );
+  const collidingIndices = findCollidingItemIndices({
+    scaledItems,
+    positions: pos,
+    itemScales,
+    itemCoveringTriangles,
+    placedClusters,
+    placedClusterBoxes,
+    viewportWidth,
+    viewportHeight,
+    viewportMargin,
+  });
+
   return {
     overlapCount: actualCheck.overlapCount,
     maxPenetration: actualCheck.maxPenetrationPx,
     positions: pos,
+    collidingIndices,
   };
 }
 
+export interface BarycentricPbdRelaxerOptions {
+  /** Barycentric anchor spring multiplier. Default: `1.0`. */
+  readonly springFactor?: number;
+  /** Fraction `[0, 0.8]` of final iterations where spring force drops to zero. Default: `0.0`. */
+  readonly springZeroTailRatio?: number;
+}
+
 /**
- * Hierarchical two-phase overlap-free convex layout solver:
- *
- * - **Phase 1 (Priority 1 — Clusters):** Computes maximum `\alpha_cluster \in (0, 1]` and gently clamps
- *   edge clusters inside viewport boundaries so all cluster hulls + `clusterGapPx` are strictly disjoint.
- *   Clusters are then locked as immovable convex obstacles.
- * - **Phase 2 (Priority 2 — Content Items):** Binary searches `\alpha_content \in [\alpha_min, 1]`
- *   with damped PBD relaxation (barycentric spring restoring force + hard MTV separation against items,
- *   locked clusters, and viewport edges), followed by a pure hard-separation polishing pass ensuring
- *   `0.0 px` overlap.
+ * Anchor-faithful Position-Based Dynamics relaxer: pulls items tightly toward their
+ * exact barycentric coordinates while enforcing SAT convex separation and covering-triangle
+ * containment.
  */
-export function solveTwoPhaseLayout(params: {
+export function createBarycentricPbdRelaxer(
+  options?: BarycentricPbdRelaxerOptions,
+): PositionRelaxer {
+  const baseSpring = options?.springFactor ?? 1.0;
+  const baseTail = options?.springZeroTailRatio ?? 0.0;
+  return {
+    name: 'barycentric-pbd',
+    relax(input) {
+      return runPerItemPbdRelaxation({
+        scaledItems: input.scaledItems,
+        initialStarts: input.initialStarts,
+        placedClusters: input.placedClusters,
+        placedClusterBoxes: input.placedClusterBoxes,
+        itemScales: input.itemScales,
+        itemCoveringTriangles: input.itemCoveringTriangles,
+        viewportWidth: input.viewportWidth,
+        viewportHeight: input.viewportHeight,
+        viewportMargin: input.viewportMargin,
+        itemGapPx: input.itemGapPx,
+        relaxationIterations: input.relaxationIterations,
+        springFactor: input.isRefinementPass ? baseSpring * 0.6 : baseSpring,
+        springZeroTailRatio: input.isRefinementPass
+          ? Math.max(baseTail, 0.35)
+          : baseTail,
+      });
+    },
+  };
+}
+
+export interface SpaceFillingPbdRelaxerOptions {
+  /** Barycentric anchor spring multiplier. Default: `0.68`. */
+  readonly springFactor?: number;
+  /** Fraction `[0, 0.8]` of final iterations where spring force drops to zero. Default: `0.38`. */
+  readonly springZeroTailRatio?: number;
+  /** Temporary personal-space cushion in px encouraging nodes to fill open triangle interiors. Default: `20`. */
+  readonly dispersionGapPx?: number;
+  /** Strength `[0, 1]` of early-phase interior dispersion push. Default: `0.38`. */
+  readonly dispersionStrength?: number;
+}
+
+/**
+ * Space-filling Position-Based Dynamics relaxer: combines a temporary decaying personal-space
+ * dispersion cushion with a zero-spring tail so crowded pockets spread naturally across unused
+ * regions of their covering mesh triangles before settling with `0.0 px` hard separation.
+ */
+export function createSpaceFillingPbdRelaxer(
+  options?: SpaceFillingPbdRelaxerOptions,
+): PositionRelaxer {
+  const baseSpring = options?.springFactor ?? 0.68;
+  const baseTail = options?.springZeroTailRatio ?? 0.38;
+  const dispersionGapPx = options?.dispersionGapPx ?? 20;
+  const dispersionStrength = options?.dispersionStrength ?? 0.38;
+
+  return {
+    name: 'space-filling-pbd',
+    relax(input) {
+      return runPerItemPbdRelaxation({
+        scaledItems: input.scaledItems,
+        initialStarts: input.initialStarts,
+        placedClusters: input.placedClusters,
+        placedClusterBoxes: input.placedClusterBoxes,
+        itemScales: input.itemScales,
+        itemCoveringTriangles: input.itemCoveringTriangles,
+        viewportWidth: input.viewportWidth,
+        viewportHeight: input.viewportHeight,
+        viewportMargin: input.viewportMargin,
+        itemGapPx: input.itemGapPx,
+        relaxationIterations: input.relaxationIterations,
+        springFactor: input.isRefinementPass ? baseSpring * 0.62 : baseSpring,
+        springZeroTailRatio: input.isRefinementPass
+          ? Math.max(baseTail, 0.45)
+          : baseTail,
+        dispersionGapPx: input.isRefinementPass ? 0 : dispersionGapPx,
+        dispersionStrength: input.isRefinementPass ? 0 : dispersionStrength,
+      });
+    },
+  };
+}
+
+// ============================================================================
+// Built-In Scale Controllers (Outer Scale Loop)
+// ============================================================================
+
+export interface UniformScaleControllerOptions {
+  /** Number of binary-search steps when `1.0` scale overflows. Default: `7`. */
+  readonly binarySearchSteps?: number;
+}
+
+/**
+ * Global uniform scale controller: preserves exact relative size ratios across all content
+ * nodes by binary-searching a single global factor `\alpha \in [\alpha_min, 1.0]`.
+ */
+export function createUniformScaleController(
+  options?: UniformScaleControllerOptions,
+): ScaleController {
+  const binarySearchSteps = options?.binarySearchSteps ?? 7;
+  return {
+    name: 'uniform-scale',
+    solveScales(ctx) {
+      const n = ctx.scaledItems.length;
+      const makeUniform = (alpha: number) => new Array<number>(n).fill(alpha);
+
+      const fullAttempt = ctx.evaluate(makeUniform(1.0));
+      if (fullAttempt.overlapCount === 0 && fullAttempt.maxPenetration <= 1e-4) {
+        return { scales: makeUniform(1.0), relaxation: fullAttempt };
+      }
+
+      let lo = Math.min(ctx.minContentScale, 0.08);
+      let hi = 1.0;
+      let bestAlpha = lo;
+      let bestRes = ctx.evaluate(makeUniform(lo));
+
+      for (let step = 0; step < binarySearchSteps; step++) {
+        const mid = (lo + hi) / 2;
+        const attempt = ctx.evaluate(makeUniform(mid));
+        if (attempt.overlapCount === 0 && attempt.maxPenetration <= 1e-4) {
+          bestAlpha = mid;
+          bestRes = attempt;
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+
+      return { scales: makeUniform(bestAlpha), relaxation: bestRes };
+    },
+  };
+}
+
+export interface CollisionLocalScaleControllerOptions {
+  /** Minimum scale permitted during local per-pocket shrinking. Default: `0.32`. */
+  readonly minLocalScale?: number;
+  /** Multiplicative shrink step applied only to colliding items per round. Default: `0.85`. */
+  readonly shrinkFactor?: number;
+  /** Maximum local refinement rounds before safety binary-search fallback. Default: `9`. */
+  readonly maxRefinementRounds?: number;
+}
+
+/**
+ * Collision-driven local scale controller: keeps all non-colliding items at `1.0` scale and
+ * selectively shrinks **only** items involved in geometric collisions until `0.0 px` overlap
+ * is reached, compatible with any `PositionRelaxer` and `LayoutSeeder`.
+ */
+export function createCollisionLocalScaleController(
+  options?: CollisionLocalScaleControllerOptions,
+): ScaleController {
+  const minLocalScale = options?.minLocalScale ?? 0.32;
+  const shrinkFactor = options?.shrinkFactor ?? 0.85;
+  const maxRefinementRounds = options?.maxRefinementRounds ?? 9;
+
+  return {
+    name: 'collision-local-scale',
+    solveScales(ctx) {
+      const n = ctx.scaledItems.length;
+      const scales = new Array<number>(n).fill(1.0);
+      let currentResult = ctx.evaluate(scales);
+      let colliding = new Set<number>(currentResult.collidingIndices);
+
+      let round = 0;
+      const refineIters = Math.max(24, Math.round(ctx.relaxationIterations * 0.65));
+
+      while (colliding.size > 0 && round < maxRefinementRounds) {
+        round += 1;
+        let changed = false;
+        for (const idx of colliding) {
+          const next = Math.max(minLocalScale, scales[idx]! * shrinkFactor);
+          if (next < scales[idx]! - 1e-5) {
+            scales[idx] = next;
+            changed = true;
+          }
+        }
+        if (!changed) break;
+
+        currentResult = ctx.evaluate(scales, {
+          starts: currentResult.positions,
+          iterations: refineIters,
+          isRefinementPass: true,
+        });
+        colliding = new Set<number>(currentResult.collidingIndices);
+      }
+
+      // Emergency local-only refinement: if a very dense pocket reached `minLocalScale`
+      // and still has residual overlaps, relax the floor strictly on the colliding items
+      // from their unpacked positions so isolated sparse items remain untouched at `1.0`.
+      const emergencyFloor = Math.min(ctx.minContentScale, 0.06);
+      let emergencyRound = 0;
+      const emergencyIters = Math.max(ctx.relaxationIterations, 48);
+      while (
+        (colliding.size > 0 || currentResult.overlapCount > 0) &&
+        emergencyRound < 10
+      ) {
+        emergencyRound += 1;
+        let changed = false;
+        for (const idx of colliding) {
+          const next = Math.max(emergencyFloor, scales[idx]! * 0.78);
+          if (next < scales[idx]! - 1e-5) {
+            scales[idx] = next;
+            changed = true;
+          }
+        }
+        if (!changed) break;
+
+        currentResult = ctx.evaluate(scales, {
+          starts: currentResult.positions,
+          iterations: emergencyIters,
+          isRefinementPass: true,
+        });
+        colliding = new Set<number>(currentResult.collidingIndices);
+      }
+
+      if (colliding.size > 0 || currentResult.overlapCount > 0) {
+        const stuckSet = new Set<number>(colliding);
+        for (let i = 0; i < n; i++) {
+          if (scales[i]! < 0.999) stuckSet.add(i);
+        }
+        if (stuckSet.size === 0) {
+          for (let i = 0; i < n; i++) stuckSet.add(i);
+        }
+
+        const fallbackStarts = currentResult.positions;
+        const fallbackIters = Math.max(ctx.relaxationIterations, 56);
+        const buildTrialScales = (factor: number, globalFallback: boolean) =>
+          scales.map((s, idx) => (globalFallback || stuckSet.has(idx) ? s * factor : s));
+
+        const tryFallbackMode = (globalFallback: boolean) => {
+          let lo = Math.min(ctx.minContentScale, 0.08);
+          let hi = 1.0;
+          let bestFactor = lo;
+          let bestRes = ctx.evaluate(buildTrialScales(lo, globalFallback), {
+            starts: fallbackStarts,
+            iterations: fallbackIters,
+            isRefinementPass: true,
+          });
+
+          if (bestRes.overlapCount > 0 || bestRes.maxPenetration > 1e-4) {
+            return { ok: false as const, bestFactor, bestRes };
+          }
+
+          for (let step = 0; step < 6; step++) {
+            const mid = (lo + hi) / 2;
+            const attempt = ctx.evaluate(buildTrialScales(mid, globalFallback), {
+              starts: fallbackStarts,
+              iterations: fallbackIters,
+              isRefinementPass: true,
+            });
+            if (attempt.overlapCount === 0 && attempt.maxPenetration <= 1e-4) {
+              bestFactor = mid;
+              bestRes = attempt;
+              lo = mid;
+            } else {
+              hi = mid;
+            }
+          }
+          return { ok: true as const, bestFactor, bestRes };
+        };
+
+        const localAttempt = tryFallbackMode(false);
+        if (localAttempt.ok) {
+          const nextScales = buildTrialScales(localAttempt.bestFactor, false);
+          for (let i = 0; i < n; i++) scales[i] = nextScales[i]!;
+          currentResult = localAttempt.bestRes;
+        } else {
+          const globalAttempt = tryFallbackMode(true);
+          const nextScales = buildTrialScales(globalAttempt.bestFactor, true);
+          for (let i = 0; i < n; i++) scales[i] = nextScales[i]!;
+          currentResult = globalAttempt.bestRes;
+        }
+      }
+
+      return { scales, relaxation: currentResult };
+    },
+  };
+}
+
+export interface DensityPriorScaleControllerOptions {
+  /** Anchor-neighborhood crowding radius in px. Default: `76`. */
+  readonly crowdRadiusPx?: number;
+  /** Minimum prior scale in crowded neighborhoods before uniform polish. Default: `0.42`. */
+  readonly minLocalScale?: number;
+}
+
+/**
+ * Neighborhood density-prior scale controller: estimates local anchor crowding analytically
+ * from hull demand vs. neighborhood capacity and refines with a global safety factor if needed.
+ */
+export function createDensityPriorScaleController(
+  options?: DensityPriorScaleControllerOptions,
+): ScaleController {
+  const crowdRadiusPx = options?.crowdRadiusPx ?? 76;
+  const minLocalScale = options?.minLocalScale ?? 0.42;
+
+  return {
+    name: 'density-prior-scale',
+    solveScales(ctx) {
+      const { scaledItems, itemGapPx } = ctx;
+      const itemRadii = scaledItems.map((it) => Math.max(4, getHullBoundingRadius(it.hull)));
+      const rSq = crowdRadiusPx * crowdRadiusPx;
+      const localBaseScales = scaledItems.map((it, i) => {
+        let demandArea = Math.PI * itemRadii[i]! * itemRadii[i]!;
+        for (let j = 0; j < scaledItems.length; j++) {
+          if (i === j) continue;
+          const other = scaledItems[j]!;
+          const dx = it.anchorX - other.anchorX;
+          const dy = it.anchorY - other.anchorY;
+          const d2 = dx * dx + dy * dy;
+          if (d2 <= rSq) {
+            const weight = 1 - Math.sqrt(d2) / crowdRadiusPx;
+            const rad = itemRadii[j]! + itemGapPx * 0.5;
+            demandArea += Math.PI * rad * rad * (0.35 + 0.65 * weight);
+          }
+        }
+        const availableArea = Math.PI * crowdRadiusPx * crowdRadiusPx * 0.42;
+        if (demandArea <= availableArea) return 1.0;
+        const ratio = Math.sqrt(availableArea / demandArea);
+        return Math.max(minLocalScale, Math.min(1.0, ratio));
+      });
+
+      const scaleWithFactor = (f: number) => localBaseScales.map((ls) => ls * f);
+      const firstAttempt = ctx.evaluate(scaleWithFactor(1.0));
+      if (firstAttempt.overlapCount === 0 && firstAttempt.maxPenetration <= 1e-4) {
+        return { scales: scaleWithFactor(1.0), relaxation: firstAttempt };
+      }
+
+      let lo = Math.min(ctx.minContentScale, 0.08);
+      let hi = 1.0;
+      let bestFactor = lo;
+      let bestRes = ctx.evaluate(scaleWithFactor(lo));
+
+      for (let step = 0; step < 7; step++) {
+        const mid = (lo + hi) / 2;
+        const attempt = ctx.evaluate(scaleWithFactor(mid));
+        if (attempt.overlapCount === 0 && attempt.maxPenetration <= 1e-4) {
+          bestFactor = mid;
+          bestRes = attempt;
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+
+      return { scales: scaleWithFactor(bestFactor), relaxation: bestRes };
+    },
+  };
+}
+
+export interface FixedScaleControllerOptions {
+  /** Constant scale factor applied to all content items without auto-shrinking. Default: `1.0`. */
+  readonly scale?: number;
+}
+
+/**
+ * Fixed-scale controller: disables automatic node shrinking so all items keep their exact
+ * requested `scale` (`1.0` by default) while the `PositionRelaxer` resolves collisions
+ * purely through spatial movement. Useful for zoom-first workflows.
+ */
+export function createFixedScaleController(
+  options?: FixedScaleControllerOptions,
+): ScaleController {
+  const fixedScale = Math.max(0.05, options?.scale ?? 1.0);
+  return {
+    name: 'fixed-scale',
+    solveScales(ctx) {
+      const scales = new Array<number>(ctx.scaledItems.length).fill(fixedScale);
+      const relaxation = ctx.evaluate(scales);
+      return { scales, relaxation };
+    },
+  };
+}
+
+// ============================================================================
+// Composed Solver Orchestrator & Backwards-Compatible Presets
+// ============================================================================
+
+export interface ComposedLayoutParams {
   readonly clusters: readonly LayoutClusterInput[];
   readonly items: readonly LayoutItemInput[];
   readonly mesh?: SimplexMesh;
@@ -812,7 +1673,17 @@ export function solveTwoPhaseLayout(params: {
   readonly viewportMargin?: number;
   readonly options?: LayoutSolverOptions;
   readonly previousItemPositions?: ReadonlyMap<string, { readonly x: number; readonly y: number }>;
-}): TwoPhaseLayoutResult {
+  readonly seeder?: LayoutSeeder;
+  readonly relaxer?: PositionRelaxer;
+  readonly scaleController?: ScaleController;
+  readonly defaultRelaxationIterations?: number;
+}
+
+/**
+ * Executes the two-phase cluster + content layout pipeline by composing any orthogonal
+ * `LayoutSeeder` × `PositionRelaxer` × `ScaleController` trio in a geometric feedback loop.
+ */
+export function solveComposedLayout(params: ComposedLayoutParams): TwoPhaseLayoutResult {
   const {
     clusters,
     items,
@@ -822,12 +1693,16 @@ export function solveTwoPhaseLayout(params: {
     viewportMargin = 8,
     options = {},
     previousItemPositions,
+    seeder = createMeshInwardFanSeeder({ warmStart: true }),
+    relaxer = createSpaceFillingPbdRelaxer(),
+    scaleController = createCollisionLocalScaleController(),
+    defaultRelaxationIterations = 44,
   } = params;
 
   const clusterGapPx = options.clusterGapPx ?? 14;
   const itemGapPx = options.itemGapPx ?? 5;
   const minContentScale = options.minContentScale ?? 0.16;
-  const relaxationIterations = options.relaxationIterations ?? 38;
+  const relaxationIterations = options.relaxationIterations ?? defaultRelaxationIterations;
   const sizeMultiplier = Math.max(0.25, options.sizeMultiplier ?? 1.0);
 
   const scaledClusters = clusters.map((c) => ({
@@ -856,7 +1731,13 @@ export function solveTwoPhaseLayout(params: {
       viewportMargin,
     );
     return {
-      clusters: placedClusters,
+      clusters: placedClusters.map((c, idx) => ({
+        id: c.id,
+        x: c.x,
+        y: c.y,
+        scale: clusterScale * sizeMultiplier,
+        hull: clusters[idx]!.hull,
+      })),
       items: [],
       clusterScale,
       contentScale: 1.0,
@@ -865,50 +1746,54 @@ export function solveTwoPhaseLayout(params: {
     };
   }
 
-  const initialStarts = buildPhyllotaxisStarts(scaledItems, previousItemPositions);
   const placedClusterBoxes = placedClusters.map((c) =>
     getHullBoundingBox(c.hull, c.x, c.y, c.scale),
   );
   const itemCoveringTriangles = buildItemCoveringTriangles(scaledItems, mesh);
 
-  const runUniform = (alpha: number) =>
-    runPerItemPbdRelaxation({
+  const initialStarts = seeder.seed({
+    scaledItems,
+    placedClusters,
+    mesh,
+    itemCoveringTriangles,
+    previousItemPositions,
+    viewportWidth,
+    viewportHeight,
+    viewportMargin,
+  });
+
+  const evaluate: ScaleControlContext['evaluate'] = (itemScales, evalOpts) =>
+    relaxer.relax({
       scaledItems,
-      initialStarts,
+      initialStarts: evalOpts?.starts ?? initialStarts,
+      itemScales,
       placedClusters,
       placedClusterBoxes,
-      itemScales: new Array<number>(scaledItems.length).fill(alpha),
       itemCoveringTriangles,
+      mesh,
       viewportWidth,
       viewportHeight,
       viewportMargin,
       itemGapPx,
-      relaxationIterations,
+      relaxationIterations: evalOpts?.iterations ?? relaxationIterations,
+      isRefinementPass: evalOpts?.isRefinementPass,
     });
 
-  let contentScale = 1.0;
-  let chosenResult = runUniform(1.0);
-
-  if (chosenResult.overlapCount > 0 || chosenResult.maxPenetration > 1e-4) {
-    let lo = Math.min(minContentScale, 0.08);
-    let hi = 1.0;
-    let bestAlpha = lo;
-    let bestRes = runUniform(lo);
-
-    for (let step = 0; step < 7; step++) {
-      const mid = (lo + hi) / 2;
-      const attempt = runUniform(mid);
-      if (attempt.overlapCount === 0 && attempt.maxPenetration <= 1e-4) {
-        bestAlpha = mid;
-        bestRes = attempt;
-        lo = mid;
-      } else {
-        hi = mid;
-      }
-    }
-    contentScale = bestAlpha;
-    chosenResult = bestRes;
-  }
+  const solvedScale = scaleController.solveScales({
+    scaledItems,
+    initialStarts,
+    placedClusters,
+    placedClusterBoxes,
+    itemCoveringTriangles,
+    mesh,
+    viewportWidth,
+    viewportHeight,
+    viewportMargin,
+    itemGapPx,
+    minContentScale,
+    relaxationIterations,
+    evaluate,
+  });
 
   const finalClusters: PlacedNode[] = placedClusters.map((c, idx) => ({
     id: c.id,
@@ -918,13 +1803,19 @@ export function solveTwoPhaseLayout(params: {
     hull: clusters[idx]!.hull,
   }));
 
-  const finalItems: PlacedNode[] = scaledItems.map((it, idx) => ({
-    id: it.id,
-    x: chosenResult.positions[idx]!.x,
-    y: chosenResult.positions[idx]!.y,
-    scale: contentScale * sizeMultiplier,
-    hull: items[idx]!.hull,
-  }));
+  let scaleSum = 0;
+  const finalItems: PlacedNode[] = scaledItems.map((it, idx) => {
+    const s = solvedScale.scales[idx]!;
+    scaleSum += s;
+    return {
+      id: it.id,
+      x: solvedScale.relaxation.positions[idx]!.x,
+      y: solvedScale.relaxation.positions[idx]!.y,
+      scale: s * sizeMultiplier,
+      hull: items[idx]!.hull,
+    };
+  });
+  const contentScale = scaleSum / Math.max(1, finalItems.length);
 
   const finalCheck = measureLayoutOverlaps(
     finalClusters,
@@ -945,11 +1836,31 @@ export function solveTwoPhaseLayout(params: {
 }
 
 /**
- * Local density-adaptive overlap-free convex layout solver:
- *
- * Unlike `solveTwoPhaseLayout` (which shrinks all content items uniformly whenever one hotspot
- * overflows), this solver scales down only items in locally crowded anchor neighborhoods so
- * sparse items retain full `1.0 * sizeMultiplier` readability while guaranteeing `0.0 px` overlap.
+ * Classic two-phase overlap-free layout preset:
+ * Phyllotaxis seeding + Barycentric PBD relaxation + Global Uniform Scale search.
+ */
+export function solveTwoPhaseLayout(params: {
+  readonly clusters: readonly LayoutClusterInput[];
+  readonly items: readonly LayoutItemInput[];
+  readonly mesh?: SimplexMesh;
+  readonly viewportWidth: number;
+  readonly viewportHeight: number;
+  readonly viewportMargin?: number;
+  readonly options?: LayoutSolverOptions;
+  readonly previousItemPositions?: ReadonlyMap<string, { readonly x: number; readonly y: number }>;
+}): TwoPhaseLayoutResult {
+  return solveComposedLayout({
+    ...params,
+    seeder: createPhyllotaxisSeeder({ warmStart: Boolean(params.previousItemPositions) }),
+    relaxer: createBarycentricPbdRelaxer(),
+    scaleController: createUniformScaleController(),
+    defaultRelaxationIterations: 38,
+  });
+}
+
+/**
+ * Local density-prior adaptive layout preset:
+ * Phyllotaxis seeding + Barycentric PBD relaxation + Neighborhood Density-Prior Scale controller.
  */
 export function solveLocalAdaptiveLayout(params: {
   readonly clusters: readonly LayoutClusterInput[];
@@ -963,403 +1874,21 @@ export function solveLocalAdaptiveLayout(params: {
   readonly minLocalScale?: number;
   readonly previousItemPositions?: ReadonlyMap<string, { readonly x: number; readonly y: number }>;
 }): TwoPhaseLayoutResult {
-  const {
-    clusters,
-    items,
-    mesh,
-    viewportWidth,
-    viewportHeight,
-    viewportMargin = 8,
-    options = {},
-    crowdRadiusPx = 76,
-    minLocalScale = 0.42,
-    previousItemPositions,
-  } = params;
-
-  const clusterGapPx = options.clusterGapPx ?? 14;
-  const itemGapPx = options.itemGapPx ?? 5;
-  const minContentScale = options.minContentScale ?? 0.16;
-  const relaxationIterations = options.relaxationIterations ?? 42;
-  const sizeMultiplier = Math.max(0.25, options.sizeMultiplier ?? 1.0);
-
-  const scaledClusters = clusters.map((c) => ({
-    ...c,
-    hull: scaleConvexGeometry(c.hull, sizeMultiplier),
-  }));
-  const scaledItems = items.map((it) => ({
-    ...it,
-    hull: scaleConvexGeometry(it.hull, sizeMultiplier),
-  }));
-
-  const { clusterScale, placedClusters } = solveClusterPhase({
-    scaledClusters,
-    viewportWidth,
-    viewportHeight,
-    viewportMargin,
-    clusterGapPx,
-  });
-
-  if (scaledItems.length === 0) {
-    const check = measureLayoutOverlaps(
-      placedClusters,
-      [],
-      viewportWidth,
-      viewportHeight,
-      viewportMargin,
-    );
-    return {
-      clusters: placedClusters,
-      items: [],
-      clusterScale,
-      contentScale: 1.0,
-      overlapCount: check.overlapCount,
-      maxPenetrationPx: check.maxPenetrationPx,
-    };
-  }
-
-  // Estimate local anchor crowding relative to neighborhood capacity
-  const itemRadii = scaledItems.map((it) => Math.max(4, getHullBoundingRadius(it.hull)));
-  const rSq = crowdRadiusPx * crowdRadiusPx;
-  const localBaseScales = scaledItems.map((it, i) => {
-    let demandArea = Math.PI * itemRadii[i]! * itemRadii[i]!;
-    for (let j = 0; j < scaledItems.length; j++) {
-      if (i === j) continue;
-      const other = scaledItems[j]!;
-      const dx = it.anchorX - other.anchorX;
-      const dy = it.anchorY - other.anchorY;
-      const d2 = dx * dx + dy * dy;
-      if (d2 <= rSq) {
-        const weight = 1 - Math.sqrt(d2) / crowdRadiusPx;
-        const rad = itemRadii[j]! + itemGapPx * 0.5;
-        demandArea += Math.PI * rad * rad * (0.35 + 0.65 * weight);
-      }
-    }
-    const availableArea = Math.PI * crowdRadiusPx * crowdRadiusPx * 0.42;
-    if (demandArea <= availableArea) return 1.0;
-    const ratio = Math.sqrt(availableArea / demandArea);
-    return Math.max(minLocalScale, Math.min(1.0, ratio));
-  });
-
-  const initialStarts = buildPhyllotaxisStarts(scaledItems, previousItemPositions);
-  const placedClusterBoxes = placedClusters.map((c) =>
-    getHullBoundingBox(c.hull, c.x, c.y, c.scale),
-  );
-  const itemCoveringTriangles = buildItemCoveringTriangles(scaledItems, mesh);
-
-  const runScaled = (globalFactor: number) => {
-    const scales = localBaseScales.map((ls) => ls * globalFactor);
-    return runPerItemPbdRelaxation({
-      scaledItems,
-      initialStarts,
-      placedClusters,
-      placedClusterBoxes,
-      itemScales: scales,
-      itemCoveringTriangles,
-      viewportWidth,
-      viewportHeight,
-      viewportMargin,
-      itemGapPx,
-      relaxationIterations,
-    });
-  };
-
-  let globalFactor = 1.0;
-  let chosenResult = runScaled(1.0);
-  if (chosenResult.overlapCount > 0 || chosenResult.maxPenetration > 1e-4) {
-    let lo = Math.min(minContentScale, 0.08);
-    let hi = 1.0;
-    let bestFactor = lo;
-    let bestRes = runScaled(lo);
-    for (let step = 0; step < 7; step++) {
-      const mid = (lo + hi) / 2;
-      const attempt = runScaled(mid);
-      if (attempt.overlapCount === 0 && attempt.maxPenetration <= 1e-4) {
-        bestFactor = mid;
-        bestRes = attempt;
-        lo = mid;
-      } else {
-        hi = mid;
-      }
-    }
-    globalFactor = bestFactor;
-    chosenResult = bestRes;
-  }
-
-  const finalClusters: PlacedNode[] = placedClusters.map((c, idx) => ({
-    id: c.id,
-    x: c.x,
-    y: c.y,
-    scale: clusterScale * sizeMultiplier,
-    hull: clusters[idx]!.hull,
-  }));
-
-  let avgItemScale = 0;
-  const finalItems: PlacedNode[] = scaledItems.map((it, idx) => {
-    const s = localBaseScales[idx]! * globalFactor;
-    avgItemScale += s;
-    return {
-      id: it.id,
-      x: chosenResult.positions[idx]!.x,
-      y: chosenResult.positions[idx]!.y,
-      scale: s * sizeMultiplier,
-      hull: items[idx]!.hull,
-    };
-  });
-  avgItemScale /= Math.max(1, finalItems.length);
-
-  const finalCheck = measureLayoutOverlaps(
-    finalClusters,
-    finalItems,
-    viewportWidth,
-    viewportHeight,
-    viewportMargin,
-  );
-
-  return {
-    clusters: finalClusters,
-    items: finalItems,
-    clusterScale,
-    contentScale: avgItemScale,
-    overlapCount: finalCheck.overlapCount,
-    maxPenetrationPx: finalCheck.maxPenetrationPx,
-  };
-}
-
-function findCollidingItemIndices(params: {
-  readonly scaledItems: readonly LayoutItemInput[];
-  readonly positions: readonly { readonly x: number; readonly y: number }[];
-  readonly itemScales: readonly number[];
-  readonly itemCoveringTriangles?: readonly (readonly TrianglePoints[] | null)[];
-  readonly placedClusters: readonly PlacedNode[];
-  readonly placedClusterBoxes: readonly ReturnType<typeof getHullBoundingBox>[];
-  readonly viewportWidth: number;
-  readonly viewportHeight: number;
-  readonly viewportMargin: number;
-}): Set<number> {
-  const {
-    scaledItems,
-    positions,
-    itemScales,
-    itemCoveringTriangles,
-    placedClusters,
-    placedClusterBoxes,
-    viewportWidth,
-    viewportHeight,
-    viewportMargin,
-  } = params;
-  const colliding = new Set<number>();
-  const n = scaledItems.length;
-  let maxR = 16;
-  const boxes = new Array<ReturnType<typeof getHullBoundingBox>>(n);
-
-  for (let i = 0; i < n; i++) {
-    const s = itemScales[i]!;
-    maxR = Math.max(maxR, getHullBoundingRadius(scaledItems[i]!.hull) * s);
-    boxes[i] = getHullBoundingBox(
-      scaledItems[i]!.hull,
-      positions[i]!.x,
-      positions[i]!.y,
-      s,
-    );
-  }
-
-  const grid = new UniformSpatialHashGrid(Math.max(24, maxR * 2.1));
-  for (let i = 0; i < n; i++) {
-    grid.insert(i, boxes[i]!, 1);
-  }
-  const queryBuf: number[] = [];
-
-  for (let i = 0; i < n; i++) {
-    const box = boxes[i]!;
-    const pA = positions[i]!;
-    const hA = scaledItems[i]!.hull;
-    const sA = itemScales[i]!;
-
-    if (
-      box.minX < viewportMargin - 0.5 ||
-      box.maxX > viewportWidth - viewportMargin + 0.5 ||
-      box.minY < viewportMargin - 0.5 ||
-      box.maxY > viewportHeight - viewportMargin + 0.5
-    ) {
-      colliding.add(i);
-    }
-
-    const triGroup = itemCoveringTriangles?.[i];
-    if (triGroup) {
-      let inside = false;
-      for (let t = 0; t < triGroup.length; t++) {
-        const [a, b, c] = triGroup[t]!;
-        if (isPointInTriangle(pA.x, pA.y, a, b, c, 1e-4)) {
-          inside = true;
-          break;
-        }
-      }
-      if (!inside) {
-        colliding.add(i);
-      }
-    }
-
-    for (let cIdx = 0; cIdx < placedClusters.length; cIdx++) {
-      const cb = placedClusterBoxes[cIdx]!;
-      if (
-        box.maxX <= cb.minX ||
-        cb.maxX <= box.minX ||
-        box.maxY <= cb.minY ||
-        cb.maxY <= box.minY
-      ) {
-        continue;
-      }
-      const c = placedClusters[cIdx]!;
-      const mtv = computeConvexMtv(
-        hA,
-        pA.x,
-        pA.y,
-        sA,
-        c.hull,
-        c.x,
-        c.y,
-        c.scale,
-        0,
-      );
-      if (mtv && mtv.depth > 1e-4) {
-        colliding.add(i);
-      }
-    }
-
-    const candidates = grid.query(box, 1, queryBuf);
-    for (let k = 0; k < candidates.length; k++) {
-      const j = candidates[k]!;
-      if (j <= i) continue;
-      const boxB = boxes[j]!;
-      if (
-        box.maxX <= boxB.minX ||
-        boxB.maxX <= box.minX ||
-        box.maxY <= boxB.minY ||
-        boxB.maxY <= box.minY
-      ) {
-        continue;
-      }
-      const pB = positions[j]!;
-      const mtv = computeConvexMtv(
-        hA,
-        pA.x,
-        pA.y,
-        sA,
-        scaledItems[j]!.hull,
-        pB.x,
-        pB.y,
-        itemScales[j]!,
-        0,
-      );
-      if (mtv && mtv.depth > 1e-4) {
-        colliding.add(i);
-        colliding.add(j);
-      }
-    }
-  }
-
-  return colliding;
-}
-
-function buildMeshAwareStarts(params: {
-  readonly scaledItems: readonly LayoutItemInput[];
-  readonly mesh?: SimplexMesh;
-  readonly itemCoveringTriangles?: readonly (readonly TrianglePoints[] | null)[];
-  readonly previousItemPositions?: ReadonlyMap<string, { readonly x: number; readonly y: number }>;
-}): { x: number; y: number }[] {
-  const { scaledItems, mesh, itemCoveringTriangles, previousItemPositions } = params;
-  const anchorBuckets = new Map<string, number>();
-
-  // Compute centroid of covering or incident triangles for directional inward spreading
-  const resolveInwardDir = (
-    ax: number,
-    ay: number,
-    triGroup: readonly TrianglePoints[] | null | undefined,
-  ): { dx: number; dy: number } => {
-    if (triGroup && triGroup.length > 0) {
-      let sumCx = 0;
-      let sumCy = 0;
-      for (let t = 0; t < triGroup.length; t++) {
-        const [va, vb, vc] = triGroup[t]!;
-        sumCx += (va.x + vb.x + vc.x) / 3;
-        sumCy += (va.y + vb.y + vc.y) / 3;
-      }
-      const tx = sumCx / triGroup.length - ax;
-      const ty = sumCy / triGroup.length - ay;
-      const len = Math.hypot(tx, ty);
-      if (len > 1e-6) return { dx: tx / len, dy: ty / len };
-    }
-    if (!mesh || mesh.triangles.length === 0) {
-      return { dx: 1, dy: 0 };
-    }
-    let nearestV = 0;
-    let bestD2 = Infinity;
-    for (let v = 0; v < mesh.vertices.length; v++) {
-      const pt = mesh.vertices[v]!;
-      const d2 = (pt.x - ax) ** 2 + (pt.y - ay) ** 2;
-      if (d2 < bestD2) {
-        bestD2 = d2;
-        nearestV = v;
-      }
-    }
-    let sumCx = 0;
-    let sumCy = 0;
-    let count = 0;
-    for (const tr of mesh.triangles) {
-      if (tr.vertices[0] === nearestV || tr.vertices[1] === nearestV || tr.vertices[2] === nearestV) {
-        const va = mesh.vertices[tr.vertices[0]]!;
-        const vb = mesh.vertices[tr.vertices[1]]!;
-        const vc = mesh.vertices[tr.vertices[2]]!;
-        sumCx += (va.x + vb.x + vc.x) / 3;
-        sumCy += (va.y + vb.y + vc.y) / 3;
-        count++;
-      }
-    }
-    if (count === 0) {
-      sumCx = mesh.width * 0.5;
-      sumCy = mesh.height * 0.5;
-      count = 1;
-    }
-    const tx = sumCx / count - ax;
-    const ty = sumCy / count - ay;
-    const len = Math.hypot(tx, ty);
-    if (len <= 1e-6) return { dx: 1, dy: 0 };
-    return { dx: tx / len, dy: ty / len };
-  };
-
-  return scaledItems.map((it, itemIdx) => {
-    const triGroup = itemCoveringTriangles?.[itemIdx];
-    const prev = previousItemPositions?.get(it.id);
-    if (prev && Number.isFinite(prev.x) && Number.isFinite(prev.y)) {
-      return triGroup ? clampPointToTriangles(prev.x, prev.y, triGroup) : { x: prev.x, y: prev.y };
-    }
-    const key = `${Math.round(it.anchorX * 0.5)}:${Math.round(it.anchorY * 0.5)}`;
-    const idx = anchorBuckets.get(key) ?? 0;
-    anchorBuckets.set(key, idx + 1);
-    if (idx === 0) {
-      return triGroup
-        ? clampPointToTriangles(it.anchorX, it.anchorY, triGroup)
-        : { x: it.anchorX, y: it.anchorY };
-    }
-
-    const inward = resolveInwardDir(it.anchorX, it.anchorY, triGroup);
-    const baseAngle = Math.atan2(inward.dy, inward.dx);
-    // Fan across an inward cone into covering/incident triangles using golden-angle dithering
-    const offsetAngle = (((idx * 0.61803398875) % 1) - 0.5) * Math.PI * 1.15;
-    const angle = baseAngle + offsetAngle;
-    const radius = 5.5 * Math.sqrt(idx);
-    const fx = it.anchorX + Math.cos(angle) * radius;
-    const fy = it.anchorY + Math.sin(angle) * radius;
-    return triGroup ? clampPointToTriangles(fx, fy, triGroup) : { x: fx, y: fy };
+  return solveComposedLayout({
+    ...params,
+    seeder: createPhyllotaxisSeeder({ warmStart: Boolean(params.previousItemPositions) }),
+    relaxer: createBarycentricPbdRelaxer(),
+    scaleController: createDensityPriorScaleController({
+      crowdRadiusPx: params.crowdRadiusPx,
+      minLocalScale: params.minLocalScale,
+    }),
+    defaultRelaxationIterations: 42,
   });
 }
 
 /**
- * Collision-driven adaptive layout solver:
- *
- * Keeps every content node at `1.0` scale wherever possible, relaxes tightly packed anchors
- * into open adjacent triangle space, and selectively scales down **only** the locally colliding
- * pockets until `0.0 px` overlap is reached.
+ * Collision-driven adaptive layout preset:
+ * Mesh-Inward-Fan seeding + Space-Filling PBD relaxation + Collision-Local Scale controller.
  */
 export function solveCollisionDrivenLayout(params: {
   readonly clusters: readonly LayoutClusterInput[];
@@ -1374,261 +1903,20 @@ export function solveCollisionDrivenLayout(params: {
   readonly maxRefinementRounds?: number;
   readonly previousItemPositions?: ReadonlyMap<string, { readonly x: number; readonly y: number }>;
 }): TwoPhaseLayoutResult {
-  const {
-    clusters,
-    items,
-    mesh,
-    viewportWidth,
-    viewportHeight,
-    viewportMargin = 8,
-    options = {},
-    minLocalScale = 0.32,
-    shrinkFactor = 0.85,
-    maxRefinementRounds = 9,
-    previousItemPositions,
-  } = params;
-
-  const clusterGapPx = options.clusterGapPx ?? 14;
-  const itemGapPx = options.itemGapPx ?? 5;
-  const minContentScale = options.minContentScale ?? 0.16;
-  const relaxationIterations = options.relaxationIterations ?? 46;
-  const sizeMultiplier = Math.max(0.25, options.sizeMultiplier ?? 1.0);
-
-  const scaledClusters = clusters.map((c) => ({
-    ...c,
-    hull: scaleConvexGeometry(c.hull, sizeMultiplier),
-  }));
-  const scaledItems = items.map((it) => ({
-    ...it,
-    hull: scaleConvexGeometry(it.hull, sizeMultiplier),
-  }));
-
-  const { clusterScale, placedClusters } = solveClusterPhase({
-    scaledClusters,
-    viewportWidth,
-    viewportHeight,
-    viewportMargin,
-    clusterGapPx,
+  return solveComposedLayout({
+    ...params,
+    seeder: createMeshInwardFanSeeder({ warmStart: Boolean(params.previousItemPositions) }),
+    relaxer: createSpaceFillingPbdRelaxer({
+      springFactor: 0.7,
+      springZeroTailRatio: 0.35,
+      dispersionGapPx: 18,
+      dispersionStrength: 0.35,
+    }),
+    scaleController: createCollisionLocalScaleController({
+      minLocalScale: params.minLocalScale,
+      shrinkFactor: params.shrinkFactor,
+      maxRefinementRounds: params.maxRefinementRounds,
+    }),
+    defaultRelaxationIterations: 46,
   });
-
-  if (scaledItems.length === 0) {
-    const check = measureLayoutOverlaps(
-      placedClusters,
-      [],
-      viewportWidth,
-      viewportHeight,
-      viewportMargin,
-    );
-    return {
-      clusters: placedClusters,
-      items: [],
-      clusterScale,
-      contentScale: 1.0,
-      overlapCount: check.overlapCount,
-      maxPenetrationPx: check.maxPenetrationPx,
-    };
-  }
-
-  const placedClusterBoxes = placedClusters.map((c) =>
-    getHullBoundingBox(c.hull, c.x, c.y, c.scale),
-  );
-  const itemCoveringTriangles = buildItemCoveringTriangles(scaledItems, mesh);
-  const scales = new Array<number>(scaledItems.length).fill(1.0);
-  const starts = buildMeshAwareStarts({
-    scaledItems,
-    mesh,
-    itemCoveringTriangles,
-    previousItemPositions,
-  });
-
-  let currentResult = runPerItemPbdRelaxation({
-    scaledItems,
-    initialStarts: starts,
-    placedClusters,
-    placedClusterBoxes,
-    itemScales: scales,
-    itemCoveringTriangles,
-    viewportWidth,
-    viewportHeight,
-    viewportMargin,
-    itemGapPx,
-    relaxationIterations,
-    springFactor: 0.7,
-    springZeroTailRatio: 0.35,
-  });
-
-  let colliding = findCollidingItemIndices({
-    scaledItems,
-    positions: currentResult.positions,
-    itemScales: scales,
-    itemCoveringTriangles,
-    placedClusters,
-    placedClusterBoxes,
-    viewportWidth,
-    viewportHeight,
-    viewportMargin,
-  });
-
-  let round = 0;
-  while (colliding.size > 0 && round < maxRefinementRounds) {
-    round += 1;
-    let changed = false;
-    for (const idx of colliding) {
-      const next = Math.max(minLocalScale, scales[idx]! * shrinkFactor);
-      if (next < scales[idx]! - 1e-5) {
-        scales[idx] = next;
-        changed = true;
-      }
-    }
-    if (!changed) break;
-
-    currentResult = runPerItemPbdRelaxation({
-      scaledItems,
-      initialStarts: currentResult.positions,
-      placedClusters,
-      placedClusterBoxes,
-      itemScales: scales,
-      itemCoveringTriangles,
-      viewportWidth,
-      viewportHeight,
-      viewportMargin,
-      itemGapPx,
-      relaxationIterations: Math.max(24, Math.round(relaxationIterations * 0.65)),
-      springFactor: 0.42,
-      springZeroTailRatio: 0.45,
-    });
-
-    colliding = findCollidingItemIndices({
-      scaledItems,
-      positions: currentResult.positions,
-      itemScales: scales,
-      itemCoveringTriangles,
-      placedClusters,
-      placedClusterBoxes,
-      viewportWidth,
-      viewportHeight,
-      viewportMargin,
-    });
-  }
-
-  // Safety fallback: first shrink only items in colliding pockets; only scale globally if viewport is saturated
-  if (colliding.size > 0 || currentResult.overlapCount > 0) {
-    const stuckSet = new Set<number>(colliding);
-    if (stuckSet.size === 0) {
-      // Mark any item near another item or cluster boundary if measureLayoutOverlaps flagged a sub-pixel border issue
-      for (let i = 0; i < scaledItems.length; i++) {
-        if (scales[i]! < 0.999) stuckSet.add(i);
-      }
-      if (stuckSet.size === 0) {
-        for (let i = 0; i < scaledItems.length; i++) stuckSet.add(i);
-      }
-    }
-
-    const fallbackIters = Math.max(relaxationIterations, 56);
-    const buildTrialScales = (factor: number, globalFallback: boolean) =>
-      scales.map((s, idx) => (globalFallback || stuckSet.has(idx) ? s * factor : s));
-
-    const tryFallbackMode = (globalFallback: boolean) => {
-      let lo = Math.min(minContentScale, 0.08);
-      let hi = 1.0;
-      let bestFactor = lo;
-      let bestRes = runPerItemPbdRelaxation({
-        scaledItems,
-        initialStarts: starts,
-        placedClusters,
-        placedClusterBoxes,
-        itemScales: buildTrialScales(lo, globalFallback),
-        itemCoveringTriangles,
-        viewportWidth,
-        viewportHeight,
-        viewportMargin,
-        itemGapPx,
-        relaxationIterations: fallbackIters,
-        springFactor: 0.45,
-        springZeroTailRatio: 0.4,
-      });
-
-      if (bestRes.overlapCount > 0 || bestRes.maxPenetration > 1e-4) {
-        return { ok: false as const, bestFactor, bestRes };
-      }
-
-      for (let step = 0; step < 6; step++) {
-        const mid = (lo + hi) / 2;
-        const attempt = runPerItemPbdRelaxation({
-          scaledItems,
-          initialStarts: starts,
-          placedClusters,
-          placedClusterBoxes,
-          itemScales: buildTrialScales(mid, globalFallback),
-          itemCoveringTriangles,
-          viewportWidth,
-          viewportHeight,
-          viewportMargin,
-          itemGapPx,
-          relaxationIterations: fallbackIters,
-          springFactor: 0.45,
-          springZeroTailRatio: 0.4,
-        });
-        if (attempt.overlapCount === 0 && attempt.maxPenetration <= 1e-4) {
-          bestFactor = mid;
-          bestRes = attempt;
-          lo = mid;
-        } else {
-          hi = mid;
-        }
-      }
-      return { ok: true as const, bestFactor, bestRes };
-    };
-
-    const localAttempt = tryFallbackMode(false);
-    if (localAttempt.ok) {
-      const nextScales = buildTrialScales(localAttempt.bestFactor, false);
-      for (let i = 0; i < scales.length; i++) scales[i] = nextScales[i]!;
-      currentResult = localAttempt.bestRes;
-    } else {
-      const globalAttempt = tryFallbackMode(true);
-      const nextScales = buildTrialScales(globalAttempt.bestFactor, true);
-      for (let i = 0; i < scales.length; i++) scales[i] = nextScales[i]!;
-      currentResult = globalAttempt.bestRes;
-    }
-  }
-
-  const finalClusters: PlacedNode[] = placedClusters.map((c, idx) => ({
-    id: c.id,
-    x: c.x,
-    y: c.y,
-    scale: clusterScale * sizeMultiplier,
-    hull: clusters[idx]!.hull,
-  }));
-
-  let avgItemScale = 0;
-  const finalItems: PlacedNode[] = scaledItems.map((it, idx) => {
-    const s = scales[idx]!;
-    avgItemScale += s;
-    return {
-      id: it.id,
-      x: currentResult.positions[idx]!.x,
-      y: currentResult.positions[idx]!.y,
-      scale: s * sizeMultiplier,
-      hull: items[idx]!.hull,
-    };
-  });
-  avgItemScale /= Math.max(1, finalItems.length);
-
-  const finalCheck = measureLayoutOverlaps(
-    finalClusters,
-    finalItems,
-    viewportWidth,
-    viewportHeight,
-    viewportMargin,
-  );
-
-  return {
-    clusters: finalClusters,
-    items: finalItems,
-    clusterScale,
-    contentScale: avgItemScale,
-    overlapCount: finalCheck.overlapCount,
-    maxPenetrationPx: finalCheck.maxPenetrationPx,
-  };
 }

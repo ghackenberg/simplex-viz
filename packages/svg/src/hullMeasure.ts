@@ -11,7 +11,7 @@ function estimateSvgFallbackBBox(group: SVGGElement): { width: number; height: n
   // Fallback for headless test environments where SVGElement.getBBox() returns 0x0
   let maxHalfW = 0;
   let maxHalfH = 0;
-  const children = group.querySelectorAll('rect, circle, ellipse, text');
+  const children = group.querySelectorAll('rect, polygon, circle, ellipse, text');
   children.forEach((el) => {
     const tag = el.tagName.toLowerCase();
     if (tag === 'rect') {
@@ -21,6 +21,15 @@ function estimateSvgFallbackBBox(group: SVGGElement): { width: number; height: n
       const y = parseFloat(el.getAttribute('y') ?? String(-h / 2));
       maxHalfW = Math.max(maxHalfW, Math.abs(x), Math.abs(x + w), w / 2);
       maxHalfH = Math.max(maxHalfH, Math.abs(y), Math.abs(y + h), h / 2);
+    } else if (tag === 'polygon') {
+      const rawPoints = (el.getAttribute('points') ?? '').trim();
+      if (rawPoints.length > 0) {
+        for (const pair of rawPoints.split(/\s+/)) {
+          const [px, py] = pair.split(',').map(Number);
+          if (Number.isFinite(px)) maxHalfW = Math.max(maxHalfW, Math.abs(px!));
+          if (Number.isFinite(py)) maxHalfH = Math.max(maxHalfH, Math.abs(py!));
+        }
+      }
     } else if (tag === 'circle') {
       const r = parseFloat(el.getAttribute('r') ?? '0');
       const cx = parseFloat(el.getAttribute('cx') ?? '0');

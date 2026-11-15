@@ -5,6 +5,7 @@ import {
   BarycentricSectorTriangleSvgView,
   ClusterTintedEdgeSvgView,
   SimplexTopicGraph,
+  createBarycentricZoomStrategy,
   createEmbeddingClusteringStrategy,
 } from '../src/index';
 
@@ -201,4 +202,41 @@ describe('@simplex-viz/react integration', () => {
 
     unmount();
   });
+
+  it('disables regular mouse scroll wheel camera zoom in SimplexTopicGraph when a drill-down zoomStrategy is active', () => {
+    const items = Array.from({ length: 18 }, (_, i) => ({
+      id: `w-${i}`,
+      tags: [`cat-${i % 3}`, `cat-${(i + 1) % 3}`, `sub-${i % 4}`],
+    }));
+
+    const { container, unmount } = render(
+      <div style={{ width: 800, height: 600 }}>
+        <SimplexTopicGraph
+          items={items}
+          zoomStrategy={createBarycentricZoomStrategy()}
+          onWheel="zoom-to-cursor"
+        />
+      </div>,
+    );
+
+    const svg = container.querySelector('svg')!;
+    const worldGroup = svg.querySelector('g.sv-world')!;
+    expect(worldGroup.getAttribute('transform')).toBe('translate(0.00, 0.00) scale(1.0000)');
+
+    svg.dispatchEvent(
+      new WheelEvent('wheel', {
+        deltaY: -160,
+        clientX: 400,
+        clientY: 300,
+        ctrlKey: false,
+        bubbles: true,
+      }),
+    );
+
+    // Camera must remain strictly at identity scale/pan in drill-down mode
+    expect(worldGroup.getAttribute('transform')).toBe('translate(0.00, 0.00) scale(1.0000)');
+
+    unmount();
+  });
 });
+

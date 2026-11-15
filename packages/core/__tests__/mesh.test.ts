@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   SimplexGraphEngine,
+  createFixedLatticeMeshStrategy,
   isPointInTriangle,
+  solveSimplexSnapshot,
   type DefaultTaggedItem,
   type SceneFrameSnapshot,
   type SimplexRendererAdapter,
@@ -62,6 +64,40 @@ describe('buildSimplexMesh', () => {
       }
     },
   );
+
+  it('honors explicit MeshOptions.sideLength across adaptive and fixed-lattice strategies, including oversized triangles', () => {
+    const meshCompact = buildSimplexMesh(1100, 720, 14, {
+      innerPadding: 48,
+      sideLength: 170,
+      maxClusters: 12,
+    });
+    expect(meshCompact.sideLength).toBe(170);
+    expect(meshCompact.triangles.length).toBeGreaterThan(2);
+    for (const tri of meshCompact.triangles) {
+      const a = meshCompact.vertices[tri.vertices[0]]!;
+      const b = meshCompact.vertices[tri.vertices[1]]!;
+      expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeCloseTo(170, 3);
+    }
+
+    const items: DefaultTaggedItem[] = Array.from({ length: 16 }, (_, i) => ({
+      id: `item-${i}`,
+      tags: [`tag-${i % 5}`, `tag-${(i + 2) % 5}`],
+    }));
+
+    const oversizedSnap = solveSimplexSnapshot(items, {
+      width: 640,
+      height: 440,
+      meshStrategy: createFixedLatticeMeshStrategy({ cols: 4, rows: 3 }),
+      meshOptions: { innerPadding: 48, sideLength: 340 },
+    });
+    expect(oversizedSnap.mesh.sideLength).toBe(340);
+    expect(oversizedSnap.width).toBeGreaterThan(640);
+    expect(oversizedSnap.metrics.overlapCount).toBe(0);
+    const e0 = oversizedSnap.mesh.edges[0]!;
+    const va = oversizedSnap.mesh.vertices[e0.a]!;
+    const vb = oversizedSnap.mesh.vertices[e0.b]!;
+    expect(Math.hypot(vb.x - va.x, vb.y - va.y)).toBeCloseTo(340, 3);
+  });
 });
 
 describe('isPointInTriangle & engine triangle interactions', () => {

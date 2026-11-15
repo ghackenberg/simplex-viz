@@ -178,14 +178,128 @@ export function buildSimplexMesh(
   const minSide = options.minSideLength ?? 130;
   const maxSide = options.maxSideLength ?? 290;
   const maxClusters = options.maxClusters ?? 12;
+  const explicitSide =
+    options.sideLength !== undefined && Number.isFinite(options.sideLength)
+      ? Math.max(40, options.sideLength)
+      : undefined;
 
   const usableW = Math.max(80, viewportWidth - 2 * innerPadding);
   const usableH = Math.max(80, viewportHeight - 2 * innerPadding);
   const targetMaxK = Math.max(3, Math.min(maxClusters, Math.max(3, tagCount)));
 
-  const candidates: MeshCandidate[] = [];
   const orientations: readonly ('horizontal' | 'vertical')[] = ['horizontal', 'vertical'];
   const parities: readonly boolean[] = [true, false];
+
+  if (explicitSide !== undefined) {
+    interface ExplicitCandidate {
+      readonly cols: number;
+      readonly rows: number;
+      readonly orientation: 'horizontal' | 'vertical';
+      readonly wideFirst: boolean;
+      readonly vertexCount: number;
+      readonly spanW: number;
+      readonly spanH: number;
+      readonly areaEfficiency: number;
+    }
+
+    const fitting: ExplicitCandidate[] = [];
+    for (const orientation of orientations) {
+      for (const wideFirst of parities) {
+        for (let cols = 2; cols <= 8; cols++) {
+          for (let rows = 2; rows <= 8; rows++) {
+            const k = countLatticeVertices(cols, rows, wideFirst);
+            if (k < 3 || k > targetMaxK) continue;
+
+            const spanAlongCols = Math.max(0.5, cols - 1);
+            const spanAlongRows = Math.max(0.5, (rows - 1) * SQRT3_OVER_2);
+            const rawW = orientation === 'horizontal' ? spanAlongCols : spanAlongRows;
+            const rawH = orientation === 'horizontal' ? spanAlongRows : spanAlongCols;
+            const spanW = rawW * explicitSide;
+            const spanH = rawH * explicitSide;
+
+            if (spanW <= usableW + 1e-6 && spanH <= usableH + 1e-6) {
+              fitting.push({
+                cols,
+                rows,
+                orientation,
+                wideFirst,
+                vertexCount: k,
+                spanW,
+                spanH,
+                areaEfficiency: (spanW * spanH) / (usableW * usableH),
+              });
+            }
+          }
+        }
+      }
+    }
+
+    if (fitting.length > 0) {
+      fitting.sort((a, b) => {
+        const scoreA = a.areaEfficiency + a.vertexCount * 0.018;
+        const scoreB = b.areaEfficiency + b.vertexCount * 0.018;
+        return scoreB - scoreA;
+      });
+      const pick = fitting[0]!;
+      const { vertices, edges, triangles } = buildSimplexLattice(
+        pick.cols,
+        pick.rows,
+        explicitSide,
+        pick.orientation,
+        pick.wideFirst,
+        viewportWidth,
+        viewportHeight,
+      );
+      return {
+        width: viewportWidth,
+        height: viewportHeight,
+        innerPadding,
+        sideLength: explicitSide,
+        orientation: pick.orientation,
+        wideFirst: pick.wideFirst,
+        areaEfficiency: pick.areaEfficiency,
+        vertices,
+        edges,
+        triangles,
+      };
+    }
+
+    // Requested explicitSide is larger than even a single K=3 triangle inside viewport:
+    // keep exact equilateral sideLength and expand world bounds cleanly for camera pan/zoom.
+    const fallbackOrientation: 'horizontal' | 'vertical' =
+      usableW >= usableH ? 'horizontal' : 'vertical';
+    const rawW = fallbackOrientation === 'horizontal' ? 1 : SQRT3_OVER_2;
+    const rawH = fallbackOrientation === 'horizontal' ? SQRT3_OVER_2 : 1;
+    const spanW = rawW * explicitSide;
+    const spanH = rawH * explicitSide;
+    const worldW = Math.max(viewportWidth, Math.ceil(spanW + 2 * innerPadding));
+    const worldH = Math.max(viewportHeight, Math.ceil(spanH + 2 * innerPadding));
+    const effUsableW = Math.max(80, worldW - 2 * innerPadding);
+    const effUsableH = Math.max(80, worldH - 2 * innerPadding);
+    const { vertices, edges, triangles } = buildSimplexLattice(
+      2,
+      2,
+      explicitSide,
+      fallbackOrientation,
+      true,
+      worldW,
+      worldH,
+    );
+    return {
+      width: worldW,
+      height: worldH,
+      innerPadding,
+      sideLength: explicitSide,
+      orientation: fallbackOrientation,
+      wideFirst: true,
+      areaEfficiency: Math.min(1, (spanW * spanH) / (effUsableW * effUsableH)),
+      vertices,
+      edges,
+      triangles,
+    };
+  }
+
+  const candidates: MeshCandidate[] = [];
 
   for (const orientation of orientations) {
     for (const wideFirst of parities) {

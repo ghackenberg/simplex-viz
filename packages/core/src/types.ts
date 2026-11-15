@@ -5,6 +5,7 @@ import type {
   SimplexLayoutStrategy,
   SimplexMeshStrategy,
 } from './strategies';
+import type { SimplexZoomState, SimplexZoomStrategy } from './zoom';
 
 /**
  * Default shape of a tagged item when no custom `getId` or `getTags` accessor is provided.
@@ -109,6 +110,23 @@ export interface ClusterMemberRef<TItem> {
 }
 
 /**
+ * Visual & semantic hierarchy tier of a vertex cluster.
+ * - `'primary'`: Main root topic cluster (`T1..TK`).
+ * - `'intermediate'`: Synthesized zoom midpoint, blended edge/interior node, or spotlight sector.
+ */
+export type ClusterRole = 'primary' | 'intermediate';
+
+/**
+ * Contributing root topic cluster weight for an `'intermediate'` blended cluster node.
+ */
+export interface ClusterMixComponent {
+  readonly code: string;
+  readonly label: string;
+  readonly colorHex: string;
+  readonly weight: number;
+}
+
+/**
  * Context passed to `deriveClusterMeta` once cluster tags, mesh vertex, and unit members are finalized.
  */
 export interface ClusterDerivationContext<TItem, TTagMeta = undefined> {
@@ -116,9 +134,9 @@ export interface ClusterDerivationContext<TItem, TTagMeta = undefined> {
   readonly clusterIndex: number;
   /** Stable cluster identity preserved across re-clusterings via bipartite matching. */
   readonly clusterUid: string;
-  /** Short human-readable cluster code (e.g. "T1"). */
+  /** Short human-readable cluster code (e.g. "T1", or compact "T1·T2" for intermediate midpoints). */
   readonly code: string;
-  /** Default label derived from the top core tags. */
+  /** Default label derived from the top core tags or blended topics. */
   readonly defaultLabel: string;
   /** Assigned perceptual sRGB hex color. */
   readonly colorHex: string;
@@ -145,6 +163,10 @@ export interface ClusterDerivationContext<TItem, TTagMeta = undefined> {
   readonly cohesion?: number;
   /** Optional human-readable summary produced by non-tag clustering strategies. */
   readonly featureSummary?: string;
+  /** Hierarchy tier (`'primary'` main cluster vs `'intermediate'` midpoint/sector bridge). Default: `'primary'`. */
+  readonly role?: ClusterRole;
+  /** Contributing root clusters and weights when `role === 'intermediate'`. */
+  readonly mixWeights?: readonly ClusterMixComponent[];
 }
 
 /**
@@ -289,9 +311,15 @@ export interface SimplexMesh {
 export interface MeshOptions {
   /** Padding around the usable mesh region in pixels. Default: 48. */
   readonly innerPadding?: number;
-  /** Minimum preferred triangle side length in pixels. Default: 140. */
+  /**
+   * Explicit equilateral triangle side length in pixels.
+   * When provided, overrides automatic `[minSideLength, maxSideLength]` sizing across both
+   * adaptive and fixed-lattice mesh strategies.
+   */
+  readonly sideLength?: number;
+  /** Minimum preferred triangle side length in pixels (used when `sideLength` is omitted). Default: 140. */
   readonly minSideLength?: number;
-  /** Maximum preferred triangle side length in pixels. Default: 280. */
+  /** Maximum preferred triangle side length in pixels (used when `sideLength` is omitted). Default: 280. */
   readonly maxSideLength?: number;
   /** Upper bound on cluster count K. Default: 12. */
   readonly maxClusters?: number;
@@ -311,6 +339,12 @@ export interface NodeRenderState<TVisual> {
   /** Unscaled convex hull at scale = 1.0. */
   readonly hull: ConvexGeometry;
   readonly cacheKey: string;
+  /** True when this node represents a dimmed neighborhood cluster or content item outside the active zoomed mesh. */
+  readonly isContext?: boolean;
+  /** True when this node belongs to a drillable triangle and passes hover & click through to that triangle. */
+  readonly isPassThrough?: boolean;
+  /** Neighbor navigation ID (`tri:<index>` or `cluster:<index>`) when clicking a dimmed context node switches to it. */
+  readonly neighborId?: string;
   readonly interaction: {
     readonly isHovered: boolean;
     readonly isPinned: boolean;
@@ -352,10 +386,36 @@ export interface MeshTriangleRenderState<
   readonly coveredItemCount: number;
   /** Items anchored strictly across all 3 corner clusters of this triangle. */
   readonly interiorItemCount: number;
+  /** True when this face represents a dimmed neighboring triangle outside the active focused region. */
+  readonly isContext?: boolean;
+  /**
+   * True when an active triangle supports further drill-down in the current `drill-down` zoom strategy
+   * (`zoomState.drillableTriangleIndices.includes(index)`). Undefined on leaf triangles,
+   * dimmed context triangles, and when `free-camera` mode is active.
+   */
+  readonly isDrillable?: boolean;
+  /** Neighbor navigation ID (`tri:<index>`) used when clicking a dimmed context triangle switches laterally. */
+  readonly neighborId?: string;
+  /** Optional transient opacity in `[0, 1]` used during continuous zoom/drill flight transitions. */
+  readonly opacity?: number;
+  /**
+   * Optional boundary mask used when a multi-triangle zoomed-in region (e.g. `1:4` subdivision
+   * or `cluster-star`) highlights its outer perimeter `[edge01, edge12, edge20]` and outer corners
+   * `[v0, v1, v2]` without stroking internal subdivision seams at rest.
+   */
+  readonly highlightBoundary?: {
+    readonly edges: readonly [boolean, boolean, boolean];
+    readonly corners: readonly [boolean, boolean, boolean];
+  };
   readonly interaction: {
     readonly isHovered: boolean;
     readonly isFocused: boolean;
     readonly isDimmed: boolean;
+    /**
+     * True when this triangle receives a hover-equivalent highlight
+     * (e.g. active focused region while zoomed in, or a neighbor highlighted after zoom-out).
+     */
+    readonly isHighlighted?: boolean;
   };
 }
 
@@ -377,6 +437,10 @@ export interface MeshEdgeRenderState<
     ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
   ];
   readonly isHighlighted: boolean;
+  /** True when this edge belongs to the dimmed non-active neighborhood context. */
+  readonly isDimmed?: boolean;
+  /** Optional transient opacity in `[0, 1]` used during continuous zoom/drill flight transitions. */
+  readonly opacity?: number;
 }
 
 /**
@@ -495,6 +559,10 @@ export type HitTarget<
       readonly visual: TContentVisual;
       readonly worldPosition: Point2D;
       readonly screenPosition: Point2D;
+      /** True when this content node belongs to the dimmed surrounding neighborhood outside the focused zoom region. */
+      readonly isContext?: boolean;
+      /** Neighbor navigation ID (`tri:<index>` or `cluster:<index>`) when clicking a dimmed context content item switches to its region. */
+      readonly neighborId?: string;
     }
   | {
       readonly kind: 'cluster';
@@ -502,6 +570,8 @@ export type HitTarget<
       readonly visual: TClusterVisual;
       readonly worldPosition: Point2D;
       readonly screenPosition: Point2D;
+      /** Neighbor navigation ID (`cluster:<index>`) when clicking a dimmed context cluster switches to it. */
+      readonly neighborId?: string;
     }
   | {
       readonly kind: 'triangle';
@@ -529,6 +599,10 @@ export interface ContentHoverEvent<
   readonly visual: TContentVisual;
   readonly screenPosition: Point2D;
   readonly worldPosition: Point2D;
+  /** True when hovering a dimmed context content item in an adjacent neighborhood region. */
+  readonly isContext?: boolean;
+  /** Neighbor navigation ID (`tri:<index>` or `cluster:<index>`) when hovering a dimmed context content item. */
+  readonly neighborId?: string;
 }
 
 /**
@@ -544,6 +618,8 @@ export interface ClusterHoverEvent<
   readonly visual: TClusterVisual;
   readonly screenPosition: Point2D;
   readonly worldPosition: Point2D;
+  /** Neighbor navigation ID (`cluster:<index>`) when hovering a dimmed context cluster. */
+  readonly neighborId?: string;
 }
 
 /**
@@ -673,6 +749,8 @@ export interface SimplexEngineResolvedConfig<
   readonly colorStrategy?: SimplexColorStrategy<TItem, TTagMeta>;
   /** Optional custom cluster/content positioning & scaling strategy. Default: `createPbdUniformLayoutStrategy()`. */
   readonly layoutStrategy?: SimplexLayoutStrategy;
+  /** Optional custom zoom / drill-down strategy. Default: `createFreeCameraZoomStrategy()`. */
+  readonly zoomStrategy?: SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>;
   /** Canvas theme hint forwarded to `SimplexColorStrategy`. Default: `'dark'`. */
   readonly theme?: SimplexColorTheme;
   readonly showHulls?: boolean;
@@ -687,6 +765,7 @@ export interface SimplexEngineResolvedConfig<
   readonly onClustersChange?: (
     clusters: readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[],
   ) => void;
+  readonly onZoomStateChange?: (state: SimplexZoomState) => void;
 }
 
 /**

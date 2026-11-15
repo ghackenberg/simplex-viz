@@ -177,6 +177,9 @@ export type DemoClusterVisual =
       readonly subtitle: string;
       readonly maxChars: number;
       readonly showMeta: boolean;
+      readonly isIntermediate?: boolean;
+      readonly shortBridgeTag?: string;
+      readonly accentColors?: readonly string[];
     };
 
 const geomBase = new GeometricShapeSvgView();
@@ -1040,6 +1043,13 @@ export function createDemoVisualResolver(
     },
 
     resolveClusterVisual: (cluster) => {
+      const isIntermediate =
+        cluster.role === 'intermediate' || Boolean(cluster.meta.isIntermediate);
+      const accentColors = cluster.mixWeights
+        ?.slice(0, 2)
+        .map((m) => m.colorHex);
+      const bridgeSuffix = cluster.meta.shortBridgeTag ?? '';
+
       if (config.clusterRenderer === 'anchor') {
         return {
           kind: 'anchor',
@@ -1050,23 +1060,29 @@ export function createDemoVisualResolver(
             colorHex: cluster.colorHex,
             radius: config.anchorRadius,
             theme,
+            variant: isIntermediate ? 'intermediate' : 'primary',
+            accentColors,
           },
         };
       }
 
       const shortTitle = truncateLabel(cluster.meta.title, config.clusterTitleMaxChars);
       if (config.clusterRenderer === 'badge') {
-        const metaLine = config.showClusterMetaLine
-          ? cluster.meta.subtitle
-          : `${cluster.meta.memberCount} items`;
+        const metaLine = isIntermediate
+          ? ''
+          : config.showClusterMetaLine
+            ? cluster.meta.subtitle
+            : `${cluster.meta.memberCount} items`;
         return {
           kind: 'badge',
           badge: {
             code: cluster.code,
-            title: shortTitle,
+            title: isIntermediate ? bridgeSuffix : shortTitle,
             metaLine,
             colorHex: cluster.colorHex,
             theme,
+            variant: isIntermediate ? 'intermediate' : 'primary',
+            accentColors,
           },
         };
       }
@@ -1074,7 +1090,7 @@ export function createDemoVisualResolver(
       return {
         kind: 'react-card',
         theme,
-        key: `rc:${theme}:${cluster.clusterUid}:${shortTitle}:${cluster.meta.memberCount}:${cluster.meta.subtitle}:${cluster.colorHex}:${config.clusterTitleMaxChars}:${config.showClusterMetaLine ? 1 : 0}`,
+        key: `rc:${theme}:${isIntermediate ? 'int' : 'pri'}:${cluster.clusterUid}:${cluster.code}:${isIntermediate ? bridgeSuffix : shortTitle}:${cluster.meta.memberCount}:${cluster.meta.subtitle}:${cluster.colorHex}:${config.clusterTitleMaxChars}:${config.showClusterMetaLine ? 1 : 0}`,
         colorHex: cluster.colorHex,
         code: cluster.code,
         title: shortTitle,
@@ -1082,6 +1098,9 @@ export function createDemoVisualResolver(
         subtitle: cluster.meta.subtitle,
         maxChars: config.clusterTitleMaxChars,
         showMeta: config.showClusterMetaLine,
+        isIntermediate,
+        shortBridgeTag: bridgeSuffix,
+        accentColors,
       };
     },
 
@@ -1110,10 +1129,10 @@ export function createDemoVisualResolver(
         return `m:${visual.glyph.theme ?? 'dark'}:${visual.glyph.outerRadius.toFixed(1)}:${visual.glyph.innerRadius.toFixed(1)}:${visual.glyph.accentRingHex ?? 'none'}:${secKey}`;
       }
       if (visual.kind === 'anchor') {
-        return `ga:${visual.anchor.theme ?? 'dark'}:${visual.anchor.code}:${visual.anchor.memberCount}:${visual.anchor.radius}:${visual.anchor.colorHex}`;
+        return `ga:${visual.anchor.theme ?? 'dark'}:${visual.anchor.variant ?? 'primary'}:${visual.anchor.code}:${visual.anchor.memberCount}:${visual.anchor.radius}:${visual.anchor.colorHex}`;
       }
       if (visual.kind === 'badge') {
-        return `mb:${visual.badge.theme ?? 'dark'}:${visual.badge.code}:${visual.badge.title}:${visual.badge.metaLine}:${visual.badge.colorHex}`;
+        return `mb:${visual.badge.theme ?? 'dark'}:${visual.badge.variant ?? 'primary'}:${visual.badge.code}:${visual.badge.title}:${visual.badge.metaLine}:${visual.badge.colorHex}`;
       }
       return visual.key;
     },
@@ -1290,9 +1309,9 @@ export function renderDemoClusterCard(
 ): ReactNode {
   const cardVisual = state.visual.kind === 'react-card' ? state.visual : null;
   const isLight = cardVisual?.theme === 'light';
-  const maxChars = cardVisual?.maxChars ?? 22;
-  const showMeta = cardVisual?.showMeta ?? true;
-  const title = cardVisual?.title ?? truncateLabel(cluster.meta.title, maxChars);
+  const isIntermediate =
+    cardVisual?.isIntermediate ??
+    (cluster.role === 'intermediate' || Boolean(cluster.meta.isIntermediate));
   const stroke =
     state.interaction.isHovered || state.interaction.isHighlighted
       ? isLight
@@ -1300,10 +1319,83 @@ export function renderDemoClusterCard(
         : '#f8fafc'
       : cluster.colorHex;
 
+  if (isIntermediate) {
+    const suffix = (cardVisual?.shortBridgeTag ?? cluster.meta.shortBridgeTag ?? '').trim();
+    const hasSuffix = suffix.length > 0 && suffix !== cluster.code;
+    const codeW = cluster.code.length * 5.8;
+    const sufW = hasSuffix ? (suffix.length + 3) * 5.4 : 0;
+    const width = Math.max(52, Math.round(22 + codeW + sufW + 10));
+    const height = 22;
+    const halfW = width / 2;
+    const halfH = height / 2;
+    const cut = 5.5;
+    const markerX = -halfW + 12;
+    const dSize = 3.8;
+    const colorA = cardVisual?.accentColors?.[0] ?? cluster.colorHex;
+    const colorB = cardVisual?.accentColors?.[1] ?? cluster.colorHex;
+    const polyPts = `${-halfW + cut},${-halfH} ${halfW - cut},${-halfH} ${halfW},0 ${halfW - cut},${halfH} ${-halfW + cut},${halfH} ${-halfW},0`;
+
+    return (
+      <g>
+        <polygon
+          points={polyPts}
+          fill={isLight ? '#f8fafc' : '#0b111d'}
+          fillOpacity={isLight ? 0.94 : 0.88}
+          stroke={stroke}
+          strokeWidth={state.interaction.isHovered ? 1.8 : 1.15}
+          strokeDasharray={
+            state.interaction.isHovered || state.interaction.isHighlighted
+              ? undefined
+              : '3 2'
+          }
+          strokeLinejoin="round"
+        />
+        <polygon
+          points={`${markerX},${-dSize} ${markerX},${dSize} ${markerX - dSize},0`}
+          fill={colorA}
+        />
+        <polygon
+          points={`${markerX},${-dSize} ${markerX + dSize},0 ${markerX},${dSize}`}
+          fill={colorB}
+        />
+        <text
+          x={-halfW + 20}
+          y={3.2}
+          fill={isLight ? '#0f172a' : '#e2e8f0'}
+          fontSize={9.2}
+          fontWeight={600}
+          fontFamily="IBM Plex Mono, monospace"
+        >
+          {cluster.code}
+        </text>
+        {hasSuffix && (
+          <text
+            x={-halfW + 20 + codeW + 3}
+            y={3.2}
+            fill={isLight ? '#475569' : '#94a3b8'}
+            fontSize={8.6}
+            fontWeight={500}
+            fontFamily="IBM Plex Mono, monospace"
+          >
+            {`· ${suffix}`}
+          </text>
+        )}
+      </g>
+    );
+  }
+
+  const maxChars = cardVisual?.maxChars ?? 22;
+  const showMeta = cardVisual?.showMeta ?? true;
+  const title = cardVisual?.title ?? truncateLabel(cluster.meta.title, maxChars);
+  const codeSpan = Math.max(20, cluster.code.length * 6.4 + 6);
+  const titleOffset = 23 + codeSpan;
+
   const metaLine = cluster.meta.subtitle;
   const width = Math.max(
     136,
-    Math.round(Math.max(title.length * 6.4 + 48, showMeta ? metaLine.length * 5.5 + 22 : 0)),
+    Math.round(
+      Math.max(title.length * 6.4 + titleOffset + 10, showMeta ? metaLine.length * 5.5 + 22 : 0),
+    ),
   );
   const height = showMeta ? 48 : 30;
   const halfW = width / 2;
@@ -1334,7 +1426,7 @@ export function renderDemoClusterCard(
         {cluster.code}
       </text>
       <text
-        x={-halfW + 44}
+        x={Math.round(-halfW + titleOffset)}
         y={showMeta ? -5 : 3.5}
         fill={isLight ? '#0f172a' : '#f8fafc'}
         fontSize={10.5}

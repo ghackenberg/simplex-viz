@@ -1,10 +1,14 @@
 import {
   getHullBoundingRadius,
+  hexToOklab,
+  mixOklabColors,
+  type ClusterDescriptor,
   type ConvexGeometry,
   type DefaultTaggedItem,
   type MeshEdgeRenderState,
   type MeshTriangleRenderState,
   type NodeRenderState,
+  type Point2D,
   type SceneFrameSnapshot,
   type SimplexColorTheme,
   type SimplexRendererAdapter,
@@ -61,11 +65,14 @@ function triangleSignature<TItem, TTagMeta, TClusterMeta>(
   viewKey: string,
 ): string {
   const pts = tr.points
-    .map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+    .map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`)
     .join(';');
-  const { isHovered, isFocused, isDimmed } = tr.interaction;
+  const { isHovered, isFocused, isDimmed, isHighlighted } = tr.interaction;
+  const hb = tr.highlightBoundary
+    ? `${tr.highlightBoundary.edges.map((b) => (b ? 1 : 0)).join('')}${tr.highlightBoundary.corners.map((b) => (b ? 1 : 0)).join('')}`
+    : '';
   const clusterColors = tr.clusters.map((c) => c?.colorHex ?? '').join(',');
-  return `${viewSeq}:${viewKey}:${theme}:${pts}:${tr.fillHex}:${tr.fillOpacity.toFixed(3)}:${tr.coveredItemCount}:${tr.interiorItemCount}:${clusterColors}:${isHovered ? 1 : 0}${isFocused ? 1 : 0}${isDimmed ? 1 : 0}`;
+  return `${viewSeq}:${viewKey}:${theme}:${pts}:${tr.fillHex}:${tr.fillOpacity.toFixed(3)}:${tr.coveredItemCount}:${tr.interiorItemCount}:${clusterColors}:${isHovered ? 1 : 0}${isFocused ? 1 : 0}${isDimmed ? 1 : 0}${isHighlighted ? 1 : 0}:${hb}:${tr.isDrillable ? 1 : 0}:${tr.isContext ? 1 : 0}:${tr.neighborId ?? ''}`;
 }
 
 function edgeSignature<TItem, TTagMeta, TClusterMeta>(
@@ -76,7 +83,139 @@ function edgeSignature<TItem, TTagMeta, TClusterMeta>(
 ): string {
   const c0 = edge.clusters[0]?.colorHex ?? '';
   const c1 = edge.clusters[1]?.colorHex ?? '';
-  return `${viewSeq}:${viewKey}:${theme}:${edge.a.x.toFixed(1)},${edge.a.y.toFixed(1)}-${edge.b.x.toFixed(1)},${edge.b.y.toFixed(1)}:${edge.mixedColorHex}:${c0},${c1}:${edge.isHighlighted ? 1 : 0}`;
+  return `${viewSeq}:${viewKey}:${theme}:${edge.a.x.toFixed(2)},${edge.a.y.toFixed(2)}-${edge.b.x.toFixed(2)},${edge.b.y.toFixed(2)}:${edge.mixedColorHex}:${c0},${c1}:${edge.isHighlighted ? 1 : 0}:${edge.isDimmed ? 1 : 0}`;
+}
+
+interface DrillSubdivisionEdgeEntry<TItem, TTagMeta, TClusterMeta> {
+  readonly triangleIndex: number;
+  readonly subIndex: 0 | 1 | 2;
+  readonly edge: MeshEdgeRenderState<TItem, TTagMeta, TClusterMeta>;
+}
+
+function buildDrillSubdivisionEdges<TItem, TTagMeta, TClusterMeta>(
+  triangles: readonly MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta>[],
+): DrillSubdivisionEdgeEntry<TItem, TTagMeta, TClusterMeta>[] {
+  const result: DrillSubdivisionEdgeEntry<TItem, TTagMeta, TClusterMeta>[] = [];
+  let seq = 0;
+
+  for (const tr of triangles) {
+    if (!tr.isDrillable || tr.isContext || tr.index <= -10000) continue;
+
+    const [p0, p1, p2] = tr.points;
+    const l0 = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    const l1 = Math.hypot(p0.x - p2.x, p0.y - p2.y);
+    const l2 = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+    const perim = l0 + l1 + l2;
+    if (perim < 24) continue;
+
+    const twiceArea = Math.abs(
+      (p1.x - p0.x) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.x - p0.x),
+    );
+    if (twiceArea / perim < 10) continue;
+
+    const m01: Point2D = { x: (p0.x + p1.x) * 0.5, y: (p0.y + p1.y) * 0.5 };
+    const m12: Point2D = { x: (p1.x + p2.x) * 0.5, y: (p1.y + p2.y) * 0.5 };
+    const m20: Point2D = { x: (p2.x + p0.x) * 0.5, y: (p2.y + p0.y) * 0.5 };
+
+    const fallbackLab = hexToOklab(tr.fillHex);
+    const [c0, c1, c2] = tr.clusters;
+    const mix01 = mixOklabColors([
+      { oklab: c0?.oklab ?? fallbackLab, weight: 1 },
+      { oklab: c1?.oklab ?? fallbackLab, weight: 1 },
+    ]);
+    const mix12 = mixOklabColors([
+      { oklab: c1?.oklab ?? fallbackLab, weight: 1 },
+      { oklab: c2?.oklab ?? fallbackLab, weight: 1 },
+    ]);
+    const mix20 = mixOklabColors([
+      { oklab: c2?.oklab ?? fallbackLab, weight: 1 },
+      { oklab: c0?.oklab ?? fallbackLab, weight: 1 },
+    ]);
+
+    const synthCluster = (
+      protoA: ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+      protoB: ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+      mix: { readonly hex: string; readonly oklab: readonly [number, number, number] },
+    ): ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined => {
+      const proto = protoA ?? protoB;
+      return proto ? { ...proto, colorHex: mix.hex, oklab: mix.oklab } : undefined;
+    };
+
+    const c01 = synthCluster(c0, c1, mix01);
+    const c12 = synthCluster(c1, c2, mix12);
+    const c20 = synthCluster(c2, c0, mix20);
+
+    const isDimmed = Boolean(
+      tr.interaction.isDimmed && !tr.interaction.isHovered && !tr.interaction.isFocused,
+    );
+    const [v0, v1, v2] = tr.vertexIndices;
+
+    const segments: ReadonlyArray<{
+      readonly subIndex: 0 | 1 | 2;
+      readonly a: Point2D;
+      readonly b: Point2D;
+      readonly verts: readonly [number, number];
+      readonly mixedColorHex: string;
+      readonly clusters: readonly [
+        ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+        ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+      ];
+    }> = [
+      {
+        subIndex: 0,
+        a: m01,
+        b: m12,
+        verts: [v0, v1],
+        mixedColorHex: mixOklabColors([
+          { oklab: mix01.oklab, weight: 1 },
+          { oklab: mix12.oklab, weight: 1 },
+        ]).hex,
+        clusters: [c01, c12],
+      },
+      {
+        subIndex: 1,
+        a: m12,
+        b: m20,
+        verts: [v1, v2],
+        mixedColorHex: mixOklabColors([
+          { oklab: mix12.oklab, weight: 1 },
+          { oklab: mix20.oklab, weight: 1 },
+        ]).hex,
+        clusters: [c12, c20],
+      },
+      {
+        subIndex: 2,
+        a: m20,
+        b: m01,
+        verts: [v2, v0],
+        mixedColorHex: mixOklabColors([
+          { oklab: mix20.oklab, weight: 1 },
+          { oklab: mix01.oklab, weight: 1 },
+        ]).hex,
+        clusters: [c20, c01],
+      },
+    ];
+
+    for (const seg of segments) {
+      result.push({
+        triangleIndex: tr.index,
+        subIndex: seg.subIndex,
+        edge: {
+          index: seq++,
+          vertexIndices: seg.verts,
+          a: seg.a,
+          b: seg.b,
+          mixedColorHex: seg.mixedColorHex,
+          clusters: seg.clusters,
+          isHighlighted: false,
+          isDimmed: isDimmed || undefined,
+          opacity: tr.opacity,
+        },
+      });
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -105,6 +244,7 @@ export class SvgRendererAdapter<
   private readonly doc: Document;
   private readonly worldGroup: SVGGElement;
   private readonly trianglesGroup: SVGGElement;
+  private readonly drillEdgesGroup: SVGGElement;
   private readonly edgesGroup: SVGGElement;
   private readonly clustersGroup: SVGGElement;
   private readonly itemsGroup: SVGGElement;
@@ -127,6 +267,7 @@ export class SvgRendererAdapter<
   private readonly clusterDomMap = new Map<string, TrackedNodeDom<TClusterVisual>>();
   private readonly itemDomMap = new Map<string, TrackedNodeDom<TContentVisual>>();
   private readonly triangleDom: TrackedMeshPartDom[] = [];
+  private readonly drillEdgeDom: TrackedMeshPartDom[] = [];
   private readonly edgeDom: TrackedMeshPartDom[] = [];
 
   constructor(
@@ -157,6 +298,8 @@ export class SvgRendererAdapter<
 
     this.worldGroup = this.createGroup('sv-world');
     this.trianglesGroup = this.createGroup('sv-mesh-triangles');
+    this.drillEdgesGroup = this.createGroup('sv-drill-edges');
+    this.drillEdgesGroup.setAttribute('pointer-events', 'none');
     this.edgesGroup = this.createGroup('sv-mesh-edges');
     this.clustersGroup = this.createGroup('sv-clusters');
     this.itemsGroup = this.createGroup('sv-items');
@@ -164,6 +307,7 @@ export class SvgRendererAdapter<
     this.hullsGroup.setAttribute('pointer-events', 'none');
 
     this.worldGroup.appendChild(this.trianglesGroup);
+    this.worldGroup.appendChild(this.drillEdgesGroup);
     this.worldGroup.appendChild(this.edgesGroup);
     this.worldGroup.appendChild(this.clustersGroup);
     this.worldGroup.appendChild(this.itemsGroup);
@@ -191,6 +335,7 @@ export class SvgRendererAdapter<
     if (this.theme === theme) return;
     this.theme = theme;
     for (const d of this.triangleDom) d.lastSig = null;
+    for (const d of this.drillEdgeDom) d.lastSig = null;
     for (const d of this.edgeDom) d.lastSig = null;
   }
 
@@ -228,6 +373,7 @@ export class SvgRendererAdapter<
     if (views.edgeView && views.edgeView !== this.edgeView) {
       this.edgeView = views.edgeView;
       this.edgeViewSeq += 1;
+      for (const d of this.drillEdgeDom) d.lastSig = null;
       for (const d of this.edgeDom) d.lastSig = null;
     }
   }
@@ -290,6 +436,38 @@ export class SvgRendererAdapter<
       const tr = snapshot.triangles[i]!;
       const entry = this.triangleDom[i]!;
       entry.group.setAttribute('data-triangle-index', String(tr.index));
+      entry.group.setAttribute('data-covered-items', String(tr.coveredItemCount));
+      const isGhost = tr.index <= -10000;
+      if (isGhost) {
+        entry.group.setAttribute('data-ghost', 'true');
+        entry.group.setAttribute('pointer-events', 'none');
+      } else {
+        entry.group.removeAttribute('data-ghost');
+        entry.group.removeAttribute('pointer-events');
+      }
+      if (tr.isContext && !isGhost) {
+        entry.group.setAttribute('data-context', 'true');
+      } else {
+        entry.group.removeAttribute('data-context');
+      }
+      if (tr.isDrillable && !isGhost) {
+        entry.group.setAttribute('data-drillable', 'true');
+      } else {
+        entry.group.removeAttribute('data-drillable');
+      }
+      if (tr.neighborId && !isGhost) {
+        entry.group.setAttribute('data-neighbor-id', tr.neighborId);
+      } else {
+        entry.group.removeAttribute('data-neighbor-id');
+      }
+      if (tr.opacity !== undefined && tr.opacity < 0.999) {
+        entry.group.setAttribute(
+          'opacity',
+          Math.max(0, Math.min(1, tr.opacity)).toFixed(3),
+        );
+      } else {
+        entry.group.removeAttribute('opacity');
+      }
       const sig = triangleSignature(tr, this.theme, this.triangleViewSeq, triViewKey);
       if (entry.lastSig !== sig) {
         this.triangleView.mountOrUpdate(entry.group, tr, this.theme);
@@ -297,7 +475,44 @@ export class SvgRendererAdapter<
       }
     }
 
-    // 2. Pluggable Mesh Edges
+    // 2a. Internal 1:4 Subdivision Edges on Drillable Triangles (rendered with active edgeView)
+    const edgeViewKey = this.edgeView.cacheKey ?? '';
+    const drillEdges = buildDrillSubdivisionEdges(snapshot.triangles);
+    while (this.drillEdgeDom.length < drillEdges.length) {
+      const group = this.createGroup('sv-drill-edge');
+      this.drillEdgesGroup.appendChild(group);
+      this.drillEdgeDom.push({ group, lastSig: null });
+    }
+    while (this.drillEdgeDom.length > drillEdges.length) {
+      const entry = this.drillEdgeDom.pop();
+      entry?.group.remove();
+    }
+    for (let i = 0; i < drillEdges.length; i++) {
+      const subItem = drillEdges[i]!;
+      const entry = this.drillEdgeDom[i]!;
+      entry.group.setAttribute('data-triangle-index', String(subItem.triangleIndex));
+      entry.group.setAttribute('data-sub-edge', String(subItem.subIndex));
+      if (subItem.edge.opacity !== undefined && subItem.edge.opacity < 0.999) {
+        entry.group.setAttribute(
+          'opacity',
+          Math.max(0, Math.min(1, subItem.edge.opacity)).toFixed(3),
+        );
+      } else {
+        entry.group.removeAttribute('opacity');
+      }
+      const sig = edgeSignature(
+        subItem.edge,
+        this.theme,
+        this.edgeViewSeq,
+        edgeViewKey,
+      );
+      if (entry.lastSig !== sig) {
+        this.edgeView.mountOrUpdate(entry.group, subItem.edge, this.theme);
+        entry.lastSig = sig;
+      }
+    }
+
+    // 2b. Pluggable Outer Mesh Edges
     while (this.edgeDom.length < snapshot.edges.length) {
       const group = this.createGroup('sv-mesh-edge');
       group.setAttribute('data-edge-index', String(this.edgeDom.length));
@@ -308,11 +523,25 @@ export class SvgRendererAdapter<
       const entry = this.edgeDom.pop();
       entry?.group.remove();
     }
-    const edgeViewKey = this.edgeView.cacheKey ?? '';
     for (let i = 0; i < snapshot.edges.length; i++) {
       const edge = snapshot.edges[i]!;
       const entry = this.edgeDom[i]!;
       entry.group.setAttribute('data-edge-index', String(edge.index));
+      if (edge.index <= -10000) {
+        entry.group.setAttribute('data-ghost', 'true');
+        entry.group.setAttribute('pointer-events', 'none');
+      } else {
+        entry.group.removeAttribute('data-ghost');
+        entry.group.removeAttribute('pointer-events');
+      }
+      if (edge.opacity !== undefined && edge.opacity < 0.999) {
+        entry.group.setAttribute(
+          'opacity',
+          Math.max(0, Math.min(1, edge.opacity)).toFixed(3),
+        );
+      } else {
+        entry.group.removeAttribute('opacity');
+      }
       const sig = edgeSignature(edge, this.theme, this.edgeViewSeq, edgeViewKey);
       if (entry.lastSig !== sig) {
         this.edgeView.mountOrUpdate(entry.group, edge, this.theme);
@@ -374,9 +603,35 @@ export class SvgRendererAdapter<
         domMap.set(node.id, tracked);
       }
 
-      const effectiveOpacity = node.interaction.isDimmed
-        ? node.opacity * 0.24
-        : node.opacity;
+      const isGhostNode = node.id.startsWith('ghost-');
+      if (isGhostNode || node.isPassThrough) {
+        tracked.rootGroup.setAttribute('pointer-events', 'none');
+      } else {
+        tracked.rootGroup.removeAttribute('pointer-events');
+      }
+      if (node.isPassThrough && !isGhostNode) {
+        tracked.rootGroup.setAttribute('data-pass-through', 'true');
+      } else {
+        tracked.rootGroup.removeAttribute('data-pass-through');
+      }
+      if (node.isContext && !isGhostNode) {
+        tracked.rootGroup.setAttribute('data-context', 'true');
+      } else {
+        tracked.rootGroup.removeAttribute('data-context');
+      }
+      if (node.neighborId && !isGhostNode) {
+        tracked.rootGroup.setAttribute('data-neighbor-id', node.neighborId);
+      } else {
+        tracked.rootGroup.removeAttribute('data-neighbor-id');
+      }
+
+      const effectiveOpacity = node.isContext
+        ? node.interaction.isHovered
+          ? Math.max(node.opacity, 0.72)
+          : node.opacity
+        : node.interaction.isDimmed
+          ? node.opacity * (node.interaction.isHovered ? 0.72 : 0.34)
+          : node.opacity;
       tracked.rootGroup.setAttribute(
         'transform',
         `translate(${node.x.toFixed(2)}, ${node.y.toFixed(2)}) scale(${node.scale.toFixed(4)})`,
@@ -550,6 +805,9 @@ export class SvgRendererAdapter<
         circle.setAttribute('stroke', strokeColor);
         circle.setAttribute('stroke-width', '1');
         circle.setAttribute('stroke-dasharray', '3 2');
+        if (node.isContext) {
+          circle.setAttribute('opacity', '0.28');
+        }
         this.hullsGroup.appendChild(circle);
       } else if (hull.vertices.length >= 3) {
         const poly = this.doc.createElementNS(SVG_NS, 'polygon');
@@ -567,6 +825,9 @@ export class SvgRendererAdapter<
         poly.setAttribute('stroke', strokeColor);
         poly.setAttribute('stroke-width', '1');
         poly.setAttribute('stroke-dasharray', '3 2');
+        if (node.isContext) {
+          poly.setAttribute('opacity', '0.28');
+        }
         this.hullsGroup.appendChild(poly);
       }
     };
@@ -583,6 +844,7 @@ export class SvgRendererAdapter<
     this.clusterDomMap.clear();
     this.itemDomMap.clear();
     this.triangleDom.length = 0;
+    this.drillEdgeDom.length = 0;
     this.edgeDom.length = 0;
     this.contentHullCache.clear();
     this.clusterHullCache.clear();

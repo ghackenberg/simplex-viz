@@ -143,14 +143,34 @@ export function createPresetVisualResolver<
     resolveClusterVisual: (
       cluster: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>,
     ): DefaultClusterPresetVisual => {
+      const isIntermediate = cluster.role === 'intermediate';
+      const accentColors = cluster.mixWeights
+        ?.slice(0, 2)
+        .map((m) => m.colorHex);
       if (preset === 'badges') {
         const count = cluster.members.length;
+        let compactSuffix = '';
+        if (isIntermediate) {
+          if (cluster.coreTags.length > 0) {
+            compactSuffix = `#${cluster.coreTags[0]!.tag.slice(0, 10)}`;
+          } else if (
+            cluster.mixWeights &&
+            cluster.mixWeights.length === 2 &&
+            Math.abs(cluster.mixWeights[0]!.weight - 0.5) > 0.03
+          ) {
+            compactSuffix = `${Math.round(cluster.mixWeights[0]!.weight * 100)}%`;
+          }
+        }
         return {
           code: cluster.code,
-          title: cluster.defaultLabel,
-          metaLine: `${count} ${count === 1 ? 'item' : 'items'}`,
+          title: isIntermediate ? compactSuffix : cluster.defaultLabel,
+          metaLine: isIntermediate
+            ? ''
+            : `${count} ${count === 1 ? 'item' : 'items'}`,
           colorHex: cluster.colorHex,
           theme,
+          variant: isIntermediate ? 'intermediate' : 'primary',
+          accentColors,
         };
       }
       return {
@@ -160,6 +180,8 @@ export function createPresetVisualResolver<
         colorHex: cluster.colorHex,
         radius: 22,
         theme,
+        variant: isIntermediate ? 'intermediate' : 'primary',
+        accentColors,
       };
     },
     getVisualCacheKey: (
@@ -174,9 +196,9 @@ export function createPresetVisualResolver<
         return `geom:${t}:${visual.shape}:${visual.radius}:${visual.fillHex}`;
       }
       if ('metaLine' in visual) {
-        return `badge:${t}:${visual.code}:${visual.title}:${visual.metaLine}:${visual.colorHex}`;
+        return `badge:${t}:${visual.variant ?? 'primary'}:${visual.code}:${visual.title}:${visual.metaLine}:${visual.colorHex}`;
       }
-      return `anchor:${t}:${visual.code}:${visual.memberCount}:${visual.colorHex}`;
+      return `anchor:${t}:${visual.variant ?? 'primary'}:${visual.code}:${visual.memberCount}:${visual.colorHex}`;
     },
   };
 }

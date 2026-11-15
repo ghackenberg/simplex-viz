@@ -7,6 +7,8 @@ import type {
   SimplexColorStrategy,
   SimplexLayoutStrategy,
   SimplexMeshStrategy,
+  SimplexZoomState,
+  SimplexZoomStrategy,
 } from '@simplex-viz/core';
 import type {
   SimplexSvgController,
@@ -32,9 +34,19 @@ export interface SimplexGraphHandle<
   setClusteringStrategy(strategy: SimplexClusteringStrategy<TItem, TTagMeta>): void;
   setColorStrategy(strategy: SimplexColorStrategy<TItem, TTagMeta>): void;
   setLayoutStrategy(strategy: SimplexLayoutStrategy): void;
+  setZoomStrategy(
+    strategy: SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>,
+  ): void;
   setTriangleView(view: SvgTriangleView<TItem, TTagMeta, TClusterMeta>): void;
   setEdgeView(view: SvgEdgeView<TItem, TTagMeta, TClusterMeta>): void;
   setFocusedTriangleIndex(triangleIndex: number | null): void;
+  drillDownTriangle(triangleIndex: number): boolean;
+  drillDownCluster(clusterUid: string): boolean;
+  drillToNeighbor(neighborId: string): boolean;
+  drillUp(): boolean;
+  drillToDepth(depth: number): boolean;
+  drillToRoot(): boolean;
+  getZoomState(): SimplexZoomState | null;
   resetCamera(): void;
   zoomBy(factor: number): void;
   getMetrics(): LayoutMetrics | null;
@@ -116,6 +128,13 @@ export function useSimplexGraphController<
     controllerRef.current?.setLayoutStrategy(strategy);
   }, []);
 
+  const setZoomStrategy = useCallback(
+    (strategy: SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>) => {
+      controllerRef.current?.setZoomStrategy(strategy);
+    },
+    [],
+  );
+
   const setTriangleView = useCallback(
     (view: SvgTriangleView<TItem, TTagMeta, TClusterMeta>) => {
       controllerRef.current?.setTriangleView(view);
@@ -132,6 +151,34 @@ export function useSimplexGraphController<
 
   const setFocusedTriangleIndex = useCallback((triangleIndex: number | null) => {
     controllerRef.current?.setFocusedTriangleIndex(triangleIndex);
+  }, []);
+
+  const drillDownTriangle = useCallback((triangleIndex: number) => {
+    return controllerRef.current?.drillDownTriangle(triangleIndex) ?? false;
+  }, []);
+
+  const drillDownCluster = useCallback((clusterUid: string) => {
+    return controllerRef.current?.drillDownCluster(clusterUid) ?? false;
+  }, []);
+
+  const drillToNeighbor = useCallback((neighborId: string) => {
+    return controllerRef.current?.drillToNeighbor(neighborId) ?? false;
+  }, []);
+
+  const drillUp = useCallback(() => {
+    return controllerRef.current?.drillUp() ?? false;
+  }, []);
+
+  const drillToDepth = useCallback((depth: number) => {
+    return controllerRef.current?.drillToDepth(depth) ?? false;
+  }, []);
+
+  const drillToRoot = useCallback(() => {
+    return controllerRef.current?.drillToRoot() ?? false;
+  }, []);
+
+  const getZoomState = useCallback(() => {
+    return controllerRef.current?.getZoomState() ?? null;
   }, []);
 
   const resetCamera = useCallback(() => {
@@ -171,9 +218,17 @@ export function useSimplexGraphController<
       setClusteringStrategy,
       setColorStrategy,
       setLayoutStrategy,
+      setZoomStrategy,
       setTriangleView,
       setEdgeView,
       setFocusedTriangleIndex,
+      drillDownTriangle,
+      drillDownCluster,
+      drillToNeighbor,
+      drillUp,
+      drillToDepth,
+      drillToRoot,
+      getZoomState,
       resetCamera,
       zoomBy,
       getMetrics,

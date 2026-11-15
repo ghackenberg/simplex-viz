@@ -1,23 +1,26 @@
-import type {
-  ClusterDescriptor,
-  ClusterHoverEvent,
-  ClusterMetaConfig,
-  ContentHoverEvent,
-  ContentLayoutContext,
-  DefaultTaggedItem,
-  HitTarget,
-  LayoutMetrics,
-  LayoutSolverOptions,
-  MeshOptions,
-  NodeRenderState,
-  NormalizedPointerEvent,
-  SimplexColorStrategy,
-  SimplexLayoutStrategy,
-  SimplexMeshStrategy,
-  StrategyItemIdentityConfig,
-  TriangleHoverEvent,
-  VisualResolver,
-  WheelBehavior,
+import {
+  createFreeCameraZoomStrategy,
+  type ClusterDescriptor,
+  type ClusterHoverEvent,
+  type ClusterMetaConfig,
+  type ContentHoverEvent,
+  type ContentLayoutContext,
+  type DefaultTaggedItem,
+  type HitTarget,
+  type LayoutMetrics,
+  type LayoutSolverOptions,
+  type MeshOptions,
+  type NodeRenderState,
+  type NormalizedPointerEvent,
+  type SimplexColorStrategy,
+  type SimplexLayoutStrategy,
+  type SimplexMeshStrategy,
+  type SimplexZoomState,
+  type SimplexZoomStrategy,
+  type StrategyItemIdentityConfig,
+  type TriangleHoverEvent,
+  type VisualResolver,
+  type WheelBehavior,
 } from '@simplex-viz/core';
 import {
   SimplexSvgController,
@@ -145,6 +148,10 @@ export type SimplexTopicGraphProps<
     readonly colorStrategy?: SimplexColorStrategy<TItem, TTagMeta>;
     /** Optional custom node positioning & scaling strategy. */
     readonly layoutStrategy?: SimplexLayoutStrategy;
+    /** Optional custom zoom / drill-down strategy. Default: free camera. */
+    readonly zoomStrategy?: SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>;
+    /** Renders the built-in breadcrumb bar in drill-down mode. Default: `true`. */
+    readonly showZoomBreadcrumbs?: boolean;
     readonly sizeMultiplier?: number;
     readonly showHulls?: boolean;
     readonly pinnedIds?: ReadonlySet<string> | readonly string[];
@@ -198,6 +205,7 @@ export type SimplexTopicGraphProps<
     readonly onClustersChange?: (
       clusters: readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[],
     ) => void;
+    readonly onZoomStateChange?: (state: SimplexZoomState) => void;
     readonly onFpsUpdate?: (fps: number) => void;
     readonly controllerRef?: MutableRefObject<SimplexSvgController<
       TItem,
@@ -283,6 +291,9 @@ export function SimplexTopicGraph<
   const syncedClusteringStrategyRef = useRef(props.clusteringStrategy);
   const syncedColorStrategyRef = useRef(props.colorStrategy);
   const syncedLayoutStrategyRef = useRef(props.layoutStrategy);
+  const syncedZoomStrategyRef = useRef(props.zoomStrategy);
+  const syncedMeshOptionsRef = useRef(props.meshOptions);
+  const syncedLayoutOptionsRef = useRef(props.layoutOptions);
   const syncedTriangleViewRef = useRef(props.triangleView);
   const syncedEdgeViewRef = useRef(props.edgeView);
 
@@ -473,7 +484,9 @@ export function SimplexTopicGraph<
       clusteringStrategy: p.clusteringStrategy,
       colorStrategy: p.colorStrategy,
       layoutStrategy: p.layoutStrategy,
+      zoomStrategy: p.zoomStrategy,
       showHulls: p.showHulls,
+      showZoomBreadcrumbs: p.showZoomBreadcrumbs,
       focusOnClusterClick: false,
       focusOnTriangleClick: false,
       interactions: {
@@ -499,6 +512,26 @@ export function SimplexTopicGraph<
           const cur = latestPropsRef.current;
           if (cur.onLeftClick) {
             cur.onLeftClick(target, raw);
+            return;
+          }
+          if (ctrlRef.current?.getZoomStrategy().mode === 'drill-down') {
+            if (target.kind === 'triangle') {
+              if (target.triangle.neighborId) {
+                ctrlRef.current.drillToNeighbor(target.triangle.neighborId);
+              } else if (!target.triangle.isContext) {
+                ctrlRef.current.drillDownTriangle(target.triangle.index);
+              }
+            } else if (target.kind === 'cluster') {
+              if (target.neighborId) {
+                ctrlRef.current.drillToNeighbor(target.neighborId);
+              } else {
+                ctrlRef.current.drillDownCluster(target.cluster.clusterUid);
+              }
+            } else if (target.kind === 'content' && target.neighborId) {
+              ctrlRef.current.drillToNeighbor(target.neighborId);
+            } else if (target.kind === 'background') {
+              ctrlRef.current.drillUp();
+            }
             return;
           }
           if (
@@ -556,6 +589,7 @@ export function SimplexTopicGraph<
         },
         onRightClick: (t, raw) => latestPropsRef.current.onRightClick?.(t, raw),
         onWheel: (ev, cam) => {
+          if (ctrlRef.current?.getZoomStrategy().mode === 'drill-down') return;
           const policy = latestPropsRef.current.onWheel ?? 'zoom-to-cursor';
           if (policy === 'none') return;
           if (typeof policy === 'function') {
@@ -572,6 +606,7 @@ export function SimplexTopicGraph<
       },
       onMetricsChange: (m) => latestPropsRef.current.onMetricsChange?.(m),
       onClustersChange: (c) => latestPropsRef.current.onClustersChange?.(c),
+      onZoomStateChange: (z) => latestPropsRef.current.onZoomStateChange?.(z),
       onFpsUpdate: (fps) => latestPropsRef.current.onFpsUpdate?.(fps),
     });
     ctrlRef.current = ctrl;
@@ -662,6 +697,67 @@ export function SimplexTopicGraph<
       ctrlRef.current?.setLayoutStrategy(props.layoutStrategy);
     }
   }, [props.layoutStrategy]);
+
+  useEffect(() => {
+    if (syncedZoomStrategyRef.current === props.zoomStrategy) return;
+    syncedZoomStrategyRef.current = props.zoomStrategy;
+    ctrlRef.current?.setZoomStrategy(
+      props.zoomStrategy ??
+        createFreeCameraZoomStrategy<TItem, TTagMeta, TClusterMeta>(),
+    );
+  }, [props.zoomStrategy]);
+
+  useEffect(() => {
+    ctrlRef.current?.setZoomUiOptions({
+      showZoomBreadcrumbs: props.showZoomBreadcrumbs,
+    });
+  }, [props.showZoomBreadcrumbs]);
+
+  // Sync meshOptions & layoutOptions when values change after mount
+  useEffect(() => {
+    const prev = syncedMeshOptionsRef.current;
+    const next = props.meshOptions;
+    if (prev === next) return;
+    if (
+      prev &&
+      next &&
+      prev.innerPadding === next.innerPadding &&
+      prev.sideLength === next.sideLength &&
+      prev.minSideLength === next.minSideLength &&
+      prev.maxSideLength === next.maxSideLength &&
+      prev.maxClusters === next.maxClusters
+    ) {
+      syncedMeshOptionsRef.current = next;
+      return;
+    }
+    syncedMeshOptionsRef.current = next;
+    ctrlRef.current?.setMeshOptions(next ?? {});
+  }, [props.meshOptions]);
+
+  useEffect(() => {
+    const prev = syncedLayoutOptionsRef.current;
+    const next = props.layoutOptions;
+    if (prev === next) return;
+    if (
+      prev &&
+      next &&
+      prev.clusterGapPx === next.clusterGapPx &&
+      prev.itemGapPx === next.itemGapPx &&
+      prev.minContentScale === next.minContentScale &&
+      prev.relaxationIterations === next.relaxationIterations &&
+      prev.sizeMultiplier === next.sizeMultiplier &&
+      prev.seed === next.seed
+    ) {
+      syncedLayoutOptionsRef.current = next;
+      return;
+    }
+    syncedLayoutOptionsRef.current = next;
+    ctrlRef.current?.setLayoutOptions(
+      props.sizeMultiplier !== undefined
+        ? { ...next, sizeMultiplier: props.sizeMultiplier }
+        : (next ?? {}),
+    );
+  }, [props.layoutOptions, props.sizeMultiplier]);
 
   // Sync pluggable triangle face & edge views independently (instant re-render, no layout recompute)
   useEffect(() => {
@@ -763,13 +859,15 @@ export function SimplexTopicGraph<
           <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
             {`${hoveredTarget.cluster.members.length} ${
               hoveredTarget.cluster.members.length === 1 ? 'item' : 'items'
-            }`}
+            }${hoveredTarget.neighborId ? ' · Click to switch' : ''}`}
           </div>
         </div>
       ) : (
         <div>
           <div style={{ fontWeight: 600, color: isLight ? '#0f172a' : '#f8fafc' }}>
-            {`Triangle #${hoveredTarget.triangle.index + 1}`}
+            {hoveredTarget.triangle.isContext
+              ? 'Neighbor Triangle'
+              : `Triangle #${hoveredTarget.triangle.index + 1}`}
           </div>
           <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
             {hoveredTarget.triangle.clusters
@@ -781,7 +879,16 @@ export function SimplexTopicGraph<
               .join(' · ')}
           </div>
           <div style={{ marginTop: 2, fontSize: 11, color: isLight ? '#64748b' : '#94a3b8' }}>
-            {`${hoveredTarget.triangle.coveredItemCount} items · ${hoveredTarget.triangle.interiorItemCount} interior`}
+            {`${hoveredTarget.triangle.coveredItemCount} items · ${hoveredTarget.triangle.interiorItemCount} interior${
+              hoveredTarget.triangle.neighborId
+                ? ' · Click to switch'
+                : ctrlRef.current?.getZoomStrategy().mode === 'drill-down' &&
+                    ctrlRef.current
+                      .getZoomState()
+                      .drillableTriangleIndices.includes(hoveredTarget.triangle.index)
+                  ? ' · Click to zoom in'
+                  : ''
+            }`}
           </div>
         </div>
       );

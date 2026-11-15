@@ -18,11 +18,20 @@ import {
   type SimplexAnchorRuleKind,
 } from './clustering';
 import {
-  solveCollisionDrivenLayout,
-  solveLocalAdaptiveLayout,
-  solveTwoPhaseLayout,
+  createBarycentricPbdRelaxer,
+  createCollisionLocalScaleController,
+  createDensityPriorScaleController,
+  createMeshInwardFanSeeder,
+  createPhyllotaxisSeeder,
+  createSpaceFillingPbdRelaxer,
+  createUniformScaleController,
+  solveComposedLayout,
+  withWarmStartSeeder,
   type LayoutClusterInput,
   type LayoutItemInput,
+  type LayoutSeeder,
+  type PositionRelaxer,
+  type ScaleController,
   type TwoPhaseLayoutResult,
 } from './layout';
 import { buildSimplexLattice, buildSimplexMesh } from './mesh';
@@ -523,6 +532,7 @@ export function createFixedLatticeMeshStrategy<TItem = DefaultTaggedItem>(config
   readonly orientation?: 'horizontal' | 'vertical';
   readonly wideFirst?: boolean;
   readonly innerPadding?: number;
+  readonly sideLength?: number;
 }): SimplexMeshStrategy<TItem> {
   const cols = Math.max(2, Math.round(config.cols));
   const rows = Math.max(2, Math.round(config.rows));
@@ -540,8 +550,25 @@ export function createFixedLatticeMeshStrategy<TItem = DefaultTaggedItem>(config
       const spanAlongRows = Math.max(0.5, (rows - 1) * sqrt3Over2);
       const rawW = orientation === 'horizontal' ? spanAlongCols : spanAlongRows;
       const rawH = orientation === 'horizontal' ? spanAlongRows : spanAlongCols;
-      const sideLength = Math.max(40, Math.min(usableW / rawW, usableH / rawH));
-      const areaEfficiency = (rawW * sideLength * (rawH * sideLength)) / (usableW * usableH);
+      const explicitSide = config.sideLength ?? ctx.meshOptions.sideLength;
+      const sideLength =
+        explicitSide !== undefined && Number.isFinite(explicitSide)
+          ? Math.max(40, explicitSide)
+          : Math.max(40, Math.min(usableW / rawW, usableH / rawH));
+      const worldWidth = Math.max(
+        ctx.viewportWidth,
+        Math.ceil(rawW * sideLength + 2 * innerPadding),
+      );
+      const worldHeight = Math.max(
+        ctx.viewportHeight,
+        Math.ceil(rawH * sideLength + 2 * innerPadding),
+      );
+      const effUsableW = Math.max(80, worldWidth - 2 * innerPadding);
+      const effUsableH = Math.max(80, worldHeight - 2 * innerPadding);
+      const areaEfficiency = Math.min(
+        1,
+        (rawW * sideLength * (rawH * sideLength)) / (effUsableW * effUsableH),
+      );
 
       const { vertices, edges, triangles } = buildSimplexLattice(
         cols,
@@ -549,13 +576,13 @@ export function createFixedLatticeMeshStrategy<TItem = DefaultTaggedItem>(config
         sideLength,
         orientation,
         wideFirst,
-        ctx.viewportWidth,
-        ctx.viewportHeight,
+        worldWidth,
+        worldHeight,
       );
 
       return {
-        width: ctx.viewportWidth,
-        height: ctx.viewportHeight,
+        width: worldWidth,
+        height: worldHeight,
         innerPadding,
         sideLength,
         orientation,
@@ -1193,60 +1220,11 @@ export function createSoftSimplexTagClusteringStrategy<
         return raw;
       }
 
-      if (raw.unitVertices.length === 1) {
-        const v = raw.unitVertices[0]!;
-        let bestTriIdx = -1;
-        let bestTriScore = -Infinity;
-        let bestOther: [number, number] = [v, v];
-        let bestAffs: [number, number] = [0.25, 0.25];
-
-        for (let t = 0; t < ctx.mesh.triangles.length; t++) {
-          const tv = ctx.mesh.triangles[t]!.vertices;
-          if (tv[0] !== v && tv[1] !== v && tv[2] !== v) continue;
-          const others = tv.filter((u) => u !== v);
-          if (others.length !== 2) continue;
-          const [b, c] = [others[0]!, others[1]!];
-          const affB = scoreItemToVertex(raw.tagIndices, b);
-          const affC = scoreItemToVertex(raw.tagIndices, c);
-          const loadPenalty = 1 + 0.14 * triOccupancy[t]!;
-          const score = (affB + affC + 0.12) / loadPenalty;
-          if (score > bestTriScore) {
-            bestTriScore = score;
-            bestTriIdx = t;
-            bestOther = [b, c];
-            bestAffs = [affB, affC];
-          }
-        }
-
-        if (bestTriIdx >= 0) {
-          triOccupancy[bestTriIdx]! += 1;
-          const [b, c] = bestOther;
-          const sB = bestAffs[0] + 0.18;
-          const sC = bestAffs[1] + 0.18;
-          const sTotal = sB + sC;
-          const wV = 1 - triangleSpread;
-          const wB = triangleSpread * (sB / sTotal);
-          const wC = triangleSpread * (sC / sTotal);
-          const newUnit = [v, b, c];
-          const newWeights = [
-            { clusterIndex: v, coverage: raw.weights[0]?.coverage ?? 1, normalizedWeight: wV },
-            { clusterIndex: b, coverage: Math.max(0.05, bestAffs[0]), normalizedWeight: wB },
-            { clusterIndex: c, coverage: Math.max(0.05, bestAffs[1]), normalizedWeight: wC },
-          ];
-          let bx = 0;
-          let by = 0;
-          for (const w of newWeights) {
-            const pt = ctx.mesh.vertices[w.clusterIndex]!;
-            bx += pt.x * w.normalizedWeight;
-            by += pt.y * w.normalizedWeight;
-          }
-          return {
-            ...raw,
-            unitVertices: newUnit,
-            weights: newWeights,
-            anchor: { x: bx, y: by },
-          };
-        }
+      // Single-cluster items belong directly to one topic cluster and must NOT be forced
+      // into a triangle wedge so they can arrange freely in a 360° halo around their cluster
+      // (including around boundary/corner triangulation vertices).
+      if (raw.unitVertices.length <= 1) {
+        return raw;
       }
 
       if (raw.unitVertices.length === 2) {
@@ -2273,9 +2251,10 @@ export function createSoftSimplexEmbeddingClusteringStrategy<
       const vec = vectors[i]!;
       const primaryVertex = clusterToVertex[assignments[i]!]!;
 
+      const singleResSq = Math.max(0, sqDistVec(vec, vertexCentroids[primaryVertex]!));
       let chosenUnit: number[] = [primaryVertex];
       let chosenWeights: number[] = [1];
-      let chosenResidual = Math.sqrt(Math.max(0, sqDistVec(vec, vertexCentroids[primaryVertex]!)));
+      let chosenResidual = Math.sqrt(singleResSq);
 
       if (triangleUnits.length > 0) {
         // Evaluate triangles (prioritizing triangles incident to primary cluster or low residual)
@@ -2304,7 +2283,19 @@ export function createSoftSimplexEmbeddingClusteringStrategy<
           }
         }
 
-        if (bestTriIdx >= 0) {
+        const maxProjWeight = Math.max(
+          bestProjWeights[0],
+          bestProjWeights[1],
+          bestProjWeights[2],
+        );
+        // Exempt items that belong directly to a single cluster so they remain unconstrained
+        // around their cluster node (even at boundary/corner triangulation vertices).
+        const isMultiClusterItem =
+          bestTriIdx >= 0 &&
+          maxProjWeight < 0.82 &&
+          bestResSq < singleResSq * 0.92;
+
+        if (isMultiClusterItem) {
           triOccupancy[bestTriIdx]! += 1;
           const [a, b, c] = triangleUnits[bestTriIdx]!;
           const triCorners = [a, b, c];
@@ -2853,7 +2844,7 @@ export function createPaletteColorStrategy<
 }
 
 // ============================================================================
-// Built-In Layout Strategies
+// Built-In Composable & Preset Layout Strategies
 // ============================================================================
 
 function toPositionMap(
@@ -2867,37 +2858,45 @@ function toPositionMap(
   return out;
 }
 
-/**
- * Default deterministic phyllotaxis tie-breaking + uniform global scale binary search
- * + PBD convex relaxation + hard-separation polish (`0.0 px` overlap).
- */
-export function createPbdUniformLayoutStrategy(): SimplexLayoutStrategy {
-  return {
-    name: 'pbd-uniform',
-    solve(ctx) {
-      return solveTwoPhaseLayout({
-        clusters: ctx.clusters,
-        items: ctx.items,
-        mesh: ctx.mesh,
-        viewportWidth: ctx.viewportWidth,
-        viewportHeight: ctx.viewportHeight,
-        viewportMargin: ctx.viewportMargin,
-        options: ctx.layoutOptions,
-      });
-    },
-  };
+export interface ComposedLayoutStrategyOptions {
+  /** Optional custom strategy identifier. */
+  readonly name?: string;
+  /** Initial item coordinate generator (`phyllotaxis`, `mesh-inward-fan`, etc.). */
+  readonly seeder?: LayoutSeeder;
+  /** Inner position solver (`barycentric-pbd`, `space-filling-pbd`, etc.). */
+  readonly relaxer?: PositionRelaxer;
+  /** Outer scale adaptation controller (`uniform-scale`, `collision-local-scale`, `density-prior-scale`, `fixed-scale`, etc.). */
+  readonly scaleController?: ScaleController;
+  /**
+   * When `true` (default: `true`), reuses settled item coordinates across non-initial updates
+   * by wrapping `seeder` with `withWarmStartSeeder`. Set `false` for cold-start solves every frame.
+   */
+  readonly warmStart?: boolean;
+  /** Default relaxation iteration budget if `ctx.layoutOptions.relaxationIterations` is omitted. */
+  readonly defaultRelaxationIterations?: number;
 }
 
 /**
- * Warm-started PBD layout strategy: reuses existing items' settled coordinates as initial
- * positions during updates to minimize visual jumping when items are added/removed or strategies change,
- * while strictly guaranteeing `0.0 px` overlap.
+ * Composes an arbitrary `LayoutSeeder` × `PositionRelaxer` × `ScaleController` combination
+ * into a `SimplexLayoutStrategy` coupled via an outer-scale / inner-position feedback loop.
  */
-export function createWarmStartPbdLayoutStrategy(): SimplexLayoutStrategy {
+export function createComposedLayoutStrategy(
+  options?: ComposedLayoutStrategyOptions,
+): SimplexLayoutStrategy {
+  const baseSeeder = options?.seeder ?? createMeshInwardFanSeeder();
+  const warmStart = options?.warmStart ?? true;
+  const effectiveSeeder = warmStart ? withWarmStartSeeder(baseSeeder) : baseSeeder;
+  const relaxer = options?.relaxer ?? createSpaceFillingPbdRelaxer();
+  const scaleController = options?.scaleController ?? createCollisionLocalScaleController();
+  const defaultRelaxationIterations = options?.defaultRelaxationIterations ?? 44;
+  const strategyName =
+    options?.name ??
+    `composed(${effectiveSeeder.name}+${relaxer.name}+${scaleController.name})`;
+
   return {
-    name: 'pbd-warm-start',
+    name: strategyName,
     solve(ctx) {
-      return solveTwoPhaseLayout({
+      return solveComposedLayout({
         clusters: ctx.clusters,
         items: ctx.items,
         mesh: ctx.mesh,
@@ -2906,10 +2905,47 @@ export function createWarmStartPbdLayoutStrategy(): SimplexLayoutStrategy {
         viewportMargin: ctx.viewportMargin,
         options: ctx.layoutOptions,
         previousItemPositions:
-          ctx.reason === 'initial' ? undefined : toPositionMap(ctx.previousItemPositions),
+          warmStart && ctx.reason !== 'initial'
+            ? toPositionMap(ctx.previousItemPositions)
+            : undefined,
+        seeder: effectiveSeeder,
+        relaxer,
+        scaleController,
+        defaultRelaxationIterations,
       });
     },
   };
+}
+
+/**
+ * Default deterministic phyllotaxis tie-breaking + uniform global scale binary search
+ * + PBD convex relaxation + hard-separation polish (`0.0 px` overlap).
+ */
+export function createPbdUniformLayoutStrategy(): SimplexLayoutStrategy {
+  return createComposedLayoutStrategy({
+    name: 'pbd-uniform',
+    seeder: createPhyllotaxisSeeder(),
+    relaxer: createBarycentricPbdRelaxer(),
+    scaleController: createUniformScaleController(),
+    warmStart: false,
+    defaultRelaxationIterations: 38,
+  });
+}
+
+/**
+ * Warm-started PBD layout strategy: reuses existing items' settled coordinates as initial
+ * positions during updates to minimize visual jumping when items are added/removed or strategies change,
+ * while strictly guaranteeing `0.0 px` overlap.
+ */
+export function createWarmStartPbdLayoutStrategy(): SimplexLayoutStrategy {
+  return createComposedLayoutStrategy({
+    name: 'pbd-warm-start',
+    seeder: createPhyllotaxisSeeder(),
+    relaxer: createBarycentricPbdRelaxer(),
+    scaleController: createUniformScaleController(),
+    warmStart: true,
+    defaultRelaxationIterations: 38,
+  });
 }
 
 /**
@@ -2922,26 +2958,17 @@ export function createLocalAdaptiveLayoutStrategy(options?: {
   readonly minLocalScale?: number;
   readonly warmStart?: boolean;
 }): SimplexLayoutStrategy {
-  return {
+  return createComposedLayoutStrategy({
     name: 'local-adaptive',
-    solve(ctx) {
-      return solveLocalAdaptiveLayout({
-        clusters: ctx.clusters,
-        items: ctx.items,
-        mesh: ctx.mesh,
-        viewportWidth: ctx.viewportWidth,
-        viewportHeight: ctx.viewportHeight,
-        viewportMargin: ctx.viewportMargin,
-        options: ctx.layoutOptions,
-        crowdRadiusPx: options?.crowdRadiusPx,
-        minLocalScale: options?.minLocalScale,
-        previousItemPositions:
-          options?.warmStart && ctx.reason !== 'initial'
-            ? toPositionMap(ctx.previousItemPositions)
-            : undefined,
-      });
-    },
-  };
+    seeder: createPhyllotaxisSeeder(),
+    relaxer: createBarycentricPbdRelaxer(),
+    scaleController: createDensityPriorScaleController({
+      crowdRadiusPx: options?.crowdRadiusPx,
+      minLocalScale: options?.minLocalScale,
+    }),
+    warmStart: Boolean(options?.warmStart),
+    defaultRelaxationIterations: 42,
+  });
 }
 
 export interface CollisionDrivenLayoutOptions {
@@ -2963,27 +2990,22 @@ export interface CollisionDrivenLayoutOptions {
 export function createCollisionDrivenLayoutStrategy(
   options?: CollisionDrivenLayoutOptions,
 ): SimplexLayoutStrategy {
-  const warmStart = options?.warmStart ?? true;
-  return {
+  return createComposedLayoutStrategy({
     name: 'collision-driven-adaptive',
-    solve(ctx) {
-      return solveCollisionDrivenLayout({
-        clusters: ctx.clusters,
-        items: ctx.items,
-        mesh: ctx.mesh,
-        viewportWidth: ctx.viewportWidth,
-        viewportHeight: ctx.viewportHeight,
-        viewportMargin: ctx.viewportMargin,
-        options: ctx.layoutOptions,
-        minLocalScale: options?.minLocalScale,
-        shrinkFactor: options?.shrinkFactor,
-        previousItemPositions:
-          warmStart && ctx.reason !== 'initial'
-            ? toPositionMap(ctx.previousItemPositions)
-            : undefined,
-      });
-    },
-  };
+    seeder: createMeshInwardFanSeeder(),
+    relaxer: createSpaceFillingPbdRelaxer({
+      springFactor: 0.7,
+      springZeroTailRatio: 0.35,
+      dispersionGapPx: 18,
+      dispersionStrength: 0.35,
+    }),
+    scaleController: createCollisionLocalScaleController({
+      minLocalScale: options?.minLocalScale,
+      shrinkFactor: options?.shrinkFactor,
+    }),
+    warmStart: options?.warmStart ?? true,
+    defaultRelaxationIterations: 46,
+  });
 }
 
 /**

@@ -3,8 +3,16 @@ import { SimplexGraphEngine } from '../src/engine';
 import { isPointInTriangle } from '../src/geometry';
 import { solveSimplexSnapshot } from '../src/snapshot';
 import {
+  createBarycentricPbdRelaxer,
+  createCollisionLocalScaleController,
+  createMeshInwardFanSeeder,
+  createSpaceFillingPbdRelaxer,
+  createUniformScaleController,
+} from '../src/layout';
+import {
   createAdaptiveHexMeshStrategy,
   createCollisionDrivenLayoutStrategy,
+  createComposedLayoutStrategy,
   createEmbeddingClusteringStrategy,
   createFixedLatticeMeshStrategy,
   createIncrementalAnchorClusteringStrategy,
@@ -473,7 +481,12 @@ describe('Pluggable Core Strategies', () => {
   });
 
   it('supports Soft-Simplex tag & embedding clustering combined with Collision-Driven Adaptive Layout', () => {
-    const softTagSnap = solveSimplexSnapshot(TEST_ITEMS, {
+    const softTagItems: readonly DefaultTaggedItem[] = [
+      ...TEST_ITEMS,
+      { id: 'solo-wasm', tags: ['wasm'] },
+      { id: 'solo-oklab', tags: ['oklab'] },
+    ];
+    const softTagSnap = solveSimplexSnapshot(softTagItems, {
       width: 960,
       height: 620,
       clusteringStrategy: createSoftSimplexTagClusteringStrategy({
@@ -488,11 +501,15 @@ describe('Pluggable Core Strategies', () => {
     expect(softTagSnap.metrics.overlapCount).toBe(0);
     expect(softTagSnap.metrics.maxPenetrationPx).toBeLessThanOrEqual(1e-4);
 
-    // Items should spread into 3-way triangle simplices and preserve 100% weight sums
+    // Multi-cluster items spread into covering triangles, while single-cluster items stay at length 1
     const triItems = softTagSnap.items.filter(
-      (it) => it.layoutContext.unitClusters.length >= 3,
+      (it) => it.layoutContext.unitClusters.length >= 2,
+    );
+    const singleTagItems = softTagSnap.items.filter(
+      (it) => it.layoutContext.unitClusters.length === 1,
     );
     expect(triItems.length).toBeGreaterThan(0);
+    expect(singleTagItems.length).toBeGreaterThan(0);
     for (const it of softTagSnap.items) {
       const sum = it.layoutContext.unitClusters.reduce((s, u) => s + u.weight, 0);
       expect(Math.abs(sum - 1)).toBeLessThan(1e-5);
@@ -505,20 +522,24 @@ describe('Pluggable Core Strategies', () => {
       readonly vec: readonly number[];
     }
     const samples: AudioSample[] = [
-      ...Array.from({ length: 18 }, (_, i) => ({
+      ...Array.from({ length: 16 }, (_, i) => ({
         id: `crowd-${i}`,
         label: `Crowd ${i}`,
-        vec: [0.95, 0.12 + (i % 3) * 0.02, 0.04, 0.01],
+        vec: [0.96, 0.08 + (i % 3) * 0.02, 0.03, 0.01],
       })),
-      { id: 'solo-a', label: 'Solo A', vec: [0.05, 0.96, 0.05, 0.02] },
-      { id: 'solo-b', label: 'Solo B', vec: [0.04, 0.06, 0.95, 0.08] },
-      { id: 'solo-c', label: 'Solo C', vec: [0.06, 0.05, 0.08, 0.95] },
-      { id: 'bridge', label: 'Bridge', vec: [0.45, 0.48, 0.44, 0.12] },
+      { id: 'solo-a', label: 'Solo A', vec: [0.03, 0.98, 0.03, 0.02] },
+      { id: 'solo-a2', label: 'Solo A2', vec: [0.04, 0.96, 0.04, 0.02] },
+      { id: 'solo-b', label: 'Solo B', vec: [0.03, 0.04, 0.98, 0.03] },
+      { id: 'solo-b2', label: 'Solo B2', vec: [0.04, 0.05, 0.96, 0.04] },
+      { id: 'solo-c', label: 'Solo C', vec: [0.03, 0.03, 0.04, 0.98] },
+      { id: 'solo-c2', label: 'Solo C2', vec: [0.04, 0.04, 0.05, 0.96] },
+      { id: 'bridge', label: 'Bridge', vec: [0.56, 0.58, 0.55, 0.02] },
     ];
 
     const softEmbStrategy = createSoftSimplexEmbeddingClusteringStrategy<AudioSample>({
       getEmbedding: (s) => s.vec,
       metric: 'cosine',
+      clusterCount: 4,
       triangleSpread: 0.48,
       balanceLoad: true,
     });
@@ -541,6 +562,12 @@ describe('Pluggable Core Strategies', () => {
       const sum = it.layoutContext.unitClusters.reduce((s, u) => s + u.weight, 0);
       expect(Math.abs(sum - 1)).toBeLessThan(1e-4);
     }
+
+    // Pure cluster samples (e.g. solo-a) remain single-cluster, while bridge spans a covering triangle
+    const soloPlaced = embSnap.items.find((it) => it.id === 'solo-a')!;
+    const bridgePlaced = embSnap.items.find((it) => it.id === 'bridge')!;
+    expect(soloPlaced.layoutContext.unitClusters.length).toBe(1);
+    expect(bridgePlaced.layoutContext.unitClusters.length).toBe(3);
 
     // Sparse items keep full 1.0x legibility while at least some dense items may stay large or shrink only where needed
     const maxItemScale = Math.max(...embSnap.items.map((it) => it.scale));
@@ -615,5 +642,50 @@ describe('Pluggable Core Strategies', () => {
         layoutStrategy: createCollisionDrivenLayoutStrategy(),
       }),
     );
+
+    // Cross-combination via createComposedLayoutStrategy: Space-Filling Fan + Global Uniform Scale
+    const composedUniformSnap = solveSimplexSnapshot(denseTagged, {
+      width: 820,
+      height: 540,
+      itemRadius: 16,
+      clusteringStrategy: createSoftSimplexTagClusteringStrategy(),
+      layoutStrategy: createComposedLayoutStrategy({
+        seeder: createMeshInwardFanSeeder(),
+        relaxer: createSpaceFillingPbdRelaxer(),
+        scaleController: createUniformScaleController(),
+      }),
+    });
+    verifySnapshotContainment(composedUniformSnap);
+    const distinctScales = new Set(
+      composedUniformSnap.items.map((it) => it.scale.toFixed(6)),
+    );
+    expect(distinctScales.size).toBe(1);
+
+    // Runtime hot-swapping between composed positioning/scaling pairs in SimplexGraphEngine
+    const engine = new SimplexGraphEngine({
+      items: denseTagged,
+      visualResolver: HEADLESS_RESOLVER,
+      renderer: createHeadlessRenderer(),
+      viewportWidth: 820,
+      viewportHeight: 540,
+      layoutStrategy: createComposedLayoutStrategy({
+        seeder: createMeshInwardFanSeeder(),
+        relaxer: createBarycentricPbdRelaxer(),
+        scaleController: createCollisionLocalScaleController(),
+        warmStart: true,
+      }),
+    });
+    expect(engine.getMetrics().overlapCount).toBe(0);
+
+    engine.setLayoutStrategy(
+      createComposedLayoutStrategy({
+        seeder: createMeshInwardFanSeeder(),
+        relaxer: createSpaceFillingPbdRelaxer(),
+        scaleController: createUniformScaleController(),
+        warmStart: true,
+      }),
+    );
+    expect(engine.getMetrics().overlapCount).toBe(0);
+    engine.destroy();
   });
 });
