@@ -4,7 +4,7 @@
 
 # @simplex-viz/react
 
-End-to-end type-safe React bindings, declarative JSX node renderers, and imperative controller hooks for `@simplex-viz/core` and `@simplex-viz/svg`.
+End-to-end type-safe React bindings, declarative JSX node renderers, hierarchical `1:4` zoom/drill-down controls, and imperative controller hooks for `@simplex-viz/core` and `@simplex-viz/svg`.
 
 - **Live Demo:** <https://hackenberg.tech/simplex-viz/>
 - **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/react>
@@ -22,17 +22,17 @@ In React, `<SimplexTopicGraph />` lets you drop custom JSX directly into cluster
 
 ## Features
 
-- **`<SimplexTopicGraph />`**: Responsive, zero-overlap triangulation graph component that automatically observes container resizing, computes cluster layouts, and drives 60 fps spring animations.
+- **`<SimplexTopicGraph />`**: Responsive, zero-overlap triangulation graph component that observes container resizing, computes cluster layouts, and drives 60 fps spring animations.
 - **Two rendering modes** (mix and match or swap live with smooth crossfading):
   1. **Declarative JSX Renderers** (`renderContentNode`, `renderClusterNode`): Write standard React SVG JSX (`<g>`, `<rect>`, `<text>`, `<circle>`). Nodes are automatically measured via offscreen `getBBox()` for collision-free placement.
-  2. **Portable `Svg*View` Plugins** (`contentView`, `clusterView`, `triangleView`, `edgeView` from `@simplex-viz/svg`): Direct SVG DOM updates with zero React reconciliation overhead per animation frame, including swappable triangle face (`OklabTintTriangleSvgView`, `GradientTriangleSvgView`, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`) and mesh edge (`DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`) views.
-- **Interactive triangulation faces**: Built-in triangle hit-testing with hover emphasis (`onTriangleHover`), click-to-focus (`focusOnTriangleClick`, `focusedTriangleIndex`), and tooltip targets (`target.kind === 'triangle'`).
-- **Full generic type inference**: Infers `<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>` end-to-end across `items`, `getId`, `getTags`, `deriveClusterMeta`, `visualResolver`, `renderContentNode`, `renderClusterNode`, hover events, and click targets.
-- **`useSimplexGraphController`**: Imperative hook for live item mutations (`addItems`, `removeItems`, `setItems`), view/strategy hot-swapping (`setTriangleView`, `setEdgeView`, `set*Strategy`), camera controls (`zoomBy`, `resetCamera`), and telemetry getters.
+  2. **Portable `Svg*View` Plugins** (`contentView`, `clusterView`, `triangleView`, `edgeView` from `@simplex-viz/svg`): Direct SVG DOM updates with zero React reconciliation overhead per animation frame.
+- **5 Pluggable Strategy Axes (`Mesh`, `Clustering`, `Color`, `Layout`, `Zoom`)**: Swap tag clustering, soft-simplex clustering, multi-modal embeddings, pairwise similarity, composable layout (`Seeder × Relaxer × ScaleController`), and conformal **`1:4` hierarchical drill-down** (`zoomStrategy`) via declarative props.
+- **Full generic type inference**: Infers `<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>` end-to-end across `items`, `getId`, `getTags`, `deriveClusterMeta`, `visualResolver`, `renderContentNode`, `renderClusterNode`, tooltips, hover events, and click targets.
+- **`useSimplexGraphController`**: Imperative hook for live item mutations, strategy/view hot-swapping, programmatic drill-down (`drillDownTriangle`, `drillDownCluster`, `drillUp`, `drillToRoot`), camera controls, and telemetry getters.
 
 ## Installation
 
-Install `@simplex-viz/react` (`@simplex-viz/core` and `@simplex-viz/svg` are bundled as dependencies, and their views, helpers, and TypeScript types are re-exported directly from `@simplex-viz/react`; requires `react >= 18.0.0` and `react-dom >= 18.0.0`):
+Install `@simplex-viz/react` (`@simplex-viz/core` and `@simplex-viz/svg` are bundled as dependencies, and all built-in views, strategies, layout building blocks, and TypeScript types are re-exported directly from `@simplex-viz/react`; requires `react >= 18.0.0` and `react-dom >= 18.0.0`):
 
 ```bash
 npm install @simplex-viz/react
@@ -40,7 +40,7 @@ npm install @simplex-viz/react
 
 ## Quickstart (Zero-Config)
 
-Render `<SimplexTopicGraph />` with any array of `{ id, tags }` objects. Drag-to-pan, cursor wheel zoom (`onWheel="zoom-to-cursor"`), cluster click-focus (`focusOnClusterClick`), and optional hover tooltips (`tooltip`) work immediately without a `VisualResolver` or view plugins:
+Render `<SimplexTopicGraph />` with any array of `{ id, tags }` objects. Drag-to-pan, cursor wheel zoom (`onWheel="zoom-to-cursor"`), cluster & triangle click-focus, and optional hover tooltips (`tooltip`) work immediately without a `VisualResolver` or view plugins:
 
 ```tsx
 import { SimplexTopicGraph } from '@simplex-viz/react';
@@ -60,9 +60,29 @@ export function QuickTopicMap() {
 }
 ```
 
-### Switch Visual Presets & Customize Tooltips
+### Quickstart Default Settings (`<SimplexTopicGraph />`)
 
-Swap between the three built-in presets (`'geometric'`, `'glyphs'`, or `'badges'`) with live animated morphing/crossfading, pass `getLabel` for custom records, or supply a React JSX `tooltip` renderer:
+| Prop | Default | Out-of-the-Box Behavior |
+| --- | --- | --- |
+| `getId` / `getTags` | `item.id` / `item.tags` | Auto-extracted (`getTags` becomes optional when passing a non-tag `clusteringStrategy`). |
+| `getLabel` | Heuristic (`label \| title \| headline \| name \| id`) | Used by built-in presets and default tooltips. |
+| `preset` | `'geometric'` | Renders `GeometricShapeSvgView` + `BadgeClusterSvgView` (`'glyphs'` & `'badges'` also built in). |
+| `theme` | `'dark'` | Dark styling for presets, React tooltip overlay, and breadcrumbs (`'light'` supported). |
+| `triangleView` / `edgeView` | `OklabTintTriangleSvgView` / `DashedMeshEdgeSvgView` | Default triangulation face & edge views (edge view also renders internal `1:4` drillable previews). |
+| `meshStrategy` | `createAdaptiveHexMeshStrategy()` | Adaptive 60° equilateral lattice (`innerPadding: 48`, `minSideLength: 140`, `maxSideLength: 280`, `maxClusters: 12`). |
+| `clusteringStrategy` | `createJaccardAnnealingClusteringStrategy()` | Tag clustering with `'planar-hitting-set'` and `'explaining-away'`. |
+| `colorStrategy` | `createOklabContrastColorStrategy()` | Perceptual OKLab edge-contrast colors + barycentric mixing. |
+| `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Phyllotaxis seeding + uniform scale search + PBD SAT solver (`0.0 px` overlap). |
+| `zoomStrategy` | `createFreeCameraZoomStrategy()` | Continuous cursor wheel zoom (`onWheel="zoom-to-cursor"`), 2-finger pinch, and drag-to-pan. |
+| `showZoomBreadcrumbs` | `true` | Displays clickable top breadcrumbs whenever drilled into a sub-level (`depth > 0`). |
+| `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode when `focused*` and `onLeftClick` are omitted. |
+| `tooltip` | `false` | Set `tooltip` (`true`) or pass `(target) => ReactNode` to render a floating tooltip overlay. |
+
+---
+
+## Step-by-Step Customization Guide
+
+### Step 1 — Switch Visual Presets, Themes & React JSX Tooltips
 
 ```tsx
 <SimplexTopicGraph
@@ -71,6 +91,7 @@ Swap between the three built-in presets (`'geometric'`, `'glyphs'`, or `'badges'
   getTags={(a) => a.hashtags}
   getLabel={(a) => a.title}
   preset="glyphs"
+  theme="dark"
   tooltip={(target) => {
     if (target.kind === 'content') {
       return (
@@ -81,20 +102,16 @@ Swap between the three built-in presets (`'geometric'`, `'glyphs'`, or `'badges'
       );
     }
     if (target.kind === 'cluster') {
-      return (
-        <strong>{`${target.cluster.defaultLabel} (${target.cluster.members.length})`}</strong>
-      );
+      return <strong>{`${target.cluster.defaultLabel} (${target.cluster.members.length})`}</strong>;
     }
-    return (
-      <strong>{`Triangle #${target.triangle.index + 1} (${target.triangle.coveredItemCount} items)`}</strong>
-    );
+    return <strong>{`Triangle #${target.triangle.index + 1} (${target.triangle.coveredItemCount} items)`}</strong>;
   }}
 />
 ```
 
-## Level 2 — Keyless Declarative JSX Renderers
+### Step 2 — Keyless Declarative JSX Node Renderers (`renderContentNode`, `renderClusterNode`)
 
-Want bespoke React SVG cards without writing a `VisualResolver`? Pass `renderContentNode` and/or `renderClusterNode` directly—`@simplex-viz/react` manages cache keys automatically (customizable via optional `getContentCacheKey` / `getClusterCacheKey`) and measures your JSX via offscreen `getBBox()`:
+Pass `renderContentNode` and/or `renderClusterNode` directly without a `VisualResolver`—`@simplex-viz/react` manages cache keys automatically and measures your JSX via offscreen `getBBox()` for `0.0 px` overlap:
 
 ```tsx
 import { SimplexTopicGraph } from '@simplex-viz/react';
@@ -111,6 +128,7 @@ export function CardMap({ articles }: { articles: readonly Article[] }) {
       items={articles}
       getId={(a) => a.slug}
       getTags={(a) => a.hashtags}
+      preset="badges"
       tooltip
       renderContentNode={(article, ctx, state) => (
         <g>
@@ -134,248 +152,46 @@ export function CardMap({ articles }: { articles: readonly Article[] }) {
 }
 ```
 
-Notice that you can even customize only `renderContentNode` while letting `preset="badges"` handle cluster cards automatically.
-
-## Level 3 — Full Custom `VisualResolver`, Controlled State & Imperative Hook
-
-For full control over cluster aggregation (`deriveClusterMeta`), explicit visual cache keys, pinned items, controlled cluster focus, and external camera toolbars, combine `<SimplexTopicGraph />` with `useSimplexGraphController`.
-
-### Step 1 — Define Domain, Visual, and Cluster Metadata Types
-
-Describe your domain item (`Article`), visual cache descriptors (`ArticleVisual`, `ClusterVisual`), and aggregate cluster stats (`ClusterStats`). TypeScript preserves these types across every callback prop on `<SimplexTopicGraph />`:
+### Step 3 — Customize Triangle Faces, Mesh Edges & Explicit `sideLength`
 
 ```tsx
-interface Article {
-  readonly slug: string;
-  readonly title: string;
-  readonly hashtags: readonly string[];
-  readonly readingMinutes: number;
-}
-
-interface ArticleVisual {
-  readonly key: string;
-  readonly title: string;
-  readonly colorHex: string;
-}
-
-interface ClusterVisual {
-  readonly key: string;
-  readonly code: string;
-  readonly label: string;
-  readonly colorHex: string;
-  readonly count: number;
-}
-
-interface ClusterStats {
-  readonly count: number;
-  readonly avgMinutes: number;
-}
-```
-
-### Step 2 — Define Typed Declarative JSX Node Renderers
-
-Write standard SVG JSX centered around `(0, 0)` for individual items and topic clusters. `@simplex-viz/react` measures the resulting `<g>` subtree automatically via offscreen `getBBox()` whenever `getVisualCacheKey` changes, guaranteeing collision-free card placement:
-
-```tsx
-import type {
-  ClusterDescriptor,
-  ContentLayoutContext,
-  NodeRenderState,
-} from '@simplex-viz/react';
-
-const renderArticleNode = (
-  article: Article,
-  ctx: ContentLayoutContext<Article, undefined, ClusterStats>,
-  state: NodeRenderState<ArticleVisual>,
-) => (
-  <g>
-    <rect
-      x={-54}
-      y={-15}
-      width={108}
-      height={30}
-      rx={6}
-      fill="#0f172a"
-      stroke={state.interaction.isPinned ? '#f59e0b' : ctx.mixedColorHex}
-      strokeWidth={state.interaction.isHovered ? 2 : 1.2}
-    />
-    <text textAnchor="middle" y={4} fill="#f8fafc" fontSize={9}>
-      {article.title.slice(0, 16)}
-    </text>
-  </g>
-);
-
-const renderTopicCluster = (
-  cluster: ClusterDescriptor<Article, undefined, ClusterStats>,
-  state: NodeRenderState<ClusterVisual>,
-) => (
-  <g>
-    <rect
-      x={-68}
-      y={-20}
-      width={136}
-      height={40}
-      rx={8}
-      fill="#090d16"
-      stroke={state.interaction.isHovered ? '#f8fafc' : cluster.colorHex}
-      strokeWidth={1.6}
-    />
-    <text textAnchor="middle" y={-2} fill="#f8fafc" fontSize={10} fontWeight={600}>
-      {`${cluster.code} · ${cluster.defaultLabel}`}
-    </text>
-    <text textAnchor="middle" y={12} fill="#94a3b8" fontSize={8.5}>
-      {`${cluster.meta.count} items · avg ${cluster.meta.avgMinutes.toFixed(0)}m`}
-    </text>
-  </g>
-);
-```
-
-### Step 3 — Initialize State, Controller Hook & Memoized `VisualResolver`
-
-Inside your React component, set up selection state, create a typed controller handle with `useSimplexGraphController`, and memoize `visualResolver` with `useMemo` so re-renders never trigger unintended crossfade transitions:
-
-```tsx
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   SimplexTopicGraph,
-  useSimplexGraphController,
-  type VisualResolver,
+  GradientTriangleSvgView,
+  ClusterTintedEdgeSvgView,
 } from '@simplex-viz/react';
 
-export function KnowledgeAtlas({ articles }: { articles: readonly Article[] }) {
-  const [focusedClusterUid, setFocusedClusterUid] = useState<string | null>(null);
-  const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => new Set());
+export function StyledMeshMap({ items }: { items: readonly { id: string; tags: string[] }[] }) {
+  const triangleView = useMemo(() => new GradientTriangleSvgView({ baseOpacity: 0.2 }), []);
+  const edgeView = useMemo(() => new ClusterTintedEdgeSvgView({ strokeWidth: 1.4 }), []);
 
-  const { controllerRef, handle } = useSimplexGraphController<
-    Article,
-    ArticleVisual,
-    ClusterVisual,
-    undefined,
-    ClusterStats
-  >();
-
-  const visualResolver = useMemo<
-    VisualResolver<Article, ArticleVisual, ClusterVisual, undefined, ClusterStats>
-  >(
-    () => ({
-      resolveContentVisual: (article, ctx) => ({
-        key: `${article.slug}:${ctx.mixedColorHex}`,
-        title: article.title,
-        colorHex: ctx.mixedColorHex,
-      }),
-      resolveClusterVisual: (cluster) => ({
-        key: `${cluster.clusterUid}:${cluster.meta.count}`,
-        code: cluster.code,
-        label: cluster.defaultLabel,
-        colorHex: cluster.colorHex,
-        count: cluster.meta.count,
-      }),
-      getVisualCacheKey: (visual) => visual.key,
-    }),
-    [],
-  );
-```
-
-### Step 4 — Render `<SimplexTopicGraph />` with Camera Toolbar & Click Handling
-
-Finally, wire the camera toolbar (`handle.zoomBy`, `handle.resetCamera`), pass the JSX renderers from Step 2, and handle left-clicks to toggle pinned items or isolate clicked topic clusters:
-
-```tsx
   return (
-    <div style={{ width: '100%', height: '640px', position: 'relative' }}>
-      <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10 }}>
-        <button onClick={() => handle.zoomBy(1.2)}>Zoom In</button>
-        <button onClick={() => handle.zoomBy(0.8)}>Zoom Out</button>
-        <button onClick={() => handle.resetCamera()}>Reset Camera</button>
-      </div>
-
-      <SimplexTopicGraph
-        controllerRef={controllerRef}
-        items={articles}
-        getId={(a) => a.slug}
-        getTags={(a) => a.hashtags}
-        deriveClusterMeta={(ctx) => ({
-          count: ctx.members.length,
-          avgMinutes:
-            ctx.members.reduce((sum, m) => sum + m.item.readingMinutes, 0) /
-            Math.max(1, ctx.members.length),
-        })}
-        visualResolver={visualResolver}
-        pinnedIds={pinnedIds}
-        focusedClusterUid={focusedClusterUid}
-        renderContentNode={renderArticleNode}
-        renderClusterNode={renderTopicCluster}
-        onLeftClick={(target) => {
-          if (target.kind === 'content') {
-            setPinnedIds((prev) => {
-              const next = new Set(prev);
-              if (next.has(target.item.slug)) next.delete(target.item.slug);
-              else next.add(target.item.slug);
-              return next;
-            });
-          } else if (target.kind === 'cluster') {
-            setFocusedClusterUid((cur) =>
-              cur === target.cluster.clusterUid ? null : target.cluster.clusterUid,
-            );
-          } else {
-            setFocusedClusterUid(null);
-          }
-        }}
-      />
-    </div>
-  );
-}
-```
-
-## Level 4 — Portable `SvgNodeView` Plugins (60 fps Without JSX Re-Renders)
-
-For larger graphs or custom 64-point shape morphing without per-frame JSX overhead, instantiate `GeometricShapeSvgView` and `ClusterAnchorSvgView` (both re-exported directly from `@simplex-viz/react`) once outside the component and pass them via `contentView` and `clusterView`:
-
-```tsx
-import {
-  SimplexTopicGraph,
-  GeometricShapeSvgView,
-  ClusterAnchorSvgView,
-  type GeometricShapeVisual,
-  type ClusterAnchorVisual,
-  type VisualResolver,
-  type DefaultTaggedItem,
-} from '@simplex-viz/react';
-
-const contentView = new GeometricShapeSvgView();
-const clusterView = new ClusterAnchorSvgView();
-
-export function FastGraph({
-  items,
-  visualResolver,
-}: {
-  items: readonly DefaultTaggedItem[];
-  visualResolver: VisualResolver<DefaultTaggedItem, GeometricShapeVisual, ClusterAnchorVisual>;
-}) {
-  return (
-    <SimplexTopicGraph<DefaultTaggedItem, GeometricShapeVisual, ClusterAnchorVisual>
+    <SimplexTopicGraph
       items={items}
-      visualResolver={visualResolver}
-      contentView={contentView}
-      clusterView={clusterView}
+      triangleView={triangleView}
+      edgeView={edgeView}
+      meshOptions={{ innerPadding: 52, sideLength: 210, maxClusters: 10 }}
+      tooltip
     />
   );
 }
 ```
 
-> **Tip:** Memoize `visualResolver` (e.g., via `useMemo`) and keep `contentView` / `clusterView` instances stable outside render to avoid unnecessary crossfades. Changing `preset`, `visualResolver`, or switching view props intentionally triggers a smooth crossfade/morph transition.
+### Step 4 — Configure Clustering, Colors & Composable Layout (`Seeder × Relaxer × ScaleController`)
 
-## Combining Presets & Pluggable Core Strategies (Tags, Embeddings & Similarities)
-
-Every `@simplex-viz/core` strategy factory is re-exported from `@simplex-viz/react`—including **`createEmbeddingClusteringStrategy`** (single or weighted multi-modal vector spaces on completely untagged items), **`createSimilarityClusteringStrategy`** (arbitrary pairwise similarity kernels), tag strategies (`createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`), and mesh, color, and layout strategies:
+Memoize strategy instances with `useMemo`—including untagged multi-modal embeddings (`createSoftSimplexEmbeddingClusteringStrategy` / `createEmbeddingClusteringStrategy`), pairwise similarity (`createSimilarityClusteringStrategy`), soft-simplex tags (`createSoftSimplexTagClusteringStrategy`), and composable layout pipelines:
 
 ```tsx
 import { useMemo, useState } from 'react';
 import {
   SimplexTopicGraph,
-  createEmbeddingClusteringStrategy,
-  createLocalAdaptiveLayoutStrategy,
+  createSoftSimplexEmbeddingClusteringStrategy,
   createThemeAdaptiveOklabColorStrategy,
+  createComposedLayoutStrategy,
+  createMeshInwardFanSeeder,
+  createSpaceFillingPbdRelaxer,
+  createCollisionLocalScaleController,
 } from '@simplex-viz/react';
 
 interface VoiceClip {
@@ -390,22 +206,25 @@ export function VoiceSignatureMap({ clips }: { clips: readonly VoiceClip[] }) {
 
   const clusteringStrategy = useMemo(
     () =>
-      createEmbeddingClusteringStrategy<VoiceClip>({
+      createSoftSimplexEmbeddingClusteringStrategy<VoiceClip>({
         getEmbedding: [
           { name: 'Timbre', getVector: (c) => c.timbreVec, weight: 0.7 },
           { name: 'Prosody', getVector: (c) => c.prosodyVec, weight: 0.3 },
         ],
         metric: 'cosine',
-        anchorRule: 'simplex-projection',
+        triangleSpread: 0.45,
       }),
     [],
   );
-  const colorStrategy = useMemo(
-    () => createThemeAdaptiveOklabColorStrategy<VoiceClip>(),
-    [],
-  );
+  const colorStrategy = useMemo(() => createThemeAdaptiveOklabColorStrategy<VoiceClip>(), []);
   const layoutStrategy = useMemo(
-    () => createLocalAdaptiveLayoutStrategy({ warmStart: true }),
+    () =>
+      createComposedLayoutStrategy({
+        seeder: createMeshInwardFanSeeder(),
+        relaxer: createSpaceFillingPbdRelaxer(),
+        scaleController: createCollisionLocalScaleController({ minLocalScale: 0.34 }),
+        warmStart: true,
+      }),
     [],
   );
 
@@ -424,6 +243,94 @@ export function VoiceSignatureMap({ clips }: { clips: readonly VoiceClip[] }) {
 }
 ```
 
+### Step 5 — Enable Conformal `1:4` Hierarchical Zoom / Drill-Down (`zoomStrategy`)
+
+Pass `createBarycentricZoomStrategy` (or `createSemanticZoomStrategy` for tag re-partitioning) to enable hierarchical `1:4` triangle & cluster drill-down. Drillable triangles automatically display their internal `1:4` subdivision lines in the active `edgeView` style, forward clicks through content nodes until leaf level, dim clickable neighborhood context, block accidental scroll-wheel camera zoom, and display navigation breadcrumbs:
+
+```tsx
+import { useMemo } from 'react';
+import {
+  SimplexTopicGraph,
+  createBarycentricZoomStrategy,
+} from '@simplex-viz/react';
+
+export function DrillableTopicMap({ items }: { items: readonly { id: string; tags: string[] }[] }) {
+  const zoomStrategy = useMemo(
+    () =>
+      createBarycentricZoomStrategy({
+        clusterZoomMode: 'incident-star', // 'incident-star' | 'spotlight' | 'none'
+        adaptiveContrastStretch: true,
+      }),
+    [],
+  );
+
+  return (
+    <SimplexTopicGraph
+      items={items}
+      zoomStrategy={zoomStrategy}
+      showZoomBreadcrumbs
+      tooltip
+      onZoomStateChange={(zoom) => {
+        console.log('Zoom depth:', zoom.depth, 'Breadcrumbs:', zoom.breadcrumbs);
+      }}
+    />
+  );
+}
+```
+
+### Step 6 — Full Custom `VisualResolver`, Portable `SvgNodeView` Plugins & Imperative Hook
+
+For maximum performance without per-frame JSX reconciliation, or to drive camera/drill-down controls from external toolbars, pair `<SimplexTopicGraph />` with `useSimplexGraphController()` and `GeometricShapeSvgView` / `ClusterAnchorSvgView`:
+
+```tsx
+import {
+  SimplexTopicGraph,
+  useSimplexGraphController,
+  GeometricShapeSvgView,
+  ClusterAnchorSvgView,
+  type GeometricShapeVisual,
+  type ClusterAnchorVisual,
+  type VisualResolver,
+  type DefaultTaggedItem,
+} from '@simplex-viz/react';
+
+const contentView = new GeometricShapeSvgView();
+const clusterView = new ClusterAnchorSvgView();
+
+export function FastControlledGraph({
+  items,
+  visualResolver,
+}: {
+  items: readonly DefaultTaggedItem[];
+  visualResolver: VisualResolver<DefaultTaggedItem, GeometricShapeVisual, ClusterAnchorVisual>;
+}) {
+  const { controllerRef, handle } = useSimplexGraphController<
+    DefaultTaggedItem,
+    GeometricShapeVisual,
+    ClusterAnchorVisual
+  >();
+
+  return (
+    <div style={{ width: '100%', height: 640, position: 'relative' }}>
+      <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10 }}>
+        <button onClick={() => handle.drillUp()}>Drill Up</button>
+        <button onClick={() => handle.drillToRoot()}>Overview</button>
+        <button onClick={() => handle.resetCamera()}>Reset Camera</button>
+      </div>
+      <SimplexTopicGraph
+        controllerRef={controllerRef}
+        items={items}
+        visualResolver={visualResolver}
+        contentView={contentView}
+        clusterView={clusterView}
+      />
+    </div>
+  );
+}
+```
+
+---
+
 ## `<SimplexTopicGraph />` Props Reference
 
 ### Data, Typing & Metadata
@@ -431,58 +338,53 @@ export function VoiceSignatureMap({ clips }: { clips: readonly VoiceClip[] }) {
 | --- | --- | --- |
 | `items` | Yes | `readonly TItem[]` — Domain items to cluster and lay out. |
 | `getId` | If `TItem` lacks `id` | `(item: TItem) => string` — Extracts a unique ID per item. |
-| `getTags` | If `TItem` lacks `tags` and no `clusteringStrategy` is passed | `(item: TItem) => readonly string[]` — Extracts raw tag strings per item (optional when using `createEmbeddingClusteringStrategy` or `createSimilarityClusteringStrategy`). |
+| `getTags` | If `TItem` lacks `tags` and no `clusteringStrategy` is passed | `(item: TItem) => readonly string[]` — Extracts raw tag strings per item (optional when using non-tag clustering strategies). |
 | `getLabel` | No | `(item: TItem) => string` — Optional label extractor used by presets and default hover tooltips. |
 | `normalizeTag` | No | `(rawTag: string) => string` — Custom tag normalizer (defaults to lowercase trim + `#` strip). |
 | `resolveTagMeta` | No | `(normalizedTag: string) => TTagMeta \| undefined` — Attaches domain metadata to each tag. |
-| `deriveClusterMeta` | If `TClusterMeta` is defined | `(ctx) => TClusterMeta` — Derives aggregate metadata once per cluster update (`members`, `representativeItems`, `centroid`, `cohesion`, `featureSummary`, `coreTags`, `sharedTags`). |
+| `deriveClusterMeta` | If `TClusterMeta` is defined | `(ctx) => TClusterMeta` — Derives aggregate metadata once per cluster update (`members`, `representativeItems`, `centroid`, `cohesion`, `featureSummary`, `role`, `mixWeights`). |
 
 ### Visuals, Presets & Renderers
 | Prop | Default | Description |
 | --- | --- | --- |
 | `preset` | `'geometric'` | Built-in visual preset (`'geometric' \| 'glyphs' \| 'badges'`) used when custom views or `visualResolver` are omitted. |
-| `theme` | `'dark'` | Color theme (`'dark' \| 'light'`) applied to built-in presets, tooltips, and theme-adaptive color strategies. |
+| `theme` | `'dark'` | Color theme (`'dark' \| 'light'`) applied to presets, tooltips, breadcrumbs, and theme-adaptive color strategies. |
 | `visualResolver` | Built-in preset resolver | Optional `VisualResolver` mapping items and clusters to custom descriptors and cache keys. |
-| `renderContentNode` | — | Declarative React JSX renderer `(item, ctx, state) => ReactNode` (works with or without `visualResolver`, auto-measured via `getBBox()`). |
-| `renderClusterNode` | — | Declarative React JSX renderer `(cluster, state) => ReactNode` (works with or without `visualResolver`, auto-measured via `getBBox()`). |
-| `getContentCacheKey` | Auto-generated | Optional cache key callback `(item, ctx) => string` for keyless `renderContentNode`. |
-| `getClusterCacheKey` | Auto-generated | Optional cache key callback `(cluster) => string` for keyless `renderClusterNode`. |
-| `contentView` | Preset view | Portable `SvgNodeView<TContentVisual>` plugin (used when `renderContentNode` is omitted). |
-| `clusterView` | Preset view | Portable `SvgNodeView<TClusterVisual>` plugin (used when `renderClusterNode` is omitted). |
-| `triangleView` | `OklabTintTriangleSvgView` | Portable `SvgTriangleView` plugin for triangulation faces (`OklabTintTriangleSvgView`, `GradientTriangleSvgView`, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`, or custom). |
-| `edgeView` | `DashedMeshEdgeSvgView` | Portable `SvgEdgeView` plugin for mesh edges (`DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`, or custom). |
+| `renderContentNode` | — | Declarative React JSX renderer `(item, ctx, state) => ReactNode` (auto-measured via `getBBox()`). |
+| `renderClusterNode` | — | Declarative React JSX renderer `(cluster, state) => ReactNode` (auto-measured via `getBBox()`). |
+| `getContentCacheKey` / `getClusterCacheKey` | Auto-generated | Optional cache key overrides for keyless JSX renderers. |
+| `contentView` / `clusterView` | Preset views | Portable `SvgNodeView` plugins (used when JSX renderers are omitted). |
+| `triangleView` | `OklabTintTriangleSvgView` | Portable `SvgTriangleView` plugin for triangulation faces. |
+| `edgeView` | `DashedMeshEdgeSvgView` | Portable `SvgEdgeView` plugin for mesh edges and internal `1:4` drillable previews. |
 
-### Mesh, Solver, Strategies & Visual Emphasis
+### Mesh, Solver, 5-Stage Strategies & Visual Emphasis
 | Prop | Default | Description |
 | --- | --- | --- |
-| `meshOptions` | — | `{ innerPadding, minSideLength, maxSideLength, maxClusters }`. |
-| `layoutOptions` | — | `{ clusterGapPx, itemGapPx, minContentScale, relaxationIterations, seed }`. |
-| `meshStrategy` | `createAdaptiveHexMeshStrategy()` | Pluggable `SimplexMeshStrategy<TItem>` controlling 60° triangulation layout. |
-| `clusteringStrategy` | `createJaccardAnnealingClusteringStrategy()` | Pluggable `SimplexClusteringStrategy<TItem, TTagMeta>` (`createEmbeddingClusteringStrategy`, `createSimilarityClusteringStrategy`, `createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`, or custom). |
-| `colorStrategy` | `createOklabContrastColorStrategy()` | Pluggable `SimplexColorStrategy<TItem, TTagMeta>` (OKLab contrast, theme-adaptive, or custom palette). |
-| `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Pluggable `SimplexLayoutStrategy` (`pbd-uniform`, `pbd-warm-start`, `local-adaptive`, or custom). |
+| `meshOptions` | — | `{ innerPadding, sideLength, minSideLength, maxSideLength, maxClusters }`. |
+| `layoutOptions` | — | `{ clusterGapPx, itemGapPx, minContentScale, relaxationIterations, sizeMultiplier, seed }`. |
+| `meshStrategy` | `createAdaptiveHexMeshStrategy()` | Pluggable `SimplexMeshStrategy<TItem>`. |
+| `clusteringStrategy` | `createJaccardAnnealingClusteringStrategy()` | Pluggable `SimplexClusteringStrategy<TItem, TTagMeta>` (Jaccard, Soft-Simplex Tags/Embeddings, Embeddings, Similarity, Incremental, or custom). |
+| `colorStrategy` | `createOklabContrastColorStrategy()` | Pluggable `SimplexColorStrategy<TItem, TTagMeta>`. |
+| `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Pluggable `SimplexLayoutStrategy` (`pbd-uniform`, `pbd-warm-start`, `local-adaptive`, `collision-driven`, `createComposedLayoutStrategy`, or custom). |
+| `zoomStrategy` | `createFreeCameraZoomStrategy()` | Pluggable `SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>` (`createFreeCameraZoomStrategy`, `createBarycentricZoomStrategy`, `createSemanticZoomStrategy`, or custom). |
+| `showZoomBreadcrumbs` | `true` | Renders clickable top breadcrumb navigation in drill-down mode when `depth > 0`. |
 | `sizeMultiplier` | `1.0` | Uniform node size multiplier (`0.35` – `3.0`). |
 | `showHulls` | `false` | Renders convex bounding hull wireframes over nodes. |
-| `pinnedIds` | — | `ReadonlySet<string> \| readonly string[]` of pinned item IDs. |
-| `highlightedIds` | — | `ReadonlySet<string> \| readonly string[]` of highlighted item IDs (dims others). |
-| `focusedClusterUid` | `null` | Controlled cluster focus UID. When omitted (`undefined`), clicking clusters toggles focus automatically. |
-| `focusedTriangleIndex` | `null` | Controlled triangle face index. When omitted (`undefined`), clicking triangles toggles triangle isolation automatically. |
-| `className` / `style` | — | Styling forwarded to the outer container `<div>` (defaults to `width: 100%; height: 100%`). |
+| `pinnedIds` / `highlightedIds` | — | `ReadonlySet<string> \| readonly string[]` of pinned or highlighted item IDs. |
+| `focusedClusterUid` / `focusedTriangleIndex` | `null` | Controlled cluster UID or triangle index isolation in `free-camera` mode. |
+| `className` / `style` | — | Styling forwarded to the outer container `<div>` (`width: 100%; height: 100%`). |
 
 ### Interactions, Tooltips, Telemetry & Controller
 | Prop | Default / Signature | Description |
 | --- | --- | --- |
-| `tooltip` | `false` | `boolean \| ((target: SimplexReactTooltipTarget) => ReactNode)` — Renders a built-in floating React `role="tooltip"` overlay for `'content'`, `'cluster'`, and `'triangle'` targets. |
-| `focusOnClusterClick` | `true` | Automatically toggles cluster focus on click when `focusedClusterUid` and `onLeftClick` are omitted. |
-| `focusOnTriangleClick` | `true` | Automatically toggles triangle face focus on click when `focusedTriangleIndex` and `onLeftClick` are omitted. |
-| `onContentHover` | — | `(event: ContentHoverEvent \| null) => void` |
-| `onClusterHover` | — | `(event: ClusterHoverEvent \| null) => void` |
-| `onTriangleHover` | — | `(event: TriangleHoverEvent \| null) => void` |
-| `onLeftClick` | — | `(target: HitTarget, rawEvent: NormalizedPointerEvent) => void` |
-| `onRightClick` | — | `(target: HitTarget, rawEvent: NormalizedPointerEvent) => boolean \| void` (return `true` to suppress browser menu) |
-| `onWheel` | `'zoom-to-cursor'` | `'zoom-to-cursor' \| 'pan-vertical' \| 'none' \| ((event, camera) => void)` |
-| `onMetricsChange` | — | `(metrics: LayoutMetrics) => void` — Reports cluster count, scales `α`, `overlapCount`, `meshSideLength`, `areaEfficiency`. |
+| `tooltip` | `false` | `boolean \| ((target: SimplexReactTooltipTarget) => ReactNode)` — Floating React `role="tooltip"` overlay for `'content'`, `'cluster'`, and `'triangle'`. |
+| `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Automatically toggles cluster or triangle focus on click in `free-camera` mode when uncontrolled. |
+| `onContentHover` / `onClusterHover` / `onTriangleHover` | — | Hover callbacks for items, clusters, and triangles. |
+| `onLeftClick` / `onRightClick` | — | Pointer click callbacks (`onRightClick` returning `true` suppresses the browser context menu). |
+| `onWheel` | `'zoom-to-cursor'` | `'zoom-to-cursor' \| 'pan-vertical' \| 'none' \| ((event, camera) => void)` (automatically inactive in `drill-down` mode). |
+| `onMetricsChange` | — | `(metrics: LayoutMetrics) => void` |
 | `onClustersChange` | — | `(clusters: readonly ClusterDescriptor[]) => void` |
+| `onZoomStateChange` | — | `(state: SimplexZoomState) => void` — Emits `depth`, `breadcrumbs`, `drillableTriangleIndices`, `drillableClusterUids`, `isLeafReached`. |
 | `onFpsUpdate` | — | `(fps: number) => void` |
 | `controllerRef` | — | Ref populated with the underlying `SimplexSvgController` instance. |
 
@@ -490,16 +392,12 @@ export function VoiceSignatureMap({ clips }: { clips: readonly VoiceClip[] }) {
 
 Returns `{ controllerRef, handle }`:
 
-- `handle.addItems(items)` — Appends items without resetting existing camera or springs.
-- `handle.removeItems(ids)` — Removes items by ID with smooth fade-out.
-- `handle.setItems(items)` — Replaces the active dataset.
-- `handle.setTriangleView(view)` / `handle.setEdgeView(view)` / `handle.setFocusedTriangleIndex(index)` — Hot-swaps mesh triangle/edge renderers or updates triangle focus imperatively.
-- `handle.setMeshStrategy(strategy)` / `handle.setClusteringStrategy(strategy)` / `handle.setColorStrategy(strategy)` / `handle.setLayoutStrategy(strategy)` — Hot-swaps core pipeline strategies imperatively.
-- `handle.zoomBy(factor)` — Zooms relative to viewport center.
-- `handle.resetCamera()` — Resets zoom & pan smoothly to `(1, 0, 0)`.
-- `handle.getMetrics()` — Returns the latest `LayoutMetrics | null`.
-- `handle.getClusters()` — Returns current `ClusterDescriptor[]`.
-- `handle.getRawController()` — Returns the underlying `SimplexSvgController | null`.
+- `handle.addItems(items)` / `handle.removeItems(ids)` / `handle.setItems(items)` — Live dataset mutations.
+- `handle.setMeshStrategy(s)` / `handle.setClusteringStrategy(s)` / `handle.setColorStrategy(s)` / `handle.setLayoutStrategy(s)` / `handle.setZoomStrategy(s)` — Hot-swaps any of the 5 pipeline stages imperatively.
+- `handle.drillDownTriangle(index)` / `handle.drillDownCluster(uid)` / `handle.drillToNeighbor(neighborId)` / `handle.drillUp()` / `handle.drillToDepth(depth)` / `handle.drillToRoot()` / `handle.getZoomState()` — Programmatic drill-down navigation and state inspection.
+- `handle.setTriangleView(view)` / `handle.setEdgeView(view)` / `handle.setFocusedTriangleIndex(index)` — Hot-swaps mesh triangle/edge renderers or updates triangle focus.
+- `handle.zoomBy(factor)` / `handle.resetCamera()` — Camera zoom & reset controls.
+- `handle.getMetrics()` / `handle.getClusters()` / `handle.getRawController()` — Live solver telemetry and raw controller access.
 
 ## License
 

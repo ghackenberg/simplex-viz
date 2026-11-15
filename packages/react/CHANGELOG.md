@@ -1,5 +1,14 @@
 # @simplex-viz/react
 
+## 0.6.0
+
+### Minor Changes
+
+- Add `zoomStrategy`, `showZoomBreadcrumbs`, and `onZoomStateChange` props to `<SimplexTopicGraph />`, expose `setZoomStrategy`, `drillDownTriangle`, `drillDownCluster`, `drillToNeighbor`, `drillUp`, `drillToDepth`, `drillToRoot`, and `getZoomState` on `useSimplexGraphController()`, and re-export all new zoom, soft-simplex clustering, and composable layout APIs and types from `@simplex-viz/svg` and `@simplex-viz/core`.
+- Updated dependencies
+  - @simplex-viz/core@0.6.0
+  - @simplex-viz/svg@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes

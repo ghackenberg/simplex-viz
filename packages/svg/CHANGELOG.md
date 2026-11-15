@@ -1,5 +1,13 @@
 # @simplex-viz/svg
 
+## 0.6.0
+
+### Minor Changes
+
+- Support hierarchical `1:4` drill-down zoom in `SimplexSvgController` and `SvgRendererAdapter`: render internal `1:4` subdivision edges on `isDrillable` triangles directly through the active `SvgEdgeView` (`g.sv-drill-edges`), render dimmed neighborhood context layers, support discrete 2-finger pinch-out/in gestures and optional breadcrumb overlays (`showZoomBreadcrumbs`), add `'intermediate'` compact chamfered bridge variants to `BadgeClusterSvgView` and `ClusterAnchorSvgView`, and re-export all new `@simplex-viz/core` zoom, soft-simplex, and composable layout APIs.
+- Updated dependencies
+  - @simplex-viz/core@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes

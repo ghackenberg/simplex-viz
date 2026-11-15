@@ -1,5 +1,11 @@
 # @simplex-viz/core
 
+## 0.6.0
+
+### Minor Changes
+
+- Add pluggable 5th pipeline stage (`SimplexZoomStrategy`: `createBarycentricZoomStrategy` for conformal `1:4` triangle & `1`-ring cluster drill-down with neighborhood context, multi-level leaf-neighbor zoom-out, `highlightBoundary` / `isHighlighted`, content pass-through on drillable triangles, and blocked wheel scroll; `createSemanticZoomStrategy` for 6-vertex tag re-partitioning; `createFreeCameraZoomStrategy`), add `createSoftSimplexTagClusteringStrategy` and `createSoftSimplexEmbeddingClusteringStrategy`, introduce composable layout building blocks (`solveComposedLayout`, `createComposedLayoutStrategy`, `createCollisionDrivenLayoutStrategy`, `LayoutSeeder`, `PositionRelaxer`, `ScaleController`) with triangle containment, and support explicit `MeshOptions.sideLength` plus `'primary' | 'intermediate'` cluster roles.
+
 ## 0.5.0
 
 ### Minor Changes

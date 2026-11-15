@@ -4,13 +4,13 @@
 
 # @simplex-viz/core
 
-Headless, zero-dependency TypeScript engine for triangulation-based visualization of arbitrary domain collections—single/multi-modal vector embeddings, pairwise similarities, or tagged content—on a dynamic 60° equilateral simplex mesh.
+Headless, zero-dependency TypeScript engine for triangulation-based visualization of arbitrary domain collections—single/multi-modal vector embeddings, pairwise similarities, or tagged content—on a dynamic 60° equilateral simplex mesh with composable SAT collision layout and hierarchical `1:4` zoom/drill-down.
 
 - **Live Demo:** <https://hackenberg.tech/simplex-viz/>
 - **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/core>
 - **Companion Packages:** [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg) · [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react)
 
-> Most browser apps should start with [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react) (for React) or [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg) (for Vanilla TypeScript, Vue, Angular, Svelte, or Web Components). Use `@simplex-viz/core` directly when building a custom Canvas/WebGL renderer, running layout calculations in a Web Worker or Node.js, or using low-level geometry, OKLab, and clustering primitives.
+> Most browser apps should start with [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react) (for React) or [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg) (for Vanilla TypeScript, Vue, Angular, Svelte, or Web Components). Use `@simplex-viz/core` directly when building a custom Canvas/WebGL renderer, running layout calculations in a Web Worker or Node.js, or using low-level geometry, OKLab, zoom, and clustering primitives.
 
 ## Spatial Pipeline Overview
 
@@ -26,19 +26,17 @@ Before diving into the TypeScript API, the schematic diagram below traces a sing
 
 - **Zero dependencies & zero DOM**: Compiled strictly against `lib: ["ES2022"]` with `"dependencies": {}`. Runs identically in browsers, Node.js, Deno, Bun, Web Workers, and Edge runtimes.
 - **Representation-agnostic & end-to-end type safe**: Works with arbitrary `<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>` via conditional hybrid accessors (`StrategyItemIdentityConfig<TItem, TTagMeta>`). Passing a non-tag `clusteringStrategy` (embeddings, pairwise similarity, or custom) makes `getTags` completely optional; using the default tag path enforces `getTags` only when `TItem` lacks `tags`.
-- **Pluggable 4-stage pipeline**: Swap algorithms cleanly at construction or runtime via `SimplexMeshStrategy`, `SimplexClusteringStrategy` (`requiresTags`, `initialize`, incremental `update`), `SimplexColorStrategy`, and `SimplexLayoutStrategy`.
-- **Embeddings, similarities & tag specialization**:
+- **Pluggable 5-stage pipeline**: Swap algorithms cleanly at construction or runtime via `SimplexMeshStrategy`, `SimplexClusteringStrategy` (`requiresTags`, `initialize`, incremental `update`), `SimplexColorStrategy`, `SimplexLayoutStrategy`, and `SimplexZoomStrategy`.
+- **Soft-Simplex, embeddings, similarities & tag specialization**:
+  - **Soft-Simplex strategies** (`createSoftSimplexTagClusteringStrategy`, `createSoftSimplexEmbeddingClusteringStrategy`): Load-balanced QAP mesh embedding + continuous interior triangle spreading (`triangleSpread`) while leaving single-cluster items free in a 360° halo around their cluster vertex.
   - **Multi-modal embeddings** (`createEmbeddingClusteringStrategy`): Single or weighted multi-source feature vectors, k-Means++ / Spherical k-Means, QAP mesh embedding, Hungarian cluster UID stability, and closed-form NNLS barycentric planar simplex projection (`'simplex-projection'`, `'explaining-away'`, `'top-1'`).
   - **Pairwise similarities** (`createSimilarityClusteringStrategy`): PAM k-Medoids + QAP mesh embedding + simplex projection for arbitrary `(a, b) => [0, 1]` kernels.
   - **Tag clustering specialization** (`createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`): Regularized Jaccard partitioning, Simulated Annealing QAP, Weighted Hitting-Set planar completion, and backward tag pruning.
-- **Perceptual OKLab palette & mixing**: Edge-contrast-optimized cluster colors (static dark-tuned, theme-adaptive dark/light, or custom hex palettes) and chroma-preserving barycentric OKLab blending.
-- **Guaranteed 0.0 px overlap**: Hierarchical two-phase convex hull solver (`solveTwoPhaseLayout`, optional warm-starting, and `solveLocalAdaptiveLayout`) combining Separating Axis Theorem (SAT), circle-polygon Minimum Translation Vectors (MTV), uniform spatial hash grids, and binary scale search.
-- **Interruptible C1-continuous animation**: Critically damped scalar springs and retargetable dual-layer transition state machines.
-- **Mathematical hit-testing**: Resolution-independent convex-hull and barycentric triangle-face pointer hit-testing (`isPointInTriangle`) in world coordinates, with cluster and triangle focus isolation.
+- **Composable Layout (`Seeder × Relaxer × ScaleController`) & `0.0 px` SAT overlap**: Mix any `LayoutSeeder` (`phyllotaxis`, `mesh-inward-fan`, `warm-start`), `PositionRelaxer` (`barycentric-pbd`, `space-filling-pbd`), and `ScaleController` (`uniform-scale`, `collision-local-scale`, `density-prior-scale`, `fixed-scale`) via `createComposedLayoutStrategy()` / `solveComposedLayout()` with covering-triangle containment and zero convex overlap.
+- **Conformal `1:4` Hierarchical Zoom & Drill-Down**: `createBarycentricZoomStrategy` and `createSemanticZoomStrategy` subdivide triangles `1:4` while preserving exact `▲/▼/▶/◀` orientation, synthesize `'intermediate'` midpoint clusters, animate affine camera flights (`ZoomAffineTransform`), project dimmed clickable neighborhood context (with automatic multi-level zoom-out when clicking leaf neighbors), pass pointer events through content items on drillable triangles, and stop automatically once items reach `1.0x` full scale.
+- **Interruptible C1-continuous animation & mathematical hit-testing**: Critically damped scalar springs, retargetable dual-layer transition state machines, and exact world-coordinate convex-hull + barycentric triangle-face hit-testing (`isPointInTriangle`).
 
 ## Installation
-
-Install the headless package standalone when integrating into a custom Canvas/WebGL renderer, worker thread, or Node.js process:
 
 ```bash
 npm install @simplex-viz/core
@@ -84,12 +82,12 @@ const snapshot = solveSimplexSnapshot(papers, {
 
 ### Quickstart Without Tags (Single or Multi-Modal Embeddings)
 
-Pass arbitrary objects without any `tags` property alongside `createEmbeddingClusteringStrategy` or `createSimilarityClusteringStrategy`:
+Pass arbitrary objects without any `tags` property alongside `createSoftSimplexEmbeddingClusteringStrategy`, `createEmbeddingClusteringStrategy`, or `createSimilarityClusteringStrategy`:
 
 ```ts
 import {
   solveSimplexSnapshot,
-  createEmbeddingClusteringStrategy,
+  createSoftSimplexEmbeddingClusteringStrategy,
 } from '@simplex-viz/core';
 
 interface AudioSample {
@@ -99,24 +97,40 @@ interface AudioSample {
 }
 
 const snapshot = solveSimplexSnapshot(samples as readonly AudioSample[], {
-  clusteringStrategy: createEmbeddingClusteringStrategy<AudioSample>({
+  clusteringStrategy: createSoftSimplexEmbeddingClusteringStrategy<AudioSample>({
     getEmbedding: [
       { name: 'Timbre', getVector: (s) => s.timbreVec, weight: 0.75 },
       { name: 'Prosody', getVector: (s) => s.prosodyVec, weight: 0.25 },
     ],
     metric: 'cosine',
-    anchorRule: 'simplex-projection',
+    triangleSpread: 0.45,
   }),
 });
 ```
 
+### Quickstart Default Settings (`solveSimplexSnapshot` & `SimplexGraphEngine`)
+
+| Option | `solveSimplexSnapshot` Default | `SimplexGraphEngine` Default |
+| --- | --- | --- |
+| `width` / `height` | `960` × `600` | Required `viewportWidth` × `viewportHeight` (clamped `>= 160`) |
+| `itemRadius` / `clusterRadius` | `10` px / `24` px (circle hulls) | Measured via `renderer.measureContentHull` / `measureClusterHull` |
+| `getId` / `getTags` | `item.id` / `item.tags` | `item.id` / `item.tags` |
+| `normalizeTag` | Lowercase trim + leading `#` strip | Lowercase trim + leading `#` strip |
+| `theme` | `'dark'` | `'dark'` |
+| `meshStrategy` | `createAdaptiveHexMeshStrategy()` | `createAdaptiveHexMeshStrategy()` |
+| `clusteringStrategy` | `createJaccardAnnealingClusteringStrategy()` | `createJaccardAnnealingClusteringStrategy()` |
+| `colorStrategy` | `createOklabContrastColorStrategy()` | `createOklabContrastColorStrategy()` |
+| `layoutStrategy` | `createPbdUniformLayoutStrategy()` | `createPbdUniformLayoutStrategy()` |
+| `zoomStrategy` | *(N/A — stateless single-frame solver)* | `createFreeCameraZoomStrategy()` |
+| `onWheel` | *(N/A)* | `'zoom-to-cursor'` (blocked automatically when `zoomStrategy.mode === 'drill-down'`) |
+
+---
+
 ## Full Engine Control: Using `SimplexGraphEngine` Step by Step
 
-When building an interactive Canvas/WebGL surface with live mutations, hit-testing, camera pan/zoom, and 60 fps critically damped springs, use `SimplexGraphEngine` across the five steps below.
+When building an interactive Canvas/WebGL surface with live mutations, hit-testing, hierarchical zoom/drill-down, and 60 fps critically damped springs, use `SimplexGraphEngine` across the five steps below.
 
 ### Step 1 — Define Domain & Visual Descriptor Types
-
-SimplexViz imposes no fixed schema on your data. Start by defining your domain record (`Article`), optional cluster metadata (`TopicStats`), and serializable visual descriptor types (`ArticleVisual`, `TopicVisual`) that represent what your renderer needs to draw:
 
 ```ts
 import {
@@ -156,8 +170,6 @@ interface TopicStats {
 
 ### Step 2 — Map Records to Visuals via `VisualResolver`
 
-Next, implement a `VisualResolver`. Notice how `resolveContentVisual` receives `ctx.mixedColorHex`—already blended in perceptual OKLab space along the item's active simplex weights—and `getVisualCacheKey` tells the engine when a node's geometry needs to be re-measured:
-
 ```ts
 const visualResolver: VisualResolver<
   Article,
@@ -187,10 +199,8 @@ const visualResolver: VisualResolver<
 
 ### Step 3 — Implement a Custom `SimplexRendererAdapter`
 
-The engine asks your renderer adapter for centered convex bounding shapes (`measureContentHull` and `measureClusterHull`) so the SAT solver can guarantee `0.0 px` overlap, then calls `renderFrame(snapshot)` with solved coordinates, camera state, and interpolation weights:
-
 ```ts
-const myRenderer: SimplexRendererAdapter<ArticleVisual, TopicVisual> = {
+const myRenderer: SimplexRendererAdapter<ArticleVisual, TopicVisual, Article, undefined, TopicStats> = {
   measureContentHull(visual) {
     return visual.kind === 'circle'
       ? { kind: 'circle', radius: visual.radius }
@@ -199,10 +209,10 @@ const myRenderer: SimplexRendererAdapter<ArticleVisual, TopicVisual> = {
   measureClusterHull() {
     return { kind: 'circle', radius: 24 };
   },
-  renderFrame(snapshot: SceneFrameSnapshot<ArticleVisual, TopicVisual>) {
-    // Draw snapshot.triangles (with clusters, coveredItemCount, interiorItemCount,
-    // interaction.isHovered / isFocused / isDimmed), snapshot.edges (with mixedColorHex,
-    // clusters, isHighlighted), snapshot.clusters, and snapshot.items
+  renderFrame(snapshot: SceneFrameSnapshot<ArticleVisual, TopicVisual, Article, undefined, TopicStats>) {
+    // Draw snapshot.triangles (with isDrillable, isContext, highlightBoundary,
+    // interaction.isHovered / isFocused / isHighlighted / isDimmed),
+    // snapshot.edges, snapshot.clusters, and snapshot.items (with isContext, isPassThrough)
     // using snapshot.camera ({ zoom, panX, panY })
   },
   destroy() {
@@ -212,8 +222,6 @@ const myRenderer: SimplexRendererAdapter<ArticleVisual, TopicVisual> = {
 ```
 
 ### Step 4 — Instantiate `SimplexGraphEngine`
-
-Wire your items, accessors (`getId`, `getTags`, `deriveClusterMeta`), resolver, and renderer into `SimplexGraphEngine`. Because `Article` uses `slug` and `hashtags` rather than `{ id, tags }`, TypeScript verifies at compile time that both accessors are provided:
 
 ```ts
 const engine = new SimplexGraphEngine<
@@ -241,12 +249,13 @@ const engine = new SimplexGraphEngine<
   onMetricsChange: (metrics) => {
     console.log('Overlap count:', metrics.overlapCount); // Always 0 when settled
   },
+  onZoomStateChange: (zoom) => {
+    console.log('Zoom depth:', zoom.depth, 'Drillable triangles:', zoom.drillableTriangleIndices);
+  },
 });
 ```
 
-### Step 5 — Drive the Spring Simulation Loop
-
-Call `engine.step(dtMs)` on each animation frame (or in fixed steps inside a Worker/test). Once all critically damped springs settle, `step` returns `true` so your loop can idle until the next interaction or mutation:
+### Step 5 — Drive the Spring Simulation Loop & Interactions
 
 ```ts
 function tick(dtMs: number) {
@@ -255,132 +264,87 @@ function tick(dtMs: number) {
     requestAnimationFrame(() => tick(16.67));
   }
 }
+
+// Live mutations, focus, and hierarchical drill-down:
+engine.addItems({ slug: 'sat-primer', title: 'SAT', hashtags: ['geometry'], readingMinutes: 8 });
+engine.setZoomStrategy(createBarycentricZoomStrategy());
+engine.drillDownTriangle(0);
+engine.drillUp();
+engine.drillToRoot();
 ```
 
-### Live Mutations & Interactions
+---
 
-Once running, `SimplexGraphEngine` supports live dataset updates, viewport resizing, and global node scaling—retargeting active springs smoothly mid-flight:
+## Pluggable 5-Stage Core Strategies Reference
 
-```ts
-engine.addItems({
-  slug: 'sat-primer',
-  title: 'Separating Axis Theorem',
-  hashtags: ['geometry', 'collision'],
-  readingMinutes: 8,
-});
-engine.removeItems('old-slug');
-engine.setItems(nextArticles);
-engine.setViewport(1440, 900);
-engine.setSizeMultiplier(1.25);
-engine.setShowHulls(true);
-```
-
-To highlight items, isolate a topic cluster, or handle user input in a Canvas/WebGL surface, pass focus IDs and normalized screen coordinates directly to the engine and camera controller:
-
-```ts
-// Focus & highlight states
-engine.setPinnedIds(['sat-primer']);
-engine.setFocusedClusterUid(engine.getClusters()[0]?.clusterUid ?? null);
-engine.setFocusedTriangleIndex(0);
-
-// Forward normalized pointer & wheel events from your surface
-engine.handlePointerMove(screenX, screenY); // Emits onContentHover, onClusterHover, onTriangleHover
-engine.handleLeftClick({
-  screenX,
-  screenY,
-  button: 0,
-  shiftKey: false,
-  ctrlKey: false,
-  altKey: false,
-  metaKey: false,
-});
-engine.camera.zoomToCursor(screenX, screenY, 1.15);
-```
-
-## Pluggable Core Strategies
-
-Every algorithmic phase of `SimplexGraphEngine` and `solveSimplexSnapshot` is backed by a minimal typed strategy interface. All four default to zero-config implementations and can be replaced independently at construction time or hot-swapped at runtime (`setMeshStrategy`, `setClusteringStrategy`, `setColorStrategy`, `setLayoutStrategy`, `setTheme`).
+Every algorithmic stage of `SimplexGraphEngine` (and stages 1–4 in `solveSimplexSnapshot`) can be configured at initialization or hot-swapped at runtime (`setMeshStrategy`, `setClusteringStrategy`, `setColorStrategy`, `setLayoutStrategy`, `setZoomStrategy`, `setTheme`).
 
 ### 1. `SimplexMeshStrategy` (Triangulation & Lattice Sizing)
 
-- `createAdaptiveHexMeshStrategy(defaults?)` *(default)* — Automatically chooses `horizontal` / `vertical` orientation and `wideFirst` parity via `buildSimplexMesh`.
-- `createFixedLatticeMeshStrategy({ cols, rows, orientation?, wideFirst?, innerPadding? })` — Pins an exact `(cols × rows)` 60° equilateral lattice (fixed cluster count `K = cols * rows`) across resizes.
+- `createAdaptiveHexMeshStrategy(defaults?)` *(default)* — Automatically chooses `horizontal` / `vertical` orientation and `wideFirst` parity via `buildSimplexMesh` (respecting optional explicit `MeshOptions.sideLength`).
+- `createFixedLatticeMeshStrategy({ cols, rows, orientation?, wideFirst?, innerPadding?, sideLength? })` — Pins an exact `(cols × rows)` 60° equilateral lattice (`K = cols * rows` vertices) across resizes.
 
-### 2. `SimplexClusteringStrategy` (Embeddings, Similarities & Tag Specialization)
+### 2. `SimplexClusteringStrategy` (Soft-Simplex, Embeddings, Similarities & Tags)
 
-Clustering strategies declare `requiresTags?: boolean` (defaults to `true` for backward-compatible tag strategies, `false` for vector/similarity/custom spaces) and support distinct `initialize(ctx)` and optional `update(ctx)` hooks:
+Clustering strategies declare `requiresTags?: boolean` and support `initialize(ctx)` plus optional incremental `update(ctx)`:
 
+- **Tag Specializations (`requiresTags: true`)**:
+  - `createJaccardAnnealingClusteringStrategy({ getTags?, normalizeTag?, sharedTagRule?, anchorRule? })` *(default)* — Full Jaccard tag partitioning + Simulated Annealing QAP vertex embedding + Hungarian identity matching.
+  - `createSoftSimplexTagClusteringStrategy({ triangleSpread?, getTags?, normalizeTag?, sharedTagRule?, anchorRule? })` — Load-balanced QAP + soft interior spreading (`triangleSpread`, default `0.45`) for multi-cluster items while keeping single-cluster items unconstrained around their vertex.
+  - `createIncrementalAnchorClusteringStrategy({ getTags?, normalizeTag?, sharedTagRule?, anchorRule? })` — Preserves existing vertex topics/UIDs/colors on `update`, attaching new tags incrementally.
+  - **`sharedTagRule`**: `'planar-hitting-set'` *(default)*, `'none'`, or custom function.
+  - **`anchorRule`**: `'explaining-away'` *(default)*, `'raw-overlap'`, `'barycentric-all'`, or custom function.
 - **Vector Embeddings (`requiresTags: false`)**:
-  - `createEmbeddingClusteringStrategy({ getEmbedding, metric?, anchorRule?, deriveLabel? })` — Clusters untagged objects from a single vector or weighted multi-modal feature vectors (`EmbeddingSource[]`) via k-Means++ / Spherical k-Means, embeds centroids onto the 60° mesh via QAP Simulated Annealing, preserves cluster UIDs across updates via Hungarian centroid + membership matching, and computes planar barycentric weights (`'simplex-projection'` NNLS on mesh triangles/edges, `'explaining-away'`, or `'top-1'`).
+  - `createEmbeddingClusteringStrategy({ getEmbedding, metric?, clusterCount?, maxIterations?, anchorRule?, deriveLabel?, representativeCount?, similaritySharpness? })` — Single or weighted multi-modal `EmbeddingSource[]` (`'cosine'` default or `'euclidean'`), k-Means++ / Spherical k-Means, QAP mesh embedding, and NNLS barycentric projection (`'simplex-projection'` default, `'explaining-away'`, or `'top-1'`).
+  - `createSoftSimplexEmbeddingClusteringStrategy({ getEmbedding, metric?, triangleSpread?, minSecondaryWeight?, balanceLoad?, clusterCount?, maxIterations?, deriveLabel? })` — Load-balanced QAP (`balanceLoad: true` default) + temperature-scaled softmax/NNLS interior projection (`triangleSpread: 0.45`, `minSecondaryWeight: 0.08`).
 - **Pairwise Similarity (`requiresTags: false`)**:
-  - `createSimilarityClusteringStrategy({ getSimilarity, anchorRule?, deriveLabel? })` — Clusters any untagged domain object from a symmetric `(a, b) => [0, 1]` similarity function using PAM k-Medoids, QAP mesh embedding, and planar simplex projection.
-- **Tag Specialization (Default)**:
-  - `createJaccardAnnealingClusteringStrategy({ getTags?, sharedTagRule?, anchorRule? })` *(default)* — Full Jaccard tag partitioning + Simulated Annealing QAP vertex embedding + Hungarian identity matching on every update.
-  - `createIncrementalAnchorClusteringStrategy({ getTags?, sharedTagRule?, anchorRule? })` — Runs full Jaccard + SA QAP on `initialize`, then on `update` preserves existing vertex topics/UIDs/colors spatially, incrementally attaches newly seen tags to the best-matching cluster, and prunes vanished tags.
-  - **`sharedTagRule`** (`SharedTagRule<TItem>`): `'planar-hitting-set'` *(default)*, `'none'`, or custom expansion function.
-  - **`anchorRule`** (`SimplexAnchorRule<TItem>`): `'explaining-away'` *(default)*, `'raw-overlap'`, `'barycentric-all'`, or custom anchor function.
+  - `createSimilarityClusteringStrategy({ getSimilarity, clusterCount?, anchorRule?, deriveLabel?, representativeCount? })` — PAM k-Medoids + QAP mesh embedding + simplex projection.
 
 ### 3. `SimplexColorStrategy` (Cluster Colors & Item Mixing)
 
-- `createOklabContrastColorStrategy()` *(default)* — Optimizes perceptual OKLab edge contrast across adjacent mesh vertices and mixes item colors barycentrically in OKLab.
-- `createThemeAdaptiveOklabColorStrategy()` — Dynamically adapts lightness & chroma contrast targets for `'dark'` vs. `'light'` canvases (`engine.setTheme(theme)`).
-- `createPaletteColorStrategy(hexColors, { mode?: 'edge-contrast' | 'sequential', preserveMatchedColors? })` — Assigns colors from your curated hex palette along mesh edges (maximizing OKLab contrast) or sequentially.
+- `createOklabContrastColorStrategy()` *(default)* — Perceptual OKLab edge contrast + barycentric OKLab mixing.
+- `createThemeAdaptiveOklabColorStrategy()` — Adapts lightness & chroma targets dynamically to `theme: 'dark' | 'light'`.
+- `createPaletteColorStrategy(hexColors, { mode?: 'edge-contrast' | 'sequential', preserveMatchedColors? })` — Assigns colors from a custom hex palette.
 
-### 4. `SimplexLayoutStrategy` (Positioning, Scaling & Overlap Resolution)
+### 4. `SimplexLayoutStrategy` & Composable Building Blocks (`Seeder × Relaxer × ScaleController`)
 
-- `createPbdUniformLayoutStrategy()` *(default)* — Deterministic phyllotaxis tie-breaking + uniform global scale binary search + PBD convex relaxation + hard-separation polish (`0.0 px` overlap).
-- `createWarmStartPbdLayoutStrategy()` — Seeds updates from each item's previous solved `(x, y)` coordinates to minimize spatial jumps during mutations (`0.0 px` overlap).
-- `createLocalAdaptiveLayoutStrategy({ crowdRadiusPx?, minLocalScale?, warmStart? })` — Shrinks content items primarily around locally crowded simplex anchors so sparse areas preserve full `1.0` scale legibility (`0.0 px` overlap).
+Built-in layout strategy presets (all strictly guaranteeing **`0.0 px` overlap** and covering-triangle containment):
+- `createPbdUniformLayoutStrategy()` *(default)* — `createPhyllotaxisSeeder` + `createBarycentricPbdRelaxer` + `createUniformScaleController` (`warmStart: false`).
+- `createWarmStartPbdLayoutStrategy()` — Same as above with `warmStart: true` for minimal movement across updates.
+- `createLocalAdaptiveLayoutStrategy({ crowdRadiusPx?, minLocalScale?, warmStart? })` — Uses `createDensityPriorScaleController` (`crowdRadiusPx: 76`, `minLocalScale: 0.42`) so sparse neighborhoods stay at `1.0` scale.
+- `createCollisionDrivenLayoutStrategy({ minLocalScale?, shrinkFactor?, warmStart? })` — Combines `createMeshInwardFanSeeder` + `createSpaceFillingPbdRelaxer` + `createCollisionLocalScaleController` (`minLocalScale: 0.32`, `shrinkFactor: 0.85`, `warmStart: true`) to keep every non-colliding item at `1.0` scale and shrink only locally colliding pockets.
 
-### Example: Passing & Swapping Strategies at Runtime
+Or compose custom layout pipelines via `createComposedLayoutStrategy(options)` / `solveComposedLayout(params)`:
+- **Seeders (`LayoutSeeder`)**: `createPhyllotaxisSeeder(opts?)`, `createMeshInwardFanSeeder(opts?)`, `withWarmStartSeeder(seeder)`.
+- **Relaxers (`PositionRelaxer`)**: `createBarycentricPbdRelaxer(opts?)`, `createSpaceFillingPbdRelaxer(opts?)`.
+- **Scale Controllers (`ScaleController`)**: `createUniformScaleController(opts?)`, `createCollisionLocalScaleController(opts?)`, `createDensityPriorScaleController(opts?)`, `createFixedScaleController({ scale? })`.
 
-```ts
-import {
-  solveSimplexSnapshot,
-  createFixedLatticeMeshStrategy,
-  createIncrementalAnchorClusteringStrategy,
-  createThemeAdaptiveOklabColorStrategy,
-  createLocalAdaptiveLayoutStrategy,
-} from '@simplex-viz/core';
+### 5. `SimplexZoomStrategy` (Hierarchical `1:4` Drill-Down & Free Camera)
 
-const snapshot = solveSimplexSnapshot(items, {
-  width: 1200,
-  height: 760,
-  theme: 'light',
-  meshStrategy: createFixedLatticeMeshStrategy({ cols: 3, rows: 3 }),
-  clusteringStrategy: createIncrementalAnchorClusteringStrategy({
-    sharedTagRule: 'planar-hitting-set',
-    anchorRule: 'barycentric-all',
-  }),
-  colorStrategy: createThemeAdaptiveOklabColorStrategy(),
-  layoutStrategy: createLocalAdaptiveLayoutStrategy({ warmStart: true }),
-});
+- `createFreeCameraZoomStrategy()` *(default)* — Continuous 2D camera (`mode: 'free-camera'`).
+- `createBarycentricZoomStrategy(options?)` (`mode: 'drill-down'`):
+  - `clusterZoomMode`: `'incident-star'` *(default)* | `'spotlight'` | `'none'`
+  - `adaptiveContrastStretch`: `true` *(default)* — Re-centers skewed parent weight distributions across the 4 sub-triangles.
+  - `enableSectorFallback`: `true` *(default)* — Falls back to radial sector partitioning when weights are degenerate.
+  - `stopWhenFullScale`: `true` *(default)* — Marks triangles/clusters as leaf once all covered items reach `fullScaleThreshold` (`0.995` default).
+- `createSemanticZoomStrategy(options?)` (`mode: 'drill-down'`):
+  - Re-partitions a focused triangle's discriminative tags across all `6` sub-vertices (`clusterZoomMode: 'incident-star'`, `stopWhenFullScale: true`, `fullScaleThreshold: 0.995`, `barycentricFallback: true`).
+- **Imperative Zoom Methods on `SimplexGraphEngine`**:
+  `setZoomStrategy(strategy)`, `getZoomStrategy()`, `getZoomState()`, `drillDownTriangle(index)`, `drillDownCluster(uid)`, `drillToNeighbor(neighborId)`, `drillUp()`, `drillToDepth(depth)`, `drillToRoot()`.
 
-// Or swap any strategy dynamically on a running SimplexGraphEngine:
-engine.setTheme('light');
-engine.setColorStrategy(createThemeAdaptiveOklabColorStrategy());
-engine.setLayoutStrategy(createLocalAdaptiveLayoutStrategy({ crowdRadiusPx: 72 }));
-engine.setMeshStrategy(createFixedLatticeMeshStrategy({ cols: 4, rows: 3 }));
-engine.setClusteringStrategy(createIncrementalAnchorClusteringStrategy());
-```
+---
 
-## Configuration Reference
-
-### `StrategyItemIdentityConfig<TItem, TTagMeta>` & `ClusterMetaConfig`
-
-- If `TItem` has `{ readonly id: string }`, `getId` is optional; otherwise TypeScript requires `getId`.
-- If a custom `clusteringStrategy` is passed (e.g., `createEmbeddingClusteringStrategy`, `createSimilarityClusteringStrategy`, or strategy-scoped `getTags`), `getTags` is optional even when `TItem` has no `tags` field.
-- If `clusteringStrategy` is omitted and `TItem` lacks `tags`, TypeScript requires `getTags`.
-- If `TClusterMeta` is `undefined` (default), `deriveClusterMeta` is optional. When a custom `TClusterMeta` type is supplied, `deriveClusterMeta(ctx)` becomes compile-time required and receives `representativeItems`, `centroid`, `cohesion`, and `featureSummary` alongside `members`, `coreTags`, and `sharedTags`.
+## Configuration Tables
 
 ### `MeshOptions`
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `innerPadding` | `number` | `48` | Padding around the usable simplex lattice in pixels. |
-| `minSideLength` | `number` | `140` | Minimum preferred equilateral triangle edge length in pixels. |
-| `maxSideLength` | `number` | `280` | Maximum preferred equilateral triangle edge length in pixels. |
-| `maxClusters` | `number` | `12` | Upper bound on cluster vertices `K`. |
+| `sideLength` | `number` | `undefined` | Explicit equilateral triangle side length in pixels (overrides automatic `minSideLength`/`maxSideLength` sizing). |
+| `minSideLength` | `number` | `140` | Minimum preferred equilateral triangle edge length in pixels when `sideLength` is omitted. |
+| `maxSideLength` | `number` | `280` | Maximum preferred equilateral triangle edge length in pixels when `sideLength` is omitted. |
+| `maxClusters` | `number` | `12` | Upper bound on cluster vertices `K` in adaptive meshes. |
 
 ### `LayoutSolverOptions`
 
@@ -388,18 +352,18 @@ engine.setClusteringStrategy(createIncrementalAnchorClusteringStrategy());
 | --- | --- | --- | --- |
 | `clusterGapPx` | `number` | `14` | Minimum guaranteed clearance between cluster hulls (px). |
 | `itemGapPx` | `number` | `5` | Minimum guaranteed clearance between content items and clusters (px). |
-| `minContentScale` | `number` | `0.2` | Lower bound for the binary search over content scale factor `α_content`. |
-| `relaxationIterations` | `number` | `36` | Maximum PBD/MTV relaxation iterations per binary search probe. |
-| `sizeMultiplier` | `number` | `1.0` | Uniform scale multiplier applied before solving. |
-| `seed` | `number` | `undefined` | Optional deterministic PRNG seed for reproducible QAP embedding and tie-breaking. |
+| `minContentScale` | `number` | `0.16`–`0.20` | Safety lower bound for content scale factor `α_content`. |
+| `relaxationIterations` | `number` | Strategy default (`38`–`46`) | Maximum PBD/MTV relaxation iterations per pass. |
+| `sizeMultiplier` | `number` | `1.0` | Uniform node scale multiplier applied before solving. |
+| `seed` | `number` | `0x51a7c0de` | Deterministic PRNG seed for reproducible QAP embedding and tie-breaking. |
 
 ## Low-Level Pure Utilities
 
 Every algorithmic building block can also be imported standalone:
 
-- **Mesh**: `buildSimplexMesh(width, height, clusterCount, options)`, `buildSimplexLattice(...)`
-- **Clustering**: `computeSimplexClustering(...)`, `embedSimilarityMatrixOnMesh(...)`, `extractIdentifiedItems(...)`, `analyzeTagCorpus(...)`, `partitionTagsJaccard(...)`, `computeMeshHopDistances(...)`, `embedClustersQapAnnealing(...)`, `completePlanarSharedTags(...)`, `matchClustersHungarian(...)`, `assignItemsToSimplexUnits(...)`, `extractNormalizedItems(...)`, `defaultNormalizeTag(...)`
-- **Layout Solver**: `solveTwoPhaseLayout(...)`, `solveLocalAdaptiveLayout(...)`, `solveClusterPhase(...)`, `buildPhyllotaxisStarts(...)`, `runPerItemPbdRelaxation(...)`
+- **Mesh & Zoom Geometry**: `buildSimplexMesh`, `buildSimplexLattice`, `buildSubdividedTriangleMesh`, `buildIncidentStarMesh`, `applyZoomAffine`, `invertZoomAffine`, `composeZoomAffine`
+- **Clustering**: `computeSimplexClustering`, `embedSimilarityMatrixOnMesh`, `extractIdentifiedItems`, `analyzeTagCorpus`, `partitionTagsJaccard`, `computeMeshHopDistances`, `embedClustersQapAnnealing`, `completePlanarSharedTags`, `matchClustersHungarian`, `assignItemsToSimplexUnits`, `extractNormalizedItems`, `defaultNormalizeTag`
+- **Layout Solver**: `solveComposedLayout`, `solveTwoPhaseLayout`, `solveLocalAdaptiveLayout`, `solveCollisionDrivenLayout`, `buildItemCoveringTriangles`, `measureLayoutOverlaps`
 - **Geometry & Collision**: `computeConvexHull`, `rectToConvexPolygon`, `regularPolygon`, `starConvexHull`, `isPointInTriangle`, `computeConvexMtv`, `computeCirclePolygonMtv`, `hitTestConvexGeometry`, `UniformSpatialHashGrid`
 - **Color Science**: `hexToOklab`, `oklabToHex`, `mixOklabColors`, `lerpOklabHex`, `generatePerceptualClusterPalette`, `buildDistinctOklabPalette`, `assignMeshClusterColors`, `assignGreedyEdgeContrastColors`
 - **Animation & Camera**: `stepCriticallyDampedSpring`, `retargetVisualTransition`, `stepVisualTransition`, `SimplexCamera`

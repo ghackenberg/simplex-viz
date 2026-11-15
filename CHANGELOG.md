@@ -2,6 +2,23 @@
 
 Alle relevanten Änderungen an **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`) werden in dieser Datei im Format [Keep a Changelog](https://keepachangelog.com/de/1.1.0/) dokumentiert und über `@changesets/cli` verwaltet.
 
+## [0.6.0] - 2026-11-15
+
+### Hinzugefügt / Geändert
+- **`@simplex-viz/core`**:
+  - **5. austauschbare Pipeline-Achse (`SimplexZoomStrategy`)**: Hierarchischer diskreter Drill-Down & kontinuierlicher Kamera-Zoom über `createBarycentricZoomStrategy` (`1:4`-konforme Dreiecks-Subdivision mit exakter `▲/▼/▶/◀`-Orientierungstreue, *Adaptive Contrast Stretch*, `incident-star`- und `spotlight`-Cluster-Zoom, automatischer Leaf-Stop bei `1.0x`-Vollskalierung), `createSemanticZoomStrategy` (`6`-Vertex-Tag-Repartitionierung mit Schleifenschutz) und `createFreeCameraZoomStrategy` *(Quickstart-Standard)*.
+  - **Durchgängige Nachbarschafts- & Drill-Down-UX**: Kontinuierliche Kamerafahrt (`ZoomAffineTransform`) beim Hinein-/Hinauszoomen und lateralen Nachbarwechsel, abgedunkelter klickbarer Nachbarschaftskontext inkl. automatischem mehrstufigem Zoom-Out bei Klick auf Leaf-Nachbarn, Hover-äquivalentes Highlight der fokussierten Region (`highlightBoundary` & `isHighlighted`), automatisches Pointer-Pass-Through (`isPassThrough`) auf Inhaltskanten/-knoten innerhalb noch zoombarer Dreiecke sowie Deaktivierung des Mausrad-Kamera-Zooms im `drill-down`-Modus.
+  - **Soft-Simplex-Clustering-Strategien**: `createSoftSimplexTagClusteringStrategy` und `createSoftSimplexEmbeddingClusteringStrategy` mit Last-balancierter QAP-Einbettung und kontinuierlicher Dreiecks-Innenraum-Projektion (`triangleSpread`), während Einzel-Cluster-Mitglieder frei im 360°-Halo um ihren Cluster-Knoten verbleiben.
+  - **Komponierbare Layout-Architektur (`Seeder × Relaxer × ScaleController`)**: `solveComposedLayout`, `createComposedLayoutStrategy` und `createCollisionDrivenLayoutStrategy` sowie orthogonale Bausteine (`createPhyllotaxisSeeder`, `createMeshInwardFanSeeder`, `withWarmStartSeeder`, `createBarycentricPbdRelaxer`, `createSpaceFillingPbdRelaxer`, `createUniformScaleController`, `createCollisionLocalScaleController`, `createDensityPriorScaleController`, `createFixedScaleController`) unter Wahrung der strikten `0.0 px` SAT-Überlappungsgarantie und Dreiecks-Containment-Constraints.
+  - **Explizite Dreiecks-Seitenlänge & Hierarchie-Rollen**: `MeshOptions.sideLength` für exakte Dreieckskantenlängen sowie `ClusterDescriptor.role` (`'primary' | 'intermediate'`) und `mixWeights` für synthetisierte Zoom-Zwischenknoten.
+- **`@simplex-viz/svg`**:
+  - **Direkte interne `1:4`-Triangulationsvorschau**: Zoombare Dreiecke (`isDrillable === true`) zeichnen ihre 3 Mittelpunktskanten direkt über das aktive `SvgEdgeView`-Plugin in `<g class="sv-drill-edges">`, exakt konsistent zum äußeren Linienstil.
+  - **Zoom-Navigation & Intermediate-Cluster-Darstellung**: Eingebaute Breadcrumb-Leiste (`showZoomBreadcrumbs`), diskrete 2-Finger-Pinch-Out/-In-Gesten im `drill-down`-Modus, kompakte abgeschrägte `'intermediate'`-Badges/Anker in `BadgeClusterSvgView` & `ClusterAnchorSvgView` sowie imperative Methoden (`setZoomStrategy`, `drillDownTriangle`, `drillDownCluster`, `drillToNeighbor`, `drillUp`, `drillToDepth`, `drillToRoot`, `getZoomState`).
+- **`@simplex-viz/react`**:
+  - Neue `<SimplexTopicGraph />`-Props (`zoomStrategy`, `showZoomBreadcrumbs`, `onZoomStateChange`), vollständige Drill-Down-Methoden auf `useSimplexGraphController()` sowie lückenlose Re-Exports aller neuen Strategien, Layout-Bausteine und Typen.
+- **Dokumentation**:
+  - Vollständige Quickstart-Default-Tabellen und Schritt-für-Schritt-Customizing-Anleitungen über alle vier `README.md`-Dateien aktualisiert.
+
 ## [0.5.0] - 2026-11-14
 
 ### Hinzugefügt / Geändert

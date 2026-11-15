@@ -1,7 +1,7 @@
 {
   "name": "@simplex-viz/svg",
-  "version": "0.5.0",
-  "description": "Framework-agnostic SVG rendering engine, offscreen getBBox() hull measurer, and pluggable SvgNodeView system for @simplex-viz/core.",
+  "version": "0.6.0",
+  "description": "Framework-agnostic SVG rendering engine, hierarchical 1:4 zoom/drill-down navigation, offscreen getBBox() hull measurer, and pluggable SvgNodeView / SvgTriangleView / SvgEdgeView system for @simplex-viz/core.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
@@ -31,6 +31,8 @@
     "svg",
     "visualization",
     "dataviz",
+    "zoom",
+    "drill-down",
     "framework-agnostic",
     "plugins"
   ],

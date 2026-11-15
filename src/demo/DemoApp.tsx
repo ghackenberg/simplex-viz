@@ -439,6 +439,11 @@ export function DemoApp() {
       setContextMenu(null);
       handle.drillToRoot();
       setDatasetId(nextDataset);
+      if (nextDataset !== 'knowledge') {
+        setZoomStrategyId((prev) =>
+          prev === 'semantic' ? 'barycentric' : prev,
+        );
+      }
       setItems(buildDemoCatalog(nextDataset));
       setRenderConfig((prev) => {
         if (nextDataset === 'knowledge') {
@@ -716,7 +721,7 @@ export function DemoApp() {
         DemoClusterSummary
       >();
     }
-    if (zoomStrategyId === 'semantic') {
+    if (zoomStrategyId === 'semantic' && datasetId === 'knowledge') {
       return createSemanticZoomStrategy<
         DemoEntity,
         TagTaxonomyInfo,
@@ -732,7 +737,7 @@ export function DemoApp() {
     >({
       clusterZoomMode,
     });
-  }, [zoomStrategyId, clusterZoomMode]);
+  }, [zoomStrategyId, datasetId, clusterZoomMode]);
 
   const resetCoreStrategies = useCallback(() => {
     setMeshStrategyId('adaptive');
@@ -2207,7 +2212,11 @@ export function DemoApp() {
                     5 · Zoom &amp; Drill-Down
                   </span>
                   <select
-                    value={zoomStrategyId}
+                    value={
+                      datasetId !== 'knowledge' && zoomStrategyId === 'semantic'
+                        ? 'barycentric'
+                        : zoomStrategyId
+                    }
                     onChange={(e) =>
                       setZoomStrategyId(e.target.value as ZoomStrategyId)
                     }
@@ -2216,9 +2225,11 @@ export function DemoApp() {
                     <option value="barycentric">
                       Barycentric 1:4 Subdivision (Default)
                     </option>
-                    <option value="semantic">
-                      Semantic Tag-Split 3→6 + Fallback
-                    </option>
+                    {datasetId === 'knowledge' && (
+                      <option value="semantic">
+                        Semantic Tag-Split 3→6 + Fallback
+                      </option>
+                    )}
                     <option value="free-camera">
                       Free Camera (Continuous Pan &amp; Wheel)
                     </option>

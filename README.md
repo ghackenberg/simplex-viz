@@ -5,7 +5,7 @@
 <h1 align="center">SimplexViz</h1>
 
 <p align="center">
-  <strong>Triangulation-based, strictly overlap-free visualization of arbitrary domain collections (vector embeddings, pairwise similarities, or tagged items) on a dynamic 60° equilateral triangle mesh.</strong>
+  <strong>Triangulation-based, strictly overlap-free visualization of arbitrary domain collections (vector embeddings, pairwise similarities, or tagged items) on a dynamic 60° equilateral triangle mesh with hierarchical 1:4 zoom/drill-down.</strong>
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-f59e0b.svg" alt="License: MIT" /></a>
 </p>
 
-SimplexViz partitions arbitrary collections—whether **single- or multi-modal vector embeddings** (text, images, videos, voice audio signatures, body-shape latents), **custom pairwise similarity functions**, or **tagged knowledge items**—into balanced clusters, embeds them onto an adaptive 60° simplex lattice with perceptual OKLab color mixing, and resolves every convex node hull to a guaranteed `0.0 px` overlap layout. It is structured as a modular three-layer TypeScript stack—a zero-dependency headless core (`@simplex-viz/core`), a framework-agnostic SVG engine (`@simplex-viz/svg`), and type-safe React bindings (`@simplex-viz/react`).
+SimplexViz partitions arbitrary collections—whether **single- or multi-modal vector embeddings** (text, images, videos, voice audio signatures, body-shape latents), **custom pairwise similarity functions**, or **tagged knowledge items**—into balanced clusters, embeds them onto an adaptive 60° simplex lattice with perceptual OKLab color mixing, resolves every convex node hull to a guaranteed `0.0 px` overlap layout, and supports both continuous camera navigation and conformal **`1:4` hierarchical zoom / drill-down**. It is structured as a modular three-layer TypeScript stack—a zero-dependency headless core (`@simplex-viz/core`), a framework-agnostic SVG engine (`@simplex-viz/svg`), and type-safe React bindings (`@simplex-viz/react`).
 
 ## Live Showcase
 
@@ -26,19 +26,20 @@ Explore the interactive demo at **<https://hackenberg.tech/simplex-viz/>**. It b
   </a>
 </p>
 
-*Figure: The interactive SimplexViz showcase. Topic clusters (`T1`–`T8`) sit as topic badges or double-ring vertex anchors on the adaptive 60° equilateral triangle lattice, while content items render inside their covering vertices, edges, or triangles as colored shapes, multi-sector glyphs, or React cards blended in perceptual OKLab space. Triangle faces and mesh edges are swappable (`OklabTint`, `Gradient`, `BarycentricSector`, `BlueprintInset`, `DensityHeatmap` + `Dashed`, `ClusterTinted`, `PrecisionRail`, `MinimalHighlight`) and support hover tooltips, click-to-inspect, and simplex isolation. The collapsible left inspector offers fine-grained independent controls for content, cluster, triangle face, and edge renderers alongside core algorithm strategies (`Mesh`, `Clustering`, `Color`, `Layout`), dataset mutations, and solver telemetry (`0` overlaps at `60 fps`), with mouse and two-finger touch pinch/pan navigation across desktop and mobile viewports.*
+*Figure: The interactive SimplexViz showcase. Topic clusters (`T1`–`T8`) sit as topic badges or double-ring vertex anchors on the adaptive 60° equilateral triangle lattice, while content items render inside their covering vertices, edges, or triangles as colored shapes, multi-sector glyphs, or React cards blended in perceptual OKLab space. Drillable triangles preview their internal `1:4` subdivision directly in the active mesh edge style, and clicking drills smoothly into sub-triangles or 1-ring cluster stars with dimmed clickable neighborhood context and breadcrumbs. The collapsible left inspector offers independent controls across all five core strategy stages (`Mesh`, `Clustering`, `Color`, `Layout`, `Zoom`) plus node, triangle face, and edge renderers (`0` overlaps at `60 fps`).*
 
-## Project Vision & Mathematical Principle
+## Project Vision & 5-Stage Pluggable Pipeline
 
-Classical force-directed layouts and raw UMAP/t-SNE scatters often turn multi-dimensional collections into unreadable hairballs or overlapping blobs. **SimplexViz** embeds cluster centroids or medoids onto an adaptive **toothed equilateral 60° triangle lattice** through four **pluggable, independently swappable strategy stages**:
+Classical force-directed layouts and raw UMAP/t-SNE scatters often turn multi-dimensional collections into unreadable hairballs or overlapping blobs. **SimplexViz** embeds cluster centroids or medoids onto an adaptive **toothed equilateral 60° triangle lattice** through **five pluggable, independently hot-swappable strategy stages**:
 
-1. **Mesh Strategy (`SimplexMeshStrategy`)**: Defaults to `createAdaptiveHexMeshStrategy()` (`buildSimplexMesh`), which selects the most area-efficient 60° lattice orientation (`horizontal` or `vertical`) and row parity (`wideFirst`) from viewport dimensions `(W, H)`, or can be swapped for `createFixedLatticeMeshStrategy({ cols, rows })`.
-2. **Clustering & Anchoring Strategy (`SimplexClusteringStrategy`)**: Completely representation-agnostic via `requiresTags?: boolean`:
-   - **Tag Specialization (Built-in Default)**: `createJaccardAnnealingClusteringStrategy()` (or `createIncrementalAnchorClusteringStrategy()`) treats `{ id, tags }` / `getTags` as an out-of-the-box specialization—partitioning tags via regularized Jaccard + QAP Simulated Annealing, adding minimal `sharedTags` via Weighted Hitting-Set (`'planar-hitting-set'`), and projecting items onto simplex units (`'explaining-away'`, `'raw-overlap'`, `'barycentric-all'`).
-   - **Single & Multi-Modal Vector Embeddings (`requiresTags: false`)**: `createEmbeddingClusteringStrategy()` clusters untagged items from one or multiple weighted feature vectors (`getEmbedding: [{ getVector, weight }]`), embeds centroids onto the mesh via QAP Simulated Annealing (`embedSimilarityMatrixOnMesh`), preserves cluster UIDs across updates via Hungarian matching, and projects items into planar simplex coordinates via closed-form NNLS barycentric projection (`'simplex-projection'`, `'explaining-away'`, `'top-1'`).
-   - **Pairwise Similarity Matrices (`requiresTags: false`)**: `createSimilarityClusteringStrategy({ getSimilarity })` partitions any untagged domain model using PAM k-Medoids, QAP mesh embedding, and simplex projection from a domain-specific `(a, b) => [0, 1]` similarity function.
-3. **Color Strategy (`SimplexColorStrategy`)**: Defaults to `createOklabContrastColorStrategy()` (perceptual OKLab edge-contrast coloring + chroma-preserving barycentric mixing), or swaps cleanly to `createThemeAdaptiveOklabColorStrategy()` or `createPaletteColorStrategy(hexColors)`.
-4. **Layout & Collision Strategy (`SimplexLayoutStrategy`)**: Defaults to `createPbdUniformLayoutStrategy()` (`solveTwoPhaseLayout`: binary search over `α_content`, position-based relaxation, and exact SAT / circle-polygon MTV separation), or swaps to `createWarmStartPbdLayoutStrategy()` or `createLocalAdaptiveLayoutStrategy()`—strictly guaranteeing **0.0 px overlap** across all built-in solvers.
+1. **Mesh Strategy (`SimplexMeshStrategy`)**: Defaults to `createAdaptiveHexMeshStrategy()` (`buildSimplexMesh`), which chooses the most area-efficient 60° lattice orientation (`horizontal` or `vertical`) and row parity (`wideFirst`) from `(W, H)` (with optional explicit `sideLength`), or swaps to `createFixedLatticeMeshStrategy({ cols, rows, sideLength? })`.
+2. **Clustering & Anchoring Strategy (`SimplexClusteringStrategy`)**: Representation-agnostic via `requiresTags?: boolean`:
+   - **Tag Specializations**: `createJaccardAnnealingClusteringStrategy()` *(Quickstart default)*, `createSoftSimplexTagClusteringStrategy({ triangleSpread })` (smooth interior spreading across covering triangles while preserving 360° halos for single-cluster items), and `createIncrementalAnchorClusteringStrategy()` (`initialize` vs. incremental `update`).
+   - **Single & Multi-Modal Vector Embeddings (`requiresTags: false`)**: `createEmbeddingClusteringStrategy()` and `createSoftSimplexEmbeddingClusteringStrategy()` cluster untagged items from one or multiple weighted feature vectors (`getEmbedding`), embed centroids via QAP (`embedSimilarityMatrixOnMesh` / load-balanced QAP), preserve cluster UIDs via Hungarian matching, and project items into planar simplex coordinates.
+   - **Pairwise Similarity Matrices (`requiresTags: false`)**: `createSimilarityClusteringStrategy({ getSimilarity })` partitions any untagged domain model using PAM k-Medoids, QAP mesh embedding, and simplex projection.
+3. **Color Strategy (`SimplexColorStrategy`)**: Defaults to `createOklabContrastColorStrategy()` (perceptual OKLab edge-contrast coloring + chroma-preserving barycentric mixing), or swaps to `createThemeAdaptiveOklabColorStrategy()` or `createPaletteColorStrategy(hexColors)`.
+4. **Layout & Collision Strategy (`SimplexLayoutStrategy`)**: Defaults to `createPbdUniformLayoutStrategy()`, or swaps to `createWarmStartPbdLayoutStrategy()`, `createLocalAdaptiveLayoutStrategy()`, `createCollisionDrivenLayoutStrategy()`, or any custom **`LayoutSeeder` × `PositionRelaxer` × `ScaleController`** trio via `createComposedLayoutStrategy()`—strictly guaranteeing **`0.0 px` overlap** and triangle containment.
+5. **Zoom & Drill-Down Strategy (`SimplexZoomStrategy`)**: Defaults to `createFreeCameraZoomStrategy()` (wheel zoom-to-cursor, 2-finger touch pinch, and drag-to-pan), or swaps to hierarchical **`1:4` drill-down** via `createBarycentricZoomStrategy()` (conformal `1:4` equilateral subdivision preserving exact `▲/▼/▶/◀` triangle orientation, *Adaptive Contrast Stretch*, `1`-ring cluster star & spotlight zoom, internal `1:4` subdivision mesh preview on drillable triangles, content pass-through until leaf level, hover-equivalent region highlight, dimmed clickable neighborhood context with automatic multi-level zoom-out on leaf neighbors, and discrete 2-finger pinch) or `createSemanticZoomStrategy()` (`6`-vertex tag re-partitioning).
 
 ## Architecture (Strict 3-Package Separation)
 
@@ -54,23 +55,19 @@ flowchart LR
 
 | Package | Role | Documentation |
 | --- | --- | --- |
-| [`@simplex-viz/core`](./packages/core) | Pure TypeScript triangulation, clustering, OKLab color science, 2-phase convex SAT solver, spring animation, and convex + triangle hit-testing. Zero DOM/SVG/React dependencies (`ES2022`). | [Core README](./packages/core/README.md) |
-| [`@simplex-viz/svg`](./packages/svg) | Framework-agnostic SVG engine (`Vanilla TS`, `Vue`, `Angular`, `Svelte`, Web Components) with root-SVG hit-testing, offscreen `getBBox()` hull measurement, pluggable node/triangle/edge `Svg*View` plugins, interactive triangle focus/tooltips, and dual-layer crossfading. | [SVG README](./packages/svg/README.md) |
-| [`@simplex-viz/react`](./packages/react) | Thin, end-to-end type-safe React bindings (`<SimplexTopicGraph />`, `useSimplexGraphController`) supporting portable `SvgNodeView` / `SvgTriangleView` / `SvgEdgeView` plugins, declarative JSX node renderers, and interactive triangle events. | [React README](./packages/react/README.md) |
+| [`@simplex-viz/core`](./packages/core) | Pure TypeScript triangulation, clustering, OKLab color science, composable 2-phase convex SAT solver, `1:4` zoom/drill-down strategies, spring animation, and convex + triangle hit-testing. Zero DOM/SVG/React dependencies (`ES2022`). | [Core README](./packages/core/README.md) |
+| [`@simplex-viz/svg`](./packages/svg) | Framework-agnostic SVG engine (`Vanilla TS`, `Vue`, `Angular`, `Svelte`, Web Components) with root-SVG hit-testing, offscreen `getBBox()` hull measurement, pluggable node/triangle/edge `Svg*View` plugins, `1:4` subdivision previews, breadcrumbs, and dual-layer crossfading. | [SVG README](./packages/svg/README.md) |
+| [`@simplex-viz/react`](./packages/react) | Thin, end-to-end type-safe React bindings (`<SimplexTopicGraph />`, `useSimplexGraphController`) supporting portable `SvgNodeView` / `SvgTriangleView` / `SvgEdgeView` plugins, declarative JSX node renderers, and hierarchical drill-down props & hooks. | [React README](./packages/react/README.md) |
 
 ## Quickstart (Zero-Config)
 
-Each package re-exports the helpers and types you need from lower layers—install just the single package matching your stack and pass `{ id, tags }` items directly. Drag-to-pan, cursor wheel zoom, two-finger touch pinch-to-zoom, cluster click-focus, and hover tooltips work out of the box.
+Each package re-exports all helpers, views, and types you need from lower layers—install just the single package matching your stack and pass `{ id, tags }` items directly.
 
 ### React (`@simplex-viz/react`)
-
-Install `@simplex-viz/react` (it installs `@simplex-viz/core` and `@simplex-viz/svg` automatically):
 
 ```bash
 npm install @simplex-viz/react
 ```
-
-Render `<SimplexTopicGraph />` with built-in presets (`'geometric'`, `'glyphs'`, or `'badges'`) and optional hover tooltips in one component call:
 
 ```tsx
 import { SimplexTopicGraph } from '@simplex-viz/react';
@@ -92,109 +89,307 @@ export function TopicMap() {
 
 ### Vanilla TypeScript / Vue / Angular / Svelte (`@simplex-viz/svg`)
 
-For non-React apps or Web Components, install `@simplex-viz/svg` alone:
-
 ```bash
 npm install @simplex-viz/svg
 ```
 
-Pass a DOM element or CSS selector together with your items array to `createSimplexSvg`. Built-in presets, drag-to-pan, cursor zoom, cluster click-focus, and floating hover tooltips start immediately:
-
 ```ts
 import { createSimplexSvg } from '@simplex-viz/svg';
 
+// One-liner mount (enables built-in 'geometric' preset, pan/zoom, focus, and hover tooltips):
 const controller = createSimplexSvg('#graph', items);
 ```
 
-To choose a preset explicitly, customize tooltips, or subscribe to metrics, pass an options object instead of a bare array:
+### Quickstart Default Settings Reference
 
-```ts
-const controller = createSimplexSvg('#graph', {
-  items,
-  preset: 'badges',
-  tooltip: true,
-});
+Every setting has a deterministic zero-config default out of the box—you only specify what you want to customize:
 
-// Mutate data live without resetting camera pan/zoom:
-controller.addItems({ id: '4', label: 'SVG Morphing', tags: ['svg', 'geometry'] });
-controller.setPreset('glyphs');
-```
+| Setting | Default Value | Behavior Out of the Box |
+| --- | --- | --- |
+| `getId` | `(item) => item.id` | Auto-extracts `.id` (required by TypeScript only if `TItem` has no `id: string`). |
+| `getTags` | `(item) => item.tags` | Auto-extracts `.tags` (optional when passing an embedding/similarity `clusteringStrategy`). |
+| `getLabel` | Heuristic (`label \| title \| headline \| name \| id`) | Used by built-in presets and hover tooltips when `getLabel` is omitted. |
+| `preset` | `'geometric'` | Renders `GeometricShapeSvgView` content nodes + `BadgeClusterSvgView` cluster badges (`'glyphs'` and `'badges'` also built in). |
+| `theme` | `'dark'` | Dark canvas styling for presets, tooltips, breadcrumbs, and theme-adaptive colors (`'light'` supported). |
+| `triangleView` | `OklabTintTriangleSvgView` | Subtle OKLab-blended triangle fills with hover/focus perimeter highlights. |
+| `edgeView` | `DashedMeshEdgeSvgView` | Dashed 60° lattice edges (also used 1:1 for internal `1:4` drillable triangle previews). |
+| `meshStrategy` | `createAdaptiveHexMeshStrategy()` | Adaptive 60° equilateral lattice (`innerPadding: 48`, `minSideLength: 140`, `maxSideLength: 280`, `maxClusters: 12`). |
+| `clusteringStrategy` | `createJaccardAnnealingClusteringStrategy()` | Jaccard tag partitioning + QAP Simulated Annealing + `'planar-hitting-set'` + `'explaining-away'`. |
+| `colorStrategy` | `createOklabContrastColorStrategy()` | Perceptual OKLab edge-contrast vertex colors + barycentric OKLab item mixing. |
+| `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Phyllotaxis seeding + uniform scale search + PBD SAT separation (`clusterGapPx: 14`, `itemGapPx: 5`, `minContentScale: 0.2`, `0.0 px` overlap). |
+| `zoomStrategy` | `createFreeCameraZoomStrategy()` | Continuous cursor wheel zoom (`onWheel: 'zoom-to-cursor'`), 2-finger touch pinch, and drag-to-pan. |
+| `showZoomBreadcrumbs` | `true` | Automatically displays clickable navigation breadcrumbs whenever drilled into a sub-level (`depth > 0`). |
+| `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Clicking a cluster or triangle isolates its neighborhood in `free-camera` mode (clicking background clears). |
+| `tooltip` | `true` in `createSimplexSvg(el, items)`, `false` in options/React | Floating hover tooltip for `'content'`, `'cluster'`, and `'triangle'` targets (accepts `boolean` or custom formatter). |
 
-## Progressive Customization Path
+---
 
-Zero-config defaults never lock you in—you can opt into deeper control one layer at a time as your application grows:
+## Step-by-Step Customization Guide
 
-1. **Level 1 — Built-in Presets & Interactivity (`preset`, `theme`, `tooltip`, `focusOnClusterClick`, `focusOnTriangleClick`)**: Switch between `'geometric'`, `'glyphs'`, and `'badges'`, pair with `'dark'` or `'light'` themes, toggle `tooltip` (`boolean` or custom formatter for items, clusters, and mesh triangles), and rely on built-in drag-to-pan, wheel zoom, and cluster or triangle face click-focus toggles.
-2. **Level 2 — Custom Domain Schemas (`getId`, `getTags`, `getLabel`, `deriveClusterMeta`)**: Keep your existing domain records (`Article`, `ImageAsset`, `VoiceClip`, `BodyScan`) without mapping them to `{ id, tags }`. TypeScript enforces `getTags` *only* when using the default tag-clustering path; passing `clusteringStrategy` (`createEmbeddingClusteringStrategy`, `createSimilarityClusteringStrategy`, or custom) makes `getTags` completely optional.
-3. **Level 3 — Keyless React JSX or Portable `SvgNodeView` / `SvgTriangleView` / `SvgEdgeView` Plugins**: Supply `renderContentNode` / `renderClusterNode` in React *without* writing a `VisualResolver` (auto-measured via offscreen `getBBox()`), or pass any `SvgNodeView`, `SvgTriangleView` (`OklabTintTriangleSvgView`, `GradientTriangleSvgView`, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`), and `SvgEdgeView` (`DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`) plugin for 60 fps imperative SVG updates.
-4. **Level 4 — Pluggable Core Strategies (`meshStrategy`, `clusteringStrategy`, `colorStrategy`, `layoutStrategy`)**: Mix and match tag strategies (`createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`), multi-modal embedding strategies (`createEmbeddingClusteringStrategy`), pairwise similarity strategies (`createSimilarityClusteringStrategy`), fixed lattices, palettes, and local-adaptive layout solvers—orthogonal to any visual preset.
-5. **Level 5 — Full `VisualResolver` & Headless `solveSimplexSnapshot` / `SimplexGraphEngine`**: Define typed visual descriptors and crossfade keys, compute one-shot static layouts with `solveSimplexSnapshot(items)` in Node.js/SSR/Canvas, or drive custom WebGL engines frame by frame with `SimplexGraphEngine`.
+You can customize any aspect of SimplexViz independently—each step below works identically in `@simplex-viz/react` (via props) and `@simplex-viz/svg` (via constructor options or runtime `set*` methods).
 
-### Example: Custom Domain Record with Keyless React JSX
+### Step 1 — Custom Domain Schema & Cluster Metadata (`getId`, `getTags`, `getLabel`, `deriveClusterMeta`)
 
-Notice that you do not need to install `@simplex-viz/core` or write a `VisualResolver`—import `SimplexTopicGraph` from `@simplex-viz/react` and return standard SVG JSX centered at `(0, 0)`:
+Keep your existing domain objects without mapping them to `{ id, tags }`:
 
 ```tsx
 import { SimplexTopicGraph } from '@simplex-viz/react';
 
-interface Article {
-  readonly slug: string;
-  readonly title: string;
-  readonly hashtags: readonly string[];
+interface ResearchPaper {
+  readonly doi: string;
+  readonly headline: string;
+  readonly topics: readonly string[];
+  readonly citations: number;
 }
 
-export function ArticleAtlas({ articles }: { articles: readonly Article[] }) {
+interface ClusterSummary {
+  readonly totalCitations: number;
+}
+
+<SimplexTopicGraph<ResearchPaper, unknown, unknown, undefined, ClusterSummary>
+  items={papers}
+  getId={(p) => p.doi}
+  getTags={(p) => p.topics}
+  getLabel={(p) => p.headline}
+  normalizeTag={(raw) => raw.trim().toLowerCase()}
+  deriveClusterMeta={(ctx) => ({
+    totalCitations: ctx.members.reduce((sum, m) => sum + m.item.citations, 0),
+  })}
+  tooltip
+/>;
+```
+
+### Step 2 — Visual Presets, Themes & Custom Tooltips (`preset`, `theme`, `tooltip`)
+
+Switch between `'geometric'`, `'glyphs'`, and `'badges'`, toggle `'dark'` / `'light'` themes, and format rich tooltips for items, clusters, and triangles:
+
+```tsx
+<SimplexTopicGraph
+  items={papers}
+  getId={(p) => p.doi}
+  getTags={(p) => p.topics}
+  preset="glyphs"
+  theme="light"
+  tooltip={(target) => {
+    if (target.kind === 'content') return `${target.item.headline} (${target.item.citations} cites)`;
+    if (target.kind === 'cluster') return `${target.cluster.code}: ${target.cluster.defaultLabel}`;
+    return `Triangle #${target.triangle.index + 1} · ${target.triangle.coveredItemCount} papers`;
+  }}
+/>
+```
+
+### Step 3 — Custom Node, Triangle Face & Mesh Edge Views
+
+Customize any visual layer independently—use keyless React JSX (`renderContentNode` / `renderClusterNode`, auto-measured via `getBBox()`) or portable `SvgNodeView`, `SvgTriangleView`, and `SvgEdgeView` plugins:
+
+```tsx
+import {
+  SimplexTopicGraph,
+  GradientTriangleSvgView,
+  ClusterTintedEdgeSvgView,
+} from '@simplex-viz/react';
+
+const triangleView = new GradientTriangleSvgView({ baseOpacity: 0.2 });
+const edgeView = new ClusterTintedEdgeSvgView({ strokeWidth: 1.4 });
+
+<SimplexTopicGraph
+  items={papers}
+  getId={(p) => p.doi}
+  getTags={(p) => p.topics}
+  triangleView={triangleView}
+  edgeView={edgeView}
+  renderContentNode={(paper, ctx, state) => (
+    <g>
+      <rect
+        x={-52}
+        y={-14}
+        width={104}
+        height={28}
+        rx={6}
+        fill="#0f172a"
+        stroke={state.interaction.isHovered ? '#f8fafc' : ctx.mixedColorHex}
+        strokeWidth={state.interaction.isHovered ? 2 : 1.2}
+      />
+      <text textAnchor="middle" y={4} fill="#f8fafc" fontSize={10}>
+        {paper.headline.slice(0, 14)}
+      </text>
+    </g>
+  )}
+/>;
+```
+
+### Step 4 — Mesh Topology & Explicit Triangle Sizing (`meshStrategy`, `meshOptions`)
+
+Control padding, maximum cluster count, or pin an exact equilateral triangle `sideLength` (or fixed `cols × rows` lattice):
+
+```tsx
+import {
+  createAdaptiveHexMeshStrategy,
+  createFixedLatticeMeshStrategy,
+} from '@simplex-viz/react';
+
+// Option A: Adaptive lattice with explicit 210px equilateral triangle edge length
+const adaptiveMesh = createAdaptiveHexMeshStrategy();
+const meshOptions = { innerPadding: 56, sideLength: 210, maxClusters: 10 };
+
+// Option B: Fixed 3×3 lattice (always K = 9 vertices)
+const fixedMesh = createFixedLatticeMeshStrategy({ cols: 3, rows: 3, sideLength: 190 });
+```
+
+### Step 5 — Clustering: Soft-Simplex Tags, Multi-Modal Embeddings & Pairwise Similarity
+
+Choose the clustering strategy matching your data representation—`getTags` becomes completely optional whenever a non-tag `clusteringStrategy` is supplied:
+
+```tsx
+import {
+  createSoftSimplexTagClusteringStrategy,
+  createSoftSimplexEmbeddingClusteringStrategy,
+  createSimilarityClusteringStrategy,
+} from '@simplex-viz/react';
+
+// 5a. Tagged items with smooth interior triangle spreading:
+const softTagClustering = createSoftSimplexTagClusteringStrategy({
+  triangleSpread: 0.45,
+  sharedTagRule: 'planar-hitting-set',
+  anchorRule: 'explaining-away',
+});
+
+// 5b. Untagged items with weighted multi-modal embeddings (e.g. scene + style vectors):
+interface MediaAsset {
+  readonly id: string;
+  readonly title: string;
+  readonly sceneEmbedding: readonly number[];
+  readonly styleEmbedding: readonly number[];
+}
+
+const softEmbeddingClustering = createSoftSimplexEmbeddingClusteringStrategy<MediaAsset>({
+  getEmbedding: [
+    { name: 'Semantic Scene', getVector: (m) => m.sceneEmbedding, weight: 0.65 },
+    { name: 'Visual Style', getVector: (m) => m.styleEmbedding, weight: 0.35 },
+  ],
+  metric: 'cosine',
+  triangleSpread: 0.45,
+  balanceLoad: true,
+});
+
+// 5c. Untagged items with a custom domain similarity kernel in [0, 1]:
+const similarityClustering = createSimilarityClusteringStrategy<MediaAsset>({
+  getSimilarity: (a, b) => computeCustomKernel(a, b),
+});
+```
+
+### Step 6 — Color Strategies & Brand Palettes (`colorStrategy`)
+
+Swap between static dark-tuned OKLab contrast, theme-adaptive dark/light OKLab, or your own hex palette:
+
+```tsx
+import {
+  createOklabContrastColorStrategy,
+  createThemeAdaptiveOklabColorStrategy,
+  createPaletteColorStrategy,
+} from '@simplex-viz/react';
+
+const brandColors = createPaletteColorStrategy(
+  ['#06b6d4', '#f59e0b', '#d946ef', '#10b981', '#3b82f6', '#f43f5e'],
+  { mode: 'edge-contrast', preserveMatchedColors: true },
+);
+```
+
+### Step 7 — Layout Presets & Composable `Seeder × Relaxer × ScaleController` (`layoutStrategy`, `layoutOptions`)
+
+Pick a high-level layout preset (`createCollisionDrivenLayoutStrategy`, `createLocalAdaptiveLayoutStrategy`, `createWarmStartPbdLayoutStrategy`, `createPbdUniformLayoutStrategy`) or compose orthogonal building blocks directly:
+
+```tsx
+import {
+  createComposedLayoutStrategy,
+  createMeshInwardFanSeeder,
+  createSpaceFillingPbdRelaxer,
+  createCollisionLocalScaleController,
+} from '@simplex-viz/react';
+
+const layoutStrategy = createComposedLayoutStrategy({
+  seeder: createMeshInwardFanSeeder(),
+  relaxer: createSpaceFillingPbdRelaxer({
+    springFactor: 0.7,
+    dispersionGapPx: 18,
+    dispersionStrength: 0.35,
+  }),
+  scaleController: createCollisionLocalScaleController({
+    minLocalScale: 0.34,
+    shrinkFactor: 0.85,
+  }),
+  warmStart: true,
+});
+```
+
+### Step 8 — Hierarchical `1:4` Zoom / Drill-Down vs. Free Camera (`zoomStrategy`, `showZoomBreadcrumbs`)
+
+Enable conformal `1:4` triangle & cluster drill-down with a single prop or option. Drillable triangles automatically display their internal `1:4` subdivision edges in the active `edgeView` style, pass clicks through non-leaf content nodes straight to the triangle, highlight the zoomed region, dim clickable neighbors, and render breadcrumbs:
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createBarycentricZoomStrategy,
+  createSemanticZoomStrategy,
+} from '@simplex-viz/react';
+
+// Geometric 1:4 barycentric drill-down (works for tags, embeddings, and similarity):
+const barycentricZoom = createBarycentricZoomStrategy({
+  clusterZoomMode: 'incident-star', // 'incident-star' | 'spotlight' | 'none'
+  adaptiveContrastStretch: true,
+  stopWhenFullScale: true,
+});
+
+// Or tag-aware 6-vertex semantic re-partitioning on drill-down:
+const semanticZoom = createSemanticZoomStrategy({
+  clusterZoomMode: 'incident-star',
+});
+
+<SimplexTopicGraph
+  items={items}
+  zoomStrategy={barycentricZoom}
+  showZoomBreadcrumbs
+  onZoomStateChange={(zoom) => {
+    console.log('Depth:', zoom.depth, 'Leaf:', zoom.isLeafReached);
+  }}
+/>;
+```
+
+### Step 9 — Custom Interactions & Imperative Controller (`useSimplexGraphController` / `SimplexSvgController`)
+
+Drive live mutations, strategy hot-swaps, camera transforms, or programmatic drill-down imperatively without remounting:
+
+```tsx
+import { SimplexTopicGraph, useSimplexGraphController } from '@simplex-viz/react';
+
+export function ControlledAtlas({ items }: { items: readonly { id: string; tags: string[] }[] }) {
+  const { controllerRef, handle } = useSimplexGraphController();
+
   return (
-    <SimplexTopicGraph
-      items={articles}
-      getId={(a) => a.slug}
-      getTags={(a) => a.hashtags}
-      renderContentNode={(article, ctx, state) => (
-        <g>
-          <rect
-            x={-52}
-            y={-14}
-            width={104}
-            height={28}
-            rx={6}
-            fill="#0f172a"
-            stroke={state.interaction.isHovered ? '#f8fafc' : ctx.mixedColorHex}
-            strokeWidth={state.interaction.isHovered ? 2 : 1.2}
-          />
-          <text textAnchor="middle" y={4} fill="#f8fafc" fontSize={10}>
-            {article.title.slice(0, 14)}
-          </text>
-        </g>
-      )}
-    />
+    <div style={{ width: '100%', height: 620 }}>
+      <div>
+        <button onClick={() => handle.drillUp()}>Drill Up</button>
+        <button onClick={() => handle.drillToRoot()}>Overview</button>
+        <button onClick={() => handle.addItems({ id: 'live-1', tags: ['geometry', 'svg'] })}>
+          Add Item
+        </button>
+      </div>
+      <SimplexTopicGraph
+        controllerRef={controllerRef}
+        items={items}
+        onRightClick={(target) => {
+          if (target.kind === 'content') console.log('Inspect item:', target.item.id);
+          return true; // Suppress browser context menu
+        }}
+      />
+    </div>
   );
 }
 ```
 
-### Example: Portable Custom `SvgNodeView` Plugin
+### Headless One-Shot Layout (`solveSimplexSnapshot`)
 
-When you need reusable imperative SVG shapes across React, Vue, or Vanilla TypeScript, implement `SvgNodeView<TVisual>` centered at `(0, 0)`. Supply an analytical hull via `measureConvexHull` (below using `rectToConvexPolygon` re-exported from `@simplex-viz/svg`) or omit it completely to measure via offscreen `getBBox()`:
-
-```ts
-import { rectToConvexPolygon, type SvgNodeView } from '@simplex-viz/svg';
-
-interface PillVisual {
-  readonly text: string;
-  readonly colorHex: string;
-}
-
-export const CustomPillView: SvgNodeView<PillVisual> = {
-  measureConvexHull: (visual) =>
-    rectToConvexPolygon(visual.text.length * 7 + 20, 26, 6),
-  mountOrUpdate: (groupEl, visual) => {
-    // Build pure SVG elements centered around local origin (0, 0)
-  },
-};
-```
-
-### Example: Headless One-Shot Layout (`solveSimplexSnapshot`)
-
-For static SVG generation, server-side rendering, or HTML5 `<canvas>` prototypes without setting up a full renderer adapter, compute solved `(x, y)` coordinates and OKLab colors in a single synchronous call:
+For static SVG generation, server-side rendering, Node.js workers, or HTML5 `<canvas>` prototypes without setting up a renderer adapter, compute solved `(x, y)` coordinates and OKLab colors synchronously:
 
 ```ts
 import { solveSimplexSnapshot } from '@simplex-viz/core';
@@ -208,70 +403,6 @@ const snapshot = solveSimplexSnapshot(
 );
 
 console.log(snapshot.metrics.overlapCount); // 0
-```
-
-### Example: Combining Presets with Pluggable Core Strategies
-
-Every preset (`'geometric'`, `'glyphs'`, `'badges'`) or custom JSX renderer can be paired with custom mesh, incremental clustering (`initialize` vs `update`), palette, and local-adaptive layout strategies in React or Vanilla TypeScript:
-
-```tsx
-import {
-  SimplexTopicGraph,
-  createFixedLatticeMeshStrategy,
-  createIncrementalAnchorClusteringStrategy,
-  createLocalAdaptiveLayoutStrategy,
-  createPaletteColorStrategy,
-} from '@simplex-viz/react';
-
-export function ConfiguredTopicMap({ items }: { items: readonly { id: string; tags: string[] }[] }) {
-  return (
-    <SimplexTopicGraph
-      items={items}
-      preset="glyphs"
-      meshStrategy={createFixedLatticeMeshStrategy({ cols: 3, rows: 3 })}
-      clusteringStrategy={createIncrementalAnchorClusteringStrategy({
-        sharedTagRule: 'planar-hitting-set',
-        anchorRule: 'explaining-away',
-      })}
-      colorStrategy={createPaletteColorStrategy(['#0ea5e9', '#f59e0b', '#10b981', '#ec4899'])}
-      layoutStrategy={createLocalAdaptiveLayoutStrategy({ warmStart: true })}
-    />
-  );
-}
-```
-
-### Example: Multi-Modal Embeddings Without Tags (`createEmbeddingClusteringStrategy`)
-
-Your items do not need a `tags` property at all—visualize untagged images, videos, voice signatures, or latent vectors directly using weighted multi-modal embeddings:
-
-```tsx
-import { SimplexTopicGraph, createEmbeddingClusteringStrategy } from '@simplex-viz/react';
-
-interface MediaAsset {
-  readonly id: string;
-  readonly title: string;
-  readonly sceneEmbedding: readonly number[];
-  readonly styleEmbedding: readonly number[];
-}
-
-export function MediaSimplexMap({ assets }: { assets: readonly MediaAsset[] }) {
-  return (
-    <SimplexTopicGraph
-      items={assets}
-      getLabel={(m) => m.title}
-      clusteringStrategy={createEmbeddingClusteringStrategy<MediaAsset>({
-        getEmbedding: [
-          { name: 'Semantic Scene', getVector: (m) => m.sceneEmbedding, weight: 0.7 },
-          { name: 'Visual Style', getVector: (m) => m.styleEmbedding, weight: 0.3 },
-        ],
-        metric: 'cosine',
-        anchorRule: 'simplex-projection',
-      })}
-      preset="glyphs"
-      tooltip
-    />
-  );
-}
 ```
 
 ## Local Development & Scripts
