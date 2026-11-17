@@ -16,7 +16,7 @@ import {
   createThemeAdaptiveOklabColorStrategy,
   createWarmStartPbdLayoutStrategy,
 } from '@simplex-viz/react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { CommonsThumbManifest } from '../../demo/commonsThumbs';
 import { resolveDemoTagMeta, type TagTaxonomyInfo } from '../../demo/data/knowledgeCatalog';
 import {
@@ -52,6 +52,11 @@ import type {
   CanonicalZoomStrategyId,
 } from '../../site/strategies';
 import {
+  DatasetInfoButton,
+  DatasetProvenanceModal,
+  resolveDatasetProvenanceMeta,
+} from './DatasetProvenanceModal';
+import {
   DemoNodeInspectorOverlay,
   useDemoNodeInspector,
 } from './DemoNodeInspectorOverlay';
@@ -67,6 +72,7 @@ export interface UseCaseMiniAtlasProps {
   readonly zoomStrategy: CanonicalZoomStrategyId;
   readonly nodeView: ContentRendererKind;
   readonly thumbManifest?: CommonsThumbManifest;
+  readonly embedded?: boolean;
 }
 
 const BRAND_PALETTE_HEX = [
@@ -105,14 +111,20 @@ export function UseCaseMiniAtlas({
   zoomStrategy: zoomId,
   nodeView,
   thumbManifest,
+  embedded = false,
 }: UseCaseMiniAtlasProps) {
   const theme = useDocumentDarkTheme();
   const isTagged = datasetId === 'knowledge' || datasetId === 'github-repos';
   const effectiveNodeView: ContentRendererKind = nodeView;
 
   const { isFullscreen, toggleFullscreen } = useCssFullscreen();
+  const [isDatasetModalOpen, setIsDatasetModalOpen] = useState(false);
 
   const items = useMemo(() => buildDemoCatalog(datasetId), [datasetId]);
+  const provenanceMeta = useMemo(
+    () => resolveDatasetProvenanceMeta(datasetId, items.length),
+    [datasetId, items.length],
+  );
   const inspector = useDemoNodeInspector(items);
 
   const renderConfig = useMemo(
@@ -286,27 +298,36 @@ export function UseCaseMiniAtlas({
           : demoGeometricContentView;
 
   return (
-    <div
-      className={`not-prose flex flex-col overflow-hidden bg-white dark:bg-[#0B0F17] ${
-        isFullscreen
-          ? 'sv-atlas-fullscreen'
-          : 'my-6 rounded-xl border border-slate-200/90 dark:border-slate-800/80'
-      }`}
-    >
-      {/* Live Simplex Canvas with Floating Fullscreen Overlay Button */}
+    <>
       <div
-        className={`relative w-full bg-slate-50/70 dark:bg-[#07090E] ${
-          isFullscreen ? 'min-h-0 flex-1' : 'h-[450px] sm:h-[520px]'
+        className={`not-prose flex flex-col overflow-hidden bg-white dark:bg-[#0B0F17] ${
+          isFullscreen
+            ? 'sv-atlas-fullscreen'
+            : embedded
+              ? ''
+              : 'my-6 rounded-xl border border-slate-200/90 dark:border-slate-800/80'
         }`}
       >
-        <div className="pointer-events-none absolute top-3 right-3 z-20">
-          <div className="pointer-events-auto rounded-md shadow-xs">
-            <CssFullscreenButton
-              isFullscreen={isFullscreen}
-              onToggle={toggleFullscreen}
-            />
+        {/* Live Simplex Canvas with Floating Dataset Info & Fullscreen Overlay Controls */}
+        <div
+          className={`relative w-full bg-slate-50/70 dark:bg-[#07090E] ${
+            isFullscreen ? 'min-h-0 flex-1' : 'h-[460px] sm:h-[540px]'
+          }`}
+        >
+          <div className="pointer-events-none absolute top-3 right-3 z-20 flex items-center gap-2">
+            <div className="pointer-events-auto rounded-md shadow-xs">
+              <DatasetInfoButton
+                isOpen={isDatasetModalOpen}
+                onOpen={() => setIsDatasetModalOpen(true)}
+              />
+            </div>
+            <div className="pointer-events-auto rounded-md shadow-xs">
+              <CssFullscreenButton
+                isFullscreen={isFullscreen}
+                onToggle={toggleFullscreen}
+              />
+            </div>
           </div>
-        </div>
 
         <SimplexTopicGraph<
           DemoEntity,
@@ -372,6 +393,13 @@ export function UseCaseMiniAtlas({
           }}
         />
       </div>
-    </div>
+      </div>
+
+      <DatasetProvenanceModal
+        isOpen={isDatasetModalOpen}
+        meta={provenanceMeta}
+        onClose={() => setIsDatasetModalOpen(false)}
+      />
+    </>
   );
 }

@@ -130,6 +130,7 @@ const notes = defineCollection({
     category: z.enum(['Release', 'Geometry', 'Architecture']).optional(),
     readingMinutes: z.number().int().positive(),
     featured: z.boolean().default(false),
+    summaryPoints: z.array(z.string()).min(2).max(5),
   }),
 });
 

@@ -1,4 +1,5 @@
 ---
+import Breadcrumbs from '../components/Breadcrumbs.astro';
 import uciZooJson from '../demo/data/open/uci-zoo.json';
 import vegaMoviesJson from '../demo/data/open/vega-movies.json';
 import BaseLayout from '../layouts/BaseLayout.astro';
@@ -17,12 +18,13 @@ const uniqueZooCredits = Array.from(
   title="Imprint"
   description="Legal disclosure and imprint (Impressum) for SimplexViz by Dr. Georg Hackenberg pursuant to Austrian E-Commerce and Media Law."
 >
-  <div class="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+  <div class="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
     <header>
-      <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-950 dark:text-white">
+      <Breadcrumbs items={[{ label: 'Imprint' }]} />
+      <h1 class="text-2xl sm:text-3xl leading-[1.18] font-bold tracking-tight text-slate-950 dark:text-white">
         Imprint
       </h1>
-      <p class="mt-3 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-300">
+      <p class="mt-3.5 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-300">
         Legal disclosure and statutory information (<em>Informationspflicht</em>) pursuant to § 5 ECG, § 14 UGB, § 63 GewO, and § 25 MedienG (Austria).
       </p>
     </header>

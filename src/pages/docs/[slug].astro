@@ -46,7 +46,12 @@ const jsonLd = {
   title={entry.data.title}
   description={entry.data.description}
   kicker={entry.data.section}
-  metaLine={`${entry.data.section} · ${entry.data.readingMinutes} min read · Updated ${entry.data.updatedDate}`}
+  metaItems={[
+    { icon: 'layers', label: entry.data.section },
+    { icon: 'clock', label: `${entry.data.readingMinutes} min read`, mono: true },
+    { icon: 'calendar', label: `Updated ${entry.data.updatedDate}`, mono: true },
+  ]}
+  showCopyLink
   breadcrumbs={[
     { label: 'Docs', href: '/docs' },
     { label: entry.data.shortTitle },

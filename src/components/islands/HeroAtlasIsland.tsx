@@ -30,6 +30,11 @@ import {
 } from '../../demo/presets';
 import { createHeroZoomStrategy } from '../../demo/zoomPresets';
 import {
+  DatasetInfoButton,
+  DatasetProvenanceModal,
+  resolveDatasetProvenanceMeta,
+} from './DatasetProvenanceModal';
+import {
   DemoNodeInspectorOverlay,
   useDemoNodeInspector,
 } from './DemoNodeInspectorOverlay';
@@ -55,6 +60,7 @@ export function HeroAtlasIsland({ thumbManifest }: HeroAtlasIslandProps = {}) {
   const theme = useDocumentDarkTheme();
   const { isFullscreen, toggleFullscreen } = useCssFullscreen();
   const [datasetId, setDatasetId] = useState<DemoDatasetId>('knowledge');
+  const [isDatasetModalOpen, setIsDatasetModalOpen] = useState(false);
 
   const { controllerRef, handle } = useSimplexGraphController<
     DemoEntity,
@@ -65,6 +71,10 @@ export function HeroAtlasIsland({ thumbManifest }: HeroAtlasIslandProps = {}) {
   >();
 
   const items = useMemo(() => buildDemoCatalog(datasetId), [datasetId]);
+  const provenanceMeta = useMemo(
+    () => resolveDatasetProvenanceMeta(datasetId, items.length),
+    [datasetId, items.length],
+  );
   const inspector = useDemoNodeInspector(items);
 
   const renderConfig = useMemo(
@@ -147,13 +157,14 @@ export function HeroAtlasIsland({ thumbManifest }: HeroAtlasIslandProps = {}) {
   );
 
   return (
-    <div
-      className={`flex flex-col overflow-hidden bg-white dark:bg-[#0B0F17] ${
-        isFullscreen
-          ? 'sv-atlas-fullscreen'
-          : 'rounded-2xl border border-slate-200/90 dark:border-slate-800/90'
-      }`}
-    >
+    <>
+      <div
+        className={`flex flex-col overflow-hidden bg-white dark:bg-[#0B0F17] ${
+          isFullscreen
+            ? 'sv-atlas-fullscreen'
+            : 'rounded-2xl border border-slate-200/90 dark:border-slate-800/90'
+        }`}
+      >
       {/* Pure Case-Switching Bar (2×2 Grid on Mobile, 4-Column Segmented Bar on Tablet/Desktop) */}
       <div className="shrink-0 border-b border-slate-200/80 bg-slate-100/85 p-1.5 dark:border-slate-800/80 dark:bg-[#0E131D]">
         <div
@@ -202,7 +213,13 @@ export function HeroAtlasIsland({ thumbManifest }: HeroAtlasIslandProps = {}) {
           isFullscreen ? 'min-h-0 flex-1' : 'h-[360px] sm:h-[460px] lg:h-[520px]'
         }`}
       >
-        <div className="pointer-events-none absolute top-3 right-3 z-20">
+        <div className="pointer-events-none absolute top-3 right-3 z-20 flex items-center gap-2">
+          <div className="pointer-events-auto rounded-md shadow-xs">
+            <DatasetInfoButton
+              isOpen={isDatasetModalOpen}
+              onOpen={() => setIsDatasetModalOpen(true)}
+            />
+          </div>
           <div className="pointer-events-auto rounded-md shadow-xs">
             <CssFullscreenButton
               isFullscreen={isFullscreen}
@@ -270,6 +287,13 @@ export function HeroAtlasIsland({ thumbManifest }: HeroAtlasIslandProps = {}) {
           }}
         />
       </div>
-    </div>
+      </div>
+
+      <DatasetProvenanceModal
+        isOpen={isDatasetModalOpen}
+        meta={provenanceMeta}
+        onClose={() => setIsDatasetModalOpen(false)}
+      />
+    </>
   );
 }

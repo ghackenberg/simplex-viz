@@ -1,5 +1,6 @@
 ---
 import { getCollection, render } from 'astro:content';
+import type { PageMetaItem } from '../../../components/PageMeta.astro';
 import StrategyMechanismFigure from '../../../components/diagrams/StrategyMechanismFigure.astro';
 import DocsShellLayout from '../../../layouts/DocsShellLayout.astro';
 import { getStrategiesByStage, getStrategySpec } from '../../../site/strategies';
@@ -27,13 +28,37 @@ const siblings = getStrategiesByStage(spec.stage).filter((s) => s.id !== spec.id
 const prevSpec = prevEntry ? getStrategySpec(prevEntry.data.strategyId) : null;
 const nextSpec = nextEntry ? getStrategySpec(nextEntry.data.strategyId) : null;
 
-const metaParts = [
-  `Stage 0${spec.stage}: ${spec.stageLabel}`,
-  spec.isDefault ? 'Stage Default' : 'Built-In Preset',
-  `${entry.data.readingMinutes} min read`,
+const metaItems: PageMetaItem[] = [
+  {
+    icon: 'layers',
+    label: `Stage 0${spec.stage}: ${spec.stageLabel}`,
+    href: withBase(`/docs/${spec.docSlug}`),
+  },
+  {
+    icon: 'check',
+    label: spec.isDefault ? 'Stage Default' : 'Built-In Preset',
+    tone: spec.isDefault ? 'emerald' : 'default',
+  },
+  {
+    icon: 'clock',
+    label: `${entry.data.readingMinutes} min read`,
+    mono: true,
+  },
+  ...(spec.requiresTags !== undefined
+    ? [
+        {
+          icon: 'tag' as const,
+          label: `requiresTags: ${spec.requiresTags}`,
+          mono: true,
+        },
+      ]
+    : []),
+  {
+    icon: 'calendar',
+    label: `Updated ${entry.data.updatedDate}`,
+    mono: true,
+  },
 ];
-if (spec.requiresTags === true) metaParts.push('requiresTags: true');
-if (spec.requiresTags === false) metaParts.push('requiresTags: false');
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -52,7 +77,8 @@ const jsonLd = {
   title={spec.name}
   description={spec.summary}
   kicker={`Stage 0${spec.stage}`}
-  metaLine={metaParts.join(' · ')}
+  metaItems={metaItems}
+  showCopyLink
   breadcrumbs={[
     { label: 'Docs', href: '/docs' },
     { label: 'Strategies', href: '/docs/strategies' },

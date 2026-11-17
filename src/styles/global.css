@@ -97,6 +97,10 @@ html:not(.dark) .astro-code {
   color: #f1f5f9;
 }
 
+.sv-prose > :first-child {
+  margin-top: 0 !important;
+}
+
 .sv-prose strong:not(:where(.not-prose, .not-prose *)) {
   font-weight: 600;
   color: #0f172a;

@@ -1,7 +1,8 @@
 ---
 import { getCollection, render } from 'astro:content';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import OnThisPage from '../../components/OnThisPage.astro';
+import KeyTakeaways from '../../components/KeyTakeaways.astro';
+import PageMeta from '../../components/PageMeta.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { SITE_META, withBase } from '../../site/url';
 
@@ -20,8 +21,7 @@ export async function getStaticPaths() {
 }
 
 const { post, prevPost, nextPost } = Astro.props;
-const { Content, headings } = await render(post);
-const tocHeadings = headings.filter((h) => h.depth === 2 || h.depth === 3);
+const { Content } = await render(post);
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -48,54 +48,50 @@ const jsonLd = {
   publishedTime={post.data.publishedDate}
   jsonLd={jsonLd}
 >
-  <div class="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
-    <Breadcrumbs
-      items={[
-        { label: 'Notes', href: '/notes' },
-        { label: post.data.title },
-      ]}
-    />
+  <div class="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
+    <div class="mx-auto max-w-3xl">
+      <header class="text-center">
+        <Breadcrumbs
+          align="center"
+          items={[
+            { label: 'Notes', href: '/notes' },
+            { label: post.data.title },
+          ]}
+        />
 
-    <div class="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-12">
-      <!-- Flush-Left Main Article Column -->
-      <article class="min-w-0 lg:col-span-8">
-        <header>
-          <h1 class="text-2xl sm:text-4xl font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
-            {post.data.title}
-          </h1>
-          <p class="mt-3 max-w-[70ch] text-base leading-relaxed text-slate-600 dark:text-slate-300">
-            {post.data.description}
-          </p>
+        <h1 class="text-3xl sm:text-4xl leading-[1.15] font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
+          {post.data.title}
+        </h1>
+        <p class="mx-auto mt-3.5 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-300">
+          {post.data.description}
+        </p>
 
-          <div class="mt-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-y border-slate-200/80 py-3 text-xs text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
-            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 tabular-nums">
-              <a
-                href={SITE_META.authorUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="font-semibold text-slate-900 hover:text-cyan-700 hover:underline dark:text-slate-100 dark:hover:text-cyan-300 transition-colors"
-              >
-                {post.data.author}
-              </a>
-              <span aria-hidden="true" class="text-slate-300 dark:text-slate-700">·</span>
-              <span>{post.data.authorRole}</span>
-              <span aria-hidden="true" class="text-slate-300 dark:text-slate-700">·</span>
-              <span class="font-mono">{post.data.publishedDate}</span>
-              <span aria-hidden="true" class="text-slate-300 dark:text-slate-700">·</span>
-              <span class="font-mono">{post.data.readingMinutes} min read</span>
-            </div>
+        <PageMeta
+          align="center"
+          items={[
+            {
+              icon: 'author',
+              label: post.data.author,
+              href: SITE_META.authorUrl,
+              external: true,
+            },
+            { icon: 'calendar', label: post.data.publishedDate, mono: true },
+            {
+              icon: 'clock',
+              label: `${post.data.readingMinutes} min read`,
+              mono: true,
+            },
+          ]}
+          showCopyLink
+        />
+      </header>
 
-            <button
-              type="button"
-              id="sv-copy-article-url"
-              class="cursor-pointer rounded-md border border-slate-200/90 bg-white px-2.5 py-1 font-semibold text-slate-700 hover:border-cyan-500/70 hover:text-cyan-700 dark:border-slate-800 dark:bg-[#0B0F17] dark:text-slate-200 dark:hover:border-cyan-400/60 dark:hover:text-cyan-300 transition-colors whitespace-nowrap"
-            >
-              Copy link
-            </button>
-          </div>
-        </header>
+      <article class="mt-8">
+        <div class="mb-8">
+          <KeyTakeaways points={post.data.summaryPoints} />
+        </div>
 
-        <div class="sv-prose mt-8 overflow-x-hidden">
+        <div class="sv-prose overflow-x-hidden">
           <Content />
         </div>
 
@@ -134,28 +130,6 @@ const jsonLd = {
           }
         </nav>
       </article>
-
-      <!-- Right Rail: Sticky Table of Contents -->
-      <aside class="hidden lg:block lg:col-span-4 lg:sticky lg:top-24 lg:self-start">
-        <OnThisPage headings={tocHeadings} framed />
-      </aside>
     </div>
   </div>
 </BaseLayout>
-
-<script is:inline>
-  (function () {
-    var copyBtn = document.getElementById('sv-copy-article-url');
-    if (!copyBtn) return;
-    copyBtn.addEventListener('click', function () {
-      if (!navigator.clipboard) return;
-      navigator.clipboard.writeText(window.location.href).then(function () {
-        var orig = copyBtn.textContent;
-        copyBtn.textContent = 'Link Copied';
-        setTimeout(function () {
-          copyBtn.textContent = orig;
-        }, 1400);
-      });
-    });
-  })();
-</script>

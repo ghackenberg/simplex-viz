@@ -29,7 +29,15 @@ const jsonLd = {
   title={entry.data.title}
   description={entry.data.description}
   kicker="API Reference"
-  metaLine={`${entry.data.packageName} v${entry.data.version} · ${entry.data.layerLabel}`}
+  metaItems={[
+    {
+      icon: 'package',
+      label: `${entry.data.packageName} v${entry.data.version}`,
+      mono: true,
+    },
+    { icon: 'layers', label: entry.data.layerLabel },
+  ]}
+  showCopyLink
   breadcrumbs={[
     { label: 'Docs', href: '/docs' },
     { label: 'API Reference', href: '/docs/api' },

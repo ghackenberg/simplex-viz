@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
+import { EXAMPLE_CODE_SNIPPETS } from '../site/exampleSnippets';
 import { getStrategySpec } from '../site/strategies';
 import { SITE_META } from '../site/url';
 
@@ -104,6 +105,11 @@ export const GET: APIRoute = async () => {
       '',
       stripMdxImportsAndJsxIslands(ds.body),
       '',
+      'Reproduction Snippet:',
+      '```tsx',
+      EXAMPLE_CODE_SNIPPETS[ds.data.datasetId],
+      '```',
+      '',
     );
   }
 
@@ -112,6 +118,9 @@ export const GET: APIRoute = async () => {
       `---`,
       `# [Note] ${note.data.title} (${note.data.publishedDate})`,
       `${note.data.description}`,
+      '',
+      'Key Takeaways:',
+      ...note.data.summaryPoints.map((pt) => `- ${pt}`),
       '',
       stripMdxImportsAndJsxIslands(note.body),
       '',

@@ -1,15 +1,18 @@
 ---
+import { Code } from 'astro:components';
 import { getCollection, render } from 'astro:content';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import OnThisPage from '../../components/OnThisPage.astro';
+import PageMeta from '../../components/PageMeta.astro';
 import { UseCaseMiniAtlas } from '../../components/islands/UseCaseMiniAtlas';
 import { buildCommonsThumbManifest } from '../../demo/commonsThumbs.server';
 import {
+  buildDemoCatalog,
   getDatasetItemCount,
   getDatasetSourceInfo,
+  type DemoEntity,
 } from '../../demo/data/multimodalCatalog';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getStrategySpec } from '../../site/strategies';
+import { EXAMPLE_CODE_SNIPPETS } from '../../site/exampleSnippets';
 import { SITE_META, withBase } from '../../site/url';
 
 export async function getStaticPaths() {
@@ -23,171 +26,444 @@ export async function getStaticPaths() {
 }
 
 const { entry } = Astro.props;
-const { Content, headings } = await render(entry);
-const itemCount = getDatasetItemCount(entry.data.datasetId);
-const sourceInfo = getDatasetSourceInfo(entry.data.datasetId);
-const thumbManifest = await buildCommonsThumbManifest([entry.data.datasetId]);
-const tocHeadings = headings.filter((h) => h.depth >= 2 && h.depth <= 3);
+const { Content } = await render(entry);
+const datasetId = entry.data.datasetId;
+const itemCount = getDatasetItemCount(datasetId);
+const sourceInfo = getDatasetSourceInfo(datasetId);
+const catalogItems = buildDemoCatalog(datasetId);
+const thumbManifest = await buildCommonsThumbManifest([datasetId]);
+const codeSnippet = EXAMPLE_CODE_SNIPPETS[datasetId];
 
-const activePipeline = [
-  { role: 'Mesh', spec: getStrategySpec(entry.data.meshStrategy) },
-  { role: 'Clustering', spec: getStrategySpec(entry.data.clusteringStrategy) },
-  { role: 'Color', spec: getStrategySpec(entry.data.colorStrategy) },
-  { role: 'Layout', spec: getStrategySpec(entry.data.layoutStrategy) },
-  { role: 'Zoom', spec: getStrategySpec(entry.data.zoomStrategy) },
-];
+function formatDatasetRecord(entity: DemoEntity): Record<string, unknown> {
+  if (entity.kind === 'knowledge') {
+    if (entity.entry.repoName) {
+      return {
+        id: entity.id,
+        repository: entity.entry.headline,
+        language: entity.entry.repoLanguage,
+        stars: entity.entry.repoStars,
+        topics: entity.entry.hashtags,
+      };
+    }
+    return {
+      slug: entity.id,
+      title: entity.entry.headline,
+      primaryAuthor: entity.entry.primaryAuthor,
+      publishedYear: entity.entry.publishedYear,
+      arxivId: entity.entry.arxivId,
+      hashtags: entity.entry.hashtags,
+    };
+  }
+  if (entity.kind === 'media') {
+    return {
+      id: entity.media.id,
+      title: entity.media.title,
+      genre: entity.media.genre,
+      releaseYear: entity.media.releaseYear,
+      imdbRating: entity.media.imdbRating,
+      rottenTomatoes: entity.media.rottenTomatoes,
+      budgetMusd: entity.media.budgetMusd,
+      worldwideGrossMusd: entity.media.worldwideGrossMusd,
+      receptionVector: entity.media.semanticEmbedding.map((v) => Number(v.toFixed(3))),
+      productionVector: entity.media.styleEmbedding.map((v) => Number(v.toFixed(3))),
+    };
+  }
+  if (entity.kind === 'voice') {
+    return {
+      id: entity.voice.id,
+      ipaSymbol: entity.voice.language,
+      exampleWord: entity.voice.exampleWord,
+      speakerName: entity.voice.speakerName,
+      speakerSex: entity.voice.speakerSex,
+      pitchHz: entity.voice.pitchHz,
+      lpcVector: entity.voice.voiceEmbedding.map((v) => Number(v.toFixed(3))),
+    };
+  }
+  if (entity.kind === 'zoo-species') {
+    return {
+      id: entity.zoo.id,
+      species: entity.zoo.title,
+      taxonomicGroup: entity.zoo.taxonomicGroup,
+      legs: entity.zoo.legs,
+      aquatic: entity.zoo.aquatic,
+      predator: entity.zoo.predator,
+      traits16D: entity.zoo.traits,
+    };
+  }
+  return {
+    id: entity.body.id,
+    specimen: entity.body.title,
+    species: entity.body.species,
+    island: entity.body.island,
+    sex: entity.body.sex,
+    billLengthMm: entity.body.billLengthMm,
+    billDepthMm: entity.body.billDepthMm,
+    flipperLengthMm: entity.body.flipperLengthMm,
+    bodyMassG: entity.body.bodyMassG,
+    morphVector: entity.body.shapeEmbedding.map((v) => Number(v.toFixed(3))),
+  };
+}
+
+const datasetJson = JSON.stringify(
+  catalogItems.map(formatDatasetRecord),
+  null,
+  2,
+).replace(/\[\n\s+([-\d.,\s\n]+?)\n\s+\]/g, (_, inner: string) => {
+  return `[${inner.replace(/\s+/g, ' ').trim()}]`;
+});
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Dataset',
+  name: entry.data.title,
+  description: entry.data.description,
+  license: sourceInfo.license,
+  isBasedOn: sourceInfo.sourceUrl,
+  creator: {
+    '@type': 'Organization',
+    name: sourceInfo.sourceName,
+    url: sourceInfo.sourceUrl,
+  },
+  publisher: {
+    '@type': 'Organization',
+    name: SITE_META.name,
+  },
+};
 ---
 
-<BaseLayout title={entry.data.title} description={entry.data.description}>
-  <div class="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-    <Breadcrumbs
-      items={[
-        { label: 'Examples', href: '/examples' },
-        { label: entry.data.title },
-      ]}
-    />
+<BaseLayout
+  title={entry.data.title}
+  description={entry.data.description}
+  jsonLd={jsonLd}
+>
+  <div class="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
+    <!-- Centered Showcase Header -->
+    <header class="mx-auto max-w-3xl text-center">
+      <Breadcrumbs
+        align="center"
+        items={[
+          { label: 'Examples', href: '/examples' },
+          { label: entry.data.title },
+        ]}
+      />
 
-    <header>
-      <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
+      <h1 class="text-3xl sm:text-4xl leading-[1.15] font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
         {entry.data.title}
       </h1>
-      <p class="mt-3 max-w-3xl text-base leading-relaxed text-slate-600 dark:text-slate-300">
+      <p class="mx-auto mt-3.5 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-300">
         {entry.data.description}
       </p>
-      <div class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-        <span class="font-mono">{entry.data.domainLabel}</span>
-        <span aria-hidden="true" class="text-slate-300 dark:text-slate-700">·</span>
-        <span class="font-mono">{entry.data.representationLabel}</span>
-        <span aria-hidden="true" class="text-slate-300 dark:text-slate-700">·</span>
-        <span class="font-mono">{entry.data.readingMinutes} min read</span>
-        <span aria-hidden="true" class="text-slate-300 dark:text-slate-700">·</span>
-        <span>
-          By{' '}
-          <a
-            href={SITE_META.authorUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="font-medium text-slate-700 hover:text-cyan-700 hover:underline dark:text-slate-300 dark:hover:text-cyan-300 transition-colors"
-          >
-            {SITE_META.authorName}
-          </a>
-        </span>
-      </div>
+
+      <PageMeta
+        align="center"
+        items={[
+          { icon: 'layers', label: entry.data.domainLabel },
+          { icon: 'package', label: `${itemCount} records`, mono: true },
+          {
+            icon: 'tag',
+            label: entry.data.requiresTags ? 'Tagged Dataset' : 'Tag-Free Vectors',
+            mono: true,
+          },
+        ]}
+        showCopyLink
+      />
     </header>
 
-    <!-- Optimal Hardcoded 5-Stage Strategy Pipeline -->
-    <dl class="mt-6 grid grid-cols-1 gap-3 rounded-xl border border-slate-200/90 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5 text-xs dark:border-slate-800/90 dark:bg-[#0B0F17]">
-      {
-        activePipeline.map(({ role, spec }) => (
-          <div class="flex flex-col justify-between gap-1 border-b border-slate-100 pb-2.5 last:border-b-0 last:pb-0 sm:border-b-0 sm:pb-0 dark:border-slate-800/70">
-            <dt class="font-mono text-[11px] text-slate-500 dark:text-slate-400">
-              0{spec.stage} · {role}
-            </dt>
-            <dd class="font-semibold text-slate-900 dark:text-slate-100">
-              <a
-                href={withBase(spec.strategyDocPath)}
-                class="hover:text-cyan-700 hover:underline dark:hover:text-cyan-300 transition-colors"
-              >
-                {spec.name}
-              </a>
-            </dd>
-          </div>
-        ))
-      }
-    </dl>
-
-    <!-- Full-Width Interactive Atlas with Curated Pipeline -->
-    <UseCaseMiniAtlas
-      datasetId={entry.data.datasetId}
-      meshStrategy={entry.data.meshStrategy}
-      clusteringStrategy={entry.data.clusteringStrategy}
-      colorStrategy={entry.data.colorStrategy}
-      layoutStrategy={entry.data.layoutStrategy}
-      zoomStrategy={entry.data.zoomStrategy}
-      nodeView={entry.data.nodeView}
-      thumbManifest={thumbManifest}
-      client:load
-    />
-
-    <!-- Flush-Left Editorial Prose + Right Companion Rail (OnThisPage + Dataset Provenance) -->
-    <div class="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-12">
-      <!-- Flush-Left Main Prose Column -->
-      <article class="min-w-0 lg:col-span-8">
-        <div class="sv-prose">
-          <Content />
-        </div>
-
-        <div class="mt-10 border-t border-slate-200/80 pt-6 flex flex-wrap items-center justify-between gap-4 text-xs dark:border-slate-800/80">
-          <a
-            href={withBase('/examples')}
-            class="font-semibold text-slate-700 hover:text-cyan-700 hover:underline dark:text-slate-300 dark:hover:text-cyan-300 transition-colors"
+    <!-- Minimalist 3-Tab Workbench: Preview · Code · Dataset -->
+    <section
+      data-example-workbench
+      aria-label="Interactive example workbench"
+      class="mt-8 overflow-hidden rounded-xl border border-slate-200/90 bg-white dark:border-slate-800/85 dark:bg-[#0B0F17]"
+    >
+      <!-- Workbench Top Bar -->
+      <div class="flex items-center border-b border-slate-200/90 bg-slate-50/80 px-3 py-2 sm:px-4 dark:border-slate-800/85 dark:bg-[#0F1522]">
+        <div
+          role="tablist"
+          aria-label="Example views"
+          class="inline-flex items-center gap-1 rounded-lg bg-slate-200/75 p-1 dark:bg-slate-900"
+        >
+          <button
+            type="button"
+            role="tab"
+            id="tab-example-preview"
+            aria-controls="panel-example-preview"
+            aria-selected="true"
+            data-example-tab="preview"
+            data-active="true"
+            class="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 text-slate-600 hover:text-slate-950 data-[active=true]:bg-white data-[active=true]:text-slate-950 data-[active=true]:shadow-xs dark:text-slate-400 dark:hover:text-white dark:data-[active=true]:bg-slate-800 dark:data-[active=true]:text-cyan-300"
           >
-            ← Back to All Examples
-          </a>
-          <a
-            href={withBase('/playground')}
-            class="font-semibold text-cyan-700 hover:underline dark:text-cyan-300"
+            Preview
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="tab-example-code"
+            aria-controls="panel-example-code"
+            aria-selected="false"
+            tabindex="-1"
+            data-example-tab="code"
+            data-active="false"
+            class="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 text-slate-600 hover:text-slate-950 data-[active=true]:bg-white data-[active=true]:text-slate-950 data-[active=true]:shadow-xs dark:text-slate-400 dark:hover:text-white dark:data-[active=true]:bg-slate-800 dark:data-[active=true]:text-cyan-300"
           >
-            Build or Import Your Own Dataset in Playground →
-          </a>
+            Code
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="tab-example-dataset"
+            aria-controls="panel-example-dataset"
+            aria-selected="false"
+            tabindex="-1"
+            data-example-tab="dataset"
+            data-active="false"
+            class="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 text-slate-600 hover:text-slate-950 data-[active=true]:bg-white data-[active=true]:text-slate-950 data-[active=true]:shadow-xs dark:text-slate-400 dark:hover:text-white dark:data-[active=true]:bg-slate-800 dark:data-[active=true]:text-cyan-300"
+          >
+            Dataset
+          </button>
         </div>
-      </article>
+      </div>
 
-      <!-- Right Companion Rail: Sticky Table of Contents + Dataset Provenance -->
-      <aside class="lg:col-span-4">
-        <div class="lg:sticky lg:top-24 space-y-5">
-          {
-            tocHeadings.length > 0 && (
-              <div class="hidden lg:block">
-                <OnThisPage headings={tocHeadings} framed />
-              </div>
-            )
-          }
+      <!-- Panel 1: Interactive SimplexViz Preview -->
+      <div
+        role="tabpanel"
+        id="panel-example-preview"
+        aria-labelledby="tab-example-preview"
+        data-example-panel="preview"
+      >
+        <UseCaseMiniAtlas
+          datasetId={datasetId}
+          meshStrategy={entry.data.meshStrategy}
+          clusteringStrategy={entry.data.clusteringStrategy}
+          colorStrategy={entry.data.colorStrategy}
+          layoutStrategy={entry.data.layoutStrategy}
+          zoomStrategy={entry.data.zoomStrategy}
+          nodeView={entry.data.nodeView}
+          thumbManifest={thumbManifest}
+          embedded
+          client:load
+        />
+      </div>
 
-          <section class="rounded-xl border border-slate-200/90 bg-white p-5 dark:border-slate-800/90 dark:bg-[#0B0F17]">
-            <p class="text-xs font-semibold text-slate-900 dark:text-slate-100">
-              Open Dataset Provenance
-            </p>
-            <p class="mt-1.5 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-              {sourceInfo.attribution}
-            </p>
-            <dl class="mt-3.5 space-y-2 border-t border-slate-200/70 pt-3 text-xs dark:border-slate-800/80 tabular-nums">
-              <div class="flex items-baseline justify-between gap-2">
-                <dt class="text-slate-500 dark:text-slate-400">Records</dt>
-                <dd class="font-mono font-semibold text-slate-900 dark:text-slate-100">
-                  {itemCount} items
-                </dd>
-              </div>
-              <div class="flex items-baseline justify-between gap-2">
-                <dt class="text-slate-500 dark:text-slate-400">License</dt>
-                <dd class="font-mono text-slate-800 dark:text-slate-200">
-                  {sourceInfo.license}
-                </dd>
-              </div>
-              <div class="flex items-baseline justify-between gap-2">
-                <dt class="text-slate-500 dark:text-slate-400">Tags Required</dt>
-                <dd class="font-mono text-slate-800 dark:text-slate-200">
-                  {entry.data.requiresTags ? 'true' : 'false'}
-                </dd>
-              </div>
-              <div class="flex items-baseline justify-between gap-2">
-                <dt class="text-slate-500 dark:text-slate-400">Published</dt>
-                <dd class="font-mono text-slate-800 dark:text-slate-200">
-                  {entry.data.publishedDate}
-                </dd>
-              </div>
-            </dl>
-            <a
-              href={sourceInfo.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="mt-4 inline-block text-xs font-semibold text-cyan-700 hover:underline dark:text-cyan-300"
+      <!-- Panel 2: Minimalist TypeScript Code with Top-Right Copy Overlay -->
+      <div
+        role="tabpanel"
+        id="panel-example-code"
+        aria-labelledby="tab-example-code"
+        data-example-panel="code"
+        class="relative"
+        hidden
+      >
+        <div class="pointer-events-none absolute top-3 right-4 z-20">
+          <div class="pointer-events-auto rounded-md shadow-xs">
+            <button
+              type="button"
+              data-copy-panel-source
+              data-default-label="Copy Snippet"
+              class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:border-slate-700 dark:bg-[#0B0F17] dark:text-slate-200 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
             >
-              Dataset Source ({sourceInfo.sourceShort}) ↗
-            </a>
-          </section>
+              <svg
+                class="h-3.5 w-3.5 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              <span data-copy-label>Copy Snippet</span>
+            </button>
+          </div>
         </div>
-      </aside>
-    </div>
+
+        <div class="[&_.astro-code]:h-[460px] sm:[&_.astro-code]:h-[540px] [&_.astro-code]:overflow-auto [&_.astro-code]:p-4 sm:[&_.astro-code]:p-5 [&_.astro-code]:pr-36 [&_.astro-code]:text-[13px] [&_.astro-code]:leading-relaxed">
+          <Code
+            code={codeSnippet}
+            lang="tsx"
+            themes={{ light: 'github-light', dark: 'github-dark-default' }}
+          />
+        </div>
+      </div>
+
+      <!-- Panel 3: Minimalist Raw Dataset JSON with Top-Right Copy Overlay -->
+      <div
+        role="tabpanel"
+        id="panel-example-dataset"
+        aria-labelledby="tab-example-dataset"
+        data-example-panel="dataset"
+        class="relative"
+        hidden
+      >
+        <div class="pointer-events-none absolute top-3 right-4 z-20">
+          <div class="pointer-events-auto rounded-md shadow-xs">
+            <button
+              type="button"
+              data-copy-panel-source
+              data-default-label="Copy Dataset"
+              class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:border-slate-700 dark:bg-[#0B0F17] dark:text-slate-200 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
+            >
+              <svg
+                class="h-3.5 w-3.5 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              <span data-copy-label>Copy Dataset</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="[&_.astro-code]:h-[460px] sm:[&_.astro-code]:h-[540px] [&_.astro-code]:overflow-auto [&_.astro-code]:p-4 sm:[&_.astro-code]:p-5 [&_.astro-code]:pr-36 [&_.astro-code]:text-[13px] [&_.astro-code]:leading-relaxed">
+          <Code
+            code={datasetJson}
+            lang="json"
+            themes={{ light: 'github-light', dark: 'github-dark-default' }}
+          />
+        </div>
+      </div>
+    </section>
+
+    <!-- Concise Centered Architecture Rationale Below Workbench -->
+    <article class="mx-auto mt-12 max-w-3xl">
+      <div class="sv-prose">
+        <Content />
+      </div>
+
+      <div class="mt-10 border-t border-slate-200/80 pt-6 flex items-center justify-between gap-4 text-xs dark:border-slate-800/80">
+        <a
+          href={withBase('/examples')}
+          class="font-semibold text-slate-700 hover:text-cyan-700 hover:underline dark:text-slate-300 dark:hover:text-cyan-300 transition-colors"
+        >
+          ← Back to All Examples
+        </a>
+      </div>
+    </article>
   </div>
 </BaseLayout>
+
+<script is:inline>
+  (function () {
+    function initExampleWorkbenches() {
+      var roots = document.querySelectorAll('[data-example-workbench]');
+      for (var i = 0; i < roots.length; i++) {
+        var root = roots[i];
+        if (root.getAttribute('data-workbench-ready') === 'true') continue;
+        root.setAttribute('data-workbench-ready', 'true');
+
+        (function (wb) {
+          var tabs = Array.prototype.slice.call(
+            wb.querySelectorAll('[data-example-tab]'),
+          );
+          var panels = Array.prototype.slice.call(
+            wb.querySelectorAll('[data-example-panel]'),
+          );
+
+          function activateTab(targetName, focusTab) {
+            for (var t = 0; t < tabs.length; t++) {
+              var tab = tabs[t];
+              var isMatch = tab.getAttribute('data-example-tab') === targetName;
+              tab.setAttribute('data-active', isMatch ? 'true' : 'false');
+              tab.setAttribute('aria-selected', isMatch ? 'true' : 'false');
+              tab.setAttribute('tabindex', isMatch ? '0' : '-1');
+              if (isMatch && focusTab) {
+                tab.focus();
+              }
+            }
+            for (var p = 0; p < panels.length; p++) {
+              var panel = panels[p];
+              var isPanelMatch =
+                panel.getAttribute('data-example-panel') === targetName;
+              if (isPanelMatch) {
+                panel.removeAttribute('hidden');
+              } else {
+                panel.setAttribute('hidden', '');
+              }
+            }
+            if (targetName === 'preview') {
+              window.requestAnimationFrame(function () {
+                window.dispatchEvent(new Event('resize'));
+              });
+            }
+          }
+
+          wb.addEventListener('click', function (ev) {
+            var tabBtn =
+              ev.target && ev.target.closest
+                ? ev.target.closest('[data-example-tab]')
+                : null;
+            if (tabBtn) {
+              var name = tabBtn.getAttribute('data-example-tab');
+              if (name) activateTab(name, false);
+              return;
+            }
+
+            var copyBtn =
+              ev.target && ev.target.closest
+                ? ev.target.closest('[data-copy-panel-source]')
+                : null;
+            if (copyBtn && navigator.clipboard) {
+              var panel = copyBtn.closest('[data-example-panel]');
+              var codeEl = panel ? panel.querySelector('pre code') : null;
+              var rawText = codeEl ? codeEl.textContent : '';
+              if (!rawText) return;
+              var labelEl = copyBtn.querySelector('[data-copy-label]');
+              var defaultLabel =
+                copyBtn.getAttribute('data-default-label') || 'Copy';
+              navigator.clipboard.writeText(rawText).then(function () {
+                if (labelEl) {
+                  labelEl.textContent = 'Copied ✓';
+                  setTimeout(function () {
+                    labelEl.textContent = defaultLabel;
+                  }, 1500);
+                }
+              });
+            }
+          });
+
+          wb.addEventListener('keydown', function (ev) {
+            var currentTab =
+              ev.target && ev.target.closest
+                ? ev.target.closest('[data-example-tab]')
+                : null;
+            if (!currentTab) return;
+            var idx = tabs.indexOf(currentTab);
+            if (idx === -1) return;
+
+            var nextIdx = -1;
+            if (ev.key === 'ArrowRight') {
+              nextIdx = (idx + 1) % tabs.length;
+            } else if (ev.key === 'ArrowLeft') {
+              nextIdx = (idx - 1 + tabs.length) % tabs.length;
+            } else if (ev.key === 'Home') {
+              nextIdx = 0;
+            } else if (ev.key === 'End') {
+              nextIdx = tabs.length - 1;
+            }
+            if (nextIdx !== -1) {
+              ev.preventDefault();
+              var nextName = tabs[nextIdx].getAttribute('data-example-tab');
+              if (nextName) activateTab(nextName, true);
+            }
+          });
+        })(root);
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initExampleWorkbenches);
+    } else {
+      initExampleWorkbenches();
+    }
+    document.addEventListener('astro:page-load', initExampleWorkbenches);
+  })();
+</script>

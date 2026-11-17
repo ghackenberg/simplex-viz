@@ -17,7 +17,7 @@ readingMinutes: 5
 order: 6
 ---
 
-## Dataset Provenance & Morphological Gradients
+## Morphological Gradients Without Species Labels
 
 This example uses real field measurements collected by **Dr. Kristen Gorman and the Palmer Station Antarctica LTER** (`penguins.json`, released under **`CC0 1.0`**). Each specimen records exact culmen (bill) length and depth in millimeters, flipper length, body mass in grams, and island habitat (*Biscoe*, *Dream*, *Torgersen*) across *Adelie*, *Chinstrap*, and *Gentoo* populations—without passing species labels to the clustering solver (`requiresTags: false`).
 
@@ -27,54 +27,3 @@ This example uses real field measurements collected by **Dr. Kristen Gorman and 
 2. **Custom Brand Palette (`createPaletteColorStrategy`)**: Demonstrates mapping a curated 6-swatch scientific publication palette (`#0891b2`, `#d97706`, `#c026d3`, `#059669`, `#2563eb`, `#e11d48`) onto mesh vertices using `'edge-contrast'` optimization while still interpolating hybrid specimens in perceptual OKLab space.
 3. **Density-Adaptive Layout (`createLocalAdaptiveLayoutStrategy`)**: Fans congested specimen pockets into open covering triangles first, evaluates smooth radial crowd density within `76 px` on the dispersed coordinates, and polishes collisions locally so sparse specimens stay at full `1.0x` scale while dense species hubs taper smoothly.
 4. **Subspace Re-Clustering Drill-Down (`createSubspaceZoomStrategy`)**: Zooming into a species-dominated triangle projects out the shared species baseline (`σ_local = 0`) and splits specimens locally by **island habitat** (*Biscoe*, *Dream*, *Torgersen*), **sexual dimorphism**, **body mass**, and **culmen geometry** while retaining two-line `parentContextLabel` corner plaques.
-
-## Reproduction Snippet
-
-```tsx
-import {
-  SimplexTopicGraph,
-  createAdaptiveHexMeshStrategy,
-  createSoftSimplexEmbeddingClusteringStrategy,
-  createPaletteColorStrategy,
-  createLocalAdaptiveLayoutStrategy,
-  createSubspaceZoomStrategy,
-} from '@simplex-viz/react';
-
-const scientificPalette = [
-  '#0891b2',
-  '#d97706',
-  '#c026d3',
-  '#059669',
-  '#2563eb',
-  '#e11d48',
-];
-
-const penguinFeatures = [
-  { label: 'Species', getValue: (p: PenguinSpecimen) => p.species, weight: 1.5 },
-  { label: 'Sex', getValue: (p: PenguinSpecimen) => p.sex, weight: 1.2 },
-  { label: 'Island', getValue: (p: PenguinSpecimen) => `${p.island} Isl.` },
-  { label: 'Body Mass', getValue: (p: PenguinSpecimen) => p.bodyMassG, highLabel: 'Heavy Mass', lowLabel: 'Light Mass' },
-  { label: 'Bill Length', getValue: (p: PenguinSpecimen) => p.billLengthMm, highLabel: 'Long Bill', lowLabel: 'Short Bill' },
-];
-
-<SimplexTopicGraph
-  items={penguinSpecimens}
-  contentView={morphometricGlyphSvgView}
-  meshStrategy={createAdaptiveHexMeshStrategy()}
-  clusteringStrategy={createSoftSimplexEmbeddingClusteringStrategy({
-    getEmbedding: (p) => p.morphVector,
-    features: penguinFeatures,
-    clusterCount: 5,
-    triangleSpread: 0.45,
-  })}
-  colorStrategy={createPaletteColorStrategy(scientificPalette, {
-    mode: 'edge-contrast',
-  })}
-  layoutStrategy={createLocalAdaptiveLayoutStrategy()}
-  zoomStrategy={createSubspaceZoomStrategy({
-    features: penguinFeatures,
-    getVector: (p) => p.morphVector,
-  })}
-  showZoomBreadcrumbs
-/>;
-```

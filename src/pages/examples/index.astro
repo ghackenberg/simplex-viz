@@ -1,5 +1,6 @@
 ---
 import { getCollection } from 'astro:content';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import ExamplePreviewCard from '../../components/ExamplePreviewCard.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { withBase } from '../../site/url';
@@ -13,26 +14,26 @@ const datasets = (await getCollection('datasets')).sort(
   title="Interactive Examples"
   description="Explore six interactive SimplexViz examples built on real open-access datasets across tagged repositories, academic preprints, multi-modal cinema vectors, spoken vowel formants, animal trait kernels, and Antarctic morphometrics."
 >
-  <div class="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-    <div class="flex flex-wrap items-end justify-between gap-6">
-      <div>
-        <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
-          Interactive Domain Examples
-        </h1>
-        <p class="mt-3 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-300">
-          Six real-world open datasets paired with their optimal mesh, clustering, OKLab color, collision layout, and drill-down strategies. Want to test your own tagged JSON dataset? Open the standalone{' '}
-          <a
-            href={withBase('/playground')}
-            class="font-semibold text-cyan-700 hover:underline dark:text-cyan-300"
-          >
-            Playground →
-          </a>
-        </p>
-      </div>
-    </div>
+  <div class="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
+    <header class="mx-auto max-w-3xl text-center">
+      <Breadcrumbs align="center" items={[{ label: 'Examples' }]} />
+
+      <h1 class="text-3xl sm:text-4xl leading-[1.15] font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
+        Interactive Domain Examples
+      </h1>
+      <p class="mx-auto mt-3.5 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-300">
+        Six real-world open datasets paired with their optimal mesh, clustering, OKLab color, collision layout, and drill-down strategies. Want to test your own tagged JSON dataset? Open the standalone{' '}
+        <a
+          href={withBase('/playground')}
+          class="font-semibold text-cyan-700 hover:underline dark:text-cyan-300"
+        >
+          Playground →
+        </a>
+      </p>
+    </header>
 
     <div class="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {datasets.map((ds) => <ExamplePreviewCard dataset={ds} variant="detailed" />)}
+      {datasets.map((ds) => <ExamplePreviewCard dataset={ds} headingTag="h2" />)}
     </div>
   </div>
 </BaseLayout>

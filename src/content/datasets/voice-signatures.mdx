@@ -17,52 +17,13 @@ readingMinutes: 5
 order: 4
 ---
 
-## Dataset Provenance & Vocal-Tract Acoustic Vectors
+## Vocal-Tract Acoustic Vectors
 
-This example loads real acoustic feature vectors from **David Deterding's Spoken Vowel Recognition dataset** (`Connectionist Bench`, **UCI Machine Learning Repository**, `CC BY 4.0`). Speakers uttered steady-state British English monophthongs (`i:`, `ɪ`, `ɛ`, `æ`, `ɑ:`, `ɒ`, `ɔ:`, `ʊ`, `u:`, `ʌ`, `ɜ:`), digitized with LPC reflection coefficients transformed into **10 log-area vocal-tract cross-section parameters**.
-
-Each recording is rendered directly as an SVG LPC envelope capsule (`SvgNodeView`), measured offscreen via `getBBox()` into a precise convex hull.
+This example loads real acoustic feature vectors from **David Deterding's Spoken Vowel Recognition dataset** (`Connectionist Bench`, **UCI Machine Learning Repository**, `CC BY 4.0`). Speakers uttered steady-state British English monophthongs (`i:`, `ɪ`, `ɛ`, `æ`, `ɑ:`, `ɒ`, `ɔ:`, `ʊ`, `u:`, `ʌ`, `ɜ:`), digitized with LPC reflection coefficients transformed into **10 log-area vocal-tract cross-section parameters** and rendered as SVG LPC envelope capsules (`SvgNodeView`).
 
 ## Why Fixed Lattice + Planar NNLS + Uniform PBD Fit Acoustic Calibration
 
 1. **Fixed Grid Lattice (`createFixedLatticeMeshStrategy({ cols: 3, rows: 2 })`)**: Locks an invariant `6`-vertex vowel-formant reference chart across screen sizes so phonetic quadrants stay spatially anchored.
-2. **Planar NNLS Embedding Projection & Register Disambiguation (`createEmbeddingClusteringStrategy`)**: Evaluates every planar mesh triangle `τ = (μ₁, μ₂, μ₃)` and solves exact Non-Negative Least Squares (`wᵢ ≥ 0`, `∑ wᵢ = 1`) so intermediate vowel articulations land at their minimum-residual acoustic convex combination, while `features` / `disambiguatePeerClusterTitle` qualifies overlapping formant hubs by speaker vocal-tract register (*Female* vs. *Male*).
+2. **Planar NNLS Embedding Projection & Register Disambiguation (`createEmbeddingClusteringStrategy`)**: Evaluates every planar mesh triangle `τ = (μ₁, μ₂, μ₃)` and solves exact Non-Negative Least Squares (`wᵢ ≥ 0`, `∑ wᵢ = 1`) so intermediate vowel articulations land at their minimum-residual acoustic convex combination, while `features` qualifies overlapping formant hubs by speaker vocal-tract register (*Female* vs. *Male*).
 3. **Uniform PBD Layout (`createPbdUniformLayoutStrategy`)**: Disperses co-located phoneme capsules into the open interior of their covering vowel triangles while applying a single global scale factor `α` so capsule widths remain strictly proportional across the entire vowel chart with `0.0 px` overlap.
 4. **Subspace Re-Clustering Drill-Down (`createSubspaceZoomStrategy`)**: Drilling into a broad vowel quadrant separates individual monophthong phonemes (`i:`, `ɪ`, `ɛ`, `æ`, …), speaker vocal-tract register, fundamental pitch (`F0`), and local 10D LPC residual axes while keeping parent vowel anchors visible on the `3` outer corners.
-
-## Reproduction Snippet
-
-```tsx
-import {
-  SimplexTopicGraph,
-  createFixedLatticeMeshStrategy,
-  createEmbeddingClusteringStrategy,
-  createThemeAdaptiveOklabColorStrategy,
-  createPbdUniformLayoutStrategy,
-  createSubspaceZoomStrategy,
-} from '@simplex-viz/react';
-
-const acousticFeatures = [
-  { label: 'Vowel', getValue: (rec: VowelRecording) => `Vowel ${rec.ipaSymbol}` },
-  { label: 'Speaker Sex', getValue: (rec: VowelRecording) => `${rec.speakerSex} Voice` },
-  { label: 'Pitch', getValue: (rec: VowelRecording) => rec.pitchHz, highLabel: 'High Pitch', lowLabel: 'Low Pitch' },
-];
-
-<SimplexTopicGraph
-  items={vowelRecordings}
-  contentView={lpcCapsuleSvgView}
-  meshStrategy={createFixedLatticeMeshStrategy({ cols: 3, rows: 2 })}
-  clusteringStrategy={createEmbeddingClusteringStrategy({
-    getEmbedding: (rec) => rec.lpcVector,
-    features: acousticFeatures,
-    clusterCount: 6,
-  })}
-  colorStrategy={createThemeAdaptiveOklabColorStrategy()}
-  layoutStrategy={createPbdUniformLayoutStrategy()}
-  zoomStrategy={createSubspaceZoomStrategy({
-    features: acousticFeatures,
-    getVector: (rec) => rec.lpcVector,
-  })}
-  showZoomBreadcrumbs
-/>;
-```
