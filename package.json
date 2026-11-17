@@ -20,6 +20,7 @@
     "typecheck": "tsx scripts/astro-runner.ts sync && tsc -p packages/core/tsconfig.json --noEmit && tsc -p packages/svg/tsconfig.json --noEmit && tsc -p packages/react/tsconfig.json --noEmit && tsc -p tsconfig.json --noEmit && tsc -p scripts/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "issue": "tsx scripts/gh-issue.ts",
     "validate:packages": "node -e \"const { execSync } = require('node:child_process'); const has = (c) => { try { execSync(c + ' --version', { stdio: 'ignore' }); return true; } catch { return false; } }; const pack = has('pnpm') ? 'pnpm' : has('bun') ? 'bun' : 'false'; for (const p of ['packages/core', 'packages/svg', 'packages/react']) execSync('publint ' + p + ' --pack ' + pack, { stdio: 'inherit' });\""
   },
   "dependencies": {

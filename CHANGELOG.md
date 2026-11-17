@@ -1,104 +1,128 @@
 # Changelog
 
-Alle relevanten Änderungen an **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`) werden in dieser Datei im Format [Keep a Changelog](https://keepachangelog.com/de/1.1.0/) dokumentiert und über `@changesets/cli` verwaltet.
+All notable changes to **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`, and the documentation/showcase site) are documented in this file following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), coordinated with per-package release notes via `@changesets/cli`.
+
+## [Unreleased]
+
+### Fixed
+- **`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react` — ESM `Node16` / `NodeNext` `.d.ts` module resolution ([#2](https://github.com/ghackenberg/simplex-viz/issues/2))**:
+  - Added explicit `.js` file extensions to all relative imports and `export *` re-exports across all three packages so published `.d.ts` declarations resolve cleanly under TypeScript `moduleResolution: "node16"` and `"nodenext"` without degrading cross-package re-exports to `any`.
+  - Enforced `"module": "NodeNext"` and `"moduleResolution": "NodeNext"` in each package's `tsconfig.build.json` to catch extensionless relative specifiers at build time.
+  - Added an automated Vitest integration test (`nodenextResolution.test.ts`) verifying `nodenext` typechecking with both `skipLibCheck: true` and `skipLibCheck: false`.
+- **`@simplex-viz/core` — Content-node selection clarity**:
+  - Removed automatic nearest-neighbor emphasis when selecting a content item so individual node inspection remains visually clean.
+
+### Added / Changed
+- **`@simplex-viz/core`**:
+  - **Subspace Zoom & Discriminative Cluster Labeling**: Added `createSubspaceZoomStrategy` for representation-agnostic `6`-vertex local subspace refinement across embeddings, pairwise similarity kernels, and tags (`minItemsForRecluster: 6`, `blendFactor: 0.35`), alongside `assignDiscriminativeClusterLabels`, `resolveDiscriminativeClusterLabel`, `disambiguatePeerClusterTitle`, and `parentContextLabel` breadcrumb/corner context.
+  - **Single-Triangle Leaf Focus (`'triangle-focus'`, `leafTriangleFocus: true`)**: Non-subdividable leaf triangles remain focusable as single triangles (`focusableTriangleIndices`, `activeFrameKind: 'triangle-focus'`) via their open triangle background while keeping covered content items directly clickable (no pointer pass-through on leaf triangles) and toggling back up on repeat background clicks.
+  - **Uniform 1-Ring `'incident-star'` Cluster & Subcluster Drill-Down**: Standardized both primary and intermediate cluster focus on lattice-conformal 1-ring `'incident-star'` meshes with continuous barycentric simplex-distance item dimming (`opacity = 0.32 + 0.68 · w̃₀`), direct lateral rim switching, and toggle-up when re-clicking the centered cluster.
+  - **Aspect-Aligned Full-Canvas Triangulation**: Updated `buildSimplexMesh` and `createAdaptiveHexMeshStrategy` to align `60°` lattice orientation to the viewport aspect ratio across mobile, standard, and widescreen canvases (`minSideLength: 130`, uncapped `maxSideLength` by default, `maxClusters: 14`, and adaptive `innerPadding: 32–48` via `resolveDefaultInnerPadding`).
+  - **Space-Filling Layout Strategy Presets**: Upgraded `createPbdUniformLayoutStrategy`, `createWarmStartPbdLayoutStrategy`, and `createLocalAdaptiveLayoutStrategy` to combine `createMeshInwardFanSeeder` + `createSpaceFillingPbdRelaxer` with post-dispersion scale/density regulation (`crowdRadiusPx: 76`, `minLocalScale: 0.35`, `warmStart: true`, and local halo collision polish instead of a global shrink fallback) while maintaining `0.0 px` SAT overlap and covering-triangle containment.
+- **`@simplex-viz/svg` & `@simplex-viz/react`**:
+  - Added WCAG-AA perceptual cluster surface contrast calibration (`colorContrast`) and two-line `parentContextLabel` rendering on chamfered intermediate subcluster plaques in `BadgeClusterSvgView` and `ClusterAnchorSvgView`.
+  - Re-exported `createSubspaceZoomStrategy`, `resolveDefaultInnerPadding`, discriminative label helpers, and enriched `SimplexZoomState` fields (`activeFrameKind`, `focusableTriangleIndices`) across `@simplex-viz/svg` and `@simplex-viz/react`.
+- **Documentation, Playground & Benchmark Website**:
+  - Built the multi-page Astro 7 documentation, interactive strategy catalog, live Playground, real-world open dataset explorers (UCI Zoo, Hillenbrand American English Vowels, Palmer Penguins, Wikimedia Commons Media, arXiv CS Abstracts), package API references, and engineering notes.
+  - Added `scripts/gh-issue.ts` (`npm run issue`) for fetching open GitHub issues and comments directly from the repository via the public GitHub REST API.
 
 ## [0.6.0] - 2026-11-15
 
-### Hinzugefügt / Geändert
+### Added / Changed
 - **`@simplex-viz/core`**:
-  - **5. austauschbare Pipeline-Achse (`SimplexZoomStrategy`)**: Hierarchischer diskreter Drill-Down & kontinuierlicher Kamera-Zoom über `createBarycentricZoomStrategy` (`1:4`-konforme Dreiecks-Subdivision mit exakter `▲/▼/▶/◀`-Orientierungstreue, *Adaptive Contrast Stretch*, einheitlicher `1`-Ring-`incident-star`-Cluster- und Subcluster-Fokus mit baryzentrischer Simplex-Distanz-Dimmung, automatischer Subdivisions-Stopp bei `1.0x`-Vollskalierung sowie Einzel-Dreiecks-Leaf-Fokus `'triangle-focus'` via `leafTriangleFocus: true`), `createSemanticZoomStrategy` (`6`-Vertex-Tag-Repartitionierung), `createSubspaceZoomStrategy` (repräsentationsunabhängiges lokales `6`-Vertex-Subspace-Refinement für Embeddings, Ähnlichkeitskerne und Tags) und `createFreeCameraZoomStrategy` *(Quickstart-Standard)*.
-  - **Durchgängige Nachbarschafts- & Drill-Down-UX**: Kontinuierliche Kamerafahrt (`ZoomAffineTransform`) beim Hinein-/Hinauszoomen und lateralen Nachbarwechsel, abgedunkelter klickbarer Nachbarschaftskontext inkl. Toggle-Up bei erneutem Klick auf denselben fokussierten Cluster oder dasselbe fokussierte Leaf-Dreieck, Hover-äquivalentes Highlight der fokussierten Region (`highlightBoundary` & `isHighlighted`), automatisches Pointer-Pass-Through (`isPassThrough`) ausschließlich auf noch `1:4`-teilbaren Dreiecken (sodass Inhaltselemente in Leaf-Dreiecken direkt anklickbar bleiben) sowie Deaktivierung des Mausrad-Kamera-Zooms im `drill-down`-Modus.
-  - **Soft-Simplex-Clustering-Strategien**: `createSoftSimplexTagClusteringStrategy` und `createSoftSimplexEmbeddingClusteringStrategy` mit Last-balancierter QAP-Einbettung und kontinuierlicher Dreiecks-Innenraum-Projektion (`triangleSpread`), während Einzel-Cluster-Mitglieder frei im 360°-Halo um ihren Cluster-Knoten verbleiben.
-  - **Komponierbare Layout-Architektur (`Seeder × Relaxer × ScaleController`) & flächenfüllende Presets**: `solveComposedLayout`, `createComposedLayoutStrategy` und `createCollisionDrivenLayoutStrategy` sowie flächenfüllendes Upgrade von `createPbdUniformLayoutStrategy`, `createWarmStartPbdLayoutStrategy` und `createLocalAdaptiveLayoutStrategy` (jeweils mit `createMeshInwardFanSeeder` + `createSpaceFillingPbdRelaxer` und nachgelagerter Dichte-/Skalierungsregelung ohne unnötigen globalen Shrink-Fallback) unter Wahrung der strikten `0.0 px` SAT-Überlappungsgarantie und Dreiecks-Containment-Constraints.
-  - **Aspekt-synchronisierte Vollflächen-Triangulation & Hierarchie-Rollen**: `buildSimplexMesh` richtet die $60^\circ$-Gittergeometrie automatisch am Seitenverhältnis des Viewports aus (adaptives `innerPadding: 32–48`, `minSideLength: 130`, `maxClusters: 14`, freies Hochskalieren ohne künstliches `maxSideLength`-Cap); zusätzlich `MeshOptions.sideLength` sowie `ClusterDescriptor.role` (`'primary' | 'intermediate'`) und `mixWeights` für synthetisierte Zoom-Zwischenknoten.
+  - **5th Pluggable Pipeline Stage (`SimplexZoomStrategy`)**: Hierarchical discrete drill-down and continuous camera zoom via `createBarycentricZoomStrategy` (`1:4` conformal triangle subdivision preserving exact `▲/▼/▶/◀` orientation, *Adaptive Contrast Stretch*, `incident-star` and `spotlight` cluster zoom, automatic leaf stop at `1.0x` full scale), `createSemanticZoomStrategy` (`6`-vertex tag re-partitioning with loop protection), and `createFreeCameraZoomStrategy` *(Quickstart default)*.
+  - **Cohesive Neighborhood & Drill-Down UX**: Smooth affine camera transitions (`ZoomAffineTransform`) when drilling in/out and switching laterally across neighbors, dimmed clickable neighborhood context including automatic multi-level zoom-out when clicking leaf neighbors, hover-equivalent highlight of the focused region (`highlightBoundary` & `isHighlighted`), automatic pointer pass-through (`isPassThrough`) on content nodes inside drillable triangles, and automatic disabling of mouse-wheel camera zoom in `drill-down` mode.
+  - **Soft-Simplex Clustering Strategies**: Added `createSoftSimplexTagClusteringStrategy` and `createSoftSimplexEmbeddingClusteringStrategy` with load-balanced QAP embedding and continuous interior triangle projection (`triangleSpread`) while leaving single-cluster members unconstrained in a 360° halo around their cluster vertex.
+  - **Composable Layout Architecture (`Seeder × Relaxer × ScaleController`)**: Added `solveComposedLayout`, `createComposedLayoutStrategy`, and `createCollisionDrivenLayoutStrategy` alongside orthogonal building blocks (`createPhyllotaxisSeeder`, `createMeshInwardFanSeeder`, `withWarmStartSeeder`, `createBarycentricPbdRelaxer`, `createSpaceFillingPbdRelaxer`, `createUniformScaleController`, `createCollisionLocalScaleController`, `createDensityPriorScaleController`, `createFixedScaleController`) while preserving strict `0.0 px` SAT overlap and triangle containment guarantees.
+  - **Explicit Triangle Side Length & Hierarchy Roles**: Added `MeshOptions.sideLength` for exact equilateral edge lengths plus `ClusterDescriptor.role` (`'primary' | 'intermediate'`) and `mixWeights` for synthesized zoom midpoint nodes.
 - **`@simplex-viz/svg`**:
-  - **Direkte interne `1:4`-Triangulationsvorschau**: Zoombare Dreiecke (`isDrillable === true`) zeichnen ihre 3 Mittelpunktskanten direkt über das aktive `SvgEdgeView`-Plugin in `<g class="sv-drill-edges">`, exakt konsistent zum äußeren Linienstil.
-  - **Zoom-Navigation & Intermediate-Cluster-Darstellung**: Eingebaute Breadcrumb-Leiste (`showZoomBreadcrumbs`), diskrete 2-Finger-Pinch-Out/-In-Gesten im `drill-down`-Modus, kompakte abgeschrägte `'intermediate'`-Badges/Anker in `BadgeClusterSvgView` & `ClusterAnchorSvgView` sowie imperative Methoden (`setZoomStrategy`, `drillDownTriangle`, `drillDownCluster`, `drillToNeighbor`, `drillUp`, `drillToDepth`, `drillToRoot`, `getZoomState`).
+  - **Direct Internal `1:4` Subdivision Preview**: Drillable triangles (`isDrillable === true`) render their 3 midpoint edges directly through the active `SvgEdgeView` plugin inside `<g class="sv-drill-edges">`, matching the outer mesh line style 1:1.
+  - **Zoom Navigation & Intermediate Cluster Styling**: Added built-in breadcrumb bar (`showZoomBreadcrumbs`), discrete 2-finger pinch-out/in gestures in `drill-down` mode, compact chamfered `'intermediate'` badges/anchors in `BadgeClusterSvgView` & `ClusterAnchorSvgView`, and imperative methods (`setZoomStrategy`, `drillDownTriangle`, `drillDownCluster`, `drillToNeighbor`, `drillUp`, `drillToDepth`, `drillToRoot`, `getZoomState`).
 - **`@simplex-viz/react`**:
-  - Neue `<SimplexTopicGraph />`-Props (`zoomStrategy`, `showZoomBreadcrumbs`, `onZoomStateChange`), vollständige Drill-Down-Methoden auf `useSimplexGraphController()` sowie lückenlose Re-Exports aller neuen Strategien, Layout-Bausteine und Typen.
-- **Dokumentation**:
-  - Vollständige Quickstart-Default-Tabellen und Schritt-für-Schritt-Customizing-Anleitungen über alle vier `README.md`-Dateien aktualisiert.
+  - Added `<SimplexTopicGraph />` props (`zoomStrategy`, `showZoomBreadcrumbs`, `onZoomStateChange`), full drill-down methods on `useSimplexGraphController()`, and complete re-exports of all new strategies, layout building blocks, and types.
+- **Documentation**:
+  - Updated complete Quickstart default tables and step-by-step customization guides across all four `README.md` files.
 
 ## [0.5.0] - 2026-11-14
 
-### Hinzugefügt / Geändert
+### Added / Changed
 - **`@simplex-viz/core`**:
-  - **Vollständige Generalisierung der Clustering-Schicht**: Tag-basiertes Clustering (`{ id, tags }` / Jaccard + Hitting-Set) ist nun eine mitgelieferte Spezialisierung statt harter Kern-Voraussetzung (`requiresTags?: boolean`, `StrategyItemIdentityConfig`, `extractIdentifiedItems`, `embedSimilarityMatrixOnMesh`).
-  - **`createEmbeddingClusteringStrategy`**: Erstklassige Unterstützung für untaggte Domänenobjekte mit einzelnen oder gewichteten multimodalen Vektor-Embeddings (`sources`), k-Means++ / Spherical k-Means, QAP-Mesh-Einbettung, ungarischer Cluster-UID-Stabilität sowie geschlossener baryzentrischer NNLS-Simplex-Projektion (`'simplex-projection'`, `'explaining-away'`, `'top-1'`).
-  - **`createSimilarityClusteringStrategy`**: Clustering beliebiger untaggter Objekte anhand einer paarweisen Ähnlichkeitsfunktion `(a, b) => [0, 1]` über PAM k-Medoids, QAP-Einbettung und Simplex-Projektion.
-  - Erweiterte Kontext-Metadaten (`representativeItems`, `centroid`, `cohesion`, `featureSummary`, `residualDistance`) und generisches Hungarian-Matching anhand von Mitgliedschaften/Zentroiden auch ohne Tags.
+  - **Full Generalization of the Clustering Layer**: Tag-based clustering (`{ id, tags }` / Jaccard + Hitting-Set) is now a built-in specialization rather than a hard core requirement (`requiresTags?: boolean`, `StrategyItemIdentityConfig`, `extractIdentifiedItems`, `embedSimilarityMatrixOnMesh`).
+  - **`createEmbeddingClusteringStrategy`**: First-class support for untagged domain objects with single or weighted multi-modal vector embeddings (`sources`), k-Means++ / Spherical k-Means, QAP mesh embedding, Hungarian cluster UID stability, and closed-form barycentric NNLS simplex projection (`'simplex-projection'`, `'explaining-away'`, `'top-1'`).
+  - **`createSimilarityClusteringStrategy`**: Clustering arbitrary untagged objects via a pairwise similarity kernel `(a, b) => [0, 1]` using PAM k-Medoids, QAP mesh embedding, and simplex projection.
+  - Enriched derivation context metadata (`representativeItems`, `centroid`, `cohesion`, `featureSummary`, `residualDistance`) and generic Hungarian matching by membership/centroids without tags.
 - **`@simplex-viz/svg` & `@simplex-viz/react`**:
-  - `StrategyItemIdentityConfig`-Durchreichung (`getTags` optional bei nicht-Tag-basierten Strategien), Cluster-Gewichts-Fallback-Tooltips für untaggte Objekte, angepasste Cache-Keys und vollständige Re-Exports aller neuen Embedding-/Similarity-Strategien und Typen.
-- **Demo-App & Dokumentation**:
-  - 4 umschaltbare Datensätze (`Knowledge Articles (Tags)`, `Images & Videos (Dual Embeddings)`, `Voice Samples (Audio Signatures)`, `Body Shapes (Latent Vectors)`) ohne `.tags` auf den neuen Modellen, domänenspezifische SVG-Vorschauen (Audio-Wellenform, Körpersilhouette, Media-Gradient) sowie dynamische Modalitätsgewichtungs-Controls.
+  - Threaded `StrategyItemIdentityConfig` (`getTags` optional for non-tag strategies), cluster-weight fallback tooltips for untagged items, updated cache keys, and re-exports of all embedding/similarity strategies and types.
+- **Demo App & Documentation**:
+  - Added 4 switchable datasets (`Knowledge Articles (Tags)`, `Images & Videos (Dual Embeddings)`, `Voice Samples (Audio Signatures)`, `Body Shapes (Latent Vectors)`) without `.tags` on non-tag models, domain-specific SVG previews (audio waveform, body silhouette, media gradient), and dynamic modality weight controls.
 
 ## [0.4.0] - 2026-11-14
 
-### Hinzugefügt
+### Added
 - **`@simplex-viz/core`**:
-  - Baryzentrisches Dreiecks-Hit-Testing (`isPointInTriangle`, `HitTarget` `kind: 'triangle'`), `onTriangleHover`, `setFocusedTriangleIndex` sowie angereicherte `MeshTriangleRenderState`- und `MeshEdgeRenderState`-Snapshots.
+  - Barycentric triangle-face hit-testing (`isPointInTriangle`, `HitTarget` `kind: 'triangle'`), `onTriangleHover`, `setFocusedTriangleIndex`, and enriched `MeshTriangleRenderState` & `MeshEdgeRenderState` snapshots.
 - **`@simplex-viz/svg`**:
-  - Austauschbare Plugins für Triangulations-Dreiecksflächen (`SvgTriangleView`: `OklabTintTriangleSvgView`, `GradientTriangleSvgView` mit durchgängigem baryzentrischem Shading, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`) und Mesh-Kanten (`SvgEdgeView`: `DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`) inkl. Laufzeit-Wechsel über `setTriangleView`, `setEdgeView` und `setViews`.
-  - Klickbare und hoverbare Dreiecksflächen mit `focusOnTriangleClick`, `onTriangleHover`, integrierten Dreiecks-Tooltips (`target.kind === 'triangle'`) und nahtlosem Drag-to-Pan über Dreiecken.
+  - Pluggable triangulation face views (`SvgTriangleView`: `OklabTintTriangleSvgView`, `GradientTriangleSvgView` with continuous barycentric shading, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`) and mesh edge views (`SvgEdgeView`: `DashedMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`) with live runtime swapping via `setTriangleView`, `setEdgeView`, and `setViews`.
+  - Clickable and hoverable triangle faces with `focusOnTriangleClick`, `onTriangleHover`, built-in triangle tooltips (`target.kind === 'triangle'`), and seamless drag-to-pan across triangles.
 - **`@simplex-viz/react`**:
-  - Neue Render- & Interaktions-Props (`triangleView`, `edgeView`, `focusedTriangleIndex`, `focusOnTriangleClick`, `onTriangleHover`), erweiterter `SimplexReactTooltipTarget` (`'triangle'`) und imperative Setter (`setTriangleView`, `setEdgeView`, `setFocusedTriangleIndex`) in `useSimplexGraphController`.
-- **Demo-App & Dokumentation**:
-  - Unabhängige Controls für Dreiecksflächen (inkl. *Continuous Barycentric Gradient*) und Mesh-Kanten sowie interaktive Dreiecks-Tooltips, Dreiecks-Fokus/Inspektor und Rechtsklick-Kontextmenü.
+  - Added rendering & interaction props (`triangleView`, `edgeView`, `focusedTriangleIndex`, `focusOnTriangleClick`, `onTriangleHover`), extended `SimplexReactTooltipTarget` (`'triangle'`), and imperative setters (`setTriangleView`, `setEdgeView`, `setFocusedTriangleIndex`) on `useSimplexGraphController`.
+- **Demo App & Documentation**:
+  - Added independent controls for triangle faces (including *Continuous Barycentric Gradient*) and mesh edges, interactive triangle tooltips, triangle focus inspector, and right-click context menu.
 
 ## [0.3.0] - 2026-11-14
 
-### Hinzugefügt
+### Added
 - **`@simplex-viz/core`**:
-  - Austauschbare Strategie-Schnittstellen über die gesamte Pipeline (`SimplexMeshStrategy`, `SimplexClusteringStrategy` mit getrenntem `initialize`/`update` sowie `sharedTagRule` & `anchorRule`, `SimplexColorStrategy`, `SimplexLayoutStrategy`).
-  - Eingebaute Strategie-Factories (`createAdaptiveHexMeshStrategy`, `createFixedLatticeMeshStrategy`, `createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`, `createOklabContrastColorStrategy`, `createThemeAdaptiveOklabColorStrategy`, `createPaletteColorStrategy`, `createPbdUniformLayoutStrategy`, `createWarmStartPbdLayoutStrategy`, `createLocalAdaptiveLayoutStrategy`) inkl. Laufzeit-Wechsel auf `SimplexGraphEngine` (`setMeshStrategy`, `setClusteringStrategy`, `setColorStrategy`, `setLayoutStrategy`).
+  - Pluggable strategy interfaces across the spatial pipeline (`SimplexMeshStrategy`, `SimplexClusteringStrategy` with separate `initialize`/`update` plus `sharedTagRule` & `anchorRule`, `SimplexColorStrategy`, `SimplexLayoutStrategy`).
+  - Built-in strategy factories (`createAdaptiveHexMeshStrategy`, `createFixedLatticeMeshStrategy`, `createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`, `createOklabContrastColorStrategy`, `createThemeAdaptiveOklabColorStrategy`, `createPaletteColorStrategy`, `createPbdUniformLayoutStrategy`, `createWarmStartPbdLayoutStrategy`, `createLocalAdaptiveLayoutStrategy`) with runtime hot-swapping on `SimplexGraphEngine` (`setMeshStrategy`, `setClusteringStrategy`, `setColorStrategy`, `setLayoutStrategy`).
 - **`@simplex-viz/svg`**:
-  - Multi-Touch **2-Finger Pinch-to-Zoom & Touch-Pan** sowie `pointercancel`-Bereinigung in `SimplexSvgController`.
-  - Synchroner `cameraProxy`-Render-Sync (`engine.renderNow()`), sodass Zoom/Pan/Reset ohne Verzögerung im SVG greifen.
-  - Re-Export aller Core-Strategien, Rules und `set*Strategy`-/Getter-Methoden auf `SimplexSvgController`.
+  - Multi-touch **2-finger pinch-to-zoom & touch-pan** and `pointercancel` cleanup in `SimplexSvgController`.
+  - Synchronous `cameraProxy` render sync (`engine.renderNow()`) so zoom/pan/reset apply immediately in SVG.
+  - Re-exported all core strategies, rules, and `set*Strategy`/getter methods on `SimplexSvgController`.
 - **`@simplex-viz/react`**:
-  - Neue Strategie-Props (`meshStrategy`, `clusteringStrategy`, `colorStrategy`, `layoutStrategy`) auf `<SimplexTopicGraph />` und imperative Setter im Hook `useSimplexGraphController`.
-- **Demo-App & Dokumentation**:
-  - Entkoppelte, feingranulare Render-Einstellungen für Content- (`Geometric Shape` als Standard) und Cluster-Knoten (`Stats Pill Badge` als Standard) ohne starre Preset-Buttons.
-  - Vollständig responsives Layout für Smartphones, Tablets, Laptops und Ultra-Wide-Displays (`100dvh`, `ResizeObserver`-gestützte Triangulation, Fly-Out-Drawer, klemmende Overlays) sowie Bibliotheks-Version im Header.
+  - Added strategy props (`meshStrategy`, `clusteringStrategy`, `colorStrategy`, `layoutStrategy`) on `<SimplexTopicGraph />` and imperative setters on `useSimplexGraphController`.
+- **Demo App & Documentation**:
+  - Decoupled fine-grained render settings for content nodes (`Geometric Shape` default) and cluster nodes (`Stats Pill Badge` default).
+  - Fully responsive layout across phones, tablets, laptops, and ultra-wide displays (`100dvh`, `ResizeObserver`-driven triangulation, fly-out drawer, clamped overlays) and library version badge in header.
 
 ## [0.2.1] - 2026-11-13
 
-### Geändert
-- **Branding, Logos & README-Vorschaugrafiken**:
-  - Hauptlogo (`SimplexViz`) und Paket-Logos (`core`, `svg`, `react`) auf transparenten Hintergrund, maximiertes Dreieck mit abgestuften Vertex-Ringen, aufgehellte Kantenverläufe sowie durchgängige Brand-Vertexfarben (`#06B6D4`, `#F59E0B`, `#D946EF`) umgestellt.
-  - Alle vier transparenten README-Vorschaugrafiken (`preview-demo`, `preview-core`, `preview-svg`, `preview-react`) für sauberen Kontrast im Light Mode und Dark Mode überarbeitet.
-  - TypeScript-Sync-Pipeline (`scripts/sync-brand.ts`) für einheitliche SVG-, PNG-, Favicon- und Social-Preview-Assets eingeführt.
-- **Demo-App & CI**:
-  - Automatischer und manueller Dark-/Light-Mode-Theme-Switcher in der Demo-App ohne persistente Speicherung ergänzt.
-  - `pnpm-lock.yaml` für `--frozen-lockfile` in GitHub Actions aktualisiert.
+### Changed
+- **Branding, Logos & README Preview Graphics**:
+  - Redesigned main logo (`SimplexViz`) and package logos (`core`, `svg`, `react`) with transparent backgrounds, maximized triangle geometry with stepped vertex rings, brightened edge gradients, and consistent brand vertex colors (`#06B6D4`, `#F59E0B`, `#D946EF`).
+  - Updated all four transparent README preview graphics (`preview-demo`, `preview-core`, `preview-svg`, `preview-react`) for clean contrast in both Light Mode and Dark Mode.
+  - Introduced TypeScript sync pipeline (`scripts/sync-brand.ts`) for unified SVG, PNG, favicon, and social preview assets.
+- **Demo App & CI**:
+  - Added automatic and manual Dark/Light mode theme switcher in the demo app without persistent storage.
+  - Updated `pnpm-lock.yaml` for `--frozen-lockfile` in GitHub Actions.
 
 ## [0.2.0] - 2026-11-13
 
-### Hinzugefügt
+### Added
 - **`@simplex-viz/core`**:
-  - Synchrone One-Shot-Funktion `solveSimplexSnapshot(items, options?)` für überlappungsfreie Layouts ohne `SimplexRendererAdapter` oder Animationsschleife.
+  - Added synchronous one-shot function `solveSimplexSnapshot(items, options?)` for overlap-free layouts without a `SimplexRendererAdapter` or animation loop.
 - **`@simplex-viz/svg`**:
-  - Einzeiler-Factory `createSimplexSvg(target, itemsOrOptions)`, CSS-Selektor-Support in `SimplexSvgController`, drei eingebaute Presets (`'geometric'`, `'glyphs'`, `'badges'`), Standard-Interaktivität (`zoom-to-cursor` + `focusOnClusterClick`), optionaler DOM-Hover-Tooltip sowie Re-Exports zentraler Core-Helfer und Typen.
+  - Added one-liner factory `createSimplexSvg(target, itemsOrOptions)`, CSS selector support in `SimplexSvgController`, three built-in presets (`'geometric'`, `'glyphs'`, `'badges'`), default interactivity (`zoom-to-cursor` + `focusOnClusterClick`), optional DOM hover tooltip, and re-exports of core helpers and types.
 - **`@simplex-viz/react`**:
-  - Zero-Config `<SimplexTopicGraph items={items} preset="glyphs" tooltip />`, Keyless-JSX-Renderer (`renderContentNode`/`renderClusterNode` ohne `VisualResolver`), eingebautes React-Tooltip-Overlay sowie Re-Exports aus `@simplex-viz/svg` und `@simplex-viz/core`.
-- **Demo-App & Dokumentation**:
-  - Selbst gehostete Fonts via `@fontsource` (ohne Google-Fonts-CDN-Anfragen), vereinfachtes Ein-Dreieck-Logo sowie Quickstart-first-Dokumentation in allen READMEs.
+  - Added zero-config `<SimplexTopicGraph items={items} preset="glyphs" tooltip />`, keyless JSX renderers (`renderContentNode`/`renderClusterNode` without a `VisualResolver`), built-in React tooltip overlay, and re-exports from `@simplex-viz/svg` and `@simplex-viz/core`.
+- **Demo App & Documentation**:
+  - Switched to self-hosted fonts via `@fontsource` (zero Google Fonts CDN requests), simplified single-triangle logo, and reorganized all READMEs around a Quickstart-first structure.
 
 ## [0.1.0] - 2026-11-13
 
-### Hinzugefügt
+### Added
 - **`@simplex-viz/core`**:
-  - Dynamischer gezahnter $60^\circ$-Simplex-Mesh-Generator (`buildSimplexMesh`) mit $0^\circ$/$90^\circ$-Orientierungs- und Paritäts-Optimierung.
-  - Zweistufiges Themen-Clustering (`computeSimplexClustering`) mit regularisierter Jaccard-Partition, Simulated Annealing QAP-Einbettung, Weighted-Hitting-Set mit Rückwärts-Pruning, Explaining-Away-Einheitszuordnung und Ungarischem Bipartite Matching.
-  - Perzeptuelle OKLab-Farbzuweisung und chroma-erhaltende Farbmischung.
-  - Exakte konvexe Hüllen-Kollisionsprüfung (`computeConvexMtv` für Kreis/Kreis, Kreis/Polygon und Polygon/Polygon SAT) sowie hierarchischer Zwei-Phasen-Solver (`solveTwoPhaseLayout`) mit `0.0 px` Überlappungsgarantie.
-  - Unterbrechbare, kritisch gedämpfte Feder-Integratoren (`stepCriticallyDampedSpring`) und Dual-Layer-Transition-Tracker.
-  - Schemafreie, bedingte Hybrid-Accessors (`ItemIdentityConfig`) und Ende-zu-Ende-typsichere Tag-/Cluster-Metadaten (`TTagMeta`, `TClusterMeta`).
+  - Dynamic toothed `60°` simplex mesh generator (`buildSimplexMesh`) with `0°`/`90°` orientation and row parity optimization.
+  - Two-stage topic clustering (`computeSimplexClustering`) with regularized Jaccard partitioning, Simulated Annealing QAP embedding, Weighted Hitting-Set planar completion with backward pruning, explaining-away simplex assignment, and Hungarian bipartite matching.
+  - Perceptual OKLab color assignment and chroma-preserving color mixing.
+  - Exact convex hull collision detection (`computeConvexMtv` for circle/circle, circle/polygon, and polygon/polygon SAT) and hierarchical two-phase solver (`solveTwoPhaseLayout`) with a `0.0 px` overlap guarantee.
+  - Interruptible critically damped spring integrators (`stepCriticallyDampedSpring`) and dual-layer transition state machines.
+  - Schema-free conditional hybrid accessors (`ItemIdentityConfig`) and end-to-end type-safe tag/cluster metadata (`TTagMeta`, `TClusterMeta`).
 - **`@simplex-viz/svg`**:
-  - Framework-unabhängige `SvgRendererAdapter`-Engine mit Keyed DOM Reconciliation, Offscreen-`getBBox()`-Vermessung und universellem Dual-Layer-Crossfade.
-  - Zentrales Root-SVG-Pointer-Handling (`SimplexSvgController`) und 4 modulare `SvgNodeView`-Plugins (`GeometricShapeSvgView` mit 64-Punkt-Morphing, `MultiSectorGlyphSvgView`, `BadgeClusterSvgView`, `ClusterAnchorSvgView`).
+  - Framework-agnostic `SvgRendererAdapter` engine with keyed DOM reconciliation, offscreen `getBBox()` measurement, and universal dual-layer crossfade.
+  - Centralized root-SVG pointer handling (`SimplexSvgController`) and 4 modular `SvgNodeView` plugins (`GeometricShapeSvgView` with 64-point morphing, `MultiSectorGlyphSvgView`, `BadgeClusterSvgView`, `ClusterAnchorSvgView`).
 - **`@simplex-viz/react`**:
-  - Typsichere `<SimplexTopicGraph />`-Komponente und `useSimplexGraphController`-Hook mit Unterstützung für portierbare `SvgNodeView`-Plugins sowie deklarative JSX-Render-Props (`renderContentNode`, `renderClusterNode`).
-- **Demo-App & CI/CD**:
-  - Interaktive Showcase-Applikation mit 3 live umschaltbaren Darstellungs-Welten, Rapid-Fire-Stresstest, Kollisions-Inspektor und Interaktions-Konfigurator.
-  - Vollständige Vitest-Testsuite, ESLint-Modulgrenzen-Regeln, Changesets-Konfiguration und GitHub-Actions-Workflows (`ci.yml`, `deploy-pages.yml`, `release.yml`).
+  - Type-safe `<SimplexTopicGraph />` component and `useSimplexGraphController` hook supporting portable `SvgNodeView` plugins and declarative JSX render props (`renderContentNode`, `renderClusterNode`).
+- **Demo App & CI/CD**:
+  - Interactive showcase application with 3 live-switchable rendering modes, rapid-fire stress test, collision inspector, and interaction configurator.
+  - Comprehensive Vitest test suite, ESLint module-boundary rules, Changesets configuration, and GitHub Actions workflows (`ci.yml`, `deploy-pages.yml`, `release.yml`).
