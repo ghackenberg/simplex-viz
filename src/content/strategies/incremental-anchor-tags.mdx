@@ -1,0 +1,43 @@
+---
+strategyId: "incremental-anchor-tags"
+order: 5
+signature: "createIncrementalAnchorClusteringStrategy<TItem, TTagMeta>(options?: IncrementalClusteringOptions<TItem>): SimplexClusteringStrategy<TItem, TTagMeta>"
+updatedDate: "2026-11-15"
+readingMinutes: 4
+whenToUse:
+  - "Ideal for live collaborative feeds, streaming search results, and incremental document ingestion."
+  - "Prevents existing topic vertices from swapping positions when new items and tags arrive."
+optionsTable:
+  - name: "getTags"
+    type: "(item: TItem) => readonly string[]"
+    defaultValue: "item.tags"
+    description: "Extracts discrete topic tags per item."
+  - name: "sharedTagRule"
+    type: "SharedTagRule<TItem>"
+    defaultValue: "'planar-hitting-set'"
+    description: "Updates planar bridge tag coverage incrementally as new co-occurrences appear."
+  - name: "anchorRule"
+    type: "SimplexAnchorRule<TItem>"
+    defaultValue: "'explaining-away'"
+    description: "Computes barycentric simplex weights against the pinned vertex topics."
+---
+
+## Zero-Reshuffle Streaming Updates
+
+On `initialize()`, **Incremental Tag Anchoring** establishes the initial `K`-vertex topic layout via QAP annealing. On subsequent `update()` calls (when items are added or removed without changing mesh dimensions), it freezes existing vertex assignments and routes newly discovered tags to the vertex with highest co-occurrence affinity—guaranteeing maximum spatial mental-map stability.
+
+## Usage Example
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createIncrementalAnchorClusteringStrategy,
+  createWarmStartPbdLayoutStrategy,
+} from '@simplex-viz/react';
+
+<SimplexTopicGraph
+  items={liveStreamItems}
+  clusteringStrategy={createIncrementalAnchorClusteringStrategy()}
+  layoutStrategy={createWarmStartPbdLayoutStrategy()}
+/>;
+```

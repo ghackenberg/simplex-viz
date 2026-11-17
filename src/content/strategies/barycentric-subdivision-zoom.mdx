@@ -1,0 +1,67 @@
+---
+strategyId: "barycentric-subdivision-zoom"
+order: 17
+signature: "createBarycentricZoomStrategy<TItem, TTagMeta, TClusterMeta>(options?: BarycentricZoomStrategyOptions): SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>"
+updatedDate: "2026-11-16"
+readingMinutes: 5
+whenToUse:
+  - "Use when you want purely geometric 1:4 coordinate magnification that preserves exact parent barycentric ratios without re-clustering."
+  - "Preserves exact equilateral ▲/▼/▶/◀ orientation with explicit A ↔ B midpoint bridge plaques and color-coded 3-segment breadcrumbs."
+optionsTable:
+  - name: "clusterZoomMode"
+    type: "'incident-star' | 'spotlight' | 'none'"
+    defaultValue: "'incident-star'"
+    description: "Focuses a cluster's lattice-conformal 1-ring incident star with simplex-distance item dimming ('incident-star'), splits immediately into an opt-in 3-sector spotlight ('spotlight'), or disables cluster drill-down ('none')."
+  - name: "adaptiveContrastStretch"
+    type: "boolean"
+    defaultValue: "true"
+    description: "Stretches tightly bunched barycentric distributions onto [0, 1] inside zoomed triangles so outliers separate in one step."
+  - name: "enableSectorFallback"
+    type: "boolean"
+    defaultValue: "true"
+    description: "Partitions stacked identical-coordinate items across a 3-sector leaf frame so dense stacks remain inspectable."
+  - name: "stopWhenFullScale"
+    type: "boolean"
+    defaultValue: "true"
+    description: "Stops marking sub-triangles as drillable once all covered items reach fullScaleThreshold (0.995)."
+  - name: "fullScaleThreshold"
+    type: "number"
+    defaultValue: "0.995"
+    description: "Scale ratio in (0, 1] at which content items count as full-size leaf nodes."
+  - name: "leafTriangleFocus"
+    type: "boolean"
+    defaultValue: "true"
+    description: "Keeps non-subdividable leaf triangles focusable as a single un-subdivided triangle ('triangle-focus') via their free face while content nodes remain directly clickable."
+---
+
+## Universal Conformal 1:4 Equilateral Subdivision
+
+Clicking any drillable triangle splits its edges at midpoints `(M_ab, M_bc, M_ca)` into `4` congruent equilateral sub-triangles (`3` corner triangles matching parent orientation + `1` inverted center triangle).
+
+To preserve spatial orientation at every zoom depth without cluttering the sub-mesh:
+
+1. **Unchanged Outer Corners (`V₀, V₁, V₂`)**: Retain their primary cluster capsule and exact parent title, or switch to a two-line plaque with `parentContextLabel` when **Adaptive Contrast Stretch** shifts an outer corner's weight profile.
+2. **Explicit Midpoint Bridge Plaques (`M₀₁, M₁₂, M₂₀`)**: Render as compact chamfered hexagonal sub-cluster plaques (`role: 'intermediate'`) labeled with their immediate edge bridge relation (`A ↔ B`), blended in perceptual OKLab space.
+3. **Uniform 1-Ring Cluster & Subcluster Stars with Simplex-Distance Dimming**: In `'incident-star'` mode (default), every cluster and subcluster badge—at any depth, including `1.0×` leaf frames and sparse corners—focuses strictly its incident lattice triangles (never spawning off-grid spotlight triangles) and dims active items continuously by barycentric simplex distance `d = 1 − w̃₀ ∈ [0, 1]` (`opacity = 0.32 + 0.68 · w̃₀`). Clicking a rim cluster switches laterally at the same depth, while clicking the focused center cluster toggles back up (`drillUp`).
+4. **Single-Triangle Leaf Focus (`'triangle-focus'`)**: Once a triangle reaches leaf scale (`leafTriangleFocus: true`), its content items become directly clickable without pointer pass-through, while clicking the free triangle background focuses that single un-subdivided triangle across the viewport (clicking its free face again toggles back out).
+5. **Color-Coded Breadcrumb Segments**: Every drill step emits `ZoomBreadcrumbSegment[]` carrying the parent corner names and hex swatches so users always know where they are in the global atlas.
+
+## Usage Example
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createCollisionDrivenLayoutStrategy,
+  createBarycentricZoomStrategy,
+} from '@simplex-viz/react';
+
+<SimplexTopicGraph
+  items={items}
+  layoutStrategy={createCollisionDrivenLayoutStrategy()}
+  zoomStrategy={createBarycentricZoomStrategy({
+    clusterZoomMode: 'incident-star',
+    adaptiveContrastStretch: true,
+  })}
+  showZoomBreadcrumbs
+/>;
+```

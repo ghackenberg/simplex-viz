@@ -1,0 +1,23 @@
+---
+import { SimplexLogoMark } from '../demo/components/SimplexLogoMark';
+import { withBase } from '../site/url';
+
+interface Props {
+  size?: 'sm' | 'md';
+}
+
+const { size = 'md' } = Astro.props;
+const markClass = size === 'sm' ? 'h-6 w-6 shrink-0' : 'h-7 w-7 shrink-0';
+const textClass = size === 'sm' ? 'text-base' : 'text-lg';
+---
+
+<a
+  href={withBase('/')}
+  class:list={[
+    'inline-flex items-center gap-2.5 font-bold tracking-tight text-slate-950 hover:opacity-90 dark:text-white transition-opacity whitespace-nowrap shrink-0',
+    textClass,
+  ]}
+>
+  <SimplexLogoMark className={markClass} />
+  <span>Simplex<span class="text-[#06B6D4]">Viz</span></span>
+</a>

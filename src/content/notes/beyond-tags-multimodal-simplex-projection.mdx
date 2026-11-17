@@ -1,0 +1,29 @@
+---
+title: "Beyond Tags: Projecting Multi-Modal Embeddings onto Planar 60° Simplices"
+description: "How SimplexViz clusters untagged image, audio, and latent vector collections via QAP mesh embedding and closed-form NNLS simplex projection."
+publishedDate: "2026-11-10"
+author: "Dr. Georg Hackenberg"
+authorRole: "Creator of SimplexViz"
+category: "Geometry"
+readingMinutes: 7
+featured: false
+---
+
+import StrategyDiagram from '../../components/diagrams/StrategyDiagram.astro';
+
+Dimensionality reduction tools such as UMAP and t-SNE excel at revealing raw density clouds, yet struggle as interactive application interfaces: points overlap unpredictably, cluster boundaries drift across updates, and axes carry no explicit semantic anchors.
+
+## Embedding Centroids onto a Regular 60° Graph
+
+Rather than scattering centroids arbitrarily across `ℝ²`, SimplexViz separates **macro-topology** from **micro-positioning**:
+
+1. **Multi-Modal Spherical k-Means++** extracts `K` balanced cluster prototypes from one or multiple weighted feature vectors (`EmbeddingSource[]`).
+2. **Quadratic Assignment Simulated Annealing** embeds those `K` prototypes onto the `K` vertices of an equilateral triangle mesh so cosine similarity aligns with 1-hop mesh edges.
+3. **Closed-Form Planar Simplex Projection** projects each item `x` onto the single planar triangle `τ = (c₁, c₂, c₃)` minimizing constrained NNLS reconstruction error—or distributes items smoothly via temperature-scaled Soft-Simplex weights (`triangleSpread`).
+
+<StrategyDiagram
+  kind="clustering"
+  caption="Discrete NNLS simplex projection compared against continuous Soft-Simplex interior spreading with unconstrained 360-degree vertex halos."
+/>
+
+Because `SimplexClusteringStrategy` marks `requiresTags: false` on all embedding and pairwise similarity factories, TypeScript never asks for `getTags` when visualizing untagged media, audio, or biomechanical latents.

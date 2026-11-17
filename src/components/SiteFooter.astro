@@ -1,0 +1,202 @@
+---
+import BrandLockup from './BrandLockup.astro';
+import { SITE_META, withBase } from '../site/url';
+
+interface Props {
+  compact?: boolean;
+  fullWidth?: boolean;
+}
+
+const { compact = false, fullWidth = false } = Astro.props;
+---
+
+{
+  compact ? (
+    <footer class="shrink-0 border-t border-slate-200/90 bg-white dark:border-slate-800/80 dark:bg-[#0B0F17]">
+      <div
+        class:list={[
+          'flex flex-wrap items-center justify-between gap-x-6 gap-y-1 py-2 text-[11px] text-slate-500 dark:text-slate-400',
+          fullWidth ? 'w-full px-3.5' : 'mx-auto max-w-7xl px-4 sm:px-6 lg:px-8',
+        ]}
+      >
+        <p>
+          &copy; 2026{' '}
+          <a
+            href={SITE_META.authorUrl}
+            target="_blank"
+            rel="noreferrer"
+            class="font-medium text-slate-700 hover:text-slate-950 hover:underline dark:text-slate-300 dark:hover:text-white transition-colors"
+          >
+            {SITE_META.authorName}
+          </a>
+          {' '}·{' '}
+          <a
+            href={SITE_META.licenseUrl}
+            target="_blank"
+            rel="noreferrer"
+            class="hover:text-slate-950 hover:underline dark:hover:text-white transition-colors"
+          >
+            MIT License
+          </a>
+        </p>
+
+        <nav aria-label="Footer links" class="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <a
+            href={withBase('/imprint')}
+            class="hover:text-slate-950 dark:hover:text-white transition-colors"
+          >
+            Imprint
+          </a>
+          <a
+            href={withBase('/privacy')}
+            class="hover:text-slate-950 dark:hover:text-white transition-colors"
+          >
+            Privacy Policy
+          </a>
+          <a
+            href={SITE_META.releasesUrl}
+            target="_blank"
+            rel="noreferrer"
+            class="font-mono hover:text-slate-950 dark:hover:text-white transition-colors"
+          >
+            v{SITE_META.version}
+          </a>
+          <a
+            href={SITE_META.authorUrl}
+            target="_blank"
+            rel="noreferrer"
+            class="hover:text-slate-950 dark:hover:text-white transition-colors"
+          >
+            hackenberg.tech ↗
+          </a>
+        </nav>
+      </div>
+    </footer>
+  ) : (
+    <footer class="border-t border-slate-200/90 bg-white dark:border-slate-800/80 dark:bg-[#0B0F17]">
+      <div
+        class:list={[
+          'py-10',
+          fullWidth ? 'w-full px-3.5' : 'mx-auto max-w-7xl px-4 sm:px-6 lg:px-8',
+        ]}
+      >
+        <div class="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-12">
+          <!-- Brand, Copyright & Author -->
+          <div class="space-y-3 lg:col-span-5">
+            <BrandLockup size="sm" />
+            <p class="max-w-sm text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+              Headless TypeScript, framework-agnostic SVG, and React packages for overlap-free 60° simplex triangulation.
+            </p>
+            <p class="pt-1 text-xs text-slate-500 dark:text-slate-400">
+              &copy; 2026{' '}
+              <a
+                href={SITE_META.authorUrl}
+                target="_blank"
+                rel="noreferrer"
+                class="font-medium text-slate-700 hover:text-slate-950 hover:underline dark:text-slate-300 dark:hover:text-white transition-colors"
+              >
+                {SITE_META.authorName}
+              </a>
+              {' '}· Code licensed under{' '}
+              <a
+                href={SITE_META.licenseUrl}
+                target="_blank"
+                rel="noreferrer"
+                class="font-medium text-slate-700 hover:text-slate-950 hover:underline dark:text-slate-300 dark:hover:text-white transition-colors"
+              >
+                MIT
+              </a>
+            </p>
+          </div>
+
+          <!-- Direct npm Packages & Releases -->
+          <div class="lg:col-span-3">
+            <h2 class="text-xs font-semibold text-slate-900 dark:text-slate-100">
+              Packages &amp; Releases
+            </h2>
+            <ul class="mt-3 space-y-2 text-xs text-slate-600 dark:text-slate-400">
+              <li>
+                <a href={SITE_META.npmCoreUrl} target="_blank" rel="noreferrer" class="font-mono hover:text-slate-950 dark:hover:text-white transition-colors">
+                  @simplex-viz/core
+                </a>
+              </li>
+              <li>
+                <a href={SITE_META.npmSvgUrl} target="_blank" rel="noreferrer" class="font-mono hover:text-slate-950 dark:hover:text-white transition-colors">
+                  @simplex-viz/svg
+                </a>
+              </li>
+              <li>
+                <a href={SITE_META.npmReactUrl} target="_blank" rel="noreferrer" class="font-mono hover:text-slate-950 dark:hover:text-white transition-colors">
+                  @simplex-viz/react
+                </a>
+              </li>
+              <li>
+                <a href={SITE_META.releasesUrl} target="_blank" rel="noreferrer" class="hover:text-slate-950 dark:hover:text-white transition-colors">
+                  Changelog (v{SITE_META.version})
+                </a>
+              </li>
+              <li>
+                <a href={SITE_META.issuesUrl} target="_blank" rel="noreferrer" class="hover:text-slate-950 dark:hover:text-white transition-colors">
+                  Issue Tracker
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Machine-Readable Feeds & Crawlers -->
+          <div class="lg:col-span-2">
+            <h2 class="text-xs font-semibold text-slate-900 dark:text-slate-100">
+              Feeds &amp; Index
+            </h2>
+            <ul class="mt-3 space-y-2 font-mono text-xs text-slate-600 dark:text-slate-400">
+              <li>
+                <a href={withBase('/rss.xml')} class="hover:text-slate-950 dark:hover:text-white transition-colors">
+                  rss.xml
+                </a>
+              </li>
+              <li>
+                <a href={withBase('/llms.txt')} class="hover:text-slate-950 dark:hover:text-white transition-colors">
+                  llms.txt
+                </a>
+              </li>
+              <li>
+                <a href={withBase('/llms-full.txt')} class="hover:text-slate-950 dark:hover:text-white transition-colors">
+                  llms-full.txt
+                </a>
+              </li>
+              <li>
+                <a href={withBase('/sitemap-index.xml')} class="hover:text-slate-950 dark:hover:text-white transition-colors">
+                  sitemap.xml
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Legal & Author -->
+          <div class="lg:col-span-2">
+            <h2 class="text-xs font-semibold text-slate-900 dark:text-slate-100">
+              Legal &amp; Author
+            </h2>
+            <ul class="mt-3 space-y-2 text-xs text-slate-600 dark:text-slate-400">
+              <li>
+                <a href={withBase('/imprint')} class="hover:text-slate-950 dark:hover:text-white transition-colors">
+                  Imprint
+                </a>
+              </li>
+              <li>
+                <a href={withBase('/privacy')} class="hover:text-slate-950 dark:hover:text-white transition-colors">
+                  Privacy Policy
+                </a>
+              </li>
+              <li>
+                <a href={SITE_META.authorUrl} target="_blank" rel="noreferrer" class="hover:text-slate-950 dark:hover:text-white transition-colors">
+                  hackenberg.tech ↗
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </footer>
+  )
+}

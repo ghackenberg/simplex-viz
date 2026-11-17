@@ -77,6 +77,20 @@ export type SimplexReactTooltipTarget<
     >);
 
 /**
+ * Payload passed to `onContentClick` when an active content node is clicked.
+ */
+export type SimplexContentClickEvent<
+  TItem = DefaultTaggedItem,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> = Extract<
+  HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
+  { readonly kind: 'content' }
+>;
+
+/**
  * Props for `<SimplexTopicGraph />`, preserving end-to-end generic inference across
  * `TItem`, `TContentVisual`, `TClusterVisual`, `TTagMeta`, and `TClusterMeta`.
  *
@@ -192,6 +206,27 @@ export type SimplexTopicGraphProps<
     readonly onTriangleHover?: (
       event: TriangleHoverEvent<TItem, TTagMeta, TClusterMeta> | null,
     ) => void;
+    /**
+     * Invoked when an active (non-context) content node is clicked, while preserving
+     * built-in cluster/triangle drill-down and focus toggles.
+     */
+    readonly onContentClick?: (
+      event: SimplexContentClickEvent<
+        TItem,
+        TContentVisual,
+        TClusterVisual,
+        TTagMeta,
+        TClusterMeta
+      >,
+      rawEvent: NormalizedPointerEvent,
+    ) => void;
+    /**
+     * Invoked when empty canvas background is clicked. Return `true` to consume the click
+     * (e.g. to dismiss an open inspector card before triggering drill-up).
+     */
+    readonly onBackgroundClick?: (
+      rawEvent: NormalizedPointerEvent,
+    ) => boolean | void;
     readonly onLeftClick?: (
       target: HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
       rawEvent: NormalizedPointerEvent,
@@ -513,6 +548,16 @@ export function SimplexTopicGraph<
           if (cur.onLeftClick) {
             cur.onLeftClick(target, raw);
             return;
+          }
+          if (target.kind === 'content' && !target.neighborId && cur.onContentClick) {
+            cur.onContentClick(target, raw);
+            return;
+          }
+          if (target.kind === 'background' && cur.onBackgroundClick) {
+            const consumed = cur.onBackgroundClick(raw);
+            if (consumed === true) {
+              return;
+            }
           }
           if (ctrlRef.current?.getZoomStrategy().mode === 'drill-down') {
             if (target.kind === 'triangle') {
@@ -853,8 +898,24 @@ export function SimplexTopicGraph<
         </div>
       ) : hoveredTarget.kind === 'cluster' ? (
         <div>
+          {hoveredTarget.cluster.parentContextLabel && (
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                color: isLight ? '#64748b' : '#94a3b8',
+                marginBottom: 1,
+              }}
+            >
+              {hoveredTarget.cluster.parentContextLabel}
+            </div>
+          )}
           <div style={{ fontWeight: 600, color: hoveredTarget.cluster.colorHex }}>
-            {`${hoveredTarget.cluster.code} · ${hoveredTarget.cluster.defaultLabel}`}
+            {`${hoveredTarget.cluster.code} · ${
+              hoveredTarget.cluster.subclusterLabel || hoveredTarget.cluster.defaultLabel
+            }`}
           </div>
           <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
             {`${hoveredTarget.cluster.members.length} ${
@@ -879,16 +940,23 @@ export function SimplexTopicGraph<
               .join(' · ')}
           </div>
           <div style={{ marginTop: 2, fontSize: 11, color: isLight ? '#64748b' : '#94a3b8' }}>
-            {`${hoveredTarget.triangle.coveredItemCount} items · ${hoveredTarget.triangle.interiorItemCount} interior${
-              hoveredTarget.triangle.neighborId
+            {(() => {
+              const ctrl = ctrlRef.current;
+              const zMode = ctrl?.getZoomStrategy().mode;
+              const zState = ctrl?.getZoomState();
+              const hint = hoveredTarget.triangle.neighborId
                 ? ' · Click to switch'
-                : ctrlRef.current?.getZoomStrategy().mode === 'drill-down' &&
-                    ctrlRef.current
-                      .getZoomState()
-                      .drillableTriangleIndices.includes(hoveredTarget.triangle.index)
-                  ? ' · Click to zoom in'
-                  : ''
-            }`}
+                : zMode === 'drill-down' && zState
+                  ? zState.activeFrameKind === 'triangle-focus' && zState.canDrillUp
+                    ? ' · Click to zoom out'
+                    : zState.drillableTriangleIndices.includes(hoveredTarget.triangle.index)
+                      ? ' · Click to zoom in'
+                      : zState.focusableTriangleIndices.includes(hoveredTarget.triangle.index)
+                        ? ' · Click to focus triangle'
+                        : ''
+                  : '';
+              return `${hoveredTarget.triangle.coveredItemCount} items · ${hoveredTarget.triangle.interiorItemCount} interior${hint}`;
+            })()}
           </div>
         </div>
       );

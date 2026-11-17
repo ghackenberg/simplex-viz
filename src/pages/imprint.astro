@@ -1,0 +1,290 @@
+---
+import uciZooJson from '../demo/data/open/uci-zoo.json';
+import vegaMoviesJson from '../demo/data/open/vega-movies.json';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SITE_META, withBase } from '../site/url';
+
+const uniqueZooCredits = Array.from(
+  new Map(
+    uciZooJson
+      .filter((z) => Boolean(z.mediaCredit))
+      .map((z) => [z.mediaCredit!.localPath, z]),
+  ).values(),
+);
+---
+
+<BaseLayout
+  title="Imprint"
+  description="Legal disclosure and imprint (Impressum) for SimplexViz by Dr. Georg Hackenberg pursuant to Austrian E-Commerce and Media Law."
+>
+  <div class="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+    <header>
+      <p class="text-xs font-medium text-slate-500 dark:text-slate-400">
+        Legal Disclosure · Informationspflicht laut § 5 ECG, § 14 UGB, § 63 GewO und § 25 MedienG
+      </p>
+      <h1 class="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-slate-950 dark:text-white">
+        Imprint
+      </h1>
+    </header>
+
+    <div class="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
+      <!-- Primary Statutory Details -->
+      <div class="sv-prose lg:col-span-8">
+        <h2>Media Owner, Publisher &amp; Copyright Holder</h2>
+        <p>
+          <strong>Dr. Georg Hackenberg</strong><br />
+          Sole Proprietor (<em>Einzelunternehmer</em>) &amp; Professor of Computer Science
+        </p>
+
+        <h3>Business Address</h3>
+        <p>
+          Edthof 13a<br />
+          4645 Grünau im Almtal<br />
+          Austria
+        </p>
+
+        <h3>Academic Affiliation</h3>
+        <p>
+          University of Applied Sciences Upper Austria (<em>FH Oberösterreich</em>, Campus Wels)<br />
+          Stelzhamerstraße 23<br />
+          4600 Wels<br />
+          Austria
+        </p>
+
+        <h2>Contact</h2>
+        <ul>
+          <li>
+            <strong>Email:</strong>{' '}
+            <a href="mailto:georg.hackenberg@fh-wels.at">georg.hackenberg@fh-wels.at</a>
+          </li>
+          <li>
+            <strong>Phone:</strong>{' '}
+            <a href="tel:+436648048444066">+43 664 80484 44066</a>
+          </li>
+          <li>
+            <strong>Website:</strong>{' '}
+            <a href="https://hackenberg.tech" target="_blank" rel="noreferrer">
+              https://hackenberg.tech
+            </a>
+          </li>
+        </ul>
+
+        <h2>Business &amp; Regulatory Information</h2>
+        <ul>
+          <li>
+            <strong>Business Purpose (<em>Unternehmensgegenstand</em>):</strong> Services in automatic data processing and information technology (<em>Dienstleistungen in der automatischen Datenverarbeitung und Informationstechnik</em>)
+          </li>
+          <li>
+            <strong>VAT Status (<em>Umsatzsteuer</em>):</strong> Exempt from VAT pursuant to the small business regulation (<em>Kleinunternehmerregelung gemäß § 6 Abs. 1 Z 27 UStG</em>)
+          </li>
+          <li>
+            <strong>Chamber Membership (<em>Kammerzugehörigkeit</em>):</strong> Member of the Austrian Economic Chamber Upper Austria (<em>Wirtschaftskammer Oberösterreich – WKOÖ</em>), Division Management Consulting, Accounting and Information Technology (<em>Fachgruppe UBIT</em>)
+          </li>
+          <li>
+            <strong>Supervisory &amp; Trade Authority (<em>Aufsichts-/Gewerbebehörde</em>):</strong> Bezirkshauptmannschaft Gmunden, Austria
+          </li>
+          <li>
+            <strong>Professional Title:</strong> IT Service Provider (<em>IT-Dienstleister</em>, awarded in Austria)
+          </li>
+          <li>
+            <strong>Applicable Trade Regulations (<em>Berufsrechtliche Vorschriften</em>):</strong> Austrian Trade Regulation Act (<em>Gewerbeordnung – GewO</em>), accessible free of charge via the Legal Information System of the Republic of Austria at{' '}
+            <a href="https://www.ris.bka.gv.at" target="_blank" rel="noreferrer">
+              https://www.ris.bka.gv.at
+            </a>
+          </li>
+        </ul>
+
+        <h2>Dispute Resolution</h2>
+        <p>
+          We are neither obliged nor willing to participate in dispute resolution proceedings before a consumer arbitration board. Inquiries or concerns can be directed at any time via email to{' '}
+          <a href="mailto:georg.hackenberg@fh-wels.at">georg.hackenberg@fh-wels.at</a>.
+        </p>
+
+        <h2>Copyright &amp; Open-Source License</h2>
+        <p>
+          &copy; 2026 Dr. Georg Hackenberg. All rights reserved with respect to editorial documentation, brand marks, and website presentation unless stated otherwise. The <strong>SimplexViz</strong> software packages (<code>@simplex-viz/core</code>, <code>@simplex-viz/svg</code>, and <code>@simplex-viz/react</code>) are published as open-source software under the{' '}
+          <a href={SITE_META.licenseUrl} target="_blank" rel="noreferrer">
+            MIT License
+          </a>.
+        </p>
+
+        <h2>Third-Party Open Datasets &amp; Media Credits (Wikimedia Commons)</h2>
+        <p>
+          Interactive demonstrations on this website bundle curated scientific and public-domain datasets alongside self-hosted preview thumbnails from <strong>Wikimedia Commons</strong>. Third-party datasets and visual media are <strong>excluded from the software&rsquo;s MIT License</strong> and remain governed by their respective upstream open licenses:
+        </p>
+        <ul>
+          <li>
+            <strong>arXiv.org Open-Access Metadata:</strong> CC0 1.0 Public Domain Dedication — Cornell University arXiv e-Print Archive.
+          </li>
+          <li>
+            <strong>GitHub Public Repository Metadata:</strong> Public repository metadata retrieved via GitHub REST Search API.
+          </li>
+          <li>
+            <strong>Vega Datasets — Movies Catalog (<code>movies.json</code>):</strong> BSD-3-Clause License — University of Washington Interactive Data Lab (<code>vega/vega-datasets</code>).
+          </li>
+          <li>
+            <strong>UCI ML Repository — Deterding Spoken Vowels &amp; Zoo Animal Morphology:</strong> Creative Commons Attribution 4.0 International (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>) — David Deterding et al.; Richard S. Forsyth.
+          </li>
+          <li>
+            <strong>Palmer Station Antarctica LTER — Penguins:</strong> CC0 1.0 Public Domain Dedication — Dr. Kristen Gorman &amp; Palmer Station Antarctica LTER.
+          </li>
+        </ul>
+        <p>
+          All Wikimedia Commons preview images listed below have been proportionally downscaled into compact local thumbnails (<em>resized thumbnail</em>) without editorial alteration and are also documented in <code>THIRD_PARTY_NOTICES.md</code> in the source repository:
+        </p>
+
+        <div class="not-prose mt-4 space-y-3">
+          <details class="group rounded-xl border border-slate-200/90 bg-white dark:border-slate-800/90 dark:bg-[#0B0F17]">
+            <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-semibold text-slate-900 dark:text-slate-100">
+              <span>Vega Cinema — Public-Domain Theatrical Posters ({vegaMoviesJson.length} works via Wikimedia Commons)</span>
+              <span class="font-mono text-[11px] text-slate-500 transition-transform group-open:rotate-180 dark:text-slate-400">▾</span>
+            </summary>
+            <div class="max-h-80 overflow-x-auto overflow-y-auto border-t border-slate-200/80 px-4 py-3 dark:border-slate-800/80">
+              <table class="w-full text-left text-[11px] text-slate-600 dark:text-slate-300">
+                <thead class="border-b border-slate-200 text-[10px] font-semibold uppercase text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                  <tr>
+                    <th class="py-1.5 pr-3">Film</th>
+                    <th class="py-1.5 pr-3">Creator / Distributor Notice</th>
+                    <th class="py-1.5 pr-3">License</th>
+                    <th class="py-1.5">Source</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-800/70">
+                  {vegaMoviesJson.map((film) => (
+                    <tr>
+                      <td class="py-1.5 pr-3 font-medium text-slate-900 dark:text-slate-100">
+                        {film.title} ({film.releaseYear})
+                      </td>
+                      <td class="py-1.5 pr-3">{film.mediaCredit.author}</td>
+                      <td class="py-1.5 pr-3 whitespace-nowrap">
+                        <a
+                          href={film.mediaCredit.licenseUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          class="underline hover:text-cyan-700 dark:hover:text-cyan-300"
+                        >
+                          {film.mediaCredit.licenseShort}
+                        </a>
+                      </td>
+                      <td class="py-1.5 whitespace-nowrap">
+                        <a
+                          href={film.mediaCredit.commonsFileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          class="text-cyan-700 hover:underline dark:text-cyan-400"
+                        >
+                          Commons ↗
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+
+          <details class="group rounded-xl border border-slate-200/90 bg-white dark:border-slate-800/90 dark:bg-[#0B0F17]">
+            <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-semibold text-slate-900 dark:text-slate-100">
+              <span>UCI Zoo — Species Photographs &amp; Creative Commons Attributions ({uniqueZooCredits.length} works via Wikimedia Commons)</span>
+              <span class="font-mono text-[11px] text-slate-500 transition-transform group-open:rotate-180 dark:text-slate-400">▾</span>
+            </summary>
+            <div class="max-h-80 overflow-x-auto overflow-y-auto border-t border-slate-200/80 px-4 py-3 dark:border-slate-800/80">
+              <table class="w-full text-left text-[11px] text-slate-600 dark:text-slate-300">
+                <thead class="border-b border-slate-200 text-[10px] font-semibold uppercase text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                  <tr>
+                    <th class="py-1.5 pr-3">Species</th>
+                    <th class="py-1.5 pr-3">Author / Attribution</th>
+                    <th class="py-1.5 pr-3">License &amp; Change</th>
+                    <th class="py-1.5">Source</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-800/70">
+                  {uniqueZooCredits.map((z) => (
+                    <tr>
+                      <td class="py-1.5 pr-3 font-medium text-slate-900 dark:text-slate-100">
+                        {z.title}
+                      </td>
+                      <td class="py-1.5 pr-3">{z.mediaCredit!.author}</td>
+                      <td class="py-1.5 pr-3 whitespace-nowrap">
+                        <a
+                          href={z.mediaCredit!.licenseUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          class="underline hover:text-cyan-700 dark:hover:text-cyan-300"
+                        >
+                          {z.mediaCredit!.licenseShort}
+                        </a>{' '}
+                        <span class="text-slate-400">(resized)</span>
+                      </td>
+                      <td class="py-1.5 whitespace-nowrap">
+                        <a
+                          href={z.mediaCredit!.commonsFileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          class="text-cyan-700 hover:underline dark:text-cyan-400"
+                        >
+                          Commons ↗
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- Side Summary Card -->
+      <aside class="space-y-6 lg:col-span-4">
+        <section class="rounded-xl border border-slate-200/90 bg-white p-5 text-xs dark:border-slate-800/90 dark:bg-[#0B0F17]">
+          <p class="font-semibold text-slate-900 dark:text-slate-100">
+            Quick Summary
+          </p>
+          <dl class="mt-3 space-y-2.5 border-t border-slate-200/80 pt-3 dark:border-slate-800/80">
+            <div>
+              <dt class="text-slate-500 dark:text-slate-400">Copyright Holder</dt>
+              <dd class="mt-0.5 font-semibold text-slate-900 dark:text-slate-100">
+                {SITE_META.authorName}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-slate-500 dark:text-slate-400">Jurisdiction</dt>
+              <dd class="mt-0.5 text-slate-700 dark:text-slate-300">
+                Austria (BH Gmunden · WKOÖ)
+              </dd>
+            </div>
+            <div>
+              <dt class="text-slate-500 dark:text-slate-400">Software License</dt>
+              <dd class="mt-0.5 font-mono text-slate-700 dark:text-slate-300">
+                MIT License
+              </dd>
+            </div>
+            <div>
+              <dt class="text-slate-500 dark:text-slate-400">Demo Media &amp; Data</dt>
+              <dd class="mt-0.5 text-slate-700 dark:text-slate-300">
+                PD / CC0 / CC BY / CC BY-SA / BSD-3
+              </dd>
+            </div>
+          </dl>
+          <div class="mt-4 flex flex-col gap-2 border-t border-slate-200/80 pt-3 dark:border-slate-800/80">
+            <a
+              href={withBase('/privacy')}
+              class="font-semibold text-cyan-700 hover:underline dark:text-cyan-300"
+            >
+              Privacy Policy →
+            </a>
+            <a
+              href={SITE_META.authorUrl}
+              target="_blank"
+              rel="noreferrer"
+              class="text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white transition-colors"
+            >
+              Visit hackenberg.tech ↗
+            </a>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+</BaseLayout>

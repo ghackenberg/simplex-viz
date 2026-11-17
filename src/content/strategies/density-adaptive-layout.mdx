@@ -1,0 +1,44 @@
+---
+strategyId: "density-adaptive-layout"
+order: 15
+signature: "createLocalAdaptiveLayoutStrategy(options?: DensityAdaptiveLayoutOptions): SimplexLayoutStrategy"
+updatedDate: "2026-11-15"
+readingMinutes: 4
+whenToUse:
+  - "Use when you want smooth, continuous radial scale gradients from dense hubs out toward sparse fringes without shrinking isolated regions."
+  - "Spreads pockets across open covering triangles first, then evaluates crowd pressure inside crowdRadiusPx and polishes locally."
+optionsTable:
+  - name: "crowdRadiusPx"
+    type: "number"
+    defaultValue: "76"
+    description: "Post-dispersion neighborhood kernel radius in world pixels used to estimate crowd density."
+  - name: "minLocalScale"
+    type: "number"
+    defaultValue: "0.35"
+    description: "Target minimum scale factor assigned to items in high-density hubs."
+  - name: "warmStart"
+    type: "boolean"
+    defaultValue: "true"
+    description: "Retains settled coordinates for existing items across updates."
+---
+
+## Post-Dispersion Smooth Crowd-Density Scaling
+
+Whereas **Collision-Local Pocket Layout** shrinks strictly those pairs that touch during relaxation, **Density-Adaptive Layout** pairs `createMeshInwardFanSeeder()` and `createSpaceFillingPbdRelaxer()` with `createDensityPriorScaleController()`. Co-located anchors first fan out across the open interior of their covering mesh triangles at `1.0x`; a smooth radial spatial kernel (`crowdRadiusPx`) then measures true post-dispersion crowding so moderate pockets that fit comfortably stay at `1.0x`, while genuinely congested hubs exhibit gradual core-to-fringe size transitions polished locally (`0.0 px` convex SAT clearance, zero global collateral shrink).
+
+## Usage Example
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createLocalAdaptiveLayoutStrategy,
+} from '@simplex-viz/react';
+
+<SimplexTopicGraph
+  items={items}
+  layoutStrategy={createLocalAdaptiveLayoutStrategy({
+    crowdRadiusPx: 84,
+    minLocalScale: 0.35,
+  })}
+/>;
+```

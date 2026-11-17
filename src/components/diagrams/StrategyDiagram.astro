@@ -1,0 +1,336 @@
+---
+interface Props {
+  kind: 'mesh' | 'clustering' | 'color' | 'layout' | 'zoom';
+  caption?: string;
+}
+
+const { kind, caption } = Astro.props;
+---
+
+<figure class="not-prose my-8 rounded-xl border border-slate-200/90 bg-white p-4 sm:p-6 dark:border-slate-800/80 dark:bg-[#0B0F17]">
+  {
+    kind === 'mesh' && (
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2 md:divide-x md:divide-slate-200/80 dark:md:divide-slate-800/80">
+        <div>
+          <p class="text-xs font-semibold text-slate-900 dark:text-slate-100">
+            Adaptive Hex Lattice
+          </p>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+            Maximizes 60° side length s inside viewport (W × H)
+          </p>
+          <svg viewBox="0 0 340 190" class="mt-2 w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Adaptive Hex Lattice">
+            <g stroke="currentColor" stroke-opacity="0.32" stroke-width="1.5" stroke-dasharray="4 3" fill="none">
+              <polygon points="70,38 170,38 120,124.6" />
+              <polygon points="170,38 270,38 220,124.6" />
+              <polygon points="120,124.6 170,38 220,124.6" />
+              <polygon points="70,38 120,124.6 20,124.6" />
+              <polygon points="270,38 320,124.6 220,124.6" />
+              <polygon points="120,124.6 220,124.6 170,180" />
+            </g>
+            <line x1="70" y1="22" x2="170" y2="22" stroke="#06B6D4" stroke-width="1.5" />
+            <text x="120" y="16" text-anchor="middle" fill="#06B6D4" class="font-mono text-[10px] font-semibold">
+              s = optimal px
+            </text>
+            {[
+              [70, 38], [170, 38], [270, 38],
+              [20, 124.6], [120, 124.6], [220, 124.6], [320, 124.6],
+              [170, 180],
+            ].map(([cx, cy], idx) => (
+              <g>
+                <circle cx={cx} cy={cy} r="9" fill="#06B6D4" fill-opacity="0.18" stroke="#06B6D4" stroke-width="1.6" />
+                <text x={cx} y={cy + 3.5} text-anchor="middle" class="fill-current font-mono text-[9px] font-semibold">
+                  V{idx}
+                </text>
+              </g>
+            ))}
+          </svg>
+        </div>
+
+        <div class="md:pl-6">
+          <p class="text-xs font-semibold text-slate-900 dark:text-slate-100">
+            Fixed Grid Lattice
+          </p>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+            Pins exact vertex count K = cols × rows across resizes
+          </p>
+          <svg viewBox="0 0 340 190" class="mt-2 w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Fixed Grid Lattice">
+            <g stroke="currentColor" stroke-opacity="0.32" stroke-width="1.5" stroke-dasharray="4 3" fill="none">
+              <polygon points="55,40 145,40 100,118" />
+              <polygon points="145,40 235,40 190,118" />
+              <polygon points="100,118 145,40 190,118" />
+              <polygon points="235,40 280,118 190,118" />
+              <polygon points="100,118 190,118 145,178" />
+              <polygon points="190,118 280,118 235,178" />
+              <polygon points="145,178 190,118 235,178" />
+            </g>
+            {[
+              [55, 40, '0,0'], [145, 40, '0,1'], [235, 40, '0,2'],
+              [100, 118, '1,0'], [190, 118, '1,1'], [280, 118, '1,2'],
+              [145, 178, '2,0'], [235, 178, '2,1'],
+            ].map(([cx, cy, label]) => (
+              <g>
+                <circle cx={cx} cy={cy} r="11" fill="#F59E0B" fill-opacity="0.16" stroke="#F59E0B" stroke-width="1.6" />
+                <text x={cx} y={Number(cy) + 3} text-anchor="middle" class="fill-current font-mono text-[8.5px]">
+                  {label}
+                </text>
+              </g>
+            ))}
+          </svg>
+        </div>
+      </div>
+    )
+  }
+
+  {
+    kind === 'clustering' && (
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2 md:divide-x md:divide-slate-200/80 dark:md:divide-slate-800/80">
+        <div>
+          <p class="text-xs font-semibold text-slate-900 dark:text-slate-100">
+            Jaccard Annealing / Planar NNLS
+          </p>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+            Snaps items onto discrete vertices, shared edges, or centroids
+          </p>
+          <svg viewBox="0 0 340 195" class="mt-2 w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Discrete Simplex Anchoring">
+            <polygon points="170,26 72,176 268,176" fill="currentColor" fill-opacity="0.03" stroke="currentColor" stroke-opacity="0.32" stroke-width="1.5" stroke-dasharray="4 3" />
+            <circle cx="170" cy="26" r="13" fill="#06B6D4" />
+            <circle cx="72" cy="176" r="13" fill="#F59E0B" />
+            <circle cx="268" cy="176" r="13" fill="#D946EF" />
+            <text x="170" y="30" text-anchor="middle" fill="#fff" class="font-mono text-[9px] font-bold">C1</text>
+            <text x="72" y="180" text-anchor="middle" fill="#fff" class="font-mono text-[9px] font-bold">C2</text>
+            <text x="268" y="180" text-anchor="middle" fill="#fff" class="font-mono text-[9px] font-bold">C3</text>
+            <circle cx="121" cy="101" r="6" fill="#63C674" />
+            <circle cx="132" cy="85" r="5.5" fill="#18C1A8" />
+            <circle cx="219" cy="101" r="6" fill="#709CE1" />
+            <circle cx="170" cy="126" r="6.5" fill="#A98FB8" />
+            <circle cx="170" cy="176" r="6" fill="#E7707D" />
+          </svg>
+        </div>
+
+        <div class="md:pl-6">
+          <p class="text-xs font-semibold text-slate-900 dark:text-slate-100">
+            Soft-Simplex Clustering / Projection
+          </p>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+            Continuous interior spread + free 360° single-cluster halo
+          </p>
+          <svg viewBox="0 0 340 195" class="mt-2 w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Soft-Simplex Spread">
+            <circle cx="170" cy="38" r="28" fill="none" stroke="#06B6D4" stroke-opacity="0.4" stroke-dasharray="3 3" stroke-width="1.3" />
+            <polygon points="170,38 72,178 268,178" fill="#06B6D4" fill-opacity="0.05" stroke="currentColor" stroke-opacity="0.32" stroke-width="1.5" stroke-dasharray="4 3" />
+            <circle cx="170" cy="38" r="13" fill="#06B6D4" />
+            <circle cx="72" cy="178" r="13" fill="#F59E0B" />
+            <circle cx="268" cy="178" r="13" fill="#D946EF" />
+            <text x="170" y="42" text-anchor="middle" fill="#fff" class="font-mono text-[9px] font-bold">C1</text>
+            <text x="72" y="182" text-anchor="middle" fill="#fff" class="font-mono text-[9px] font-bold">C2</text>
+            <text x="268" y="182" text-anchor="middle" fill="#fff" class="font-mono text-[9px] font-bold">C3</text>
+            <circle cx="145" cy="24" r="5" fill="#06B6D4" />
+            <circle cx="195" cy="25" r="5" fill="#06B6D4" />
+            <circle cx="170" cy="11" r="5" fill="#06B6D4" />
+            <circle cx="148" cy="98" r="5.5" fill="#18C1A8" />
+            <circle cx="190" cy="104" r="5.5" fill="#6F9CE8" />
+            <circle cx="166" cy="126" r="6" fill="#9B96BE" />
+            <circle cx="132" cy="142" r="5.5" fill="#B9A45A" />
+            <circle cx="206" cy="144" r="5.5" fill="#BD79C9" />
+            <circle cx="172" cy="156" r="5.5" fill="#C97F8F" />
+          </svg>
+        </div>
+      </div>
+    )
+  }
+
+  {
+    kind === 'color' && (
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2 md:divide-x md:divide-slate-200/80 dark:md:divide-slate-800/80">
+        <div>
+          <p class="text-xs font-semibold text-slate-900 dark:text-slate-100">
+            OKLab Edge Contrast Optimization
+          </p>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+            Adjacent mesh vertices maximize perceptual distance ΔE_OK
+          </p>
+          <svg viewBox="0 0 340 175" class="mt-2 w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="OKLab Edge Contrast">
+            <line x1="75" y1="95" x2="170" y2="30" stroke="#06B6D4" stroke-width="2" />
+            <line x1="170" y1="30" x2="265" y2="95" stroke="#D946EF" stroke-width="2" />
+            <line x1="75" y1="95" x2="265" y2="95" stroke="#F59E0B" stroke-width="2" />
+            <line x1="75" y1="95" x2="170" y2="152" stroke="#10B981" stroke-width="2" />
+            <line x1="265" y1="95" x2="170" y2="152" stroke="#3B82F6" stroke-width="2" />
+            <circle cx="170" cy="30" r="14" fill="#06B6D4" />
+            <circle cx="75" cy="95" r="14" fill="#F59E0B" />
+            <circle cx="265" cy="95" r="14" fill="#D946EF" />
+            <circle cx="170" cy="152" r="14" fill="#10B981" />
+            <text x="170" y="88" text-anchor="middle" class="fill-current font-mono text-[10px]">
+              max min ΔE_OK
+            </text>
+          </svg>
+        </div>
+
+        <div class="md:pl-6">
+          <p class="text-xs font-semibold text-slate-900 dark:text-slate-100">
+            Barycentric Mixing: sRGB vs. OKLab
+          </p>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+            Preserves lightness L and chroma C across bridge items
+          </p>
+          <svg viewBox="0 0 340 175" class="mt-2 w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="sRGB vs OKLab interpolation">
+            <text x="12" y="34" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">
+              Naive sRGB average (muddy midpoint)
+            </text>
+            <rect x="12" y="44" width="56" height="24" rx="4" fill="#06B6D4" />
+            <rect x="74" y="44" width="56" height="24" rx="4" fill="#46A99F" />
+            <rect x="136" y="44" width="56" height="24" rx="4" fill="#7E9F6F" />
+            <rect x="198" y="44" width="56" height="24" rx="4" fill="#BA9E3D" />
+            <rect x="260" y="44" width="56" height="24" rx="4" fill="#F59E0B" />
+
+            <text x="12" y="106" class="fill-current font-mono text-[10px] font-semibold">
+              SimplexViz OKLab mix (vivid chroma)
+            </text>
+            <rect x="12" y="116" width="56" height="24" rx="4" fill="#06B6D4" />
+            <rect x="74" y="116" width="56" height="24" rx="4" fill="#18C1A8" />
+            <rect x="136" y="116" width="56" height="24" rx="4" fill="#63C674" />
+            <rect x="198" y="116" width="56" height="24" rx="4" fill="#B6BC3B" />
+            <rect x="260" y="116" width="56" height="24" rx="4" fill="#F59E0B" />
+          </svg>
+        </div>
+      </div>
+    )
+  }
+
+  {
+    kind === 'layout' && (
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2 md:divide-x md:divide-slate-200/80 dark:md:divide-slate-800/80">
+        <div>
+          <p class="text-xs font-semibold text-slate-900 dark:text-slate-100">
+            Uniform PBD Layout
+          </p>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+            Global α preserves exact node ratios across all triangles
+          </p>
+          <svg viewBox="0 0 340 185" class="mt-2 w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Uniform PBD Layout">
+            <polygon points="95,24 25,152 165,152" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="4 3" stroke-width="1.4" />
+            <polygon points="165,152 95,24 235,24" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="4 3" stroke-width="1.4" />
+            <polygon points="235,24 165,152 305,152" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="4 3" stroke-width="1.4" />
+            {[
+              [82, 95], [100, 92], [90, 110], [110, 108], [72, 116],
+              [93, 128], [112, 126], [76, 134], [126, 134],
+            ].map(([cx, cy]) => (
+              <circle cx={cx} cy={cy} r="5" fill="#06B6D4" />
+            ))}
+            <circle cx="232" cy="105" r="5" fill="#D946EF" />
+            <circle cx="252" cy="124" r="5" fill="#D946EF" />
+            <text x="168" y="174" text-anchor="middle" class="fill-slate-500 dark:fill-slate-400 font-mono text-[9.5px]">
+              α = 0.52 everywhere · 0.0 px overlap
+            </text>
+          </svg>
+        </div>
+
+        <div class="md:pl-6">
+          <p class="text-xs font-semibold text-slate-900 dark:text-slate-100">
+            Collision-Local Pocket Layout
+          </p>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+            Only colliding pockets shrink; sparse triangles stay at 1.0x
+          </p>
+          <svg viewBox="0 0 340 185" class="mt-2 w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Collision-Local Pocket Layout">
+            <polygon points="95,24 25,152 165,152" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="4 3" stroke-width="1.4" />
+            <polygon points="165,152 95,24 235,24" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="4 3" stroke-width="1.4" />
+            <polygon points="235,24 165,152 305,152" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="4 3" stroke-width="1.4" />
+            {[
+              [82, 95], [100, 92], [90, 110], [110, 108], [72, 116],
+              [93, 128], [112, 126], [76, 134], [126, 134],
+            ].map(([cx, cy]) => (
+              <circle cx={cx} cy={cy} r="5" fill="#06B6D4" />
+            ))}
+            <circle cx="228" cy="100" r="10.5" fill="#D946EF" />
+            <circle cx="258" cy="126" r="10.5" fill="#D946EF" />
+            <text x="95" y="174" text-anchor="middle" class="fill-cyan-600 dark:fill-cyan-400 font-mono text-[9.5px]">
+              α = 0.52
+            </text>
+            <text x="240" y="174" text-anchor="middle" class="fill-fuchsia-600 dark:fill-fuchsia-400 font-mono text-[9.5px]">
+              α = 1.00 (leaf)
+            </text>
+          </svg>
+        </div>
+      </div>
+    )
+  }
+
+  {
+    kind === 'zoom' && (
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2 md:divide-x md:divide-slate-200/80 dark:md:divide-slate-800/80">
+        <div>
+          <p class="text-xs font-semibold text-slate-900 dark:text-slate-100">
+            Barycentric 1:4 &amp; Semantic 3→6 Drill-Down
+          </p>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+            Midpoints split ▲ into 3▲ + 1▼ preserving exact orientation
+          </p>
+          <svg viewBox="0 0 340 195" class="mt-2 w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Conformal 1:4 Subdivision">
+            <polygon points="170,22 66,180 274,180" fill="#06B6D4" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.7" stroke-dasharray="5 3" />
+            <polygon points="118,101 222,101 170,180" fill="#F59E0B" fill-opacity="0.09" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.5" stroke-dasharray="5 3" />
+            <circle cx="170" cy="22" r="10.5" fill="#06B6D4" />
+            <circle cx="66" cy="180" r="10.5" fill="#F59E0B" />
+            <circle cx="274" cy="180" r="10.5" fill="#D946EF" />
+            <circle cx="118" cy="101" r="8" fill="#63C674" stroke="#fff" stroke-width="1.2" />
+            <circle cx="222" cy="101" r="8" fill="#7A8CE8" stroke="#fff" stroke-width="1.2" />
+            <circle cx="170" cy="180" r="8" fill="#E87D87" stroke="#fff" stroke-width="1.2" />
+            <text x="170" y="78" text-anchor="middle" class="fill-current font-mono text-[10px]">▲ T_A</text>
+            <text x="118" y="158" text-anchor="middle" class="fill-current font-mono text-[10px]">▲ T_B</text>
+            <text x="222" y="158" text-anchor="middle" class="fill-current font-mono text-[10px]">▲ T_C</text>
+            <text x="170" y="132" text-anchor="middle" class="fill-amber-600 dark:fill-amber-400 font-mono text-[10px] font-semibold">▼ T_mid</text>
+          </svg>
+        </div>
+
+        <div class="md:pl-6">
+          <p class="text-xs font-semibold text-slate-900 dark:text-slate-100">
+            1-Ring Incident Cluster Star
+          </p>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+            Clicking a cluster focuses all incident triangles + neighbors
+          </p>
+          <svg viewBox="0 0 340 195" class="mt-2 w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="1-Ring Incident Cluster Star">
+            {[
+              [246, 102], [208, 36], [132, 36],
+              [94, 102], [132, 168], [208, 168],
+            ].map(([vx, vy], idx, arr) => {
+              const next = arr[(idx + 1) % arr.length];
+              return (
+                <polygon
+                  points={`170,102 ${vx},${vy} ${next[0]},${next[1]}`}
+                  fill="#06B6D4"
+                  fill-opacity="0.08"
+                  stroke="currentColor"
+                  stroke-opacity="0.45"
+                  stroke-width="1.4"
+                  stroke-dasharray="4 3"
+                />
+              );
+            })}
+            {[
+              [246, 102], [208, 36], [132, 36],
+              [94, 102], [132, 168], [208, 168],
+            ].map(([vx, vy], idx) => (
+              <g>
+                <circle cx={vx} cy={vy} r="8" fill="#64748B" />
+                <text x={vx} y={Number(vy) + 3} text-anchor="middle" fill="#fff" class="font-mono text-[8px]">
+                  N{idx + 1}
+                </text>
+              </g>
+            ))}
+            <circle cx="170" cy="102" r="13.5" fill="#06B6D4" />
+            <text x="170" y="106" text-anchor="middle" fill="#fff" class="font-mono text-[9px] font-bold">
+              C*
+            </text>
+          </svg>
+        </div>
+      </div>
+    )
+  }
+
+  {
+    caption && (
+      <figcaption class="mt-4 border-t border-slate-200/70 pt-3 text-xs leading-relaxed text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
+        {caption}
+      </figcaption>
+    )
+  }
+</figure>

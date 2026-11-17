@@ -24,9 +24,11 @@ export default tseslint.config(
   {
     ignores: [
       '**/dist/**',
+      '**/.astro/**',
       '**/node_modules/**',
       '**/coverage/**',
       '*.config.js',
+      '*.config.mjs',
       '*.config.ts',
     ],
   },

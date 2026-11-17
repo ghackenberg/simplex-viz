@@ -1,0 +1,330 @@
+---
+import BrandLockup from './BrandLockup.astro';
+import { SITE_META, withBase } from '../site/url';
+
+interface Props {
+  currentPath?: string;
+  fullWidth?: boolean;
+}
+
+const { currentPath = '/', fullWidth = false } = Astro.props;
+
+const navItems = [
+  { label: 'Docs', href: withBase('/docs'), matchSegment: '/docs' },
+  { label: 'Examples', href: withBase('/examples'), matchSegment: '/examples' },
+  { label: 'Playground', href: withBase('/playground'), matchSegment: '/playground' },
+  { label: 'Notes', href: withBase('/notes'), matchSegment: '/notes' },
+];
+
+function isActiveLink(matchSegment: string, href: string): boolean {
+  if (currentPath === href || currentPath === `${href}/`) return true;
+  return currentPath.includes(`${matchSegment}/`) || currentPath.endsWith(matchSegment);
+}
+---
+
+<header class="sticky top-0 z-40 border-b border-slate-200/90 bg-white/95 backdrop-blur-xs dark:border-slate-800/80 dark:bg-[#0B0F17]/95">
+  <div
+    class:list={[
+      'flex h-14 items-center justify-between gap-6',
+      fullWidth ? 'w-full px-3.5' : 'mx-auto max-w-7xl px-4 sm:px-6 lg:px-8',
+    ]}
+  >
+    <BrandLockup />
+
+    <nav
+      aria-label="Primary navigation"
+      class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600 dark:text-slate-300"
+    >
+      {
+        navItems.map((item) => {
+          const active = isActiveLink(item.matchSegment, item.href);
+          return (
+            <a
+              href={item.href}
+              aria-current={active ? 'page' : undefined}
+              class:list={[
+                'py-1 transition-colors whitespace-nowrap shrink-0 underline-offset-8',
+                active
+                  ? 'text-slate-950 underline decoration-cyan-600 decoration-2 dark:text-white dark:decoration-cyan-400'
+                  : 'hover:text-slate-950 hover:underline hover:decoration-slate-400 dark:hover:text-white dark:hover:decoration-slate-500',
+              ]}
+            >
+              {item.label}
+            </a>
+          );
+        })
+      }
+    </nav>
+
+    <div class="flex items-center gap-2 shrink-0">
+      <!-- Desktop Theme Switch + GitHub + npmjs -->
+      <div class="hidden md:flex items-center gap-1.5">
+        <div
+          role="group"
+          aria-label="Color theme"
+          class="inline-flex items-center gap-0.5 rounded-lg border border-slate-200/90 bg-slate-100/90 p-0.5 dark:border-slate-800 dark:bg-[#0E131D]"
+        >
+          <button
+            type="button"
+            data-theme-btn="light"
+            aria-label="Light theme"
+            title="Light theme"
+            class="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
+          >
+            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            data-theme-btn="dark"
+            aria-label="Dark theme"
+            title="Dark theme"
+            class="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
+          >
+            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            data-theme-btn="auto"
+            aria-label="System theme"
+            title="System theme"
+            class="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
+          >
+            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="20" height="14" x="2" y="3" rx="2" />
+              <line x1="8" x2="16" y1="21" y2="21" />
+              <line x1="12" x2="12" y1="17" y2="21" />
+            </svg>
+          </button>
+        </div>
+
+        <span class="mx-0.5 h-4 w-px bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>
+
+        <a
+          href={SITE_META.repoUrl}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="SimplexViz on GitHub"
+          title="GitHub Repository"
+          class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/80 dark:hover:text-white transition-colors"
+        >
+          <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path
+              fill-rule="evenodd"
+              clip-rule="evenodd"
+              d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2Z"
+            />
+          </svg>
+        </a>
+
+        <a
+          href={SITE_META.npmUrl}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="SimplexViz packages on npm"
+          title="npm Registry (@simplex-viz)"
+          class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/80 dark:hover:text-white transition-colors"
+        >
+          <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M2 2h20v20H2V2Zm3.75 3.75v12.5H12V8.5h3.25v9.75h3V5.75H5.75Z" />
+          </svg>
+        </a>
+      </div>
+
+      <button
+        type="button"
+        id="sv-mobile-menu-btn"
+        aria-expanded="false"
+        aria-controls="sv-mobile-menu"
+        aria-label="Toggle navigation menu"
+        class="md:hidden inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80 transition-colors"
+      >
+        <svg
+          data-menu-icon="open"
+          class="h-5 w-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+        >
+          <line x1="4" y1="7" x2="20" y2="7" />
+          <line x1="4" y1="12" x2="20" y2="12" />
+          <line x1="4" y1="17" x2="20" y2="17" />
+        </svg>
+        <svg
+          data-menu-icon="close"
+          class="hidden h-5 w-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+        >
+          <line x1="6" y1="6" x2="18" y2="18" />
+          <line x1="6" y1="18" x2="18" y2="6" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile Navigation Drawer -->
+  <div
+    id="sv-mobile-menu"
+    class="hidden md:hidden border-t border-slate-200/80 bg-white px-4 py-4 shadow-lg dark:border-slate-800/80 dark:bg-[#0B0F17]"
+  >
+    <nav aria-label="Mobile navigation" class="flex flex-col space-y-1">
+      {
+        navItems.map((item) => {
+          const active = isActiveLink(item.matchSegment, item.href);
+          return (
+            <a
+              href={item.href}
+              aria-current={active ? 'page' : undefined}
+              class:list={[
+                'flex min-h-11 items-center rounded-lg px-3 text-sm font-medium transition-colors',
+                active
+                  ? 'bg-slate-100 font-semibold text-slate-950 dark:bg-slate-800/90 dark:text-cyan-300'
+                  : 'text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50',
+              ]}
+            >
+              {item.label}
+            </a>
+          );
+        })
+      }
+    </nav>
+
+    <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/80 pt-4 dark:border-slate-800/80">
+      <div
+        role="group"
+        aria-label="Color theme"
+        class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1 dark:border-slate-800 dark:bg-[#0E131D]"
+      >
+        <button
+          type="button"
+          data-theme-btn="light"
+          class="cursor-pointer rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap"
+        >
+          Light
+        </button>
+        <button
+          type="button"
+          data-theme-btn="dark"
+          class="cursor-pointer rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap"
+        >
+          Dark
+        </button>
+        <button
+          type="button"
+          data-theme-btn="auto"
+          class="cursor-pointer rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap"
+        >
+          System
+        </button>
+      </div>
+
+      <div class="flex items-center gap-1.5">
+        <a
+          href={SITE_META.repoUrl}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="SimplexViz on GitHub"
+          class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/80 transition-colors"
+        >
+          <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path
+              fill-rule="evenodd"
+              clip-rule="evenodd"
+              d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2Z"
+            />
+          </svg>
+        </a>
+        <a
+          href={SITE_META.npmUrl}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="SimplexViz packages on npm"
+          class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/80 transition-colors"
+        >
+          <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M2 2h20v20H2V2Zm3.75 3.75v12.5H12V8.5h3.25v9.75h3V5.75H5.75Z" />
+          </svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<script is:inline>
+  (function () {
+    var btn = document.getElementById('sv-mobile-menu-btn');
+    var menu = document.getElementById('sv-mobile-menu');
+    if (btn && menu) {
+      var openIcon = btn.querySelector('[data-menu-icon="open"]');
+      var closeIcon = btn.querySelector('[data-menu-icon="close"]');
+
+      function setOpen(nextOpen) {
+        btn.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+        menu.classList.toggle('hidden', !nextOpen);
+        if (openIcon && closeIcon) {
+          openIcon.classList.toggle('hidden', nextOpen);
+          closeIcon.classList.toggle('hidden', !nextOpen);
+        }
+      }
+
+      btn.addEventListener('click', function () {
+        var isOpen = btn.getAttribute('aria-expanded') === 'true';
+        setOpen(!isOpen);
+      });
+
+      document.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Escape') setOpen(false);
+      });
+    }
+
+    function syncThemeButtons() {
+      var activeMode = document.documentElement.dataset.themeMode || 'auto';
+      var buttons = document.querySelectorAll('[data-theme-btn]');
+      buttons.forEach(function (tBtn) {
+        var isCurrent = tBtn.getAttribute('data-theme-btn') === activeMode;
+        tBtn.setAttribute('aria-pressed', isCurrent ? 'true' : 'false');
+        if (isCurrent) {
+          tBtn.classList.add(
+            'bg-white',
+            'text-slate-950',
+            'shadow-xs',
+            'dark:bg-slate-800',
+            'dark:text-cyan-300',
+          );
+        } else {
+          tBtn.classList.remove(
+            'bg-white',
+            'text-slate-950',
+            'shadow-xs',
+            'dark:bg-slate-800',
+            'dark:text-cyan-300',
+          );
+        }
+      });
+    }
+
+    document.addEventListener('click', function (ev) {
+      var target =
+        ev.target && ev.target.closest ? ev.target.closest('[data-theme-btn]') : null;
+      if (!target) return;
+      var nextMode = target.getAttribute('data-theme-btn');
+      if (nextMode && typeof window.__setSimplexTheme === 'function') {
+        window.__setSimplexTheme(nextMode);
+        syncThemeButtons();
+      }
+    });
+
+    window.addEventListener('simplex-theme-change', syncThemeButtons);
+    syncThemeButtons();
+  })();
+</script>

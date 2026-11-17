@@ -1566,35 +1566,57 @@ export function createCollisionLocalScaleController(
 }
 
 export interface DensityPriorScaleControllerOptions {
-  /** Anchor-neighborhood crowding radius in px. Default: `76`. */
+  /** Post-dispersion neighborhood crowding radius in px. Default: `76`. */
   readonly crowdRadiusPx?: number;
-  /** Minimum prior scale in crowded neighborhoods before uniform polish. Default: `0.42`. */
+  /** Target minimum prior scale in crowded neighborhoods before local collision polish. Default: `0.35`. */
   readonly minLocalScale?: number;
 }
 
 /**
- * Neighborhood density-prior scale controller: estimates local anchor crowding analytically
- * from hull demand vs. neighborhood capacity and refines with a global safety factor if needed.
+ * Neighborhood density-prior scale controller: first disperses items across open covering-triangle
+ * space at `1.0x`, evaluates a smooth radial crowd kernel on the dispersed coordinates (accounting
+ * for nearby items and cluster plaques), and resolves any residual overlaps locally with smooth
+ * halo blending so sparse neighborhoods stay at `1.0x` without global shrink collateral.
  */
 export function createDensityPriorScaleController(
   options?: DensityPriorScaleControllerOptions,
 ): ScaleController {
   const crowdRadiusPx = options?.crowdRadiusPx ?? 76;
-  const minLocalScale = options?.minLocalScale ?? 0.42;
+  const minLocalScale = options?.minLocalScale ?? 0.35;
 
   return {
     name: 'density-prior-scale',
     solveScales(ctx) {
-      const { scaledItems, itemGapPx } = ctx;
+      const { scaledItems, placedClusters, itemGapPx } = ctx;
+      const n = scaledItems.length;
+      if (n === 0) {
+        return { scales: [], relaxation: ctx.evaluate([]) };
+      }
+
+      // Stage 1: Space-filling dispersion pass at 1.0x so co-located anchors fan out into
+      // open covering-triangle interiors before estimating neighborhood crowd pressure.
+      const ones = new Array<number>(n).fill(1.0);
+      const spreadAttempt = ctx.evaluate(ones);
+      const spreadPositions = spreadAttempt.positions;
+
+      // Stage 2: Smooth radial crowd kernel evaluated on post-dispersion coordinates.
       const itemRadii = scaledItems.map((it) => Math.max(4, getHullBoundingRadius(it.hull)));
+      const clusterRadii = placedClusters.map(
+        (c) => Math.max(4, getHullBoundingRadius(c.hull) * c.scale) + itemGapPx * 0.5,
+      );
       const rSq = crowdRadiusPx * crowdRadiusPx;
-      const localBaseScales = scaledItems.map((it, i) => {
+      const availableArea = Math.PI * crowdRadiusPx * crowdRadiusPx * 0.36;
+
+      let anyKernelShrunk = false;
+      const scales = scaledItems.map((_, i) => {
+        const pA = spreadPositions[i]!;
         let demandArea = Math.PI * itemRadii[i]! * itemRadii[i]!;
-        for (let j = 0; j < scaledItems.length; j++) {
+
+        for (let j = 0; j < n; j++) {
           if (i === j) continue;
-          const other = scaledItems[j]!;
-          const dx = it.anchorX - other.anchorX;
-          const dy = it.anchorY - other.anchorY;
+          const pB = spreadPositions[j]!;
+          const dx = pA.x - pB.x;
+          const dy = pA.y - pB.y;
           const d2 = dx * dx + dy * dy;
           if (d2 <= rSq) {
             const weight = 1 - Math.sqrt(d2) / crowdRadiusPx;
@@ -1602,36 +1624,185 @@ export function createDensityPriorScaleController(
             demandArea += Math.PI * rad * rad * (0.35 + 0.65 * weight);
           }
         }
-        const availableArea = Math.PI * crowdRadiusPx * crowdRadiusPx * 0.42;
+
+        for (let cIdx = 0; cIdx < placedClusters.length; cIdx++) {
+          const c = placedClusters[cIdx]!;
+          const dx = pA.x - c.x;
+          const dy = pA.y - c.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 <= rSq) {
+            const weight = 1 - Math.sqrt(d2) / crowdRadiusPx;
+            const cRad = clusterRadii[cIdx]!;
+            demandArea += Math.PI * cRad * cRad * (0.28 + 0.52 * weight);
+          }
+        }
+
         if (demandArea <= availableArea) return 1.0;
         const ratio = Math.sqrt(availableArea / demandArea);
-        return Math.max(minLocalScale, Math.min(1.0, ratio));
+        const s = Math.max(minLocalScale, Math.min(1.0, ratio));
+        if (s < 1.0 - 1e-5) anyKernelShrunk = true;
+        return s;
       });
 
-      const scaleWithFactor = (f: number) => localBaseScales.map((ls) => ls * f);
-      const firstAttempt = ctx.evaluate(scaleWithFactor(1.0));
-      if (firstAttempt.overlapCount === 0 && firstAttempt.maxPenetration <= 1e-4) {
-        return { scales: scaleWithFactor(1.0), relaxation: firstAttempt };
+      if (
+        !anyKernelShrunk &&
+        spreadAttempt.overlapCount === 0 &&
+        spreadAttempt.maxPenetration <= 1e-4
+      ) {
+        return { scales: ones, relaxation: spreadAttempt };
       }
 
-      let lo = Math.min(ctx.minContentScale, 0.08);
-      let hi = 1.0;
-      let bestFactor = lo;
-      let bestRes = ctx.evaluate(scaleWithFactor(lo));
+      let currentResult = anyKernelShrunk
+        ? ctx.evaluate(scales, { starts: spreadPositions })
+        : spreadAttempt;
+      if (currentResult.overlapCount === 0 && currentResult.maxPenetration <= 1e-4) {
+        return { scales, relaxation: currentResult };
+      }
 
-      for (let step = 0; step < 7; step++) {
-        const mid = (lo + hi) / 2;
-        const attempt = ctx.evaluate(scaleWithFactor(mid));
-        if (attempt.overlapCount === 0 && attempt.maxPenetration <= 1e-4) {
-          bestFactor = mid;
-          bestRes = attempt;
-          lo = mid;
+      // Stage 3: Smooth local collision polish with gentle neighborhood halo blending
+      // (replaces destructive global binary search so sparse regions remain at 1.0x).
+      let colliding = new Set<number>(currentResult.collidingIndices);
+      const refineIters = Math.max(26, Math.round(ctx.relaxationIterations * 0.7));
+      const haloRadius = crowdRadiusPx * 0.65;
+      const haloRadiusSq = haloRadius * haloRadius;
+
+      const applySmoothLocalShrink = (
+        floorScale: number,
+        directFactor: number,
+        haloStrength: number,
+      ): boolean => {
+        let changed = false;
+        const curPos = currentResult.positions;
+        const collidingList = Array.from(colliding);
+
+        for (const idx of collidingList) {
+          const next = Math.max(floorScale, scales[idx]! * directFactor);
+          if (next < scales[idx]! - 1e-5) {
+            scales[idx] = next;
+            changed = true;
+          }
+        }
+
+        if (haloStrength > 0 && collidingList.length > 0) {
+          for (let j = 0; j < n; j++) {
+            if (colliding.has(j)) continue;
+            const pJ = curPos[j]!;
+            let maxWeight = 0;
+            for (let k = 0; k < collidingList.length; k++) {
+              const pC = curPos[collidingList[k]!]!;
+              const dx = pJ.x - pC.x;
+              const dy = pJ.y - pC.y;
+              const d2 = dx * dx + dy * dy;
+              if (d2 <= haloRadiusSq) {
+                const w = 1 - Math.sqrt(d2) / haloRadius;
+                if (w > maxWeight) maxWeight = w;
+              }
+            }
+            if (maxWeight > 0) {
+              const haloFloor = Math.max(floorScale, minLocalScale);
+              const next = Math.max(haloFloor, scales[j]! * (1 - haloStrength * maxWeight));
+              if (next < scales[j]! - 1e-5) {
+                scales[j] = next;
+                changed = true;
+              }
+            }
+          }
+        }
+
+        return changed;
+      };
+
+      let round = 0;
+      while (colliding.size > 0 && round < 10) {
+        round += 1;
+        if (!applySmoothLocalShrink(minLocalScale, 0.84, 0.08)) break;
+        currentResult = ctx.evaluate(scales, {
+          starts: currentResult.positions,
+          iterations: refineIters,
+          isRefinementPass: true,
+        });
+        colliding = new Set<number>(currentResult.collidingIndices);
+      }
+
+      const emergencyFloor = Math.min(ctx.minContentScale, 0.06);
+      const emergencyIters = Math.max(ctx.relaxationIterations, 48);
+      let emergencyRound = 0;
+      while (
+        (colliding.size > 0 || currentResult.overlapCount > 0) &&
+        emergencyRound < 10
+      ) {
+        emergencyRound += 1;
+        if (!applySmoothLocalShrink(emergencyFloor, 0.78, 0)) break;
+        currentResult = ctx.evaluate(scales, {
+          starts: currentResult.positions,
+          iterations: emergencyIters,
+          isRefinementPass: true,
+        });
+        colliding = new Set<number>(currentResult.collidingIndices);
+      }
+
+      // Local-first safety binary search: scales only affected pockets first; touches
+      // global items only if an extreme degenerate scene still overlaps at the local floor.
+      if (colliding.size > 0 || currentResult.overlapCount > 0) {
+        const stuckSet = new Set<number>(colliding);
+        for (let i = 0; i < n; i++) {
+          if (scales[i]! < 0.999) stuckSet.add(i);
+        }
+        if (stuckSet.size === 0) {
+          for (let i = 0; i < n; i++) stuckSet.add(i);
+        }
+
+        const fallbackStarts = currentResult.positions;
+        const fallbackIters = Math.max(ctx.relaxationIterations, 56);
+        const buildTrialScales = (factor: number, globalFallback: boolean) =>
+          scales.map((s, idx) => (globalFallback || stuckSet.has(idx) ? s * factor : s));
+
+        const tryFallbackMode = (globalFallback: boolean) => {
+          let lo = Math.min(ctx.minContentScale, 0.08);
+          let hi = 1.0;
+          let bestFactor = lo;
+          let bestRes = ctx.evaluate(buildTrialScales(lo, globalFallback), {
+            starts: fallbackStarts,
+            iterations: fallbackIters,
+            isRefinementPass: true,
+          });
+
+          if (bestRes.overlapCount > 0 || bestRes.maxPenetration > 1e-4) {
+            return { ok: false as const, bestFactor, bestRes };
+          }
+
+          for (let step = 0; step < 6; step++) {
+            const mid = (lo + hi) / 2;
+            const attempt = ctx.evaluate(buildTrialScales(mid, globalFallback), {
+              starts: fallbackStarts,
+              iterations: fallbackIters,
+              isRefinementPass: true,
+            });
+            if (attempt.overlapCount === 0 && attempt.maxPenetration <= 1e-4) {
+              bestFactor = mid;
+              bestRes = attempt;
+              lo = mid;
+            } else {
+              hi = mid;
+            }
+          }
+          return { ok: true as const, bestFactor, bestRes };
+        };
+
+        const localAttempt = tryFallbackMode(false);
+        if (localAttempt.ok) {
+          const nextScales = buildTrialScales(localAttempt.bestFactor, false);
+          for (let i = 0; i < n; i++) scales[i] = nextScales[i]!;
+          currentResult = localAttempt.bestRes;
         } else {
-          hi = mid;
+          const globalAttempt = tryFallbackMode(true);
+          const nextScales = buildTrialScales(globalAttempt.bestFactor, true);
+          for (let i = 0; i < n; i++) scales[i] = nextScales[i]!;
+          currentResult = globalAttempt.bestRes;
         }
       }
 
-      return { scales: scaleWithFactor(bestFactor), relaxation: bestRes };
+      return { scales, relaxation: currentResult };
     },
   };
 }
@@ -1836,8 +2007,8 @@ export function solveComposedLayout(params: ComposedLayoutParams): TwoPhaseLayou
 }
 
 /**
- * Classic two-phase overlap-free layout preset:
- * Phyllotaxis seeding + Barycentric PBD relaxation + Global Uniform Scale search.
+ * Uniform-scale two-phase overlap-free layout preset:
+ * Mesh-Inward-Fan seeding + Space-Filling PBD relaxation + Global Uniform Scale search.
  */
 export function solveTwoPhaseLayout(params: {
   readonly clusters: readonly LayoutClusterInput[];
@@ -1851,16 +2022,21 @@ export function solveTwoPhaseLayout(params: {
 }): TwoPhaseLayoutResult {
   return solveComposedLayout({
     ...params,
-    seeder: createPhyllotaxisSeeder({ warmStart: Boolean(params.previousItemPositions) }),
-    relaxer: createBarycentricPbdRelaxer(),
+    seeder: createMeshInwardFanSeeder({ warmStart: Boolean(params.previousItemPositions) }),
+    relaxer: createSpaceFillingPbdRelaxer({
+      springFactor: 0.72,
+      springZeroTailRatio: 0.35,
+      dispersionGapPx: 18,
+      dispersionStrength: 0.35,
+    }),
     scaleController: createUniformScaleController(),
-    defaultRelaxationIterations: 38,
+    defaultRelaxationIterations: 42,
   });
 }
 
 /**
  * Local density-prior adaptive layout preset:
- * Phyllotaxis seeding + Barycentric PBD relaxation + Neighborhood Density-Prior Scale controller.
+ * Mesh-Inward-Fan seeding + Space-Filling PBD relaxation + Post-Dispersion Density-Prior Scale controller.
  */
 export function solveLocalAdaptiveLayout(params: {
   readonly clusters: readonly LayoutClusterInput[];
@@ -1876,13 +2052,18 @@ export function solveLocalAdaptiveLayout(params: {
 }): TwoPhaseLayoutResult {
   return solveComposedLayout({
     ...params,
-    seeder: createPhyllotaxisSeeder({ warmStart: Boolean(params.previousItemPositions) }),
-    relaxer: createBarycentricPbdRelaxer(),
+    seeder: createMeshInwardFanSeeder({ warmStart: Boolean(params.previousItemPositions) }),
+    relaxer: createSpaceFillingPbdRelaxer({
+      springFactor: 0.7,
+      springZeroTailRatio: 0.35,
+      dispersionGapPx: 18,
+      dispersionStrength: 0.35,
+    }),
     scaleController: createDensityPriorScaleController({
       crowdRadiusPx: params.crowdRadiusPx,
       minLocalScale: params.minLocalScale,
     }),
-    defaultRelaxationIterations: 42,
+    defaultRelaxationIterations: 44,
   });
 }
 

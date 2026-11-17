@@ -1,0 +1,32 @@
+---
+strategyId: "pbd-uniform-layout"
+order: 13
+signature: "createPbdUniformLayoutStrategy(): SimplexLayoutStrategy"
+updatedDate: "2026-11-15"
+readingMinutes: 4
+whenToUse:
+  - "Built-in default layout strategy when node area encodes a quantitative metric that must remain globally comparable."
+  - "Applies a single global scale factor α ∈ [minContentScale, 1] across every item in the atlas."
+optionsTable: []
+---
+
+## Global Relative Size Preservation
+
+When circle or glyph radius encodes an exact quantitative variable—such as citation count, market cap, or clip duration—shrinking one dense region locally would alter visual size comparisons across the canvas. **Uniform PBD Layout** fans co-located items into their open covering mesh triangles (`createMeshInwardFanSeeder()` + `createSpaceFillingPbdRelaxer()`), binary-searches the largest global `α` where the entire scene settles cleanly, and polishes coordinates via Separating Axis Theorem (SAT) Minimum Translation Vectors (`0.0 px` overlap).
+
+*(Note: General solver bounds such as `minContentScale`, `nodePadding`, and `maxIterations` can also be passed via `layoutOptions` on `<SimplexTopicGraph />`.)*
+
+## Usage Example
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createPbdUniformLayoutStrategy,
+} from '@simplex-viz/react';
+
+<SimplexTopicGraph
+  items={papers}
+  layoutStrategy={createPbdUniformLayoutStrategy()}
+  layoutOptions={{ nodePadding: 4 }}
+/>;
+```

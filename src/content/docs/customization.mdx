@@ -1,0 +1,73 @@
+---
+title: "Custom Views, Tooltips & Headless Snapshots"
+shortTitle: "Views & Headless SSR"
+description: "Customize content nodes, cluster anchors, triangle faces, mesh edges, and run SimplexViz headlessly in Node.js or Web Workers."
+section: "Customization"
+order: 7
+readingMinutes: 6
+updatedDate: "2026-11-15"
+summaryPoints:
+  - "Measure arbitrary React JSX cards or custom SVG glyphs automatically via offscreen getBBox() convex hull extraction."
+  - "Swap SvgTriangleView and SvgEdgeView plugins independently—internal 1:4 drillable previews automatically inherit your SvgEdgeView."
+  - "Run solveSimplexSnapshot() synchronously in Node.js, Bun, Deno, or Web Workers with zero DOM dependencies."
+relatedApiSlug: "svg"
+---
+
+SimplexViz separates **mathematical solving** (`@simplex-viz/core`) from **scene rendering** (`@simplex-viz/svg` and `@simplex-viz/react`). Every visual layer can be customized without rewriting layout or collision code.
+
+## 1. Declarative React JSX Node Renderers
+
+In `@simplex-viz/react`, pass `renderContentNode` or `renderClusterNode` returning standard `<svg>` JSX elements centered around `(0, 0)`. The adapter measures each rendered `<g>` offscreen via `getBBox()`, builds a `ConvexGeometry` polygon, and feeds it directly into the SAT collision solver:
+
+```tsx
+import { SimplexTopicGraph } from '@simplex-viz/react';
+
+<SimplexTopicGraph
+  items={articles}
+  renderContentNode={(article, ctx, state) => (
+    <g>
+      <rect
+        x={-54}
+        y={-14}
+        width={108}
+        height={28}
+        rx={6}
+        fill="#0f172a"
+        stroke={state.interaction.isHovered ? '#f8fafc' : ctx.mixedColorHex}
+        strokeWidth={state.interaction.isHovered ? 2 : 1.25}
+      />
+      <text textAnchor="middle" y={4} fill="#f8fafc" fontSize={10}>
+        {article.label.slice(0, 15)}
+      </text>
+    </g>
+  )}
+/>;
+```
+
+## 2. Portable `SvgTriangleView` & `SvgEdgeView` Plugins
+
+Both `@simplex-viz/svg` and `@simplex-viz/react` accept reusable view classes for background triangles and lattice edges:
+
+- **Built-in Triangle Views**: `OklabTintTriangleSvgView` *(default)*, `GradientTriangleSvgView`, `FlatMeshTriangleSvgView`
+- **Built-in Edge Views**: `DashedMeshEdgeSvgView` *(default)*, `SolidMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`
+
+Whenever `triangle.isDrillable` is `true`, `SvgRendererAdapter` automatically renders the 3 internal `1:4` midpoint edges through your active `edgeView`, keeping outer and inner triangulation visually unified.
+
+## 3. Headless SSR, Canvas & Worker Execution (`solveSimplexSnapshot`)
+
+Need static SVG generation at build time, server-side rendering, or HTML5 `<canvas>` / WebGL coordinates inside a Web Worker? Call `solveSimplexSnapshot` from `@simplex-viz/core`:
+
+```ts
+import { solveSimplexSnapshot, rectToConvexPolygon } from '@simplex-viz/core';
+
+const snapshot = solveSimplexSnapshot(records, {
+  width: 1280,
+  height: 800,
+  getId: (r) => r.slug,
+  getTags: (r) => r.topics,
+  measureContentHull: (r) => rectToConvexPolygon(r.title.length * 6.5 + 16, 24, 6),
+});
+
+// Zero overlaps guaranteed:
+console.assert(snapshot.metrics.overlapCount === 0);
+```

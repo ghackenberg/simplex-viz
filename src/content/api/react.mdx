@@ -1,0 +1,85 @@
+---
+title: "@simplex-viz/react API Reference"
+packageName: "@simplex-viz/react"
+version: "0.6.0"
+layerLabel: "Type-Safe React 18 & 19 Bindings"
+description: "Declarative <SimplexTopicGraph /> component, JSX custom node measurement, and imperative useSimplexGraphController() hook re-exporting all SVG and Core utilities."
+order: 3
+zeroRuntimeDeps: false
+installCommand: "npm install @simplex-viz/react"
+exportsTable:
+  - symbol: "SimplexTopicGraph"
+    kind: "Component"
+    signature: |-
+      <SimplexTopicGraph<
+        TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta
+      >
+        {...props}
+      />
+    summary: "Primary responsive React component supporting presets, custom JSX node renderers, strategy props, and drill-down."
+  - symbol: "useSimplexGraphController"
+    kind: "Hook"
+    signature: |-
+      useSimplexGraphController<
+        TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta
+      >(): {
+        controllerRef: RefObject<SimplexSvgController<...> | null>;
+        handle: SimplexGraphControllerHandle<TItem>;
+      }
+    summary: "Provides stable imperative access to live item mutations, camera resets, and drillDown / drillUp actions."
+  - symbol: "SimplexTopicGraphProps"
+    kind: "Interface"
+    signature: |-
+      interface SimplexTopicGraphProps<
+        TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta
+      >
+    summary: "Conditional hybrid prop types enforcing getId / getTags only when TItem lacks id / tags and tags are required."
+---
+
+## `<SimplexTopicGraph />` Props Overview
+
+`<SimplexTopicGraph />` syncs declarative React prop updates into the underlying `SimplexSvgController` without remounting the SVG scene or interrupting active spring animations:
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createSubspaceZoomStrategy,
+  createCollisionDrivenLayoutStrategy,
+  createSoftSimplexTagClusteringStrategy,
+  useSimplexGraphController,
+} from '@simplex-viz/react';
+
+export function InteractiveAtlas({ articles }: { readonly articles: readonly Article[] }) {
+  const { controllerRef, handle } = useSimplexGraphController<Article>();
+
+  return (
+    <div className="h-[640px] w-full">
+      <SimplexTopicGraph
+        controllerRef={controllerRef}
+        items={articles}
+        getId={(a) => a.slug}
+        getTags={(a) => a.tags}
+        getLabel={(a) => a.title}
+        preset="glyphs"
+        theme="dark"
+        clusteringStrategy={createSoftSimplexTagClusteringStrategy({ triangleSpread: 0.45 })}
+        layoutStrategy={createCollisionDrivenLayoutStrategy()}
+        zoomStrategy={createSubspaceZoomStrategy()}
+        showZoomBreadcrumbs
+        tooltip
+        onZoomStateChange={(state) => {
+          console.log('Current drill depth:', state.depth);
+        }}
+      />
+    </div>
+  );
+}
+```
+
+## Imperative Handle Methods (`handle`)
+
+Returned by `useSimplexGraphController()`:
+
+- **Live Corpus Mutations**: `handle.addItems(items)`, `handle.updateItems(items)`, `handle.removeItems(ids)`, `handle.replaceItems(items)`
+- **Hierarchical Drill-Down**: `handle.drillDownTriangle(index)`, `handle.drillDownCluster(uid)`, `handle.drillToNeighbor(neighborId)`, `handle.drillUp()`, `handle.drillToDepth(depth)`, `handle.drillToRoot()`, `handle.getZoomState()`
+- **Focus & Camera**: `handle.focusCluster(uid | null)`, `handle.focusTriangle(index | null)`, `handle.highlightItems(ids)`, `handle.pinItems(ids)`, `handle.resetCamera()`, `handle.getMetrics()`

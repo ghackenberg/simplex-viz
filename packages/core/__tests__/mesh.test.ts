@@ -98,6 +98,67 @@ describe('buildSimplexMesh', () => {
     const vb = oversizedSnap.mesh.vertices[e0.b]!;
     expect(Math.hypot(vb.x - va.x, vb.y - va.y)).toBeCloseTo(340, 3);
   });
+
+  it('aligns lattice major axis with viewport aspect ratio across widescreen, square, and mobile portrait sizes (including compact K=6/7 and explicit maxSideLength caps)', () => {
+    const measureSpan = (mesh: ReturnType<typeof buildSimplexMesh>) => {
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (const v of mesh.vertices) {
+        if (v.x < minX) minX = v.x;
+        if (v.x > maxX) maxX = v.x;
+        if (v.y < minY) minY = v.y;
+        if (v.y > maxY) maxY = v.y;
+      }
+      return { spanW: maxX - minX, spanH: maxY - minY };
+    };
+
+    // 1. Desktop widescreen container (1216 x 520) with compact K = 6 and K = 7, plus rich K = 20
+    for (const tagCount of [6, 7, 20]) {
+      const wideMesh = buildSimplexMesh(1216, 520, tagCount);
+      const { spanW, spanH } = measureSpan(wideMesh);
+      expect(spanW).toBeGreaterThan(spanH * 1.6);
+      expect(wideMesh.areaEfficiency).toBeGreaterThan(0.75);
+    }
+
+    // 2. Explicit maxSideLength cap on widescreen must NEVER flip a K = 6 mesh into portrait
+    const cappedWideMesh = buildSimplexMesh(1216, 520, 6, { maxSideLength: 280 });
+    const cappedSpan = measureSpan(cappedWideMesh);
+    expect(cappedWideMesh.sideLength).toBeLessThanOrEqual(280 + 1e-6);
+    expect(cappedSpan.spanW).toBeGreaterThan(cappedSpan.spanH * 1.5);
+
+    // 3. Mobile portrait viewport (375 x 560) automatically rotates into portrait and reduces innerPadding
+    for (const tagCount of [6, 14]) {
+      const mobileMesh = buildSimplexMesh(375, 560, tagCount);
+      const { spanW, spanH } = measureSpan(mobileMesh);
+      expect(mobileMesh.innerPadding).toBeLessThan(48);
+      expect(mobileMesh.innerPadding).toBeGreaterThanOrEqual(32);
+      expect(spanH).toBeGreaterThan(spanW);
+      expect(mobileMesh.areaEfficiency).toBeGreaterThan(0.75);
+    }
+
+    // 4. Fixed lattice with default orientation ('auto') adapts to both landscape and mobile portrait
+    const autoFixed = createFixedLatticeMeshStrategy({ cols: 3, rows: 2 });
+    const items: DefaultTaggedItem[] = Array.from({ length: 10 }, (_, i) => ({
+      id: `v-${i}`,
+      tags: [`t-${i % 5}`],
+    }));
+    const fixedLandscape = solveSimplexSnapshot(items, {
+      width: 960,
+      height: 520,
+      meshStrategy: autoFixed,
+    });
+    const fixedPortrait = solveSimplexSnapshot(items, {
+      width: 375,
+      height: 560,
+      meshStrategy: autoFixed,
+    });
+    expect(fixedLandscape.mesh.orientation).toBe('horizontal');
+    expect(fixedPortrait.mesh.orientation).toBe('vertical');
+    expect(fixedLandscape.clusters.length).toBe(5);
+    expect(fixedPortrait.clusters.length).toBe(5);
+  });
 });
 
 describe('isPointInTriangle & engine triangle interactions', () => {

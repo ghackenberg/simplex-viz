@@ -11,6 +11,9 @@ import {
   createEmbeddingClusteringStrategy,
   createFixedLatticeMeshStrategy,
   createSimplexSvg,
+  createSubspaceZoomStrategy,
+  getHexRelativeLuminance,
+  resolveClusterSurfaceColors,
   type BadgeClusterVisual,
   type GeometricShapeVisual,
 } from '../src/index';
@@ -758,8 +761,8 @@ describe('@simplex-viz/svg integration', () => {
       preset: 'badges',
       meshStrategy: createFixedLatticeMeshStrategy({ rows: 3, cols: 3 }),
       zoomStrategy: createBarycentricZoomStrategy({
-        subdivision: '1:4',
         clusterZoomMode: 'none',
+        leafTriangleFocus: false,
       }),
       layoutOptions: { seed: 31, sizeMultiplier: 2.0 },
     });
@@ -1058,6 +1061,87 @@ describe('@simplex-viz/svg integration', () => {
     expect(
       tintedSubEdge.querySelector('line')!.getAttribute('stroke-width'),
     ).toBe('1.40');
+
+    controller.destroy();
+    container.remove();
+  });
+
+  it('calibrates saturated cluster fills to guarantee >= 4.5:1 WCAG AA contrast with white text across all hues', () => {
+    const testHues = [
+      '#22d3ee', // luminous cyan
+      '#facc15', // luminous yellow
+      '#f59e0b', // bright amber
+      '#34d399', // mint emerald
+      '#2563eb', // cobalt
+      '#e11d48', // crimson
+    ];
+    for (const theme of ['dark', 'light'] as const) {
+      for (const hex of testHues) {
+        const pal = resolveClusterSurfaceColors(hex, theme);
+        const lum = getHexRelativeLuminance(pal.solidFillHex);
+        const contrastWithWhite = 1.05 / (lum + 0.05);
+        expect(contrastWithWhite).toBeGreaterThanOrEqual(4.5);
+        expect(pal.haloHex).toMatch(/^#[0-9a-f]{6}$/);
+        expect(pal.intermediateFillHex).toMatch(/^#[0-9a-f]{6}$/);
+      }
+    }
+  });
+
+  it('renders two-line parent context plaques on outer subspace corners, single-line midpoints, and color-pip breadcrumbs', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 620, height: 440, right: 620, bottom: 440 }),
+    });
+    document.body.appendChild(container);
+
+    const items = Array.from({ length: 48 }, (_, i) => ({
+      id: `film-${i}`,
+      title: `Film ${i + 1}`,
+      tags: [`genre-${i % 4}`, `sub-${i % 6}`],
+      budget: 10 + (i % 5) * 45,
+      year: 1980 + (i % 8) * 5,
+    }));
+
+    const controller = createSimplexSvg(container, {
+      items,
+      preset: 'badges',
+      zoomStrategy: createSubspaceZoomStrategy(),
+      showZoomBreadcrumbs: true,
+      layoutOptions: { seed: 17, sizeMultiplier: 1.8 },
+    });
+    for (let i = 0; i < 45; i++) controller.stepForTest(20);
+
+    const drillIdx = controller.getZoomState().drillableTriangleIndices[0]!;
+    expect(controller.drillDownTriangle(drillIdx)).toBe(true);
+    for (let i = 0; i < 45; i++) controller.stepForTest(20);
+
+    const svg = controller.getSvgElement();
+    const activeClusterEls = Array.from(
+      svg.querySelectorAll('g.sv-node-cluster:not([data-context="true"])'),
+    );
+    expect(activeClusterEls.length).toBe(6);
+
+    // Outer 3 corners have 2 <text> lines (parent context eyebrow + local facet); 3 midpoints have 1 <text> line
+    const twoLinePlaques = activeClusterEls.filter(
+      (el) => el.querySelectorAll('text').length === 2,
+    );
+    const oneLinePlaques = activeClusterEls.filter(
+      (el) => el.querySelectorAll('text').length === 1,
+    );
+    expect(twoLinePlaques.length).toBe(3);
+    expect(oneLinePlaques.length).toBe(3);
+    expect(
+      activeClusterEls.every((el) => (el.textContent ?? '').trim().length > 0),
+    ).toBe(true);
+
+    // Breadcrumb overlay renders human-readable topic segments with colored indicator pips
+    const crumbBar = container.querySelector('.sv-zoom-breadcrumbs');
+    expect(crumbBar).not.toBeNull();
+    const crumbButtons = crumbBar!.querySelectorAll('button');
+    expect(crumbButtons.length).toBe(2);
+    expect(crumbButtons[1]!.textContent).toMatch(/genre-\d|sub-\d/);
+    expect(crumbButtons[1]!.textContent).not.toMatch(/^C\d+·C\d+·C\d+$/);
+    expect(crumbButtons[1]!.querySelectorAll('span').length).toBeGreaterThanOrEqual(6);
 
     controller.destroy();
     container.remove();

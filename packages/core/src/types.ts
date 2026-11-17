@@ -127,6 +127,21 @@ export interface ClusterMixComponent {
 }
 
 /**
+ * Lightweight sibling cluster snapshot exposed on `ClusterDerivationContext.peerClusters`
+ * so `deriveClusterMeta` can evaluate specificity against sibling clusters and avoid duplicate names.
+ */
+export interface PeerClusterContext<TItem, TTagMeta = unknown> {
+  readonly clusterIndex: number;
+  readonly clusterUid: string;
+  readonly code: string;
+  readonly defaultLabel: string;
+  readonly role?: ClusterRole;
+  readonly coreTags: readonly TagDescriptor<TTagMeta>[];
+  readonly members: readonly ClusterMemberRef<TItem>[];
+  readonly representativeItems?: readonly ClusterMemberRef<TItem>[];
+}
+
+/**
  * Context passed to `deriveClusterMeta` once cluster tags, mesh vertex, and unit members are finalized.
  */
 export interface ClusterDerivationContext<TItem, TTagMeta = undefined> {
@@ -167,6 +182,28 @@ export interface ClusterDerivationContext<TItem, TTagMeta = undefined> {
   readonly role?: ClusterRole;
   /** Contributing root clusters and weights when `role === 'intermediate'`. */
   readonly mixWeights?: readonly ClusterMixComponent[];
+  /**
+   * Optional concise semantic label synthesized by a Stage-5 zoom strategy
+   * (e.g. `'High Budget'`, `'Aquatic'`, `'Biscoe'`, `'#shaders'`) when a zoomed vertex
+   * represents a discovered local sub-cluster or facet rather than an unlabeled geometric midpoint.
+   */
+  readonly subclusterLabel?: string;
+  /**
+   * Optional concise parent cluster anchor name (e.g. `'Action'`, `'Mammalia'`, `'Graphics'`)
+   * preserved on the outer corners of a zoomed `1:4` triangle or spotlight frame when a corner
+   * is locally re-partitioned into a finer `subclusterLabel`.
+   */
+  readonly parentContextLabel?: string;
+  /**
+   * Complete item population of the active frame, enabling base-rate lift and z-score specificity
+   * calculations inside `deriveClusterMeta`.
+   */
+  readonly allItems?: readonly TItem[];
+  /**
+   * All sibling clusters (`0 .. K-1`) in the active frame, enabling joint collision-free label
+   * assignment across peers via `resolveDiscriminativeClusterLabel`.
+   */
+  readonly peerClusters?: readonly PeerClusterContext<TItem, TTagMeta>[];
 }
 
 /**
@@ -309,19 +346,25 @@ export interface SimplexMesh {
  * Mesh generation constraints.
  */
 export interface MeshOptions {
-  /** Padding around the usable mesh region in pixels. Default: 48. */
+  /**
+   * Padding around the usable mesh region in pixels.
+   * When omitted, adapts smoothly to viewport size (`32 px` on compact mobile up to `48 px` on desktop).
+   */
   readonly innerPadding?: number;
   /**
    * Explicit equilateral triangle side length in pixels.
-   * When provided, overrides automatic `[minSideLength, maxSideLength]` sizing across both
+   * When provided, overrides automatic viewport-filling sizing across both
    * adaptive and fixed-lattice mesh strategies.
    */
   readonly sideLength?: number;
-  /** Minimum preferred triangle side length in pixels (used when `sideLength` is omitted). Default: 140. */
+  /** Minimum preferred triangle side length in pixels (used when `sideLength` is omitted). Default: 130. */
   readonly minSideLength?: number;
-  /** Maximum preferred triangle side length in pixels (used when `sideLength` is omitted). Default: 280. */
+  /**
+   * Optional upper cap on triangle side length in pixels (used when `sideLength` is omitted).
+   * When omitted, triangles scale up freely to maximize usable canvas area.
+   */
   readonly maxSideLength?: number;
-  /** Upper bound on cluster count K. Default: 12. */
+  /** Upper bound on cluster count K. Default: 14. */
   readonly maxClusters?: number;
 }
 

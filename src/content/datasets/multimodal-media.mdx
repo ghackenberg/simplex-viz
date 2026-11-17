@@ -1,0 +1,81 @@
+---
+title: "Vega Cinema Reception & Box-Office Vectors"
+datasetId: "media"
+domainLabel: "Cinema & Media Analytics"
+representationLabel: "Dual Weighted Embeddings"
+requiresTags: false
+dimensionsSummary: "4D Critical/Audience Reception Vector + 4D Production Budget & Box-Office Scale Vector"
+meshStrategy: "adaptive-hex-mesh"
+clusteringStrategy: "soft-simplex-embeddings"
+colorStrategy: "theme-adaptive-oklab"
+layoutStrategy: "collision-local-layout"
+zoomStrategy: "subspace-recluster-zoom"
+nodeView: "domain"
+description: "Clusters real feature films from the UW Interactive Data Lab Vega movies dataset across two weighted embedding modalities without relying on discrete genre tags."
+publishedDate: "2026-11-15"
+readingMinutes: 5
+order: 3
+---
+
+## Dataset Provenance & Dual Feature Modalities
+
+This example uses real feature-film records from **`vega-datasets` (`movies.json`, BSD-3-Clause)** maintained by the University of Washington Interactive Data Lab, paired with self-hosted **Public-Domain original theatrical posters from Wikimedia Commons**. Every film carries complete theatrical production budgets, worldwide box-office gross, runtime, IMDb ratings, vote counts, and Rotten Tomatoes critic scores—and is projected **purely from two continuous feature vectors (`requiresTags: false`)**:
+
+1. **Audience & Critical Reception (`4D`)**: Normalized IMDb score, Rotten Tomatoes score, log-scaled audience vote volume, and critic-vs-audience consensus delta.
+2. **Production & Commercial Scale (`4D`)**: Log-scaled production budget, log-scaled worldwide gross, theatrical runtime, and return-on-investment ratio.
+
+## Contrastive Cluster Naming Across Skewed Genre Base Rates
+
+In historical film canons, discrete genre labels are heavily skewed—nearly four-fifths of acclaimed classics carry `"Drama"` as their primary genre, so naive majority-category naming would label five out of seven clusters *"Drama"*. Instead, passing `features: cinemaFeatures` into `createSoftSimplexEmbeddingClusteringStrategy` (and `resolveDiscriminativeClusterLabel` in `deriveClusterMeta`) evaluates **base-rate-aware z-scores and specificity lift** across continuous commercial and critical axes, producing seven pairwise-distinct archetypes (*Low-Budget Cult*, *Acclaimed Canon*, *Sleeper Hits*, *Roadshow Prestige*, *Critic Classics*, *Genre Curiosities*, and *Epic Runtime*).
+
+Drag the **Reception/Scale** slider in the explorer toolbar above to shift clustering weight smoothly between critical acclaim and blockbuster production scale: **Soft-Simplex Embedding Projection** re-solves weighted multi-modal k-Means++ and matches centroids via the **Hungarian algorithm** so vertex hues stay anchored.
+
+## Local Subspace Re-Clustering & Parent-Corner Orientation
+
+Clicking any triangle or cluster badge activates **Subspace Re-Clustering Drill-Down** (`createSubspaceZoomStrategy`). SimplexViz projects out parent traits with low local variance and re-clusters covered films across **production budget**, **release era** (*Golden Age* vs. *New Hollywood*), **theatrical runtime**, **box-office ROI**, **Rotten Tomatoes consensus**, and **genre**—preserving spatial orientation via two-line `parentContextLabel` headers on the `3` outer corners alongside color-coded `ZoomBreadcrumbSegment` trails.
+
+## Reproduction Snippet
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createAdaptiveHexMeshStrategy,
+  createSoftSimplexEmbeddingClusteringStrategy,
+  createThemeAdaptiveOklabColorStrategy,
+  createCollisionDrivenLayoutStrategy,
+  createSubspaceZoomStrategy,
+} from '@simplex-viz/react';
+
+const cinemaFeatures = [
+  { label: 'Gross', getValue: (f: FilmRecord) => Math.log10(f.worldwideGrossMusd), highLabel: 'Box-Office Hits', lowLabel: 'Modest Gross' },
+  { label: 'Budget', getValue: (f: FilmRecord) => Math.log10(f.budgetMusd), highLabel: 'Big-Budget Epics', lowLabel: 'Low-Budget Cult' },
+  { label: 'Runtime', getValue: (f: FilmRecord) => f.runtimeMin, highLabel: 'Epic Runtime', lowLabel: 'Compact Classics' },
+  { label: 'Era', getValue: (f: FilmRecord) => f.releaseYear, highLabel: 'New Hollywood', lowLabel: 'Golden Age' },
+  { label: 'Critics', getValue: (f: FilmRecord) => f.rottenTomatoes, highLabel: 'Critic Classics', lowLabel: 'Crowd-Pleasers' },
+];
+
+const cinemaClustering = createSoftSimplexEmbeddingClusteringStrategy<FilmRecord>({
+  getEmbedding: [
+    { name: 'reception', getVector: (f) => f.receptionVector, weight: 0.65 },
+    { name: 'production', getVector: (f) => f.productionVector, weight: 0.35 },
+  ],
+  features: cinemaFeatures,
+  clusterCount: 7,
+  metric: 'cosine',
+  triangleSpread: 0.45,
+});
+
+const cinemaZoom = createSubspaceZoomStrategy<FilmRecord>({
+  features: cinemaFeatures,
+});
+
+<SimplexTopicGraph
+  items={films}
+  meshStrategy={createAdaptiveHexMeshStrategy()}
+  clusteringStrategy={cinemaClustering}
+  colorStrategy={createThemeAdaptiveOklabColorStrategy()}
+  layoutStrategy={createCollisionDrivenLayoutStrategy()}
+  zoomStrategy={cinemaZoom}
+  showZoomBreadcrumbs
+/>;
+```

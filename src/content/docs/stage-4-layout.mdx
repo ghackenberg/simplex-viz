@@ -1,0 +1,110 @@
+---
+title: "04. Composable Collision Layout (Seeder × Relaxer × ScaleController)"
+shortTitle: "04. Composable Layout"
+description: "How SimplexViz guarantees 0.0 px overlap across arbitrary convex shapes and JSX cards by composing Seeders, Position Relaxers, and Scale Controllers."
+section: "Core Strategies"
+order: 5
+stageNumber: 4
+readingMinutes: 8
+updatedDate: "2026-11-15"
+summaryPoints:
+  - "Every built-in layout strategy strictly enforces two hard invariants: covering-triangle containment and 0.0 px convex SAT overlap."
+  - "Layout pipelines decompose orthogonally into LayoutSeeder × PositionRelaxer × ScaleController."
+  - "Collision-Driven Local Scaling keeps sparse neighborhoods at full 1.0x size and shrinks only locally colliding pockets."
+relatedApiSlug: "core"
+---
+
+import StrategyDiagram from '../../components/diagrams/StrategyDiagram.astro';
+import StrategyDecisionList from '../../components/docs/StrategyDecisionList.astro';
+import { StrategyLiveSandbox } from '../../components/islands/StrategyLiveSandbox';
+
+Stage 4 (`SimplexLayoutStrategy`) transforms abstract barycentric weights into exact 2D world coordinates `(x, y)` and per-node scale factors (`clusterScale`, `itemScales`) for arbitrary `ConvexGeometry` hulls (circles, regular polygons, star hulls, or measured React/SVG bounding boxes).
+
+<StrategyDiagram
+  kind="layout"
+  caption="Left: Global Uniform Scaling preserves exact relative size ratios across the entire atlas by shrinking every item to α = 0.52 when one triangle becomes crowded. Right: Collision-Driven Local Scaling shrinks only colliding pockets, leaving sparse triangles at 1.00x leaf scale."
+/>
+
+## Interactive Comparison: Collision-Local vs. Uniform PBD Layout
+
+Switch between **Collision-Local Pocket Layout** and **Uniform PBD Layout** below to see how sparse outer clusters keep full `1.0x` readability while dense interior pockets pack cleanly with `0` overlaps:
+
+<StrategyLiveSandbox mode="layout" client:visible />
+
+## Built-In Layout Strategies
+
+<StrategyDecisionList
+  rows={[
+    {
+      strategyId: 'pbd-uniform-layout',
+      callExample: 'createPbdUniformLayoutStrategy()',
+      modalityOrProfile: 'Global uniform scale α · exact size ratios',
+      description:
+        'Mesh-inward fan seeder + space-filling PBD dispersion + binary search for a single global scale factor α with 0.0 px convex SAT overlap.',
+    },
+    {
+      strategyId: 'collision-local-layout',
+      callExample: 'createCollisionDrivenLayoutStrategy()',
+      modalityOrProfile: 'Local pocket scaling · 1.0x sparse leaves',
+      description:
+        'Mesh-inward fan seeder + space-filling PBD + local collision shrinking so sparse triangles remain at full 1.0x leaf scale (ideal with 1:4 drill-down).',
+    },
+    {
+      strategyId: 'warm-start-pbd-layout',
+      callExample: 'createWarmStartPbdLayoutStrategy()',
+      modalityOrProfile: 'Temporal frame-to-frame stability',
+      description:
+        'Reuses settled previous-frame world coordinates with space-filling PBD relaxation and uniform global scale ratios for minimal visual displacement.',
+    },
+    {
+      strategyId: 'density-adaptive-layout',
+      callExample: 'createLocalAdaptiveLayoutStrategy()',
+      modalityOrProfile: 'Post-dispersion smooth crowd-kernel scaling',
+      description:
+        'Spreads items across open covering triangles first, evaluates smooth neighborhood crowd density within radius R, and polishes locally without global shrink.',
+    },
+  ]}
+/>
+
+## Orthogonal Building Blocks (`createComposedLayoutStrategy`)
+
+Instead of monolithic layout algorithms, SimplexViz factors layout solving into three composable interfaces:
+
+### 1. `LayoutSeeder` (Initial Placement)
+- `createPhyllotaxisSeeder()` — Places co-located items on a golden-angle Vogel spiral (`θ_n = n · 137.508°`) around their barycentric target.
+- `createMeshInwardFanSeeder()` — Fans vertex-anchored items smoothly toward incident mesh sectors to maximize initial clearance before relaxation.
+- `withWarmStartSeeder(seeder)` — Reuses settled coordinates from the previous frame for existing item IDs so live mutations settle with minimal visual displacement.
+
+### 2. `PositionRelaxer` (Iterative PBD + SAT/MTV Separation)
+- `createBarycentricPbdRelaxer()` — Couples a gentle spring toward each item's exact barycentric target with Separating Axis Theorem (SAT) Minimum Translation Vector (MTV) impulses accelerated by `UniformSpatialHashGrid`.
+- `createSpaceFillingPbdRelaxer()` — Adds short-range electrostatic-style dispersion inside covering triangles so nodes utilize open triangle interiors evenly.
+
+### 3. `ScaleController` (Adaptive Node Sizing)
+- `createUniformScaleController()` — Binary-searches a single global `α ∈ [minContentScale, 1]`; ideal when node radius encodes a quantitative metric (e.g. citations or duration) whose global ratio must stay exact.
+- `createCollisionLocalScaleController()` — Starts every item at `1.0x` and iteratively multiplies only actively colliding pairs by `shrinkFactor` (`0.85` default, bounded by `minLocalScale`). Pairs naturally with hierarchical `1:4` drill-down!
+- `createDensityPriorScaleController()` — Runs a `1.0x` space-filling dispersion pass first, evaluates smooth radial crowd density within `crowdRadiusPx` (`76 px`) on the dispersed positions, and resolves any residual collisions locally with halo blending.
+- `createFixedScaleController({ scale: 1.0 })` — Locks node scale at a constant factor without auto-shrinking.
+
+## Preset & Custom Composition Example
+
+```ts
+import {
+  createComposedLayoutStrategy,
+  createMeshInwardFanSeeder,
+  createSpaceFillingPbdRelaxer,
+  createCollisionLocalScaleController,
+} from '@simplex-viz/core';
+
+const customLayout = createComposedLayoutStrategy({
+  seeder: createMeshInwardFanSeeder(),
+  relaxer: createSpaceFillingPbdRelaxer({
+    springFactor: 0.7,
+    dispersionGapPx: 18,
+  }),
+  scaleController: createCollisionLocalScaleController({
+    minLocalScale: 0.32,
+    shrinkFactor: 0.85,
+  }),
+  warmStart: true,
+});
+```

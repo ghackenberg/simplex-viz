@@ -107,6 +107,26 @@ export function EntitySpecBadge({
     );
   }
 
+  if (entity.kind === 'zoo-species') {
+    const z = entity.zoo;
+    return (
+      <div className="mt-2.5 space-y-1 font-mono text-[11px] tabular-nums text-slate-600 dark:text-slate-300">
+        <div>
+          {z.taxonomicGroup} · {z.legs} legs
+        </div>
+        <div className="text-slate-500 dark:text-slate-400">
+          {[
+            z.aquatic ? 'aquatic' : null,
+            z.airborne ? 'airborne' : null,
+            z.predator ? 'predator' : 'non-predator',
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </div>
+      </div>
+    );
+  }
+
   const b = entity.body;
   const p = b.proportions;
   const sw = p.shoulderW * 15;
@@ -149,7 +169,7 @@ export function EntitySpecBadge({
       <div className="min-w-0 font-mono text-[11px] tabular-nums text-slate-600 dark:text-slate-300 space-y-0.5">
         <div>{b.archetype}</div>
         <div className="text-slate-500 dark:text-slate-400">
-          {b.posture} · {b.heightCm} cm · lean {p.leanDeg}°
+          {b.species} · {b.bodyMassG} g · flipper {b.flipperLengthMm} mm
         </div>
       </div>
     </div>

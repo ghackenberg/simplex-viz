@@ -10,7 +10,20 @@ interface MeshCandidate {
   readonly sideLength: number;
   readonly vertexCount: number;
   readonly areaEfficiency: number;
-  readonly intervalPenalty: number;
+  readonly aspectAlignment: number;
+  readonly minSidePenalty: number;
+}
+
+/**
+ * Computes an adaptive outer margin (`32 px` on compact mobile viewports up to `48 px` on desktop)
+ * so small screens retain maximum usable triangle area without clipping outer cluster badges.
+ */
+export function resolveDefaultInnerPadding(
+  viewportWidth: number,
+  viewportHeight: number,
+): number {
+  const minDim = Math.max(0, Math.min(viewportWidth, viewportHeight));
+  return Math.round(Math.max(32, Math.min(48, minDim * 0.09)));
 }
 
 function countLatticeVertices(cols: number, rows: number, wideFirst: boolean): number {
@@ -166,7 +179,8 @@ export function buildSimplexLattice(
  * Generates an optimal toothed 60-degree equilateral triangle simplex mesh inside `(width, height)`.
  *
  * Evaluates both `0°` (horizontal) and `90°` (vertical) orientations as well as both row parities
- * (`wideFirst = true | false`) to maximize usable area efficiency within `[minSideLength, maxSideLength]`.
+ * (`wideFirst = true | false`) to maximize usable canvas area and aspect-ratio alignment across
+ * widescreen, square, and mobile portrait viewports while respecting `minSideLength` and optional `maxSideLength`.
  */
 export function buildSimplexMesh(
   viewportWidth: number,
@@ -174,10 +188,14 @@ export function buildSimplexMesh(
   tagCount: number,
   options: MeshOptions = {},
 ): SimplexMesh {
-  const innerPadding = options.innerPadding ?? 48;
+  const innerPadding =
+    options.innerPadding ?? resolveDefaultInnerPadding(viewportWidth, viewportHeight);
   const minSide = options.minSideLength ?? 130;
-  const maxSide = options.maxSideLength ?? 290;
-  const maxClusters = options.maxClusters ?? 12;
+  const maxSide =
+    options.maxSideLength !== undefined && Number.isFinite(options.maxSideLength)
+      ? Math.max(40, options.maxSideLength)
+      : Number.POSITIVE_INFINITY;
+  const maxClusters = options.maxClusters ?? 14;
   const explicitSide =
     options.sideLength !== undefined && Number.isFinite(options.sideLength)
       ? Math.max(40, options.sideLength)
@@ -185,6 +203,7 @@ export function buildSimplexMesh(
 
   const usableW = Math.max(80, viewportWidth - 2 * innerPadding);
   const usableH = Math.max(80, viewportHeight - 2 * innerPadding);
+  const viewAspect = usableW / usableH;
   const targetMaxK = Math.max(3, Math.min(maxClusters, Math.max(3, tagCount)));
 
   const orientations: readonly ('horizontal' | 'vertical')[] = ['horizontal', 'vertical'];
@@ -200,13 +219,14 @@ export function buildSimplexMesh(
       readonly spanW: number;
       readonly spanH: number;
       readonly areaEfficiency: number;
+      readonly aspectAlignment: number;
     }
 
     const fitting: ExplicitCandidate[] = [];
     for (const orientation of orientations) {
       for (const wideFirst of parities) {
-        for (let cols = 2; cols <= 8; cols++) {
-          for (let rows = 2; rows <= 8; rows++) {
+        for (let cols = 2; cols <= 10; cols++) {
+          for (let rows = 2; rows <= 10; rows++) {
             const k = countLatticeVertices(cols, rows, wideFirst);
             if (k < 3 || k > targetMaxK) continue;
 
@@ -216,6 +236,9 @@ export function buildSimplexMesh(
             const rawH = orientation === 'horizontal' ? spanAlongRows : spanAlongCols;
             const spanW = rawW * explicitSide;
             const spanH = rawH * explicitSide;
+            const gridAspect = rawW / rawH;
+            const aspectAlignment =
+              Math.min(gridAspect, viewAspect) / Math.max(gridAspect, viewAspect);
 
             if (spanW <= usableW + 1e-6 && spanH <= usableH + 1e-6) {
               fitting.push({
@@ -227,6 +250,7 @@ export function buildSimplexMesh(
                 spanW,
                 spanH,
                 areaEfficiency: (spanW * spanH) / (usableW * usableH),
+                aspectAlignment,
               });
             }
           }
@@ -235,9 +259,19 @@ export function buildSimplexMesh(
     }
 
     if (fitting.length > 0) {
+      const maxFittingK = fitting.reduce(
+        (acc, c) => Math.max(acc, c.vertexCount),
+        3,
+      );
       fitting.sort((a, b) => {
-        const scoreA = a.areaEfficiency + a.vertexCount * 0.018;
-        const scoreB = b.areaEfficiency + b.vertexCount * 0.018;
+        const scoreA =
+          a.areaEfficiency +
+          a.aspectAlignment * 0.12 +
+          (a.vertexCount / maxFittingK) * 0.18;
+        const scoreB =
+          b.areaEfficiency +
+          b.aspectAlignment * 0.12 +
+          (b.vertexCount / maxFittingK) * 0.18;
         return scoreB - scoreA;
       });
       const pick = fitting[0]!;
@@ -303,13 +337,13 @@ export function buildSimplexMesh(
 
   for (const orientation of orientations) {
     for (const wideFirst of parities) {
-      for (let cols = 2; cols <= 8; cols++) {
-        for (let rows = 2; rows <= 8; rows++) {
+      for (let cols = 2; cols <= 10; cols++) {
+        for (let rows = 2; rows <= 10; rows++) {
           const k = countLatticeVertices(cols, rows, wideFirst);
           if (k < 3 || k > targetMaxK) continue;
 
           // Physical span in unscaled sideLength = 1 units:
-          // Horizontal span: (cols - 1), vertical span: (rows - 1) * sqrt(3)/2
+          // Primary axis span: (cols - 1), perpendicular axis span: (rows - 1) * sqrt(3)/2
           const spanAlongCols = Math.max(0.5, cols - 1);
           const spanAlongRows = Math.max(0.5, (rows - 1) * SQRT3_OVER_2);
 
@@ -317,26 +351,27 @@ export function buildSimplexMesh(
           const rawH = orientation === 'horizontal' ? spanAlongRows : spanAlongCols;
 
           const sFit = Math.min(usableW / rawW, usableH / rawH);
-          const clampedS = Math.min(sFit, maxSide);
-          const meshArea = rawW * clampedS * (rawH * clampedS);
-          const areaEfficiency = meshArea / (usableW * usableH);
+          const effectiveS = Math.max(40, Math.min(sFit, maxSide));
+          const meshArea = rawW * effectiveS * (rawH * effectiveS);
+          const areaEfficiency = Math.min(1, meshArea / (usableW * usableH));
+          const gridAspect = rawW / rawH;
+          const aspectAlignment =
+            Math.min(gridAspect, viewAspect) / Math.max(gridAspect, viewAspect);
 
-          let intervalPenalty = 0;
-          if (sFit < minSide) {
-            intervalPenalty = minSide - sFit;
-          } else if (sFit > maxSide) {
-            intervalPenalty = sFit - maxSide;
-          }
+          // Only penalize candidates whose triangles would shrink below minSideLength;
+          // an optional maxSideLength acts purely as a side-length cap, never a penalty.
+          const minSidePenalty = sFit < minSide ? minSide - sFit : 0;
 
           candidates.push({
             cols,
             rows,
             orientation,
             wideFirst,
-            sideLength: Math.max(40, sFit),
+            sideLength: effectiveS,
             vertexCount: k,
             areaEfficiency,
-            intervalPenalty,
+            aspectAlignment,
+            minSidePenalty,
           });
         }
       }
@@ -345,12 +380,16 @@ export function buildSimplexMesh(
 
   // Fallback minimal 3-vertex equilateral triangle if no candidate matched
   if (candidates.length === 0) {
-    const s = Math.min(usableW, usableH / SQRT3_OVER_2, maxSide);
+    const fallbackOrientation: 'horizontal' | 'vertical' =
+      usableW >= usableH ? 'horizontal' : 'vertical';
+    const rawW = fallbackOrientation === 'horizontal' ? 1 : SQRT3_OVER_2;
+    const rawH = fallbackOrientation === 'horizontal' ? SQRT3_OVER_2 : 1;
+    const s = Math.max(40, Math.min(usableW / rawW, usableH / rawH, maxSide));
     const { vertices, edges, triangles } = buildSimplexLattice(
       2,
       2,
       s,
-      'horizontal',
+      fallbackOrientation,
       true,
       viewportWidth,
       viewportHeight,
@@ -360,40 +399,50 @@ export function buildSimplexMesh(
       height: viewportHeight,
       innerPadding,
       sideLength: s,
-      orientation: 'horizontal',
+      orientation: fallbackOrientation,
       wideFirst: true,
-      areaEfficiency: (s * s * SQRT3_OVER_2) / (usableW * usableH),
+      areaEfficiency: Math.min(1, (rawW * s * (rawH * s)) / (usableW * usableH)),
       vertices,
       edges,
       triangles,
     };
   }
 
-  // Prefer candidates strictly inside [minSide, maxSide] with highest area utilization (and rich K);
-  // fallback to smallest interval penalty if viewport is extreme.
-  const inInterval = candidates.filter((c) => c.intervalPenalty === 0);
+  // Prefer candidates satisfying sFit >= minSide that retain healthy cluster richness
+  // and maximize viewport area & aspect-ratio alignment; on tiny screens, gracefully step down K.
+  const viable = candidates.filter((c) => c.minSidePenalty === 0);
   let chosen: MeshCandidate;
-  if (inInterval.length > 0) {
-    inInterval.sort((a, b) => {
-      const scoreA = a.areaEfficiency + a.vertexCount * 0.018;
-      const scoreB = b.areaEfficiency + b.vertexCount * 0.018;
+  if (viable.length > 0) {
+    const maxViableK = viable.reduce((acc, c) => Math.max(acc, c.vertexCount), 3);
+    const minRichK = Math.max(3, Math.ceil(maxViableK * 0.75));
+    const pool = viable.filter((c) => c.vertexCount >= minRichK);
+    const activePool = pool.length > 0 ? pool : viable;
+
+    activePool.sort((a, b) => {
+      const scoreA =
+        a.areaEfficiency +
+        a.aspectAlignment * 0.12 +
+        (a.vertexCount / maxViableK) * 0.18;
+      const scoreB =
+        b.areaEfficiency +
+        b.aspectAlignment * 0.12 +
+        (b.vertexCount / maxViableK) * 0.18;
       return scoreB - scoreA;
     });
-    chosen = inInterval[0]!;
+    chosen = activePool[0]!;
   } else {
     candidates.sort((a, b) => {
-      if (Math.abs(a.intervalPenalty - b.intervalPenalty) > 1e-6) {
-        return a.intervalPenalty - b.intervalPenalty;
+      if (Math.abs(a.minSidePenalty - b.minSidePenalty) > 1e-6) {
+        return a.minSidePenalty - b.minSidePenalty;
       }
-      return b.areaEfficiency - a.areaEfficiency;
+      const scoreA = a.areaEfficiency + a.aspectAlignment * 0.12;
+      const scoreB = b.areaEfficiency + b.aspectAlignment * 0.12;
+      return scoreB - scoreA;
     });
     chosen = candidates[0]!;
   }
 
-  const effectiveS =
-    chosen.intervalPenalty === 0
-      ? chosen.sideLength
-      : Math.max(40, Math.min(chosen.sideLength, maxSide));
+  const effectiveS = chosen.sideLength;
 
   const { vertices, edges, triangles } = buildSimplexLattice(
     chosen.cols,

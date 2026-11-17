@@ -74,6 +74,35 @@ import {
   type ZoomSharedHelpers,
 } from './zoom';
 
+/**
+ * Resting opacity floor inside a `cluster-star` frame at maximum simplex distance `d = 1`
+ * (`w_0 = 0`, i.e. items on outer 1-ring neighbor clusters/edges), matching `contextItemNodes` (`0.32`)
+ * so active outer-rim items blend continuously into the dimmed surrounding neighborhood.
+ */
+const CLUSTER_STAR_MIN_ITEM_OPACITY = 0.32;
+
+function computeClusterStarItemRestOpacity<TItem, TTagMeta, TClusterMeta>(
+  activeZoomFrame: ZoomFrameSpec<TItem, TTagMeta, TClusterMeta> | undefined,
+  unitClusters: ReadonlyArray<{
+    readonly cluster: { readonly clusterIndex: number };
+    readonly weight: number;
+  }>,
+): number {
+  if (activeZoomFrame?.kind !== 'cluster-star') {
+    return 1;
+  }
+  let centerWeight = 0;
+  for (const uc of unitClusters) {
+    if (uc.cluster.clusterIndex === 0) {
+      centerWeight += uc.weight;
+    }
+  }
+  const w0 = Math.max(0, Math.min(1, centerWeight));
+  return (
+    CLUSTER_STAR_MIN_ITEM_OPACITY + (1 - CLUSTER_STAR_MIN_ITEM_OPACITY) * w0
+  );
+}
+
 interface AnimatedNodeRecord<TVisual, TDomainMeta> {
   readonly id: string;
   status: 'active' | 'exiting';
@@ -390,10 +419,12 @@ export class SimplexGraphEngine<
         kind: 'root',
         label: 'Overview',
         shortLabel: 'Overview',
+        segments: [{ label: 'Overview' }],
       },
     ],
     neighbors: [],
     drillableTriangleIndices: [],
+    focusableTriangleIndices: [],
     drillableClusterUids: [],
   };
 
@@ -713,6 +744,15 @@ export class SimplexGraphEngine<
     const parentFrame = this.zoomStack[this.zoomStack.length - 1];
     if (!parentFrame) return false;
 
+    // Clicking the free face of an already-focused single leaf triangle toggles back up one level.
+    if (
+      parentFrame.kind === 'triangle-focus' &&
+      this.zoomStack.length >= 2 &&
+      triangleIndex === 0
+    ) {
+      return this.drillUp();
+    }
+
     const outcome = this.zoomStrategy.drillIntoTriangle({
       triangleIndex,
       parentFrame,
@@ -738,6 +778,32 @@ export class SimplexGraphEngine<
     );
     if (clusterIndex < 0) return false;
 
+    // Inside an active 1-ring cluster star:
+    // - Clicking the already-focused center cluster (index 0) toggles back up one level (`drillUp`).
+    // - Clicking an outer 1-ring rim cluster (index > 0) switches laterally at the same zoom depth
+    //   to that cluster's complete 1-ring star in the parent mesh.
+    if (parentFrame.kind === 'cluster-star' && this.zoomStack.length >= 2) {
+      if (clusterIndex === 0) {
+        return this.drillUp();
+      }
+      const rimNeighbor = parentFrame.neighbors[clusterIndex - 1];
+      if (rimNeighbor && rimNeighbor.targetKind === 'cluster') {
+        return this.drillToNeighbor(rimNeighbor.id);
+      }
+    }
+
+    // Inside an active single-triangle leaf focus:
+    // Clicking any of the 3 corner clusters transitions laterally at the same zoom depth
+    // to that cluster's complete 1-ring star in the parent mesh.
+    if (parentFrame.kind === 'triangle-focus' && this.zoomStack.length >= 2) {
+      const cornerNeighborId =
+        parentFrame.cornerClusterNeighborIds?.[clusterIndex];
+      if (cornerNeighborId) {
+        return this.drillToNeighbor(cornerNeighborId);
+      }
+      return false;
+    }
+
     const outcome = this.zoomStrategy.drillIntoCluster({
       clusterUid,
       clusterIndex,
@@ -748,7 +814,10 @@ export class SimplexGraphEngine<
     });
     if (!outcome) return false;
 
-    this.executeDrillTransition([...this.zoomStack, outcome.nextFrame]);
+    const nextStack = outcome.replaceTop
+      ? [...this.zoomStack.slice(0, -1), outcome.nextFrame]
+      : [...this.zoomStack, outcome.nextFrame];
+    this.executeDrillTransition(nextStack);
     return true;
   }
 
@@ -1442,6 +1511,7 @@ export class SimplexGraphEngine<
       kind: 'root',
       label: 'Overview',
       shortLabel: 'Overview',
+      breadcrumbSegments: [{ label: 'Overview' }],
       mesh,
       clusters: this.rootClusters,
       items,
@@ -1493,6 +1563,7 @@ export class SimplexGraphEngine<
         })
       : {
           drillableTriangleIndices: [],
+          focusableTriangleIndices: [],
           drillableClusterUids: [],
           isLeafReached: false,
           fullScaleItemRatio: 1,
@@ -1513,9 +1584,11 @@ export class SimplexGraphEngine<
         label: frame.label,
         shortLabel: frame.shortLabel,
         accentHex: frame.accentHex,
+        segments: frame.breadcrumbSegments,
       })),
       neighbors: this.zoomStrategy.mode === 'drill-down' ? activeFrame.neighbors : [],
       drillableTriangleIndices: evalResult.drillableTriangleIndices,
+      focusableTriangleIndices: evalResult.focusableTriangleIndices ?? [],
       drillableClusterUids: evalResult.drillableClusterUids,
     };
 
@@ -2108,6 +2181,10 @@ export class SimplexGraphEngine<
       resolvedItems.forEach((ri, idx) => {
         const placed = solved.items[idx]!;
         const id = ri.placement.id;
+        const targetOpacity = computeClusterStarItemRestOpacity(
+          activeZoomFrame,
+          ri.placement.layoutContext.unitClusters,
+        );
         const matched = prevItemsByRawId.get(id);
         let nextTransition: VisualTransitionState<TContentVisual> | null = null;
 
@@ -2132,7 +2209,7 @@ export class SimplexGraphEngine<
             localStartScale: matched.node.scale * S,
             targetScale: placed.scale,
             startOpacity: matched.effOpacity,
-            targetOpacity: 1,
+            targetOpacity,
             isNewlyEntering: false,
           });
         } else {
@@ -2145,7 +2222,7 @@ export class SimplexGraphEngine<
             localStartScale: placed.scale * 0.8,
             targetScale: placed.scale,
             startOpacity: 0,
-            targetOpacity: 1,
+            targetOpacity,
             isNewlyEntering: true,
           });
         }
@@ -2156,7 +2233,7 @@ export class SimplexGraphEngine<
           x: { value: placed.x, velocity: 0, target: placed.x },
           y: { value: placed.y, velocity: 0, target: placed.y },
           scale: { value: placed.scale, velocity: 0, target: placed.scale },
-          opacity: { value: 1, velocity: 0, target: 1 },
+          opacity: { value: targetOpacity, velocity: 0, target: targetOpacity },
           visual: ri.visual,
           hull: ri.hull,
           cacheKey: ri.cacheKey,
@@ -2346,6 +2423,10 @@ export class SimplexGraphEngine<
       resolvedItems.forEach((ri, idx) => {
         const placed = solved.items[idx]!;
         const id = ri.placement.id;
+        const targetOpacity = computeClusterStarItemRestOpacity(
+          activeZoomFrame,
+          ri.placement.layoutContext.unitClusters,
+        );
         activeItemIds.add(id);
 
         const existing = this.itemNodes.get(id);
@@ -2368,7 +2449,11 @@ export class SimplexGraphEngine<
               velocity: 0,
               target: placed.scale,
             },
-            opacity: { value: isInitial ? 1 : 0, velocity: 0, target: 1 },
+            opacity: {
+              value: isInitial ? targetOpacity : 0,
+              velocity: 0,
+              target: targetOpacity,
+            },
             visual: ri.visual,
             hull: ri.hull,
             cacheKey: ri.cacheKey,
@@ -2389,7 +2474,7 @@ export class SimplexGraphEngine<
           existing.x.target = placed.x;
           existing.y.target = placed.y;
           existing.scale.target = placed.scale;
-          existing.opacity.target = 1;
+          existing.opacity.target = targetOpacity;
           existing.visual = ri.visual;
           existing.hull = ri.hull;
           existing.cacheKey = ri.cacheKey;
@@ -2995,10 +3080,12 @@ export class SimplexGraphEngine<
       );
       const isZoomHighlightedCluster = Boolean(
         zoomBoundary.isZoomedIn &&
-          cNode.domain.role !== 'intermediate' &&
           (zoomBoundary.activeFrameKind === 'cluster-star'
             ? cNode.domain.clusterIndex === 0
-            : zoomBoundary.outerCornerVerts.has(cNode.domain.clusterIndex)),
+            : zoomBoundary.activeFrameKind === 'triangle-focus'
+              ? zoomBoundary.outerCornerVerts.has(cNode.domain.clusterIndex)
+              : cNode.domain.role !== 'intermediate' &&
+                zoomBoundary.outerCornerVerts.has(cNode.domain.clusterIndex)),
       );
       const inFocusedTriangle = Boolean(
         hasTriangleOnlyFocus && focusedTriVertSet?.has(cNode.domain.clusterIndex),
@@ -3129,13 +3216,20 @@ export class SimplexGraphEngine<
         belongsToFocusedCluster ||
         belongsToFocusedTriangle;
       const isDimmed = hasHighlightFocus && !isHighlighted && !isHovered && !isPinned;
+      const effectiveItemOpacity = !this.activeFlight
+        ? isPinned || this.highlightedIds.has(iNode.id)
+          ? Math.max(iNode.opacity.value, 1)
+          : isHovered
+            ? Math.max(iNode.opacity.value, 0.92)
+            : iNode.opacity.value
+        : iNode.opacity.value;
 
       items.push({
         id: iNode.id,
         x: iNode.x.value,
         y: iNode.y.value,
         scale: iNode.scale.value,
-        opacity: iNode.opacity.value,
+        opacity: effectiveItemOpacity,
         visual: iNode.visual,
         hull: iNode.hull,
         cacheKey: iNode.cacheKey,

@@ -22,8 +22,14 @@ export type ZoomStrategyMode = 'free-camera' | 'drill-down';
 export type ZoomFrameKind =
   | 'root'
   | 'triangle'
+  | 'triangle-focus'
   | 'cluster-star'
   | 'cluster-spotlight';
+
+export interface ZoomBreadcrumbSegment {
+  readonly label: string;
+  readonly colorHex?: string;
+}
 
 export interface ZoomBreadcrumb {
   readonly depth: number;
@@ -32,6 +38,8 @@ export interface ZoomBreadcrumb {
   readonly label: string;
   readonly shortLabel: string;
   readonly accentHex?: string;
+  /** Optional rich human-readable topic segments with per-cluster color dots. */
+  readonly segments?: readonly ZoomBreadcrumbSegment[];
 }
 
 export interface ZoomNeighborTarget {
@@ -56,6 +64,7 @@ export interface SimplexZoomState {
   readonly breadcrumbs: readonly ZoomBreadcrumb[];
   readonly neighbors: readonly ZoomNeighborTarget[];
   readonly drillableTriangleIndices: readonly number[];
+  readonly focusableTriangleIndices: readonly number[];
   readonly drillableClusterUids: readonly string[];
 }
 
@@ -180,6 +189,7 @@ export interface ZoomFrameSpec<TItem, TTagMeta, TClusterMeta> {
   readonly label: string;
   readonly shortLabel: string;
   readonly accentHex?: string;
+  readonly breadcrumbSegments?: readonly ZoomBreadcrumbSegment[];
   readonly mesh: SimplexMesh;
   readonly clusters: readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[];
   readonly items: readonly ZoomItemAnchorInput<TItem, TTagMeta>[];
@@ -206,6 +216,8 @@ export interface ZoomFrameSpec<TItem, TTagMeta, TClusterMeta> {
     TTagMeta,
     TClusterMeta
   >[];
+  /** Scoped neighbor IDs (`@<parentFrameId>/cluster:<idx>`) for the 3 outer corners of a `'triangle-focus'` frame. */
+  readonly cornerClusterNeighborIds?: readonly string[];
   readonly strategyData?: unknown;
 }
 
@@ -219,6 +231,7 @@ export interface ZoomTargetEvaluationContext<TItem, TTagMeta, TClusterMeta> {
 
 export interface ZoomTargetEvaluationResult {
   readonly drillableTriangleIndices: readonly number[];
+  readonly focusableTriangleIndices?: readonly number[];
   readonly drillableClusterUids: readonly string[];
   readonly isLeafReached: boolean;
   readonly fullScaleItemRatio: number;
@@ -306,6 +319,8 @@ export interface BarycentricZoomStrategyOptions {
   readonly enableSectorFallback?: boolean;
   readonly stopWhenFullScale?: boolean;
   readonly fullScaleThreshold?: number;
+  /** Focuses leaf / non-subdividable triangles in multi-triangle meshes as single un-subdivided triangles. Default: `true`. */
+  readonly leafTriangleFocus?: boolean;
 }
 
 export interface SemanticZoomStrategyOptions {
@@ -313,6 +328,93 @@ export interface SemanticZoomStrategyOptions {
   readonly stopWhenFullScale?: boolean;
   readonly fullScaleThreshold?: number;
   readonly barycentricFallback?: boolean;
+  /** Focuses leaf / non-subdividable triangles in multi-triangle meshes as single un-subdivided triangles. Default: `true`. */
+  readonly leafTriangleFocus?: boolean;
+}
+
+/**
+ * Context passed when resolving dynamic depth-aware zoom features in `createSubspaceZoomStrategy`.
+ */
+export interface SubspaceZoomContext<TItem = unknown> {
+  /** Zero-based parent zoom depth (`0` when drilling from the root overview into depth `1`). */
+  readonly depth: number;
+  /** Target drill-down frame geometry (`'triangle'` = 6-vertex `1:4` sub-mesh, `'cluster-spotlight'` = 3-vertex spotlight). */
+  readonly kind: 'triangle' | 'cluster-spotlight';
+  /** Subset of domain items covered by the focused triangle or cluster. */
+  readonly items: readonly TItem[];
+}
+
+/**
+ * Interpretable feature or facet extractor evaluated locally on zoomed subsets by `createSubspaceZoomStrategy`.
+ *
+ * Features that are constant within the focused subset (zero local variance, e.g. `milk = true` inside
+ * a *Mammals* cluster) automatically receive zero weight so intra-cluster variations take over.
+ */
+export interface SubspaceZoomFeature<TItem = unknown> {
+  /** Optional stable identifier for deduplicating feature families. */
+  readonly id?: string;
+  /** Human-readable axis name (e.g. `'Budget'`, `'Aquatic'`, `'Island'`). */
+  readonly label: string;
+  /**
+   * Extracts a boolean, categorical string, or continuous numeric value for `item`.
+   * Returning `null`, `undefined`, or `NaN` marks the feature missing for that item.
+   */
+  readonly getValue: (
+    item: TItem,
+  ) => number | boolean | string | null | undefined;
+  /** Relative feature importance weight (`> 0`). Default: `1.0`. */
+  readonly weight?: number;
+  /** Minimum parent zoom depth at which this feature participates (`0` = first drill-down). Default: `0`. */
+  readonly minDepth?: number;
+  /** Concise sub-cluster badge label when a boolean trait is `true` or numeric z-score is high. */
+  readonly highLabel?: string;
+  /** Concise sub-cluster badge label when a boolean trait is `false` or numeric z-score is low. */
+  readonly lowLabel?: string;
+  /** Optional custom label formatter receiving the sub-cluster's raw numeric mean and global subset mean. */
+  readonly formatMean?: (clusterMean: number, subsetMean: number) => string;
+}
+
+/**
+ * Configuration options for `createSubspaceZoomStrategy`.
+ */
+export interface SubspaceZoomStrategyOptions<TItem = unknown> {
+  /**
+   * Optional array (or depth-aware resolver) of interpretable features/facets used to re-cluster
+   * and label sub-vertices locally inside any zoomed triangle or cluster spotlight.
+   */
+  readonly features?:
+    | readonly SubspaceZoomFeature<TItem>[]
+    | ((ctx: SubspaceZoomContext<TItem>) => readonly SubspaceZoomFeature<TItem>[]);
+  /**
+   * Optional continuous embedding extractor locally centered and standardized on the zoomed subset.
+   */
+  readonly getVector?: (item: TItem) => readonly number[];
+  /**
+   * Optional human-readable names for dimensions of `getVector` (used when synthesizing sub-cluster labels).
+   */
+  readonly vectorDimensionLabels?: readonly string[];
+  /**
+   * Optional pairwise similarity kernel `S(a, b) ∈ [0, 1]` used for local medoid subspace projection
+   * when explicit features/vectors are absent or tied.
+   */
+  readonly getSimilarity?: (a: TItem, b: TItem) => number;
+  /**
+   * Optional item title extractor used as exemplar fallback when unnamed vectors/kernels are supplied.
+   */
+  readonly getItemLabel?: (item: TItem) => string;
+  /**
+   * Cluster badge click behavior (`'incident-star'` focuses the lattice-conformal 1-ring star of
+   * incident triangles with simplex-distance item dimming; `'spotlight'` splits direct members
+   * immediately into a standalone 3-sector spotlight; `'none'` disables cluster drill-down).
+   * Default: `'incident-star'`.
+   */
+  readonly clusterZoomMode?: BarycentricClusterZoomMode;
+  /** Terminates subdivision automatically once all covered items reach `fullScaleThreshold`. Default: `true`. */
+  readonly stopWhenFullScale?: boolean;
+  /** Full-scale ratio threshold (`placed.scale / sizeMultiplier`). Default: `0.995`. */
+  readonly fullScaleThreshold?: number;
+  /** Focuses leaf / non-subdividable triangles in multi-triangle meshes as single un-subdivided triangles. Default: `true`. */
+  readonly leafTriangleFocus?: boolean;
 }
 
 interface InternalVertexWeightData {
@@ -322,7 +424,11 @@ interface InternalVertexWeightData {
 }
 
 interface InternalFrameMeta {
-  readonly kind: 'triangle' | 'cluster-star' | 'cluster-spotlight';
+  readonly kind:
+    | 'triangle'
+    | 'triangle-focus'
+    | 'cluster-star'
+    | 'cluster-spotlight';
   readonly parentTriIndex?: number;
   readonly parentClusterIndex?: number;
   readonly vertexWeights: readonly InternalVertexWeightData[];
@@ -988,6 +1094,9 @@ function buildSynthesizedClusterDescriptor<TItem, TTagMeta, TClusterMeta>(params
   readonly featureSummary?: string;
   readonly role?: ClusterRole;
   readonly mixWeights?: readonly ClusterMixComponent[];
+  readonly subclusterLabel?: string;
+  readonly parentContextLabel?: string;
+  readonly preservePrimaryTitle?: string;
   readonly deriveClusterMeta: (
     ctx: ClusterDerivationContext<TItem, TTagMeta>,
   ) => TClusterMeta;
@@ -1011,12 +1120,164 @@ function buildSynthesizedClusterDescriptor<TItem, TTagMeta, TClusterMeta>(params
     featureSummary: params.featureSummary,
     role: params.role ?? 'primary',
     mixWeights: params.mixWeights,
+    subclusterLabel: params.subclusterLabel,
+    parentContextLabel: params.parentContextLabel,
   };
-  const meta = params.deriveClusterMeta(ctx);
+  const rawMeta = params.deriveClusterMeta(ctx);
+  const meta =
+    params.preservePrimaryTitle &&
+    typeof rawMeta === 'object' &&
+    rawMeta !== null &&
+    'title' in rawMeta &&
+    typeof (rawMeta as { readonly title?: unknown }).title === 'string'
+      ? ({
+          ...(rawMeta as Record<string, unknown>),
+          title: params.preservePrimaryTitle,
+        } as TClusterMeta)
+      : rawMeta;
   return {
     ...ctx,
     meta,
   };
+}
+
+function truncateClean(text: string, maxChars: number): string {
+  const clean = text.trim();
+  if (clean.length <= maxChars) return clean;
+  return `${clean.slice(0, Math.max(1, maxChars - 1)).trimEnd()}…`;
+}
+
+function resolveReadableClusterName<TItem, TTagMeta, TClusterMeta>(
+  cluster: ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+  maxChars = 16,
+): string {
+  if (!cluster) return 'Cluster';
+  let raw = '';
+  if (
+    cluster.meta &&
+    typeof cluster.meta === 'object' &&
+    'title' in cluster.meta &&
+    typeof (cluster.meta as { readonly title?: unknown }).title === 'string'
+  ) {
+    const metaTitle = (cluster.meta as { readonly title: string }).title.trim();
+    if (metaTitle.length > 0 && metaTitle !== 'bridge') {
+      raw = metaTitle;
+    }
+  }
+  if (!raw) {
+    raw =
+      cluster.subclusterLabel ||
+      cluster.parentContextLabel ||
+      cluster.defaultLabel ||
+      cluster.code;
+  }
+  const primaryPart = raw.split(/\s*\/\s*|\s*↔\s*/)[0]!.trim() || raw.trim();
+  return truncateClean(primaryPart, maxChars);
+}
+
+function deriveCornerParentContextLabel<TItem, TTagMeta, TClusterMeta>(
+  parentCorner: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>,
+): string {
+  if (parentCorner.parentContextLabel && parentCorner.subclusterLabel) {
+    const rootPart = truncateClean(parentCorner.parentContextLabel, 9);
+    const subPart = truncateClean(parentCorner.subclusterLabel, 10);
+    if (rootPart.toLowerCase() !== subPart.toLowerCase()) {
+      return `${rootPart} › ${subPart}`;
+    }
+  }
+  if (parentCorner.parentContextLabel) {
+    return truncateClean(parentCorner.parentContextLabel, 18);
+  }
+  return resolveReadableClusterName(parentCorner, 18);
+}
+
+function buildTriangleBreadcrumbInfo<TItem, TTagMeta, TClusterMeta>(
+  corners: readonly (
+    | ClusterDescriptor<TItem, TTagMeta, TClusterMeta>
+    | undefined
+  )[],
+  fallbackCodes: readonly string[],
+): {
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly segments: readonly ZoomBreadcrumbSegment[];
+} {
+  const segments: ZoomBreadcrumbSegment[] = corners.map((c, idx) => ({
+    label: c ? resolveReadableClusterName(c, 14) : fallbackCodes[idx]!,
+    colorHex: c?.colorHex,
+  }));
+  const joined = segments.map((s) => s.label).join(' · ');
+  return {
+    label: joined,
+    shortLabel: joined,
+    segments,
+  };
+}
+
+function buildClusterBreadcrumbInfo<TItem, TTagMeta, TClusterMeta>(
+  cluster: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>,
+): {
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly segments: readonly ZoomBreadcrumbSegment[];
+} {
+  const name = resolveReadableClusterName(cluster, 18);
+  return {
+    label: `${cluster.code} · ${name}`,
+    shortLabel: name,
+    segments: [{ label: name, colorHex: cluster.colorHex }],
+  };
+}
+
+function extractHumanExemplarTitle<TItem>(
+  item: TItem,
+  getItemLabel?: (item: TItem) => string,
+): string | null {
+  if (getItemLabel) {
+    const custom = getItemLabel(item)?.trim();
+    if (custom) return custom.replace(/\s*\(\d{4}\)$/, '').trim();
+  }
+  if (typeof item === 'object' && item !== null) {
+    const rec = item as Record<string, unknown>;
+    const candidateKeys = [
+      'shortTitle',
+      'title',
+      'label',
+      'name',
+      'headline',
+      'speciesName',
+      'fullName',
+      'speakerName',
+      'specimenCode',
+    ];
+    for (const k of candidateKeys) {
+      const val = rec[k];
+      if (typeof val === 'string' && val.trim().length > 0) {
+        return val.trim().replace(/\s*\(\d{4}\)$/, '').trim();
+      }
+    }
+    for (const nestedKey of [
+      'entry',
+      'repo',
+      'animal',
+      'zoo',
+      'media',
+      'voice',
+      'body',
+    ]) {
+      const nested = rec[nestedKey];
+      if (typeof nested === 'object' && nested !== null) {
+        const nRec = nested as Record<string, unknown>;
+        for (const k of candidateKeys) {
+          const val = nRec[k];
+          if (typeof val === 'string' && val.trim().length > 0) {
+            return val.trim().replace(/\s*\(\d{4}\)$/, '').trim();
+          }
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function sortRootWeightEntries(
@@ -1037,11 +1298,44 @@ function buildMixWeights<TItem, TTagMeta, TClusterMeta>(
     const c = rootClusters[idx];
     return {
       code: c?.code ?? defaultClusterCode(idx),
-      label: c?.defaultLabel ?? `Topic ${idx + 1}`,
+      label: resolveReadableClusterName(c, 16),
       colorHex: c?.colorHex ?? '#64748b',
       weight: w,
     };
   });
+}
+
+function formatCompactBridgeLabel<TItem, TTagMeta, TClusterMeta>(
+  weights: ReadonlyMap<number, number>,
+  rootClusters: readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[],
+  immediateEdgePair?: readonly [
+    ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+    ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+  ],
+): string {
+  if (immediateEdgePair && immediateEdgePair[0] && immediateEdgePair[1]) {
+    const nameA = resolveReadableClusterName(immediateEdgePair[0], 10);
+    const nameB = resolveReadableClusterName(immediateEdgePair[1], 10);
+    if (nameA.toLowerCase() !== nameB.toLowerCase()) {
+      return `${nameA} ↔ ${nameB}`;
+    }
+  }
+  const sorted = sortRootWeightEntries(weights);
+  if (sorted.length === 0) return 'Bridge';
+  const [domIdx, domW] = sorted[0]!;
+  const domCluster = rootClusters[domIdx];
+  if (sorted.length === 1 || domW >= 0.996) {
+    return resolveReadableClusterName(domCluster, 16);
+  }
+  const [idxA, wA] = sorted[0]!;
+  const [idxB] = sorted[1]!;
+  const nameA = resolveReadableClusterName(rootClusters[idxA], 10);
+  const nameB = resolveReadableClusterName(rootClusters[idxB], 10);
+  if (Math.abs(wA - 0.5) <= 0.04) {
+    return `${nameA} ↔ ${nameB}`;
+  }
+  const pctA = wA >= 0.99 ? 99 : Math.max(1, Math.round(wA * 100));
+  return `${pctA}% ${nameA} · ${nameB}`;
 }
 
 function formatMixLabel<TItem, TTagMeta, TClusterMeta>(
@@ -1057,7 +1351,7 @@ function formatMixLabel<TItem, TTagMeta, TClusterMeta>(
   if (sorted.length === 1 || domW >= 0.996) {
     return {
       code: domCluster?.code ?? defaultClusterCode(domIdx),
-      label: domCluster?.defaultLabel ?? `Topic ${domIdx + 1}`,
+      label: resolveReadableClusterName(domCluster, 18),
     };
   }
   if (sorted.length === 2) {
@@ -1067,8 +1361,8 @@ function formatMixLabel<TItem, TTagMeta, TClusterMeta>(
     const cB = rootClusters[idxB];
     const codeA = cA?.code ?? defaultClusterCode(idxA);
     const codeB = cB?.code ?? defaultClusterCode(idxB);
-    const nameA = (cA?.defaultLabel ?? codeA).split(' / ')[0]!;
-    const nameB = (cB?.defaultLabel ?? codeB).split(' / ')[0]!;
+    const nameA = resolveReadableClusterName(cA, 12);
+    const nameB = resolveReadableClusterName(cB, 12);
     if (Math.abs(wA - 0.5) <= 0.03) {
       return {
         code: `${codeA}·${codeB}`,
@@ -1091,7 +1385,7 @@ function formatMixLabel<TItem, TTagMeta, TClusterMeta>(
   const label = topEntries
     .map(([idx, w]) => {
       const c = rootClusters[idx];
-      const name = (c?.defaultLabel ?? defaultClusterCode(idx)).split(' / ')[0]!;
+      const name = resolveReadableClusterName(c, 11);
       const pct = w >= 0.99 ? '99' : w < 0.01 ? '<1' : String(Math.round(w * 100));
       return `${pct}% ${name}`;
     })
@@ -1136,11 +1430,13 @@ function evaluateTriangleFrameNeighbors<TItem, TTagMeta, TClusterMeta>(
   const edgeSpecs: readonly {
     readonly a: number;
     readonly b: number;
+    readonly localA: number;
+    readonly localB: number;
     readonly midVertexIdx: number;
   }[] = [
-    { a: v0, b: v1, midVertexIdx: 3 },
-    { a: v1, b: v2, midVertexIdx: 4 },
-    { a: v2, b: v0, midVertexIdx: 5 },
+    { a: v0, b: v1, localA: 0, localB: 1, midVertexIdx: 3 },
+    { a: v1, b: v2, localA: 1, localB: 2, midVertexIdx: 4 },
+    { a: v2, b: v0, localA: 2, localB: 0, midVertexIdx: 5 },
   ];
 
   const sv0 = subMesh.vertices[0]!;
@@ -1159,7 +1455,12 @@ function evaluateTriangleFrameNeighbors<TItem, TTagMeta, TClusterMeta>(
     );
     if (!adjTri) continue;
 
-    const midPt = subMesh.vertices[spec.midVertexIdx]!;
+    const la = subMesh.vertices[spec.localA]!;
+    const lb = subMesh.vertices[spec.localB]!;
+    const midPt = subMesh.vertices[spec.midVertexIdx] ?? {
+      x: (la.x + lb.x) * 0.5,
+      y: (la.y + lb.y) * 0.5,
+    };
     const nxRaw = midPt.x - triCx;
     const nyRaw = midPt.y - triCy;
     const nLen = Math.hypot(nxRaw, nyRaw) || 1;
@@ -1170,8 +1471,8 @@ function evaluateTriangleFrameNeighbors<TItem, TTagMeta, TClusterMeta>(
       if (isItemCoveredByVertices(parentFrame, it, vertSet)) itemCount++;
     }
     const cornerClusters = adjTri.vertices.map((vi) => parentFrame.clusters[vi]);
-    const cornerCodes = cornerClusters.map((c, idx) =>
-      c ? c.code : defaultClusterCode(adjTri.vertices[idx]!),
+    const cornerNames = cornerClusters.map((c, idx) =>
+      c ? resolveReadableClusterName(c, 12) : defaultClusterCode(adjTri.vertices[idx]!),
     );
     const mixed = mixOklabColors(
       cornerClusters
@@ -1184,8 +1485,8 @@ function evaluateTriangleFrameNeighbors<TItem, TTagMeta, TClusterMeta>(
     neighbors.push({
       id: `tri:${adjTri.index}`,
       targetKind: 'triangle',
-      label: `${cornerCodes.join(' · ')} (${itemCount})`,
-      shortLabel: cornerCodes.join('·'),
+      label: `${cornerNames.join(' · ')} (${itemCount})`,
+      shortLabel: cornerNames.join(' · '),
       itemCount,
       anchorPoint: { x: midPt.x, y: midPt.y },
       normal: { x: nxRaw / nLen, y: nyRaw / nLen },
@@ -1200,6 +1501,9 @@ function buildSectorPartitionFrame<TItem, TTagMeta, TClusterMeta>(params: {
   readonly label: string;
   readonly shortLabel: string;
   readonly accentHex: string;
+  readonly breadcrumbSegments?: readonly ZoomBreadcrumbSegment[];
+  readonly parentContextLabel?: string;
+  readonly getItemLabel?: (item: TItem) => string;
   readonly coveredItems: readonly ZoomItemAnchorInput<TItem, TTagMeta>[];
   readonly baseRootWeights: ReadonlyMap<number, number>;
   readonly helpers: ZoomSharedHelpers<TItem, TTagMeta, TClusterMeta>;
@@ -1235,6 +1539,9 @@ function buildSectorPartitionFrame<TItem, TTagMeta, TClusterMeta>(params: {
     label,
     shortLabel,
     accentHex,
+    breadcrumbSegments,
+    parentContextLabel,
+    getItemLabel,
     coveredItems,
     baseRootWeights,
     helpers,
@@ -1325,16 +1632,34 @@ function buildSectorPartitionFrame<TItem, TTagMeta, TClusterMeta>(params: {
     },
   );
 
-  const sectorNames = ['Sector A', 'Sector B', 'Sector C'];
+  const sectorLetters = ['A', 'B', 'C'] as const;
   const mixWeights = buildMixWeights(baseRootWeights, helpers.rootClusters);
-  const baseShort = formatMixLabel(baseRootWeights, helpers.rootClusters).code;
-  const sectorPrefix = baseShort.length <= 5 ? `${baseShort}·` : '';
+  const baseFmt = formatMixLabel(baseRootWeights, helpers.rootClusters);
+  const sectorPrefix = baseFmt.code.length <= 5 ? `${baseFmt.code}·` : '';
+  const effectiveParentContext =
+    parentContextLabel ?? truncateClean(baseFmt.label, 18);
 
   const clusters: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[] = [0, 1, 2].map(
     (s) => {
       const lab = sectorLabs[s]!;
       const mixedHex = mixOklabColors([{ oklab: lab, weight: 1 }]).hex;
       const bucket = sectorBuckets[s]!;
+      const leadItem = bucket[0];
+      const exemplar = leadItem
+        ? extractHumanExemplarTitle(leadItem.item, getItemLabel)
+        : null;
+      let sectorLabel: string;
+      if (exemplar) {
+        sectorLabel =
+          bucket.length > 1
+            ? `“${truncateClean(exemplar, 12)}” +${bucket.length - 1}`
+            : truncateClean(exemplar, 15);
+      } else if (leadItem && leadItem.tags.length > 0) {
+        const topTag = leadItem.tags[0]!.tag.replace(/^#+/, '').slice(0, 9);
+        sectorLabel = `#${topTag} · ${sectorLetters[s]} (${bucket.length})`;
+      } else {
+        sectorLabel = `Group ${sectorLetters[s]} (${bucket.length})`;
+      }
       const members = nextItems.map((it) => {
         const uw = it.unitWeights[s]!;
         return {
@@ -1349,16 +1674,18 @@ function buildSectorPartitionFrame<TItem, TTagMeta, TClusterMeta>(params: {
         clusterIndex: s,
         clusterUid: helpers.allocateClusterUid(),
         code: `${sectorPrefix}S${s + 1}`,
-        defaultLabel: `${sectorNames[s]} (${bucket.length})`,
+        defaultLabel: sectorLabel,
         oklab: lab,
         hex: mixedHex,
         vertex: mesh.vertices[s]!,
         coreTags: [],
         sharedTags: [],
         members,
-        featureSummary: `Spatial sector ${s + 1}/3`,
+        featureSummary: `Spatial group ${sectorLetters[s]} (${sectorLabel})`,
         role: 'intermediate',
         mixWeights,
+        subclusterLabel: sectorLabel,
+        parentContextLabel: effectiveParentContext,
         deriveClusterMeta: helpers.deriveClusterMeta,
       });
     },
@@ -1370,6 +1697,7 @@ function buildSectorPartitionFrame<TItem, TTagMeta, TClusterMeta>(params: {
     label,
     shortLabel,
     accentHex,
+    breadcrumbSegments,
     mesh,
     clusters,
     items: nextItems,
@@ -1872,6 +2200,7 @@ function executeBarycentricTriangleDrill<TItem, TTagMeta, TClusterMeta>(
     c1?.code ?? defaultClusterCode(v1),
     c2?.code ?? defaultClusterCode(v2),
   ];
+  const triCrumb = buildTriangleBreadcrumbInfo([c0, c1, c2], triCodes);
   const triMixed = mixOklabColors(
     [c0, c1, c2]
       .filter((c): c is ClusterDescriptor<TItem, TTagMeta, TClusterMeta> =>
@@ -1888,9 +2217,11 @@ function executeBarycentricTriangleDrill<TItem, TTagMeta, TClusterMeta>(
     return {
       nextFrame: buildSectorPartitionFrame({
         frameId: `sector-${parentFrame.frameId}-t${triangleIndex}`,
-        label: `${triCodes.join(' · ')} Spotlight`,
-        shortLabel: `${triCodes[0]!} Split`,
+        label: triCrumb.label,
+        shortLabel: triCrumb.shortLabel,
         accentHex: triMixed.hex,
+        breadcrumbSegments: triCrumb.segments,
+        parentContextLabel: truncateClean(triCrumb.shortLabel, 20),
         coveredItems,
         baseRootWeights: meanWeights,
         helpers,
@@ -2109,10 +2440,33 @@ function executeBarycentricTriangleDrill<TItem, TTagMeta, TClusterMeta>(
           featureSummary: parentCorner.featureSummary,
           role: parentCorner.role ?? 'primary',
           mixWeights: parentCorner.mixWeights,
+          subclusterLabel: parentCorner.subclusterLabel,
+          parentContextLabel: parentCorner.parentContextLabel,
+          preservePrimaryTitle:
+            (parentCorner.role ?? 'primary') === 'primary'
+              ? resolveReadableClusterName(parentCorner, 32)
+              : undefined,
           deriveClusterMeta: helpers.deriveClusterMeta,
         });
       }
 
+      const midpointEdgePairs: ReadonlyArray<
+        readonly [
+          ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+          ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+        ]
+      > = [
+        [c0, c1],
+        [c1, c2],
+        [c2, c0],
+      ];
+      const immediatePair =
+        vIdx >= 3 && !stretchApplied ? midpointEdgePairs[vIdx - 3] : undefined;
+      const bridgeLabel = formatCompactBridgeLabel(
+        vw,
+        helpers.rootClusters,
+        immediatePair,
+      );
       const fmt = formatMixLabel(vw, helpers.rootClusters);
       const mixWeights = buildMixWeights(vw, helpers.rootClusters);
       return buildSynthesizedClusterDescriptor({
@@ -2126,9 +2480,13 @@ function executeBarycentricTriangleDrill<TItem, TTagMeta, TClusterMeta>(
         coreTags: [],
         sharedTags: [],
         members: memberEntries,
-        featureSummary: `Sub-simplex blend (${fmt.label})`,
+        featureSummary: `Sub-simplex blend (${bridgeLabel})`,
         role: 'intermediate',
         mixWeights,
+        subclusterLabel: bridgeLabel,
+        parentContextLabel: parentCorner
+          ? deriveCornerParentContextLabel(parentCorner)
+          : undefined,
         deriveClusterMeta: helpers.deriveClusterMeta,
       });
     },
@@ -2143,9 +2501,10 @@ function executeBarycentricTriangleDrill<TItem, TTagMeta, TClusterMeta>(
     nextFrame: {
       frameId: `tri-${parentFrame.frameId}-t${triangleIndex}`,
       kind: 'triangle',
-      label: triCodes.join(' · '),
-      shortLabel: triCodes.join('·'),
+      label: triCrumb.label,
+      shortLabel: triCrumb.shortLabel,
       accentHex: triMixed.hex,
+      breadcrumbSegments: triCrumb.segments,
       mesh: subMesh,
       clusters: subClusters,
       items: subItems,
@@ -2165,6 +2524,205 @@ function executeBarycentricTriangleDrill<TItem, TTagMeta, TClusterMeta>(
         kind: 'triangle',
         parentTriIndex: triangleIndex,
         vertexWeights: vWeights.map((rw) => ({ rootWeights: rw })),
+        itemRootWeights: itemRootMap,
+      } satisfies InternalFrameMeta,
+    },
+  };
+}
+
+// ============================================================================
+// Single-Triangle Leaf Focus Builder (Un-Subdivided 1-Triangle Focus)
+// ============================================================================
+
+function executeSingleTriangleFocusDrill<TItem, TTagMeta, TClusterMeta>(
+  ctx: ZoomTriangleDrillContext<TItem, TTagMeta, TClusterMeta>,
+  allowClusterDrill = true,
+): ZoomDrillOutcome<TItem, TTagMeta, TClusterMeta> | null {
+  if (ctx.parentDepth > MAX_ZOOM_DRILL_DEPTH) return null;
+  const { triangleIndex, parentFrame, helpers } = ctx;
+  if (
+    parentFrame.mesh.triangles.length <= 1 ||
+    parentFrame.kind === 'triangle-focus' ||
+    parentFrame.kind === 'cluster-spotlight'
+  ) {
+    return null;
+  }
+  const tri = parentFrame.mesh.triangles[triangleIndex];
+  if (!tri) return null;
+
+  const [v0, v1, v2] = tri.vertices;
+  const oldToNew = new Map<number, number>([
+    [v0, 0],
+    [v1, 1],
+    [v2, 2],
+  ]);
+  const vSet = new Set<number>([v0, v1, v2]);
+  const coveredItems = parentFrame.items.filter((it) =>
+    isItemCoveredByVertices(parentFrame, it, vSet),
+  );
+
+  const c0 = parentFrame.clusters[v0];
+  const c1 = parentFrame.clusters[v1];
+  const c2 = parentFrame.clusters[v2];
+  const p0 = parentFrame.mesh.vertices[v0]!;
+  const p1 = parentFrame.mesh.vertices[v1]!;
+  const p2 = parentFrame.mesh.vertices[v2]!;
+
+  const focusPadding = computeContextAwarePadding(
+    helpers.viewportWidth,
+    helpers.viewportHeight,
+    helpers.innerPadding,
+    true,
+  );
+  const { mesh: focusMesh, transform } =
+    buildOrientedSingleTriangleMeshWithTransform({
+      viewportWidth: helpers.viewportWidth,
+      viewportHeight: helpers.viewportHeight,
+      innerPadding: focusPadding,
+      sourceTrianglePoints: [p0, p1, p2],
+      orientation: parentFrame.mesh.orientation,
+    });
+
+  const neighbors = evaluateTriangleFrameNeighbors(
+    parentFrame,
+    triangleIndex,
+    focusMesh,
+  );
+  const context = buildNeighborhoodContext({
+    parentFrame,
+    excludedTriangleIndices: new Set([triangleIndex]),
+    excludedVertexIndices: vSet,
+    activeParentEdgeKeys: new Set([
+      pairEdgeKey(v0, v1),
+      pairEdgeKey(v1, v2),
+      pairEdgeKey(v2, v0),
+    ]),
+    activeItemIds: new Set(coveredItems.map((it) => it.id)),
+    parentSettledItems: helpers.parentSettledItems,
+    transform,
+    viewportWidth: helpers.viewportWidth,
+    viewportHeight: helpers.viewportHeight,
+    allowClusterDrill,
+  });
+
+  const focusItems: ZoomItemAnchorInput<TItem, TTagMeta>[] = coveredItems.map(
+    (it) => {
+      const unitWeights = it.unitWeights.map((uw) => ({
+        clusterIndex: oldToNew.get(uw.clusterIndex) ?? 0,
+        weight: uw.weight,
+        coverage: uw.coverage,
+      }));
+      let anchorX = 0;
+      let anchorY = 0;
+      for (const uw of unitWeights) {
+        const v = focusMesh.vertices[uw.clusterIndex]!;
+        anchorX += v.x * uw.weight;
+        anchorY += v.y * uw.weight;
+      }
+      return {
+        ...it,
+        anchorX,
+        anchorY,
+        unitWeights,
+      };
+    },
+  );
+
+  const oldVertices = [v0, v1, v2];
+  const focusClusters: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[] =
+    oldVertices.map((oldIdx, newIdx) => {
+      const origCluster = parentFrame.clusters[oldIdx]!;
+      const vert = focusMesh.vertices[newIdx]!;
+      const memberEntries: Array<
+        ClusterDescriptor<TItem, TTagMeta, TClusterMeta>['members'][number]
+      > = [];
+      for (const fItem of focusItems) {
+        const uw = fItem.unitWeights.find((u) => u.clusterIndex === newIdx);
+        if (!uw) continue;
+        memberEntries.push({
+          item: fItem.item,
+          itemId: fItem.id,
+          coverage: uw.coverage,
+          normalizedWeight: uw.weight,
+          isExclusiveVertexMember: fItem.unitWeights.length === 1,
+        });
+      }
+      return buildSynthesizedClusterDescriptor({
+        clusterIndex: newIdx,
+        clusterUid: helpers.allocateClusterUid(),
+        code: origCluster.code,
+        defaultLabel: origCluster.defaultLabel,
+        oklab: origCluster.oklab,
+        hex: origCluster.colorHex,
+        vertex: vert,
+        coreTags: origCluster.coreTags,
+        sharedTags: origCluster.sharedTags,
+        members: memberEntries,
+        featureSummary: origCluster.featureSummary,
+        role: origCluster.role ?? 'primary',
+        mixWeights: origCluster.mixWeights,
+        subclusterLabel: origCluster.subclusterLabel,
+        parentContextLabel: origCluster.parentContextLabel,
+        preservePrimaryTitle:
+          (origCluster.role ?? 'primary') === 'primary'
+            ? resolveReadableClusterName(origCluster, 32)
+            : undefined,
+        deriveClusterMeta: helpers.deriveClusterMeta,
+      });
+    });
+
+  const triCodes = [
+    c0?.code ?? defaultClusterCode(v0),
+    c1?.code ?? defaultClusterCode(v1),
+    c2?.code ?? defaultClusterCode(v2),
+  ];
+  const triCrumb = buildTriangleBreadcrumbInfo([c0, c1, c2], triCodes);
+  const triMixed = mixOklabColors(
+    [c0, c1, c2]
+      .filter((c): c is ClusterDescriptor<TItem, TTagMeta, TClusterMeta> =>
+        Boolean(c),
+      )
+      .map((c) => ({ oklab: c.oklab, weight: 1 })),
+  );
+
+  const vWeights = oldVertices.map((oldIdx) => ({
+    rootWeights: getFrameVertexRootWeights(parentFrame, oldIdx),
+  }));
+  const itemRootMap = new Map<string, ReadonlyMap<number, number>>();
+  for (const it of coveredItems) {
+    itemRootMap.set(it.id, getItemRootWeights(parentFrame, it));
+  }
+
+  return {
+    nextFrame: {
+      frameId: `tri-focus-${parentFrame.frameId}-t${triangleIndex}`,
+      kind: 'triangle-focus',
+      label: triCrumb.label,
+      shortLabel: triCrumb.shortLabel,
+      accentHex: triMixed.hex,
+      breadcrumbSegments: triCrumb.segments,
+      mesh: focusMesh,
+      clusters: focusClusters,
+      items: focusItems,
+      neighbors,
+      parentToFrameTransform: {
+        scale: transform.scale,
+        sourceCx: transform.sourceCx,
+        sourceCy: transform.sourceCy,
+        targetCx: transform.targetCx,
+        targetCy: transform.targetCy,
+      },
+      contextTriangles: context.contextTriangles,
+      contextEdges: context.contextEdges,
+      contextClusters: context.contextClusters,
+      contextItems: context.contextItems,
+      cornerClusterNeighborIds: allowClusterDrill
+        ? oldVertices.map((oldIdx) => `@${parentFrame.frameId}/cluster:${oldIdx}`)
+        : undefined,
+      strategyData: {
+        kind: 'triangle-focus',
+        parentTriIndex: triangleIndex,
+        vertexWeights: vWeights,
         itemRootWeights: itemRootMap,
       } satisfies InternalFrameMeta,
     },
@@ -2205,7 +2763,6 @@ function executeClusterStarDrill<TItem, TTagMeta, TClusterMeta>(
   const coveredItems = parentFrame.items.filter((it) =>
     isItemCoveredByVertices(parentFrame, it, oldVertexSet),
   );
-  if (coveredItems.length === 0) return null;
 
   const excludedTriangleIndices = new Set(incidentTris.map((t) => t.index));
   const activeParentEdgeKeys = new Set(
@@ -2279,6 +2836,8 @@ function executeClusterStarDrill<TItem, TTagMeta, TClusterMeta>(
         featureSummary: origCluster.featureSummary,
         role: origCluster.role ?? 'primary',
         mixWeights: origCluster.mixWeights,
+        subclusterLabel: origCluster.subclusterLabel,
+        parentContextLabel: origCluster.parentContextLabel,
         deriveClusterMeta: helpers.deriveClusterMeta,
       });
     });
@@ -2294,11 +2853,12 @@ function executeClusterStarDrill<TItem, TTagMeta, TClusterMeta>(
     const dx = adjVert.x - centerVert.x;
     const dy = adjVert.y - centerVert.y;
     const len = Math.hypot(dx, dy) || 1;
+    const adjName = resolveReadableClusterName(adjCluster, 16);
     neighbors.push({
       id: `cluster:${oldIdx}`,
       targetKind: 'cluster',
-      label: `${adjCluster.code} · ${adjCluster.defaultLabel}`,
-      shortLabel: adjCluster.code,
+      label: `${adjCluster.code} · ${adjName}`,
+      shortLabel: adjName,
       itemCount: adjCluster.members.length,
       anchorPoint: { x: adjVert.x, y: adjVert.y },
       normal: { x: dx / len, y: dy / len },
@@ -2307,6 +2867,7 @@ function executeClusterStarDrill<TItem, TTagMeta, TClusterMeta>(
   }
 
   const centerOrig = parentFrame.clusters[clusterIndex]!;
+  const starCrumb = buildClusterBreadcrumbInfo(centerOrig);
   const vWeights = star.newToOldVertex.map((oldIdx) => ({
     rootWeights: getFrameVertexRootWeights(parentFrame, oldIdx),
   }));
@@ -2319,9 +2880,10 @@ function executeClusterStarDrill<TItem, TTagMeta, TClusterMeta>(
     nextFrame: {
       frameId: `star-${parentFrame.frameId}-c${clusterIndex}`,
       kind: 'cluster-star',
-      label: `${centerOrig.code} · ${centerOrig.defaultLabel}`,
-      shortLabel: centerOrig.code,
+      label: starCrumb.label,
+      shortLabel: starCrumb.shortLabel,
       accentHex: centerOrig.colorHex,
+      breadcrumbSegments: starCrumb.segments,
       mesh: star.mesh,
       clusters: starClusters,
       items: starItems,
@@ -2370,19 +2932,31 @@ export function createBarycentricZoomStrategy<
   const enableSectorFallback = options?.enableSectorFallback ?? true;
   const stopWhenFullScale = options?.stopWhenFullScale ?? true;
   const fullScaleThreshold = options?.fullScaleThreshold ?? 0.995;
+  const leafTriangleFocus = options?.leafTriangleFocus ?? true;
+  const allowClusterDrill = clusterZoomMode !== 'none';
 
   const barycentricDrillIntoTriangle = (
     ctx: ZoomTriangleDrillContext<TItem, TTagMeta, TClusterMeta>,
   ): ZoomDrillOutcome<TItem, TTagMeta, TClusterMeta> | null => {
-    if (ctx.parentDepth >= MAX_ZOOM_DRILL_DEPTH) return null;
     const { triangleIndex, parentFrame, itemScaleRatios } = ctx;
     const tri = parentFrame.mesh.triangles[triangleIndex];
     if (!tri) return null;
+
+    if (ctx.parentDepth >= MAX_ZOOM_DRILL_DEPTH) {
+      return leafTriangleFocus
+        ? executeSingleTriangleFocusDrill(ctx, allowClusterDrill)
+        : null;
+    }
+
     const vSet = new Set(tri.vertices);
     const triItems = parentFrame.items.filter((it) =>
       isItemCoveredByVertices(parentFrame, it, vSet),
     );
-    if (triItems.length === 0) return null;
+    if (triItems.length === 0) {
+      return leafTriangleFocus
+        ? executeSingleTriangleFocusDrill(ctx, allowClusterDrill)
+        : null;
+    }
 
     if (stopWhenFullScale) {
       const stats = computeFullScaleStats(
@@ -2390,20 +2964,33 @@ export function createBarycentricZoomStrategy<
         itemScaleRatios,
         fullScaleThreshold,
       );
-      if (!stats.hasUnderScaled) return null;
+      if (!stats.hasUnderScaled) {
+        return leafTriangleFocus
+          ? executeSingleTriangleFocusDrill(ctx, allowClusterDrill)
+          : null;
+      }
     }
 
     return executeBarycentricTriangleDrill(ctx, {
       adaptiveContrastStretch,
       enableSectorFallback,
-      allowClusterDrill: clusterZoomMode !== 'none',
+      allowClusterDrill,
     });
   };
 
   const barycentricDrillIntoCluster = (
     ctx: ZoomClusterDrillContext<TItem, TTagMeta, TClusterMeta>,
   ): ZoomDrillOutcome<TItem, TTagMeta, TClusterMeta> | null => {
-    if (clusterZoomMode === 'none' || ctx.parentDepth >= MAX_ZOOM_DRILL_DEPTH) {
+    if (clusterZoomMode === 'none') {
+      return null;
+    }
+    if (
+      clusterZoomMode === 'spotlight' &&
+      ctx.parentDepth >= MAX_ZOOM_DRILL_DEPTH
+    ) {
+      return null;
+    }
+    if (ctx.parentDepth > MAX_ZOOM_DRILL_DEPTH) {
       return null;
     }
     const { clusterIndex, parentFrame, itemScaleRatios, helpers } = ctx;
@@ -2413,37 +3000,19 @@ export function createBarycentricZoomStrategy<
     const cluster = parentFrame.clusters[clusterIndex];
     if (!cluster) return null;
 
-    // Check direct spotlight fallback when already centered on star or when clusterZoomMode === 'spotlight'
     const incTris = parentFrame.mesh.triangles.filter((t) =>
       t.vertices.includes(clusterIndex),
     );
-    const starVerts = new Set<number>([clusterIndex]);
-    for (const t of incTris) {
-      for (const v of t.vertices) starVerts.add(v);
-    }
-    const isAlreadyStarCenter = meta?.kind === 'cluster-star' && clusterIndex === 0;
-    const targetSpotlight =
-      clusterZoomMode === 'spotlight' ||
-      isAlreadyStarCenter ||
-      starVerts.size >= parentFrame.mesh.vertices.length;
 
-    if (!targetSpotlight) {
-      if (stopWhenFullScale) {
-        const starItems = parentFrame.items.filter((it) =>
-          isItemCoveredByVertices(parentFrame, it, starVerts),
-        );
-        const stats = computeFullScaleStats(
-          starItems.map((it) => it.id),
-          itemScaleRatios,
-          fullScaleThreshold,
-        );
-        if (!stats.hasUnderScaled) return null;
+    if (clusterZoomMode === 'incident-star') {
+      if (incTris.length === 0) return null;
+      if (meta?.kind === 'cluster-star' && clusterIndex === 0) {
+        return null;
       }
       return executeClusterStarDrill(ctx, true);
     }
 
-    // Spotlight direct members of this cluster when star zoom is already maximized
-    if (!enableSectorFallback && clusterZoomMode !== 'spotlight') return null;
+    // Direct 3-sector spotlight mode (only when clusterZoomMode === 'spotlight')
     const directItems = parentFrame.items.filter((it) =>
       it.unitWeights.some(
         (uw) => uw.clusterIndex === clusterIndex && uw.weight >= 0.45,
@@ -2512,12 +3081,15 @@ export function createBarycentricZoomStrategy<
       viewportHeight: helpers.viewportHeight,
       allowClusterDrill: true,
     });
+    const spotCrumb = buildClusterBreadcrumbInfo(cluster);
     return {
       nextFrame: buildSectorPartitionFrame({
         frameId: `spotlight-${parentFrame.frameId}-c${clusterIndex}`,
-        label: `${cluster.code} · ${cluster.defaultLabel}`,
-        shortLabel: cluster.code,
+        label: spotCrumb.label,
+        shortLabel: spotCrumb.shortLabel,
         accentHex: cluster.colorHex,
+        breadcrumbSegments: spotCrumb.segments,
+        parentContextLabel: deriveCornerParentContextLabel(cluster),
         coveredItems: directItems,
         baseRootWeights: getFrameVertexRootWeights(parentFrame, clusterIndex),
         helpers,
@@ -2550,32 +3122,43 @@ export function createBarycentricZoomStrategy<
         fullScaleThreshold,
       );
 
-      if (
+      const trianglesStopped =
         ctx.depth >= MAX_ZOOM_DRILL_DEPTH ||
-        (stopWhenFullScale && !globalStats.hasUnderScaled)
-      ) {
-        return {
-          drillableTriangleIndices: [],
-          drillableClusterUids: [],
-          isLeafReached: true,
-          fullScaleItemRatio: globalStats.ratio,
-        };
-      }
+        frame.kind === 'triangle-focus' ||
+        (stopWhenFullScale && !globalStats.hasUnderScaled);
 
       const drillableTriangleIndices: number[] = [];
-      for (const tri of frame.mesh.triangles) {
-        const vSet = new Set(tri.vertices);
-        const triItems = frame.items.filter((it) =>
-          isItemCoveredByVertices(frame, it, vSet),
-        );
-        if (triItems.length === 0) continue;
-        const triStats = computeFullScaleStats(
-          triItems.map((it) => it.id),
-          itemScaleRatios,
-          fullScaleThreshold,
-        );
-        if (!stopWhenFullScale || triStats.hasUnderScaled) {
-          drillableTriangleIndices.push(tri.index);
+      if (!trianglesStopped) {
+        for (const tri of frame.mesh.triangles) {
+          const vSet = new Set(tri.vertices);
+          const triItems = frame.items.filter((it) =>
+            isItemCoveredByVertices(frame, it, vSet),
+          );
+          if (triItems.length === 0) continue;
+          const triStats = computeFullScaleStats(
+            triItems.map((it) => it.id),
+            itemScaleRatios,
+            fullScaleThreshold,
+          );
+          if (!stopWhenFullScale || triStats.hasUnderScaled) {
+            drillableTriangleIndices.push(tri.index);
+          }
+        }
+      }
+
+      const focusableTriangleIndices: number[] = [];
+      if (
+        leafTriangleFocus &&
+        ctx.depth <= MAX_ZOOM_DRILL_DEPTH &&
+        frame.mesh.triangles.length > 1 &&
+        frame.kind !== 'triangle-focus' &&
+        frame.kind !== 'cluster-spotlight'
+      ) {
+        const drillableSet = new Set(drillableTriangleIndices);
+        for (const tri of frame.mesh.triangles) {
+          if (!drillableSet.has(tri.index)) {
+            focusableTriangleIndices.push(tri.index);
+          }
         }
       }
 
@@ -2583,54 +3166,34 @@ export function createBarycentricZoomStrategy<
       if (clusterZoomMode !== 'none') {
         const meta = frame.strategyData as InternalFrameMeta | undefined;
         frame.clusters.forEach((cluster, cIdx) => {
-          // If already centered in this cluster's star, only drill further if spotlight can split direct under-scaled items
-          if (meta?.kind === 'cluster-star' && cIdx === 0) {
-            if (clusterZoomMode === 'incident-star' && enableSectorFallback) {
-              const directItems = frame.items.filter(
-                (it) =>
-                  it.unitWeights.length === 1 &&
-                  it.unitWeights[0]!.clusterIndex === 0,
-              );
-              const directStats = computeFullScaleStats(
-                directItems.map((it) => it.id),
-                itemScaleRatios,
-                fullScaleThreshold,
-              );
-              if (directStats.hasUnderScaled && directItems.length > 1) {
-                drillableClusterUids.push(cluster.clusterUid);
-              }
+          if (meta?.kind === 'cluster-spotlight') return;
+
+          if (clusterZoomMode === 'spotlight') {
+            if (trianglesStopped) return;
+            const directItems = frame.items.filter((it) =>
+              it.unitWeights.some(
+                (uw) => uw.clusterIndex === cIdx && uw.weight >= 0.45,
+              ),
+            );
+            if (directItems.length <= 1) return;
+            const directStats = computeFullScaleStats(
+              directItems.map((it) => it.id),
+              itemScaleRatios,
+              fullScaleThreshold,
+            );
+            if (!stopWhenFullScale || directStats.hasUnderScaled) {
+              drillableClusterUids.push(cluster.clusterUid);
             }
             return;
           }
-          if (meta?.kind === 'cluster-spotlight') return;
 
-          // Collect all items inside this cluster's 1-ring incident star (or direct items for spotlight)
+          // 'incident-star' mode: every cluster & subcluster with >= 1 incident triangle is uniformly focusable
+          if (ctx.depth > MAX_ZOOM_DRILL_DEPTH) return;
+          if (meta?.kind === 'cluster-star' && cIdx === 0) return;
           const incTris = frame.mesh.triangles.filter((t) =>
             t.vertices.includes(cIdx),
           );
-          const starVerts = new Set<number>([cIdx]);
-          for (const t of incTris) {
-            for (const v of t.vertices) starVerts.add(v);
-          }
-          const starItems = frame.items.filter((it) =>
-            isItemCoveredByVertices(frame, it, starVerts),
-          );
-          if (starItems.length === 0) return;
-
-          const starStats = computeFullScaleStats(
-            starItems.map((it) => it.id),
-            itemScaleRatios,
-            fullScaleThreshold,
-          );
-          const hasSmallerNeighborhood =
-            starVerts.size < frame.mesh.vertices.length &&
-            frame.mesh.triangles.length > incTris.length;
-          if (
-            (!stopWhenFullScale || starStats.hasUnderScaled) &&
-            (clusterZoomMode === 'spotlight' ||
-              hasSmallerNeighborhood ||
-              enableSectorFallback)
-          ) {
+          if (incTris.length > 0) {
             drillableClusterUids.push(cluster.clusterUid);
           }
         });
@@ -2638,10 +3201,13 @@ export function createBarycentricZoomStrategy<
 
       return {
         drillableTriangleIndices,
+        focusableTriangleIndices,
         drillableClusterUids,
         isLeafReached:
-          drillableTriangleIndices.length === 0 &&
-          drillableClusterUids.length === 0,
+          clusterZoomMode === 'spotlight'
+            ? drillableTriangleIndices.length === 0 &&
+              drillableClusterUids.length === 0
+            : drillableTriangleIndices.length === 0,
         fullScaleItemRatio: globalStats.ratio,
       };
     },
@@ -3064,6 +3630,7 @@ function buildRepartitionedSixVertexTags<TItem, TTagMeta>(params: {
   }
 
   // If any non-base vertex is still empty and another vertex holds >= 2 tags, split a tag onto it
+  // (outer corners 0..2 receive priority before midpoints 3..5; never copy already-used tags onto empty vertices)
   for (let v = 0; v < 6; v++) {
     if (v === baseOnlyVertex || buckets[v]!.size > 0) continue;
     let donorV = -1;
@@ -3078,10 +3645,6 @@ function buildRepartitionedSixVertexTags<TItem, TTagMeta>(params: {
       const movedTag = [...buckets[donorV]!].at(-1)!;
       buckets[donorV]!.delete(movedTag);
       buckets[v]!.add(movedTag);
-    } else if (discriminativeTags.length >= 2) {
-      // Combine 2 complementary tags on the midpoint/empty vertex for mixed-signature items
-      buckets[v]!.add(discriminativeTags[v % discriminativeTags.length]!);
-      buckets[v]!.add(discriminativeTags[(v + 1) % discriminativeTags.length]!);
     }
   }
 
@@ -3126,6 +3689,32 @@ function buildRepartitionedSixVertexTags<TItem, TTagMeta>(params: {
     if (!improved) break;
   }
 
+  // Eliminate any identical non-empty tag buckets across vertices (preferring outer corners 0..2 over midpoints 3..5)
+  const seenBucketSigs = new Set<string>();
+  for (let v = 0; v < 6; v++) {
+    if (v === baseOnlyVertex || buckets[v]!.size === 0) continue;
+    const sig = [...buckets[v]!].sort().join('\0');
+    if (seenBucketSigs.has(sig)) {
+      const nextBuckets = buckets.map((s, idx) =>
+        idx === v ? new Set<string>() : new Set(s),
+      );
+      const trial = evaluateSemanticSixVertexPartition({
+        profiles,
+        vertexTags: nextBuckets.map((s) => [...s]),
+        baseOnlyVertex,
+        repartitioned: true,
+        tagWeights,
+        subTris,
+      });
+      if (trial.maxFaceCount < profiles.length) {
+        buckets[v] = nextBuckets[v]!;
+        currentEval = trial;
+      }
+    } else {
+      seenBucketSigs.add(sig);
+    }
+  }
+
   return currentEval;
 }
 
@@ -3146,28 +3735,40 @@ export function createSemanticZoomStrategy<
   const stopWhenFullScale = options?.stopWhenFullScale ?? true;
   const fullScaleThreshold = options?.fullScaleThreshold ?? 0.995;
   const barycentricFallback = options?.barycentricFallback ?? true;
+  const leafTriangleFocus = options?.leafTriangleFocus ?? true;
+  const allowClusterDrill = clusterZoomMode !== 'none';
   const fallbackStrategy = createBarycentricZoomStrategy<TItem, TTagMeta, TClusterMeta>({
     clusterZoomMode,
     adaptiveContrastStretch: true,
     enableSectorFallback: true,
     stopWhenFullScale,
     fullScaleThreshold,
+    leafTriangleFocus,
   });
 
   const buildSemanticTriangleDrill = (
     ctx: ZoomTriangleDrillContext<TItem, TTagMeta, TClusterMeta>,
   ): ZoomDrillOutcome<TItem, TTagMeta, TClusterMeta> | null => {
-    if (ctx.parentDepth >= MAX_ZOOM_DRILL_DEPTH) return null;
     const { triangleIndex, parentFrame, itemScaleRatios, helpers } = ctx;
     const tri = parentFrame.mesh.triangles[triangleIndex];
     if (!tri) return null;
+
+    if (ctx.parentDepth >= MAX_ZOOM_DRILL_DEPTH) {
+      return leafTriangleFocus
+        ? executeSingleTriangleFocusDrill(ctx, allowClusterDrill)
+        : null;
+    }
 
     const [v0, v1, v2] = tri.vertices;
     const vSet = new Set([v0, v1, v2]);
     const coveredItems = parentFrame.items.filter((it) =>
       isItemCoveredByVertices(parentFrame, it, vSet),
     );
-    if (coveredItems.length <= 1) return null;
+    if (coveredItems.length <= 1) {
+      return leafTriangleFocus
+        ? executeSingleTriangleFocusDrill(ctx, allowClusterDrill)
+        : null;
+    }
 
     if (stopWhenFullScale) {
       const stats = computeFullScaleStats(
@@ -3175,7 +3776,11 @@ export function createSemanticZoomStrategy<
         itemScaleRatios,
         fullScaleThreshold,
       );
-      if (!stats.hasUnderScaled) return null;
+      if (!stats.hasUnderScaled) {
+        return leafTriangleFocus
+          ? executeSingleTriangleFocusDrill(ctx, allowClusterDrill)
+          : null;
+      }
     }
 
     const c0 = parentFrame.clusters[v0];
@@ -3353,6 +3958,7 @@ export function createSemanticZoomStrategy<
       c1?.code ?? defaultClusterCode(v1),
       c2?.code ?? defaultClusterCode(v2),
     ];
+    const triCrumb = buildTriangleBreadcrumbInfo([c0, c1, c2], triCodes);
     const triMixed = mixOklabColors(
       [c0, c1, c2]
         .filter((c): c is ClusterDescriptor<TItem, TTagMeta, TClusterMeta> =>
@@ -3371,9 +3977,11 @@ export function createSemanticZoomStrategy<
       return {
         nextFrame: buildSectorPartitionFrame({
           frameId: `sem-sector-${parentFrame.frameId}-t${triangleIndex}`,
-          label: `${triCodes.join(' · ')} Spotlight`,
-          shortLabel: `${triCodes[0]!} Split`,
+          label: triCrumb.label,
+          shortLabel: triCrumb.shortLabel,
           accentHex: triMixed.hex,
+          breadcrumbSegments: triCrumb.segments,
+          parentContextLabel: truncateClean(triCrumb.shortLabel, 20),
           coveredItems,
           baseRootWeights: meanWeights,
           helpers,
@@ -3441,10 +4049,14 @@ export function createSemanticZoomStrategy<
       midBuckets[2]!,
     ];
 
+    const anchoredCornerSigs = anchoredCornerTags.map((tags) =>
+      [...tags].sort().join('\0'),
+    );
     const anchoredHasValidCorners =
       anchoredCornerTags[0]!.length > 0 &&
       anchoredCornerTags[1]!.length > 0 &&
       anchoredCornerTags[2]!.length > 0 &&
+      new Set(anchoredCornerSigs).size === 3 &&
       midBuckets[0]!.length + midBuckets[1]!.length + midBuckets[2]!.length >= 1;
 
     const candidateA = anchoredHasValidCorners
@@ -3548,11 +4160,317 @@ export function createSemanticZoomStrategy<
     );
 
     const parentCorners = [c0, c1, c2];
+    const tagMetaLookup = new Map<string, TTagMeta | undefined>();
+    for (const it of coveredItems) {
+      for (const td of it.tags) {
+        if (td.meta !== undefined && !tagMetaLookup.has(td.tag)) {
+          tagMetaLookup.set(td.tag, td.meta);
+        }
+      }
+    }
+    for (const pc of parentCorners) {
+      if (!pc) continue;
+      for (const td of [...pc.coreTags, ...pc.sharedTags]) {
+        if (td.meta !== undefined && !tagMetaLookup.has(td.tag)) {
+          tagMetaLookup.set(td.tag, td.meta);
+        }
+      }
+    }
+
+    const formatTagDisplay = (t: string): string => {
+      const metaObj = tagMetaLookup.get(t);
+      if (
+        metaObj &&
+        typeof metaObj === 'object' &&
+        'displayTitle' in metaObj &&
+        typeof (metaObj as { readonly displayTitle?: unknown }).displayTitle ===
+          'string'
+      ) {
+        const dt = (metaObj as { readonly displayTitle: string }).displayTitle.trim();
+        if (dt.length > 0) return dt;
+      }
+      return `#${t.replace(/^#+/, '')}`;
+    };
+
+    const normLabelKey = (text: string): string => {
+      const cleaned = text.trim().replace(/^#+/, '').replace(/\s+/g, ' ').toLowerCase();
+      if (cleaned.includes('↔')) {
+        return cleaned
+          .split('↔')
+          .map((p) => p.trim().replace(/^#+/, ''))
+          .sort()
+          .join(' ↔ ');
+      }
+      if (cleaned.includes(' · ')) {
+        return cleaned
+          .split(' · ')
+          .map((p) => p.trim().replace(/^#+/, ''))
+          .sort()
+          .join(' · ');
+      }
+      return cleaned;
+    };
+
     const sharedUbiquitousDescs: TagDescriptor<TTagMeta>[] = ubiquitousTags.map((t) => ({
       tag: t,
       frequency: allItemTagFreq.get(t) ?? nItems,
-      meta: undefined,
+      meta: tagMetaLookup.get(t),
     }));
+
+    const rawAssignedByVertex: readonly (readonly string[])[] = Array.from(
+      { length: 6 },
+      (_, vIdx) =>
+        vIdx === chosen.baseOnlyVertex && (chosen.vertexTags[vIdx]?.length ?? 0) === 0
+          ? ubiquitousTags.slice(0, 2)
+          : (chosen.vertexTags[vIdx] ?? []),
+    );
+
+    // Count across how many of the 6 sub-vertices each tag appears so vertex-exclusive tags rank first
+    const vertexTagFreq = new Map<string, number>();
+    for (let vIdx = 0; vIdx < 6; vIdx++) {
+      for (const t of new Set(rawAssignedByVertex[vIdx]!)) {
+        vertexTagFreq.set(t, (vertexTagFreq.get(t) ?? 0) + 1);
+      }
+    }
+
+    const rankedTagsByVertex: string[][] = [];
+    const displayTagsByVertex: string[][] = [];
+    const parentPrimaryNames: string[] = [c0, c1, c2].map((pc) =>
+      pc ? resolveReadableClusterName(pc, 28) : '',
+    );
+
+    for (let vIdx = 0; vIdx < 6; vIdx++) {
+      const pName = vIdx < 3 ? parentPrimaryNames[vIdx]! : '';
+      const isRedundantWithParent = (t: string): boolean =>
+        Boolean(pName) &&
+        (normLabelKey(formatTagDisplay(t)) === normLabelKey(pName) ||
+          normLabelKey(t) === normLabelKey(pName));
+
+      const uniqueRaw = [...new Set(rawAssignedByVertex[vIdx]!)];
+      const ranked = [...uniqueRaw].sort((a, b) => {
+        const redA = isRedundantWithParent(a) ? 1 : 0;
+        const redB = isRedundantWithParent(b) ? 1 : 0;
+        if (redA !== redB) return redA - redB;
+        const vfA = vertexTagFreq.get(a) ?? 6;
+        const vfB = vertexTagFreq.get(b) ?? 6;
+        if (vfA !== vfB) return vfA - vfB;
+        const ifA = allItemTagFreq.get(a) ?? nItems;
+        const ifB = allItemTagFreq.get(b) ?? nItems;
+        if (ifA !== ifB) return ifA - ifB;
+        return a.localeCompare(b);
+      });
+      rankedTagsByVertex.push(ranked);
+
+      const nonRedundant = pName
+        ? ranked.filter((t) => !isRedundantWithParent(t))
+        : ranked;
+      displayTagsByVertex.push(nonRedundant.length > 0 ? nonRedundant : ranked);
+    }
+
+    const buildTagLabelCandidates = (tags: readonly string[]): string[] => {
+      const seenDisp = new Set<string>();
+      const disp: string[] = [];
+      for (const t of tags) {
+        const formatted = formatTagDisplay(t);
+        const k = normLabelKey(formatted);
+        if (!seenDisp.has(k)) {
+          seenDisp.add(k);
+          disp.push(formatted);
+        }
+      }
+      if (disp.length === 0) return [];
+      if (disp.length === 1) return [disp[0]!];
+      const cands: string[] = [];
+      const pair01 = `${disp[0]!} · ${disp[1]!}`;
+      if (pair01.length <= 24) {
+        cands.push(pair01, disp[0]!);
+      } else {
+        cands.push(disp[0]!, pair01);
+      }
+      if (disp.length >= 3) {
+        const pair02 = `${disp[0]!} · ${disp[2]!}`;
+        if (pair02.length <= 24) cands.push(pair02);
+        cands.push(disp[2]!);
+        const pair12 = `${disp[1]!} · ${disp[2]!}`;
+        if (pair12.length <= 24) cands.push(pair12);
+      }
+      cands.push(disp[1]!);
+      for (let i = 3; i < disp.length; i++) {
+        cands.push(disp[i]!);
+      }
+      return cands;
+    };
+
+    const collectMemberSpecificCandidates = (
+      vIdx: number,
+      primaryTagLabel?: string,
+    ): string[] => {
+      const recs = [...vertexMembers[vIdx]!.entries()].sort(
+        (a, b) => b[1].weight - a[1].weight || a[0].localeCompare(b[0]),
+      );
+      if (recs.length === 0) return [];
+      const extraTagScores = new Map<string, number>();
+      const assignedSet = new Set(rankedTagsByVertex[vIdx]!);
+      for (const [itemId, rec] of recs) {
+        const itemInput = coveredItems.find((ci) => ci.id === itemId);
+        if (!itemInput) continue;
+        for (const t of getItemTags(itemInput)) {
+          if (assignedSet.has(t)) continue;
+          const freq = allItemTagFreq.get(t) ?? nItems;
+          const spec = 1 + Math.log((nItems + 1) / (freq + 0.5));
+          extraTagScores.set(t, (extraTagScores.get(t) ?? 0) + rec.weight * spec);
+        }
+      }
+      const extraTags = [...extraTagScores.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 3)
+        .map(([t]) => formatTagDisplay(t));
+
+      const out: string[] = [];
+      for (const et of extraTags) {
+        if (primaryTagLabel && normLabelKey(et) !== normLabelKey(primaryTagLabel)) {
+          const combo = `${primaryTagLabel} · ${et}`;
+          if (combo.length <= 24) out.push(combo);
+        }
+        out.push(et);
+      }
+      for (const [, rec] of recs.slice(0, 2)) {
+        const ex = extractHumanExemplarTitle(rec.item);
+        if (ex) {
+          const cleanEx = truncateClean(ex, 18);
+          if (primaryTagLabel && normLabelKey(cleanEx) !== normLabelKey(primaryTagLabel)) {
+            const combo = `${primaryTagLabel} · ${truncateClean(ex, 11)}`;
+            if (combo.length <= 24) out.push(combo);
+          }
+          out.push(cleanEx);
+        }
+      }
+      return out;
+    };
+
+    const midpointEdgePairs: ReadonlyArray<
+      readonly [
+        ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+        ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined,
+      ]
+    > = [
+      [c0, c1],
+      [c1, c2],
+      [c2, c0],
+    ];
+    const midpointCornerIdxPairs: ReadonlyArray<readonly [number, number]> = [
+      [0, 1],
+      [1, 2],
+      [2, 0],
+    ];
+
+    // Joint 6-vertex collision-free label resolution:
+    // 1) Unchanged outer corners claim their clean parent primary label first (zero `JAVASCRIPT / JavaScript` stutter).
+    // 2) Repartitioned outer corners claim their most specific non-colliding sub-tag label next.
+    // 3) Midpoint vertices claim their exclusive tag pair or distinct sub-corner bridge label last.
+    const usedDisplayKeys = new Set<string>();
+    const unchangedCornerFlags: boolean[] = [false, false, false];
+    const resolvedSubLabels: string[] = ['', '', '', '', '', ''];
+
+    for (let vIdx = 0; vIdx < 3; vIdx++) {
+      const parentCorner = parentCorners[vIdx];
+      if (!parentCorner) continue;
+      const pName = parentPrimaryNames[vIdx]!;
+      const pKey = normLabelKey(pName);
+      const nonRedundantCount = rankedTagsByVertex[vIdx]!.filter(
+        (t) =>
+          normLabelKey(formatTagDisplay(t)) !== pKey && normLabelKey(t) !== pKey,
+      ).length;
+      const wantsUnchanged =
+        !chosen.repartitioned ||
+        rawAssignedByVertex[vIdx]!.length === 0 ||
+        nonRedundantCount === 0;
+      if (wantsUnchanged && pKey.length > 0 && !usedDisplayKeys.has(pKey)) {
+        unchangedCornerFlags[vIdx] = true;
+        resolvedSubLabels[vIdx] = pName;
+        usedDisplayKeys.add(pKey);
+      }
+    }
+
+    for (let vIdx = 0; vIdx < 3; vIdx++) {
+      if (unchangedCornerFlags[vIdx]) continue;
+      const pName = parentPrimaryNames[vIdx]!;
+      const dispCands = buildTagLabelCandidates(displayTagsByVertex[vIdx]!);
+      const fullCands =
+        displayTagsByVertex[vIdx]!.length < rankedTagsByVertex[vIdx]!.length
+          ? buildTagLabelCandidates(rankedTagsByVertex[vIdx]!)
+          : [];
+      const memberCands = collectMemberSpecificCandidates(vIdx, dispCands[0]);
+      const fallbackFmt = formatMixLabel(vWeights[vIdx]!, helpers.rootClusters);
+      const allCands = [
+        ...dispCands,
+        ...fullCands,
+        ...memberCands,
+        ...(pName ? [`${truncateClean(pName, 12)} · ${fallbackFmt.code}`, pName] : []),
+        fallbackFmt.label,
+        `${fallbackFmt.label} (${vIdx + 1})`,
+      ];
+      let picked = allCands[0] ?? fallbackFmt.code;
+      for (const cand of allCands) {
+        const ck = normLabelKey(cand);
+        if (ck.length > 0 && !usedDisplayKeys.has(ck)) {
+          picked = cand;
+          break;
+        }
+      }
+      resolvedSubLabels[vIdx] = picked;
+      usedDisplayKeys.add(normLabelKey(picked));
+    }
+
+    for (let vIdx = 3; vIdx < 6; vIdx++) {
+      const [idxA, idxB] = midpointCornerIdxPairs[vIdx - 3]!;
+      const immediatePair = midpointEdgePairs[vIdx - 3];
+      const parentBridge = formatCompactBridgeLabel(
+        vWeights[vIdx]!,
+        helpers.rootClusters,
+        immediatePair,
+      );
+      const subNameA = truncateClean(
+        (resolvedSubLabels[idxA] || parentPrimaryNames[idxA] || 'A')
+          .split(' · ')[0]!
+          .replace(/^#+/, ''),
+        10,
+      );
+      const subNameB = truncateClean(
+        (resolvedSubLabels[idxB] || parentPrimaryNames[idxB] || 'B')
+          .split(' · ')[0]!
+          .replace(/^#+/, ''),
+        10,
+      );
+      const subCornerBridge =
+        normLabelKey(subNameA) !== normLabelKey(subNameB)
+          ? `${subNameA} ↔ ${subNameB}`
+          : parentBridge;
+
+      const dispCands = buildTagLabelCandidates(displayTagsByVertex[vIdx]!);
+      const bridgeCands = chosen.repartitioned
+        ? [subCornerBridge, parentBridge]
+        : [parentBridge, subCornerBridge];
+      const memberCands = collectMemberSpecificCandidates(vIdx, dispCands[0]);
+      const fmt = formatMixLabel(vWeights[vIdx]!, helpers.rootClusters);
+      const allCands = [
+        ...dispCands,
+        ...bridgeCands,
+        ...memberCands,
+        `${subCornerBridge} · ${fmt.code}`,
+        `${parentBridge} (${vIdx - 2})`,
+      ];
+      let picked = allCands[0] ?? parentBridge;
+      for (const cand of allCands) {
+        const ck = normLabelKey(cand);
+        if (ck.length > 0 && !usedDisplayKeys.has(ck)) {
+          picked = cand;
+          break;
+        }
+      }
+      resolvedSubLabels[vIdx] = picked;
+      usedDisplayKeys.add(normLabelKey(picked));
+    }
 
     const subClusters: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[] = vWeights.map(
       (vw, vIdx) => {
@@ -3574,8 +4492,8 @@ export function createSemanticZoomStrategy<
           }),
         );
 
-        // Preserve original corner identity when anchored; when re-partitioned, synthesize compact tag-split cluster
-        if (parentCorner && !chosen.repartitioned) {
+        // Preserve original corner identity cleanly when anchored or when no sub-tag refines this corner
+        if (parentCorner && vIdx < 3 && unchangedCornerFlags[vIdx]) {
           return buildSynthesizedClusterDescriptor({
             clusterIndex: vIdx,
             clusterUid: helpers.allocateClusterUid(),
@@ -3590,27 +4508,30 @@ export function createSemanticZoomStrategy<
             featureSummary: parentCorner.featureSummary,
             role: parentCorner.role ?? 'primary',
             mixWeights: parentCorner.mixWeights,
+            subclusterLabel: parentCorner.subclusterLabel,
+            parentContextLabel: parentCorner.parentContextLabel,
+            preservePrimaryTitle:
+              (parentCorner.role ?? 'primary') === 'primary'
+                ? resolvedSubLabels[vIdx]
+                : undefined,
             deriveClusterMeta: helpers.deriveClusterMeta,
           });
         }
 
-        const assignedTags =
-          vIdx === chosen.baseOnlyVertex && (chosen.vertexTags[vIdx]?.length ?? 0) === 0
-            ? ubiquitousTags.slice(0, 2)
-            : chosen.vertexTags[vIdx] ?? [];
-
-        const tagDescs: TagDescriptor<TTagMeta>[] = assignedTags.map((t) => ({
+        const rankedTags = rankedTagsByVertex[vIdx]!;
+        const tagDescs: TagDescriptor<TTagMeta>[] = rankedTags.map((t) => ({
           tag: t,
           frequency: allItemTagFreq.get(t) ?? helpers.corpus?.tagFreqMap.get(t) ?? 1,
-          meta: undefined,
+          meta: tagMetaLookup.get(t),
         }));
 
         const fmt = formatMixLabel(vw, helpers.rootClusters);
         const mixWeights = buildMixWeights(vw, helpers.rootClusters);
+        const conciseSubLabel = resolvedSubLabels[vIdx]!;
         const tagTitle =
-          assignedTags.length > 0
-            ? assignedTags.map((t) => `#${t}`).join(' · ')
-            : fmt.label;
+          rankedTags.length > 0
+            ? rankedTags.map((t) => `#${t}`).join(' · ')
+            : conciseSubLabel;
 
         return buildSynthesizedClusterDescriptor({
           clusterIndex: vIdx,
@@ -3624,10 +4545,14 @@ export function createSemanticZoomStrategy<
           sharedTags: sharedUbiquitousDescs,
           members,
           featureSummary: chosen.repartitioned
-            ? `Re-partitioned sub-cluster (${tagTitle})`
-            : `Semantic midpoint (${tagTitle})`,
+            ? `Re-partitioned sub-cluster (${conciseSubLabel})`
+            : `Semantic midpoint (${conciseSubLabel})`,
           role: 'intermediate',
           mixWeights,
+          subclusterLabel: conciseSubLabel,
+          parentContextLabel: parentCorner
+            ? deriveCornerParentContextLabel(parentCorner)
+            : undefined,
           deriveClusterMeta: helpers.deriveClusterMeta,
         });
       },
@@ -3642,9 +4567,10 @@ export function createSemanticZoomStrategy<
       nextFrame: {
         frameId: `sem-${parentFrame.frameId}-t${triangleIndex}`,
         kind: 'triangle',
-        label: `${triCodes.join(' · ')} (Semantic)`,
-        shortLabel: triCodes.join('·'),
+        label: triCrumb.label,
+        shortLabel: triCrumb.shortLabel,
         accentHex: triMixed.hex,
+        breadcrumbSegments: triCrumb.segments,
         mesh: subMesh,
         clusters: subClusters,
         items: subItems,
@@ -3701,7 +4627,2000 @@ export function createSemanticZoomStrategy<
 }
 
 // ============================================================================
-// Strategy 3: Classic Free Camera Zoom Strategy (Continuous Wheel + Pinch + Pan)
+// Strategy 3: Subspace Re-Clustering & Facet Lens Zoom Strategy
+// ============================================================================
+
+interface LocalSubspaceAxis {
+  readonly familyKey: string;
+  readonly values: Float64Array;
+  readonly rawValues: Float64Array;
+  readonly rawMean: number;
+  readonly rawStd: number;
+  readonly weight: number;
+  readonly kind: 'boolean' | 'categorical' | 'numeric' | 'vector' | 'similarity';
+  readonly highLabel: string;
+  readonly lowLabel?: string;
+  readonly formatMean?: (clusterMean: number, subsetMean: number) => string;
+}
+
+interface SubspacePrototype {
+  readonly centroid: Float64Array;
+  readonly memberIndices: readonly number[];
+  readonly meanL0: number;
+  readonly meanL1: number;
+  readonly meanL2: number;
+  readonly label: string;
+}
+
+const IGNORED_AUTO_KEYS = new Set<string>([
+  'id',
+  'slug',
+  'key',
+  'uid',
+  'url',
+  'href',
+  'src',
+  'title',
+  'shortTitle',
+  'name',
+  'headline',
+  'label',
+  'description',
+  'subtitle',
+  'subtitleMeta',
+  'summary',
+  'author',
+  'primaryAuthor',
+  'colorHex',
+  'palette',
+  'mediaCredit',
+  'waveform',
+]);
+
+function humanizeFieldKey(key: string): string {
+  const cleaned = key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b(Musd|Mm|Cm|Hz|Pct|Min|Sec|Norm|Log)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return key;
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+function extractFallbackItemTitle<TItem>(
+  item: TItem,
+  fallbackId: string,
+  getItemLabel?: (item: TItem) => string,
+): string {
+  if (getItemLabel) {
+    const custom = getItemLabel(item)?.trim();
+    if (custom) return custom;
+  }
+  if (typeof item === 'object' && item !== null) {
+    const rec = item as Record<string, unknown>;
+    for (const k of ['shortTitle', 'title', 'label', 'name', 'headline']) {
+      const val = rec[k];
+      if (typeof val === 'string' && val.trim().length > 0) {
+        return val.trim().replace(/\s*\(\d{4}\)$/, '').slice(0, 18);
+      }
+    }
+  }
+  return fallbackId.slice(0, 16);
+}
+
+function buildLocalSubspaceAxes<TItem, TTagMeta, TClusterMeta>(params: {
+  readonly coveredItems: readonly ZoomItemAnchorInput<TItem, TTagMeta>[];
+  readonly depth: number;
+  readonly kind: 'triangle' | 'cluster-spotlight';
+  readonly options?: SubspaceZoomStrategyOptions<TItem>;
+  readonly helpers: ZoomSharedHelpers<TItem, TTagMeta, TClusterMeta>;
+}): readonly LocalSubspaceAxis[] {
+  const { coveredItems, depth, kind, options, helpers } = params;
+  const n = coveredItems.length;
+  if (n < 2) return [];
+
+  const axes: LocalSubspaceAxis[] = [];
+  const rawDomainItems = coveredItems.map((it) => it.item);
+
+  // 1. Explicit interpretable features / facets
+  const resolvedFeatures =
+    typeof options?.features === 'function'
+      ? options.features({ depth, kind, items: rawDomainItems })
+      : options?.features;
+
+  if (resolvedFeatures && resolvedFeatures.length > 0) {
+    resolvedFeatures.forEach((feat, fIdx) => {
+      if ((feat.minDepth ?? 0) > depth) return;
+      const baseWeight = Math.max(0.05, feat.weight ?? 1);
+      const familyKey = feat.id ?? `feat:${fIdx}:${feat.label}`;
+      const extracted = rawDomainItems.map((it) => feat.getValue(it));
+
+      let hasBool = false;
+      let hasString = false;
+      let hasNumber = false;
+      for (const v of extracted) {
+        if (typeof v === 'boolean') hasBool = true;
+        else if (typeof v === 'string' && v.trim().length > 0) hasString = true;
+        else if (typeof v === 'number' && Number.isFinite(v)) hasNumber = true;
+      }
+
+      if (hasBool && !hasString && !hasNumber) {
+        const raw = new Float64Array(n);
+        let sum = 0;
+        for (let i = 0; i < n; i++) {
+          const b = extracted[i] === true ? 1 : 0;
+          raw[i] = b;
+          sum += b;
+        }
+        const p = sum / n;
+        if (p <= 1e-6 || p >= 1 - 1e-6) return;
+        const std = Math.sqrt(p * (1 - p));
+        // Balance boost peaks at 50/50 splits while keeping minority traits active
+        const balanceFactor = 0.55 + 0.9 * Math.sqrt(4 * p * (1 - p));
+        const effW = baseWeight * balanceFactor;
+        const z = new Float64Array(n);
+        for (let i = 0; i < n; i++) {
+          z[i] = ((raw[i]! - p) / std) * effW;
+        }
+        axes.push({
+          familyKey,
+          values: z,
+          rawValues: raw,
+          rawMean: p,
+          rawStd: std,
+          weight: effW,
+          kind: 'boolean',
+          highLabel: feat.highLabel ?? feat.label,
+          lowLabel: feat.lowLabel,
+          formatMean: feat.formatMean,
+        });
+        return;
+      }
+
+      if (hasString && !hasNumber) {
+        const counts = new Map<string, number>();
+        const cleanStrs = extracted.map((v) =>
+          typeof v === 'string' ? v.trim() : '',
+        );
+        for (const s of cleanStrs) {
+          if (s) counts.set(s, (counts.get(s) ?? 0) + 1);
+        }
+        if (counts.size < 2) return;
+        const sortedCats = [...counts.entries()]
+          .filter(([, c]) => c > 0 && c < n)
+          .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+          .slice(0, 8);
+        const catScale = 1 / Math.sqrt(Math.max(1, sortedCats.length * 0.5));
+        for (const [catVal, count] of sortedCats) {
+          const p = count / n;
+          const std = Math.sqrt(p * (1 - p));
+          if (std <= 1e-6) continue;
+          const raw = new Float64Array(n);
+          const z = new Float64Array(n);
+          const effW =
+            baseWeight * catScale * (0.55 + 0.9 * Math.sqrt(4 * p * (1 - p)));
+          for (let i = 0; i < n; i++) {
+            const hit = cleanStrs[i] === catVal ? 1 : 0;
+            raw[i] = hit;
+            z[i] = ((hit - p) / std) * effW;
+          }
+          axes.push({
+            familyKey: `${familyKey}:${catVal}`,
+            values: z,
+            rawValues: raw,
+            rawMean: p,
+            rawStd: std,
+            weight: effW,
+            kind: 'categorical',
+            highLabel: catVal,
+          });
+        }
+        return;
+      }
+
+      if (hasNumber) {
+        let validCount = 0;
+        let sum = 0;
+        for (const v of extracted) {
+          if (typeof v === 'number' && Number.isFinite(v)) {
+            sum += v;
+            validCount += 1;
+          }
+        }
+        if (validCount < 2) return;
+        const mean = sum / validCount;
+        const raw = new Float64Array(n);
+        let sq = 0;
+        for (let i = 0; i < n; i++) {
+          const v = extracted[i];
+          const num = typeof v === 'number' && Number.isFinite(v) ? v : mean;
+          raw[i] = num;
+          const d = num - mean;
+          sq += d * d;
+        }
+        const std = Math.sqrt(sq / n);
+        if (std <= 1e-6) return;
+        const z = new Float64Array(n);
+        for (let i = 0; i < n; i++) {
+          const clamped = Math.max(-2.75, Math.min(2.75, (raw[i]! - mean) / std));
+          z[i] = clamped * baseWeight;
+        }
+        axes.push({
+          familyKey,
+          values: z,
+          rawValues: raw,
+          rawMean: mean,
+          rawStd: std,
+          weight: baseWeight,
+          kind: 'numeric',
+          highLabel: feat.highLabel ?? `High ${feat.label}`,
+          lowLabel: feat.lowLabel ?? `Low ${feat.label}`,
+          formatMean: feat.formatMean,
+        });
+      }
+    });
+  }
+
+  // 2. Explicit continuous embedding vector (residual zero-mean local standardization)
+  if (options?.getVector) {
+    const vecs = rawDomainItems.map((it) => options.getVector!(it));
+    const dim = vecs.reduce((m, v) => Math.max(m, v.length), 0);
+    if (dim > 0) {
+      const means = new Float64Array(dim);
+      const stds = new Float64Array(dim);
+      let maxStd = 0;
+      for (let d = 0; d < dim; d++) {
+        let sum = 0;
+        for (let i = 0; i < n; i++) sum += vecs[i]?.[d] ?? 0;
+        const mean = sum / n;
+        means[d] = mean;
+        let sq = 0;
+        for (let i = 0; i < n; i++) {
+          const diff = (vecs[i]?.[d] ?? 0) - mean;
+          sq += diff * diff;
+        }
+        const std = Math.sqrt(sq / n);
+        stds[d] = std;
+        if (std > maxStd) maxStd = std;
+      }
+      if (maxStd > 1e-6) {
+        const vecScale = axes.length > 0 ? 0.55 / Math.sqrt(dim) : 1 / Math.sqrt(dim);
+        for (let d = 0; d < dim; d++) {
+          const std = stds[d]!;
+          if (std <= 1e-6) continue;
+          const shrinkage = std / (std + 0.15 * maxStd);
+          const effW = vecScale * shrinkage;
+          const raw = new Float64Array(n);
+          const z = new Float64Array(n);
+          const mean = means[d]!;
+          for (let i = 0; i < n; i++) {
+            const val = vecs[i]?.[d] ?? 0;
+            raw[i] = val;
+            z[i] =
+              Math.max(-2.75, Math.min(2.75, (val - mean) / std)) * effW;
+          }
+          const dimName = options.vectorDimensionLabels?.[d];
+          axes.push({
+            familyKey: `vec:${d}`,
+            values: z,
+            rawValues: raw,
+            rawMean: mean,
+            rawStd: std,
+            weight: effW,
+            kind: dimName ? 'numeric' : 'vector',
+            highLabel: dimName ? `${dimName} +` : `Axis ${d + 1}+`,
+            lowLabel: dimName ? `${dimName} −` : `Axis ${d + 1}−`,
+          });
+        }
+      }
+    }
+  }
+
+  // 3. Explicit pairwise similarity kernel (local landmark similarity profile)
+  if (options?.getSimilarity && axes.length === 0) {
+    const simMatrix: Float64Array[] = Array.from(
+      { length: n },
+      () => new Float64Array(n),
+    );
+    let minSim = 1;
+    let maxSim = 0;
+    for (let i = 0; i < n; i++) {
+      simMatrix[i]![i] = 1;
+      for (let j = i + 1; j < n; j++) {
+        const s = Math.max(
+          0,
+          Math.min(1, options.getSimilarity(rawDomainItems[i]!, rawDomainItems[j]!)),
+        );
+        simMatrix[i]![j] = s;
+        simMatrix[j]![i] = s;
+        if (s < minSim) minSim = s;
+        if (s > maxSim) maxSim = s;
+      }
+    }
+    if (maxSim - minSim > 1e-5) {
+      const landmarkCount = Math.min(n, 8);
+      // Deterministic farthest-first landmarks across the local similarity kernel
+      const landmarks: number[] = [0];
+      while (landmarks.length < landmarkCount) {
+        let bestIdx = -1;
+        let bestMinDist = -1;
+        for (let i = 0; i < n; i++) {
+          if (landmarks.includes(i)) continue;
+          let minDist = Infinity;
+          for (const lm of landmarks) {
+            const dist = 1 - simMatrix[i]![lm]!;
+            if (dist < minDist) minDist = dist;
+          }
+          if (minDist > bestMinDist) {
+            bestMinDist = minDist;
+            bestIdx = i;
+          }
+        }
+        if (bestIdx < 0 || bestMinDist <= 1e-5) break;
+        landmarks.push(bestIdx);
+      }
+      const lmScale = 1 / Math.sqrt(Math.max(1, landmarks.length));
+      landmarks.forEach((lmIdx, k) => {
+        const raw = new Float64Array(n);
+        let sum = 0;
+        for (let i = 0; i < n; i++) {
+          raw[i] = simMatrix[i]![lmIdx]!;
+          sum += raw[i]!;
+        }
+        const mean = sum / n;
+        let sq = 0;
+        for (let i = 0; i < n; i++) {
+          const d = raw[i]! - mean;
+          sq += d * d;
+        }
+        const std = Math.sqrt(sq / n);
+        if (std <= 1e-6) return;
+        const z = new Float64Array(n);
+        for (let i = 0; i < n; i++) {
+          z[i] = ((raw[i]! - mean) / std) * lmScale;
+        }
+        const exLabel = extractFallbackItemTitle(
+          rawDomainItems[lmIdx]!,
+          coveredItems[lmIdx]!.id,
+          options.getItemLabel,
+        );
+        axes.push({
+          familyKey: `sim:${k}`,
+          values: z,
+          rawValues: raw,
+          rawMean: mean,
+          rawStd: std,
+          weight: lmScale,
+          kind: 'similarity',
+          highLabel: exLabel,
+        });
+      });
+    }
+  }
+
+  // 4. Zero-config automatic introspection (tags + varying object fields / embedded arrays)
+  if (axes.length === 0) {
+    const normById = new Map<string, NormalizedContentItem<TItem>>();
+    for (const ni of helpers.normalizedItems) normById.set(ni.id, ni);
+
+    const tagCounts = new Map<string, number>();
+    const itemTagSets = coveredItems.map((it) => {
+      const norm = normById.get(it.id);
+      const list = norm && norm.tags.length > 0 ? norm.tags : it.tags.map((t) => t.tag);
+      const set = new Set(list);
+      for (const t of set) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
+      return set;
+    });
+
+    const discTags = [...tagCounts.entries()]
+      .filter(([, c]) => c >= 1 && c < n)
+      .sort((a, b) => {
+        const pa = a[1] / n;
+        const pb = b[1] / n;
+        const ba = pa * (1 - pa);
+        const bb = pb * (1 - pb);
+        return Math.abs(bb - ba) > 1e-4 ? bb - ba : a[0].localeCompare(b[0]);
+      })
+      .slice(0, 12);
+
+    for (const [tag, count] of discTags) {
+      const p = count / n;
+      const std = Math.sqrt(p * (1 - p));
+      if (std <= 1e-6) continue;
+      const effW = 0.65 + 0.85 * Math.sqrt(4 * p * (1 - p));
+      const raw = new Float64Array(n);
+      const z = new Float64Array(n);
+      for (let i = 0; i < n; i++) {
+        const hit = itemTagSets[i]!.has(tag) ? 1 : 0;
+        raw[i] = hit;
+        z[i] = ((hit - p) / std) * effW;
+      }
+      axes.push({
+        familyKey: `tag:${tag}`,
+        values: z,
+        rawValues: raw,
+        rawMean: p,
+        rawStd: std,
+        weight: effW,
+        kind: 'categorical',
+        highLabel: tag.replace(/^#+/, ''),
+      });
+    }
+
+    // Inspect plain-object properties (up to depth 1 for wrapper unions like `{ kind, media: {...} }`)
+    const unwrapRecord = (val: unknown): Record<string, unknown> | null => {
+      if (typeof val !== 'object' || val === null || Array.isArray(val)) return null;
+      const top = val as Record<string, unknown>;
+      for (const k of Object.keys(top)) {
+        if (k === 'mediaCredit' || k === 'proportions') continue;
+        const child = top[k];
+        if (
+          typeof child === 'object' &&
+          child !== null &&
+          !Array.isArray(child) &&
+          Object.keys(child).length >= 4
+        ) {
+          return child as Record<string, unknown>;
+        }
+      }
+      return top;
+    };
+
+    const records = rawDomainItems.map(unwrapRecord);
+    if (records.every((r) => r !== null)) {
+      const candidateKeys = Object.keys(records[0]!).filter(
+        (k) =>
+          !IGNORED_AUTO_KEYS.has(k) &&
+          !k.endsWith('Url') &&
+          !k.endsWith('Path') &&
+          !k.endsWith('Id'),
+      );
+
+      for (const key of candidateKeys.slice(0, 16)) {
+        const vals = records.map((r) => r![key]);
+        const niceLabel = humanizeFieldKey(key);
+        if (vals.every((v) => typeof v === 'boolean')) {
+          let sum = 0;
+          const raw = new Float64Array(n);
+          for (let i = 0; i < n; i++) {
+            const b = vals[i] === true ? 1 : 0;
+            raw[i] = b;
+            sum += b;
+          }
+          const p = sum / n;
+          if (p > 1e-6 && p < 1 - 1e-6) {
+            const std = Math.sqrt(p * (1 - p));
+            const effW = 0.6 + 0.8 * Math.sqrt(4 * p * (1 - p));
+            const z = new Float64Array(n);
+            for (let i = 0; i < n; i++) z[i] = ((raw[i]! - p) / std) * effW;
+            axes.push({
+              familyKey: `auto-b:${key}`,
+              values: z,
+              rawValues: raw,
+              rawMean: p,
+              rawStd: std,
+              weight: effW,
+              kind: 'boolean',
+              highLabel: niceLabel,
+              lowLabel: `Non-${niceLabel}`,
+            });
+          }
+        } else if (vals.every((v) => typeof v === 'number' && Number.isFinite(v as number))) {
+          const raw = new Float64Array(n);
+          let sum = 0;
+          for (let i = 0; i < n; i++) {
+            raw[i] = vals[i] as number;
+            sum += raw[i]!;
+          }
+          const mean = sum / n;
+          let sq = 0;
+          for (let i = 0; i < n; i++) {
+            const d = raw[i]! - mean;
+            sq += d * d;
+          }
+          const std = Math.sqrt(sq / n);
+          if (std > 1e-6) {
+            const z = new Float64Array(n);
+            for (let i = 0; i < n; i++) {
+              z[i] = Math.max(-2.75, Math.min(2.75, (raw[i]! - mean) / std));
+            }
+            axes.push({
+              familyKey: `auto-n:${key}`,
+              values: z,
+              rawValues: raw,
+              rawMean: mean,
+              rawStd: std,
+              weight: 1,
+              kind: 'numeric',
+              highLabel: `High ${niceLabel}`,
+              lowLabel: `Low ${niceLabel}`,
+            });
+          }
+        } else if (vals.every((v) => typeof v === 'string')) {
+          const counts = new Map<string, number>();
+          for (const v of vals) {
+            const s = (v as string).trim();
+            if (s.length > 0 && s.length <= 24) {
+              counts.set(s, (counts.get(s) ?? 0) + 1);
+            }
+          }
+          if (counts.size >= 2 && counts.size <= Math.min(8, Math.ceil(n * 0.75))) {
+            for (const [catVal, count] of counts) {
+              if (count <= 0 || count >= n) continue;
+              const p = count / n;
+              const std = Math.sqrt(p * (1 - p));
+              const raw = new Float64Array(n);
+              const z = new Float64Array(n);
+              const effW = 0.65 * Math.sqrt(4 * p * (1 - p) + 0.25);
+              for (let i = 0; i < n; i++) {
+                const hit = (vals[i] as string).trim() === catVal ? 1 : 0;
+                raw[i] = hit;
+                z[i] = ((hit - p) / std) * effW;
+              }
+              axes.push({
+                familyKey: `auto-s:${key}:${catVal}`,
+                values: z,
+                rawValues: raw,
+                rawMean: p,
+                rawStd: std,
+                weight: effW,
+                kind: 'categorical',
+                highLabel: catVal,
+              });
+            }
+          }
+        } else if (
+          axes.length === 0 &&
+          vals.every(
+            (v) =>
+              Array.isArray(v) &&
+              v.length >= 2 &&
+              v.length <= 64 &&
+              typeof v[0] === 'number',
+          )
+        ) {
+          const arrs = vals as readonly (readonly number[])[];
+          const dim = arrs[0]!.length;
+          const vScale = 1 / Math.sqrt(dim);
+          for (let d = 0; d < dim; d++) {
+            const raw = new Float64Array(n);
+            let sum = 0;
+            for (let i = 0; i < n; i++) {
+              raw[i] = arrs[i]![d] ?? 0;
+              sum += raw[i]!;
+            }
+            const mean = sum / n;
+            let sq = 0;
+            for (let i = 0; i < n; i++) {
+              const diff = raw[i]! - mean;
+              sq += diff * diff;
+            }
+            const std = Math.sqrt(sq / n);
+            if (std <= 1e-6) continue;
+            const z = new Float64Array(n);
+            for (let i = 0; i < n; i++) {
+              z[i] = ((raw[i]! - mean) / std) * vScale;
+            }
+            axes.push({
+              familyKey: `auto-v:${key}:${d}`,
+              values: z,
+              rawValues: raw,
+              rawMean: mean,
+              rawStd: std,
+              weight: vScale,
+              kind: 'vector',
+              highLabel: `${niceLabel} ${d + 1}+`,
+              lowLabel: `${niceLabel} ${d + 1}−`,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return axes;
+}
+
+function assignDistinctPrototypeLabels<TItem, TTagMeta>(params: {
+  readonly prototypes: ReadonlyArray<{
+    readonly centroid: Float64Array;
+    readonly memberIndices: readonly number[];
+  }>;
+  readonly axes: readonly LocalSubspaceAxis[];
+  readonly coveredItems: readonly ZoomItemAnchorInput<TItem, TTagMeta>[];
+  readonly getItemLabel?: (item: TItem) => string;
+}): readonly string[] {
+  const { prototypes, axes, coveredItems, getItemLabel } = params;
+  const k = prototypes.length;
+  const m = axes.length;
+  const assigned = new Array<string>(k).fill('');
+  const usedLabels = new Set<string>();
+
+  interface CandidateLabel {
+    readonly protoIdx: number;
+    readonly label: string;
+    readonly familyKey: string;
+    readonly score: number;
+  }
+
+  const perProtoCandidates: CandidateLabel[][] = Array.from(
+    { length: k },
+    () => [],
+  );
+
+  for (let pIdx = 0; pIdx < k; pIdx++) {
+    const proto = prototypes[pIdx]!;
+    const members = proto.memberIndices;
+
+    for (let aIdx = 0; aIdx < m; aIdx++) {
+      const axis = axes[aIdx]!;
+      if (axis.kind === 'vector') continue;
+
+      let rawClusterMean: number;
+      let zMean: number;
+      if (members.length > 0) {
+        let rSum = 0;
+        let zSum = 0;
+        for (const i of members) {
+          rSum += axis.rawValues[i]!;
+          zSum += axis.values[i]!;
+        }
+        rawClusterMean = rSum / members.length;
+        zMean = zSum / (members.length * Math.max(0.1, axis.weight));
+      } else {
+        zMean = proto.centroid[aIdx]! / Math.max(0.1, axis.weight);
+        rawClusterMean = axis.rawMean + zMean * axis.rawStd;
+      }
+
+      if (axis.kind === 'categorical') {
+        if (rawClusterMean >= Math.max(0.34, axis.rawMean + 0.12)) {
+          perProtoCandidates[pIdx]!.push({
+            protoIdx: pIdx,
+            label: axis.highLabel,
+            familyKey: axis.familyKey,
+            score: zMean * axis.weight + rawClusterMean * 0.65,
+          });
+        }
+      } else if (axis.kind === 'boolean') {
+        if (rawClusterMean >= Math.max(0.45, axis.rawMean + 0.12)) {
+          perProtoCandidates[pIdx]!.push({
+            protoIdx: pIdx,
+            label: axis.highLabel,
+            familyKey: axis.familyKey,
+            score: zMean * axis.weight + rawClusterMean * 0.45,
+          });
+        } else if (
+          axis.lowLabel &&
+          rawClusterMean <= Math.min(0.55, axis.rawMean - 0.12)
+        ) {
+          perProtoCandidates[pIdx]!.push({
+            protoIdx: pIdx,
+            label: axis.lowLabel,
+            familyKey: `${axis.familyKey}:low`,
+            score: -zMean * axis.weight + (1 - rawClusterMean) * 0.45,
+          });
+        }
+      } else if (axis.kind === 'numeric') {
+        if (Math.abs(zMean) >= 0.22) {
+          const customFormatted = axis.formatMean
+            ? axis.formatMean(rawClusterMean, axis.rawMean)
+            : undefined;
+          const lbl =
+            customFormatted ??
+            (zMean >= 0
+              ? axis.highLabel
+              : (axis.lowLabel ?? axis.highLabel));
+          perProtoCandidates[pIdx]!.push({
+            protoIdx: pIdx,
+            label: lbl,
+            familyKey: `${axis.familyKey}:${zMean >= 0 ? 'hi' : 'lo'}`,
+            score: Math.abs(zMean) * axis.weight,
+          });
+        }
+      } else if (axis.kind === 'similarity' && zMean >= 0.25) {
+        perProtoCandidates[pIdx]!.push({
+          protoIdx: pIdx,
+          label: axis.highLabel,
+          familyKey: axis.familyKey,
+          score: zMean * axis.weight * 0.85,
+        });
+      }
+    }
+
+    perProtoCandidates[pIdx]!.sort(
+      (a, b) => b.score - a.score || a.label.localeCompare(b.label),
+    );
+  }
+
+  // Greedy maximum-contrast assignment ensuring every sub-cluster receives a distinct label
+  const flatCandidates = perProtoCandidates
+    .flat()
+    .sort((a, b) => b.score - a.score || a.protoIdx - b.protoIdx);
+
+  for (const cand of flatCandidates) {
+    if (assigned[cand.protoIdx]) continue;
+    const normKey = cand.label.toLowerCase();
+    if (usedLabels.has(normKey)) continue;
+    assigned[cand.protoIdx] = cand.label;
+    usedLabels.add(normKey);
+  }
+
+  // Second pass: combine top-2 orthogonal traits (e.g. "Large · Predator") or medoid exemplar title
+  for (let pIdx = 0; pIdx < k; pIdx++) {
+    if (assigned[pIdx]) continue;
+    const cands = perProtoCandidates[pIdx]!;
+    if (cands.length >= 2) {
+      const cA = cands[0]!;
+      const cB = cands.find((c) => c.familyKey !== cA.familyKey && c.label !== cA.label);
+      if (cB) {
+        const combo = `${cA.label.slice(0, 9)} · ${cB.label.slice(0, 9)}`;
+        if (!usedLabels.has(combo.toLowerCase())) {
+          assigned[pIdx] = combo;
+          usedLabels.add(combo.toLowerCase());
+          continue;
+        }
+      }
+    }
+
+    // Closest member to prototype centroid as concrete exemplar label
+    const proto = prototypes[pIdx]!;
+    let bestItemIdx = proto.memberIndices[0] ?? pIdx % coveredItems.length;
+    let bestDistSq = Infinity;
+    for (const idx of proto.memberIndices) {
+      let dSq = 0;
+      for (let a = 0; a < m; a++) {
+        const diff = axes[a]!.values[idx]! - proto.centroid[a]!;
+        dSq += diff * diff;
+      }
+      if (dSq < bestDistSq) {
+        bestDistSq = dSq;
+        bestItemIdx = idx;
+      }
+    }
+    const exItem = coveredItems[bestItemIdx]!;
+    let fallback = extractFallbackItemTitle(exItem.item, exItem.id, getItemLabel);
+    if (usedLabels.has(fallback.toLowerCase())) {
+      fallback = `${fallback.slice(0, 13)} #${pIdx + 1}`;
+    }
+    assigned[pIdx] = fallback;
+    usedLabels.add(fallback.toLowerCase());
+  }
+
+  return assigned;
+}
+
+function clusterItemsInLocalSubspace<TItem, TTagMeta>(params: {
+  readonly coveredItems: readonly ZoomItemAnchorInput<TItem, TTagMeta>[];
+  readonly axes: readonly LocalSubspaceAxis[];
+  readonly localBary: ReadonlyArray<{
+    readonly l0: number;
+    readonly l1: number;
+    readonly l2: number;
+  }>;
+  readonly targetK: number;
+  readonly getItemLabel?: (item: TItem) => string;
+}): readonly SubspacePrototype[] {
+  const { coveredItems, axes, localBary, targetK, getItemLabel } = params;
+  const n = coveredItems.length;
+  const m = axes.length;
+
+  const points: Float64Array[] = Array.from({ length: n }, (_, i) => {
+    const vec = new Float64Array(m);
+    for (let a = 0; a < m; a++) {
+      vec[a] = axes[a]!.values[i]!;
+    }
+    return vec;
+  });
+
+  const distSq = (u: Float64Array, v: Float64Array): number => {
+    let s = 0;
+    for (let d = 0; d < m; d++) {
+      const diff = u[d]! - v[d]!;
+      s += diff * diff;
+    }
+    return s;
+  };
+
+  // Seed deterministic farthest-first k-Means++ starting from item furthest from local origin (0..0)
+  const centroids: Float64Array[] = [];
+  let firstIdx = 0;
+  let maxNormSq = -1;
+  for (let i = 0; i < n; i++) {
+    let normSq = 0;
+    for (let d = 0; d < m; d++) normSq += points[i]![d]! * points[i]![d]!;
+    if (normSq > maxNormSq + 1e-9) {
+      maxNormSq = normSq;
+      firstIdx = i;
+    }
+  }
+  centroids.push(new Float64Array(points[firstIdx]!));
+
+  while (centroids.length < targetK) {
+    let bestIdx = -1;
+    let bestMinD = -1;
+    for (let i = 0; i < n; i++) {
+      let minD = Infinity;
+      for (let c = 0; c < centroids.length; c++) {
+        const b = localBary[i]!;
+        const spatialTie =
+          0.02 *
+          ((b.l0 - 1 / 3) * (b.l0 - 1 / 3) +
+            (b.l1 - 1 / 3) * (b.l1 - 1 / 3) +
+            (b.l2 - 1 / 3) * (b.l2 - 1 / 3));
+        const d = distSq(points[i]!, centroids[c]!) + spatialTie;
+        if (d < minD) minD = d;
+      }
+      if (minD > bestMinD + 1e-9) {
+        bestMinD = minD;
+        bestIdx = i;
+      }
+    }
+    if (bestIdx < 0 || bestMinD <= 1e-6) break;
+    centroids.push(new Float64Array(points[bestIdx]!));
+  }
+
+  // If fewer than targetK distinct feature vectors exist, synthesize midpoint bridge prototypes
+  // between the most distant pair of existing centroids so all sub-mesh vertices participate cleanly.
+  while (centroids.length < targetK && centroids.length >= 2) {
+    let bestPair: [number, number] = [0, 1];
+    let bestPairD = -1;
+    for (let a = 0; a < centroids.length; a++) {
+      for (let b = a + 1; b < centroids.length; b++) {
+        const mid = new Float64Array(m);
+        for (let d = 0; d < m; d++) {
+          mid[d] = 0.5 * (centroids[a]![d]! + centroids[b]![d]!);
+        }
+        let minToExisting = Infinity;
+        for (const ex of centroids) {
+          const de = distSq(mid, ex);
+          if (de < minToExisting) minToExisting = de;
+        }
+        if (minToExisting > bestPairD) {
+          bestPairD = minToExisting;
+          bestPair = [a, b];
+        }
+      }
+    }
+    if (bestPairD <= 1e-7) break;
+    const mid = new Float64Array(m);
+    for (let d = 0; d < m; d++) {
+      mid[d] = 0.5 * (centroids[bestPair[0]]![d]! + centroids[bestPair[1]]![d]!);
+    }
+    centroids.push(mid);
+  }
+
+  const kActual = centroids.length;
+  const assignments = new Int32Array(n);
+
+  // Lloyd refinement with gentle load regularization so single outliers don't starve sibling clusters
+  for (let iter = 0; iter < 10; iter++) {
+    const counts = new Int32Array(kActual);
+    let changed = false;
+    for (let i = 0; i < n; i++) {
+      let bestC = 0;
+      let bestCost = Infinity;
+      for (let c = 0; c < kActual; c++) {
+        const cost = distSq(points[i]!, centroids[c]!) + counts[c]! * 0.035;
+        if (cost < bestCost) {
+          bestCost = cost;
+          bestC = c;
+        }
+      }
+      if (assignments[i] !== bestC) changed = true;
+      assignments[i] = bestC;
+      counts[bestC] = (counts[bestC] ?? 0) + 1;
+    }
+    if (!changed && iter > 0) break;
+
+    for (let c = 0; c < kActual; c++) {
+      if (counts[c]! === 0) continue;
+      const next = new Float64Array(m);
+      for (let i = 0; i < n; i++) {
+        if (assignments[i] === c) {
+          for (let d = 0; d < m; d++) next[d] = next[d]! + points[i]![d]!;
+        }
+      }
+      for (let d = 0; d < m; d++) next[d] = next[d]! / counts[c]!;
+      centroids[c] = next;
+    }
+  }
+
+  const rawProtos = centroids.map((cent, cIdx) => {
+    const memberIndices: number[] = [];
+    let s0 = 0;
+    let s1 = 0;
+    let s2 = 0;
+    for (let i = 0; i < n; i++) {
+      if (assignments[i] === cIdx) {
+        memberIndices.push(i);
+        s0 += localBary[i]!.l0;
+        s1 += localBary[i]!.l1;
+        s2 += localBary[i]!.l2;
+      }
+    }
+    const cnt = memberIndices.length;
+    return {
+      centroid: cent,
+      memberIndices,
+      meanL0: cnt > 0 ? s0 / cnt : 1 / 3,
+      meanL1: cnt > 0 ? s1 / cnt : 1 / 3,
+      meanL2: cnt > 0 ? s2 / cnt : 1 / 3,
+    };
+  });
+
+  const labels = assignDistinctPrototypeLabels({
+    prototypes: rawProtos,
+    axes,
+    coveredItems,
+    getItemLabel,
+  });
+
+  return rawProtos.map((p, idx) => ({
+    ...p,
+    label: labels[idx]!,
+  }));
+}
+
+const SIX_VERTEX_EDGES: readonly (readonly [number, number])[] = [
+  [0, 3],
+  [3, 1],
+  [1, 4],
+  [4, 2],
+  [2, 5],
+  [5, 0],
+  [3, 4],
+  [4, 5],
+  [5, 3],
+];
+
+/**
+ * Solves exact global optimum over all `6! = 720` bijections mapping 6 local subspace
+ * prototypes onto the 6 vertices `[V0, V1, V2, M01, M12, M20]` of the `1:4` subdivided mesh.
+ */
+function alignSixPrototypesToSubMesh(
+  prototypes: readonly SubspacePrototype[],
+  totalItems: number,
+): readonly SubspacePrototype[] {
+  const m = prototypes[0]?.centroid.length ?? 0;
+  // Pad to 6 if fewer than 6 prototypes were synthesized
+  const padded: SubspacePrototype[] = [...prototypes];
+  while (padded.length < 6) {
+    const src = padded[padded.length % prototypes.length]!;
+    padded.push({
+      ...src,
+      memberIndices: [],
+      label: `${src.label} · ${padded.length + 1}`,
+    });
+  }
+
+  // Pairwise cosine similarity between prototypes for QAP edge coherence
+  const sim: number[][] = Array.from({ length: 6 }, () => new Array(6).fill(0));
+  for (let a = 0; a < 6; a++) {
+    for (let b = a + 1; b < 6; b++) {
+      let dot = 0;
+      let na = 0;
+      let nb = 0;
+      for (let d = 0; d < m; d++) {
+        const ua = padded[a]!.centroid[d]!;
+        const ub = padded[b]!.centroid[d]!;
+        dot += ua * ub;
+        na += ua * ua;
+        nb += ub * ub;
+      }
+      const cos =
+        na > 1e-9 && nb > 1e-9 ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
+      sim[a]![b] = cos;
+      sim[b]![a] = cos;
+    }
+  }
+
+  // Precompute unary placement cost of prototype `p` on mesh vertex `v`
+  const unaryCost: number[][] = Array.from({ length: 6 }, (_, pIdx) => {
+    const p = padded[pIdx]!;
+    const loadFrac = p.memberIndices.length / Math.max(1, totalItems);
+    return SUB_MESH_VERTEX_BARY.map((vb, vIdx) => {
+      const geoSq =
+        (p.meanL0 - vb[0]) * (p.meanL0 - vb[0]) +
+        (p.meanL1 - vb[1]) * (p.meanL1 - vb[1]) +
+        (p.meanL2 - vb[2]) * (p.meanL2 - vb[2]);
+      // Interior midpoints (3, 4, 5) have degree 4 (bordering 3 sub-triangles vs 1 for corners)
+      const degreeBonus = vIdx >= 3 ? loadFrac * 0.32 : 0;
+      return geoSq * 0.85 - degreeBonus;
+    });
+  });
+
+  const bestPerm = [0, 1, 2, 3, 4, 5];
+  let bestScore = Infinity;
+  const cur = [0, 1, 2, 3, 4, 5];
+  const used = new Uint8Array(6);
+
+  const search = (depth: number, partialUnary: number): void => {
+    if (depth === 6) {
+      let edgeBonus = 0;
+      for (const [va, vb] of SIX_VERTEX_EDGES) {
+        edgeBonus += sim[cur[va]!]![cur[vb]!]! * 0.14;
+      }
+      const totalCost = partialUnary - edgeBonus;
+      if (totalCost < bestScore) {
+        bestScore = totalCost;
+        for (let i = 0; i < 6; i++) bestPerm[i] = cur[i]!;
+      }
+      return;
+    }
+    for (let p = 0; p < 6; p++) {
+      if (used[p]) continue;
+      used[p] = 1;
+      cur[depth] = p;
+      search(depth + 1, partialUnary + unaryCost[p]![depth]!);
+      used[p] = 0;
+    }
+  };
+
+  search(0, 0);
+  return bestPerm.map((pIdx) => padded[pIdx]!);
+}
+
+function buildSubspaceSpotlightFrame<TItem, TTagMeta, TClusterMeta>(params: {
+  readonly frameId: string;
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly accentHex: string;
+  readonly breadcrumbSegments?: readonly ZoomBreadcrumbSegment[];
+  readonly parentContextLabel?: string;
+  readonly coveredItems: readonly ZoomItemAnchorInput<TItem, TTagMeta>[];
+  readonly baseRootWeights: ReadonlyMap<number, number>;
+  readonly parentDepth: number;
+  readonly options?: SubspaceZoomStrategyOptions<TItem>;
+  readonly helpers: ZoomSharedHelpers<TItem, TTagMeta, TClusterMeta>;
+  readonly neighbors: readonly ZoomNeighborTarget[];
+  readonly sourceTrianglePoints?: readonly [Point2D, Point2D, Point2D];
+  readonly innerPadding?: number;
+  readonly meshOrientation?: 'horizontal' | 'vertical';
+  readonly sourceCenter?: Point2D;
+  readonly sourceSpan?: number;
+  readonly contextTriangles?: readonly ZoomContextTriangle<
+    TItem,
+    TTagMeta,
+    TClusterMeta
+  >[];
+  readonly contextEdges?: readonly ZoomContextEdge<
+    TItem,
+    TTagMeta,
+    TClusterMeta
+  >[];
+  readonly contextClusters?: readonly ZoomContextCluster<
+    TItem,
+    TTagMeta,
+    TClusterMeta
+  >[];
+  readonly contextItems?: readonly ZoomContextItem<
+    TItem,
+    TTagMeta,
+    TClusterMeta
+  >[];
+}): ZoomFrameSpec<TItem, TTagMeta, TClusterMeta> {
+  const {
+    frameId,
+    label,
+    shortLabel,
+    accentHex,
+    breadcrumbSegments,
+    parentContextLabel,
+    coveredItems,
+    baseRootWeights,
+    parentDepth,
+    options,
+    helpers,
+    neighbors,
+    sourceTrianglePoints,
+    innerPadding,
+    meshOrientation,
+    sourceCenter,
+    sourceSpan,
+    contextTriangles,
+    contextEdges,
+    contextClusters,
+    contextItems,
+  } = params;
+
+  const axes = buildLocalSubspaceAxes({
+    coveredItems,
+    depth: parentDepth,
+    kind: 'cluster-spotlight',
+    options,
+    helpers,
+  });
+
+  if (axes.length === 0 || coveredItems.length < 2) {
+    return buildSectorPartitionFrame({
+      frameId,
+      label,
+      shortLabel,
+      accentHex,
+      breadcrumbSegments,
+      parentContextLabel,
+      getItemLabel: options?.getItemLabel,
+      coveredItems,
+      baseRootWeights,
+      helpers,
+      neighbors,
+      sourceTrianglePoints,
+      innerPadding,
+      meshOrientation,
+      sourceCenter,
+      sourceSpan,
+      contextTriangles,
+      contextEdges,
+      contextClusters,
+      contextItems,
+    });
+  }
+
+  const { mesh, transform } = buildOrientedSingleTriangleMeshWithTransform({
+    viewportWidth: helpers.viewportWidth,
+    viewportHeight: helpers.viewportHeight,
+    innerPadding: innerPadding ?? helpers.innerPadding,
+    sourceTrianglePoints,
+    orientation: meshOrientation ?? 'horizontal',
+    sourceCenter,
+    sourceSpan,
+  });
+
+  const parentToFrameTransform: ZoomAffineTransform = {
+    scale: transform.scale,
+    sourceCx: transform.sourceCx,
+    sourceCy: transform.sourceCy,
+    targetCx: transform.targetCx,
+    targetCy: transform.targetCy,
+  };
+
+  const uniformBary = coveredItems.map(() => ({
+    l0: 1 / 3,
+    l1: 1 / 3,
+    l2: 1 / 3,
+  }));
+  const rawProtos = clusterItemsInLocalSubspace({
+    coveredItems,
+    axes,
+    localBary: uniformBary,
+    targetK: 3,
+    getItemLabel: options?.getItemLabel,
+  });
+
+  const protos: SubspacePrototype[] = [...rawProtos];
+  while (protos.length < 3) {
+    const base = protos[protos.length % rawProtos.length]!;
+    protos.push({
+      ...base,
+      memberIndices: [],
+      label: `${base.label} · ${protos.length + 1}`,
+    });
+  }
+
+  const baseLab = mixOklabColors(
+    [...baseRootWeights.entries()].map(([idx, w]) => ({
+      oklab: helpers.rootClusters[idx]!.oklab,
+      weight: w,
+    })),
+  ).oklab;
+
+  const spotLabs: readonly OklabTuple[] = [
+    [
+      Math.min(0.84, baseLab[0] + 0.045),
+      baseLab[1] * 1.04 + 0.032,
+      baseLab[2] * 0.94 - 0.022,
+    ],
+    [
+      Math.max(0.54, baseLab[0] - 0.035),
+      baseLab[1] * 0.94 - 0.028,
+      baseLab[2] * 1.05 + 0.03,
+    ],
+    [
+      baseLab[0] + 0.01,
+      baseLab[1] * 0.96 - 0.012,
+      baseLab[2] * 0.95 - 0.032,
+    ],
+  ];
+
+  const m = axes.length;
+  const vertexMembers = Array.from(
+    { length: 3 },
+    () =>
+      new Map<
+        string,
+        {
+          readonly item: TItem;
+          readonly weight: number;
+          readonly coverage: number;
+          readonly isExclusive: boolean;
+        }
+      >(),
+  );
+
+  const nextItems: ZoomItemAnchorInput<TItem, TTagMeta>[] = coveredItems.map(
+    (it, itemIdx) => {
+      const dists = [0, 1, 2].map((s) => {
+        let dSq = 0;
+        for (let a = 0; a < m; a++) {
+          const diff = axes[a]!.values[itemIdx]! - protos[s]!.centroid[a]!;
+          dSq += diff * diff;
+        }
+        return Math.sqrt(dSq);
+      });
+      const minD = Math.min(...dists);
+      const scaleD = Math.max(0.35, (dists[0]! + dists[1]! + dists[2]!) / 3);
+      const rawW = dists.map((d) =>
+        Math.exp(-((d - minD) / (scaleD * 0.72)) * 1.55) + 0.08,
+      );
+      const sumW = rawW[0]! + rawW[1]! + rawW[2]! || 1;
+      const unitWeights = [0, 1, 2].map((s) => ({
+        clusterIndex: s,
+        weight: rawW[s]! / sumW,
+        coverage: rawW[s]! / sumW,
+      }));
+
+      let anchorX = 0;
+      let anchorY = 0;
+      for (const uw of unitWeights) {
+        const vp = mesh.vertices[uw.clusterIndex]!;
+        anchorX += vp.x * uw.weight;
+        anchorY += vp.y * uw.weight;
+        vertexMembers[uw.clusterIndex]!.set(it.id, {
+          item: it.item,
+          weight: uw.weight,
+          coverage: uw.coverage,
+          isExclusive: false,
+        });
+      }
+
+      const itemCol = mixOklabColors(
+        unitWeights.map((uw) => ({
+          oklab: spotLabs[uw.clusterIndex]!,
+          weight: uw.weight,
+        })),
+      );
+
+      return {
+        ...it,
+        anchorX,
+        anchorY,
+        unitWeights,
+        mixedColorHex: itemCol.hex,
+        mixedOklab: itemCol.oklab,
+      };
+    },
+  );
+
+  const mixWeights = buildMixWeights(baseRootWeights, helpers.rootClusters);
+  const baseFmt = formatMixLabel(baseRootWeights, helpers.rootClusters);
+  const codePrefix = baseFmt.code.length <= 5 ? `${baseFmt.code}·` : '';
+  const effectiveParentContext =
+    parentContextLabel ?? truncateClean(baseFmt.label, 18);
+
+  const clusters: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[] = [0, 1, 2].map(
+    (s) => {
+      const lab = spotLabs[s]!;
+      const hex = mixOklabColors([{ oklab: lab, weight: 1 }]).hex;
+      const subLabel = protos[s]!.label;
+      const members = [...vertexMembers[s]!.entries()].map(([itemId, rec]) => ({
+        item: rec.item,
+        itemId,
+        coverage: rec.coverage,
+        normalizedWeight: rec.weight,
+        isExclusiveVertexMember: rec.isExclusive,
+      }));
+      return buildSynthesizedClusterDescriptor({
+        clusterIndex: s,
+        clusterUid: helpers.allocateClusterUid(),
+        code: `${codePrefix}S${s + 1}`,
+        defaultLabel: subLabel,
+        oklab: lab,
+        hex,
+        vertex: mesh.vertices[s]!,
+        coreTags: [],
+        sharedTags: [],
+        members,
+        featureSummary: `Subspace cluster (${subLabel})`,
+        role: 'intermediate',
+        mixWeights,
+        subclusterLabel: subLabel,
+        parentContextLabel: effectiveParentContext,
+        deriveClusterMeta: helpers.deriveClusterMeta,
+      });
+    },
+  );
+
+  return {
+    frameId,
+    kind: 'cluster-spotlight',
+    label,
+    shortLabel,
+    accentHex,
+    breadcrumbSegments,
+    mesh,
+    clusters,
+    items: nextItems,
+    neighbors,
+    parentToFrameTransform,
+    contextTriangles,
+    contextEdges,
+    contextClusters,
+    contextItems,
+    strategyData: {
+      kind: 'cluster-spotlight',
+      vertexWeights: [0, 1, 2].map(() => ({ rootWeights: baseRootWeights })),
+    } satisfies InternalFrameMeta,
+  };
+}
+
+/**
+ * Local subspace re-clustering & facet lens zoom strategy (`mode: 'drill-down'`):
+ *
+ * - Projects out features that are locally constant inside the focused triangle/cluster
+ *   (zero intra-subset variance, such as `milk = true` inside *Mammals* or `species = Gentoo`)
+ *   and re-clusters covered items over the highest-variance local features, facets, embeddings,
+ *   or similarity kernels (`requiresTags: false`, with automatic zero-config introspection).
+ * - Aligns up to 6 local prototypes onto the `1:4` equilateral sub-mesh via exact `6! = 720`
+ *   spatial + QAP permutation optimization, labeling each sub-vertex with its strongest
+ *   distinguishing attribute (`subclusterLabel`).
+ * - Replaces arbitrary `Sector A / B / C` cluster spotlights with a genuine 3-way local
+ *   subspace partition while strictly guaranteeing leaf termination (`0` infinite drill loops).
+ */
+export function createSubspaceZoomStrategy<
+  TItem = unknown,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+>(
+  options?: SubspaceZoomStrategyOptions<TItem>,
+): SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta> {
+  const clusterZoomMode = options?.clusterZoomMode ?? 'incident-star';
+  const stopWhenFullScale = options?.stopWhenFullScale ?? true;
+  const fullScaleThreshold = options?.fullScaleThreshold ?? 0.995;
+  const leafTriangleFocus = options?.leafTriangleFocus ?? true;
+  const allowClusterDrill = clusterZoomMode !== 'none';
+
+  const baseBarycentric = createBarycentricZoomStrategy<
+    TItem,
+    TTagMeta,
+    TClusterMeta
+  >({
+    clusterZoomMode,
+    adaptiveContrastStretch: true,
+    enableSectorFallback: true,
+    stopWhenFullScale,
+    fullScaleThreshold,
+    leafTriangleFocus,
+  });
+
+  const drillTriangleSubspace = (
+    ctx: ZoomTriangleDrillContext<TItem, TTagMeta, TClusterMeta>,
+  ): ZoomDrillOutcome<TItem, TTagMeta, TClusterMeta> | null => {
+    const { triangleIndex, parentFrame, itemScaleRatios, helpers } = ctx;
+    const tri = parentFrame.mesh.triangles[triangleIndex];
+    if (!tri) return null;
+
+    if (ctx.parentDepth >= MAX_ZOOM_DRILL_DEPTH) {
+      return leafTriangleFocus
+        ? executeSingleTriangleFocusDrill(ctx, allowClusterDrill)
+        : null;
+    }
+
+    const [v0, v1, v2] = tri.vertices;
+    const vSet = new Set<number>([v0, v1, v2]);
+    const coveredItems = parentFrame.items.filter((it) =>
+      isItemCoveredByVertices(parentFrame, it, vSet),
+    );
+    if (coveredItems.length <= 1) {
+      return leafTriangleFocus
+        ? executeSingleTriangleFocusDrill(ctx, allowClusterDrill)
+        : null;
+    }
+
+    if (stopWhenFullScale) {
+      const stats = computeFullScaleStats(
+        coveredItems.map((it) => it.id),
+        itemScaleRatios,
+        fullScaleThreshold,
+      );
+      if (!stats.hasUnderScaled) {
+        return leafTriangleFocus
+          ? executeSingleTriangleFocusDrill(ctx, allowClusterDrill)
+          : null;
+      }
+    }
+
+    const c0 = parentFrame.clusters[v0];
+    const c1 = parentFrame.clusters[v1];
+    const c2 = parentFrame.clusters[v2];
+    const p0 = parentFrame.mesh.vertices[v0]!;
+    const p1 = parentFrame.mesh.vertices[v1]!;
+    const p2 = parentFrame.mesh.vertices[v2]!;
+
+    const w0Base = getFrameVertexRootWeights(parentFrame, v0);
+    const w1Base = getFrameVertexRootWeights(parentFrame, v1);
+    const w2Base = getFrameVertexRootWeights(parentFrame, v2);
+
+    const localBary = coveredItems.map((it) => {
+      const rw = getItemRootWeights(parentFrame, it);
+      const proj = projectRootWeightsOntoTriangleCorners(
+        rw,
+        w0Base,
+        w1Base,
+        w2Base,
+      );
+      if (proj) {
+        return { rootWeights: rw, l0: proj.l0, l1: proj.l1, l2: proj.l2 };
+      }
+      let l0 = 0;
+      let l1 = 0;
+      let l2 = 0;
+      for (const uw of it.unitWeights) {
+        if (uw.clusterIndex === v0) l0 += uw.weight;
+        else if (uw.clusterIndex === v1) l1 += uw.weight;
+        else if (uw.clusterIndex === v2) l2 += uw.weight;
+      }
+      const s = l0 + l1 + l2 || 1;
+      return { rootWeights: rw, l0: l0 / s, l1: l1 / s, l2: l2 / s };
+    });
+
+    const hasSurroundingContext =
+      parentFrame.mesh.triangles.length > 1 ||
+      (parentFrame.contextTriangles?.length ?? 0) > 0;
+    const focusPadding = computeContextAwarePadding(
+      helpers.viewportWidth,
+      helpers.viewportHeight,
+      helpers.innerPadding,
+      hasSurroundingContext,
+    );
+    const { mesh: subMesh, transform } = buildSubdividedTriangleMeshWithTransform(
+      p0,
+      p1,
+      p2,
+      helpers.viewportWidth,
+      helpers.viewportHeight,
+      focusPadding,
+      parentFrame.mesh.orientation,
+    );
+    const neighbors = evaluateTriangleFrameNeighbors(
+      parentFrame,
+      triangleIndex,
+      subMesh,
+    );
+    const context = buildNeighborhoodContext({
+      parentFrame,
+      excludedTriangleIndices: new Set([triangleIndex]),
+      excludedVertexIndices: vSet,
+      activeParentEdgeKeys: new Set([
+        pairEdgeKey(v0, v1),
+        pairEdgeKey(v1, v2),
+        pairEdgeKey(v2, v0),
+      ]),
+      activeItemIds: new Set(coveredItems.map((it) => it.id)),
+      parentSettledItems: helpers.parentSettledItems,
+      transform,
+      viewportWidth: helpers.viewportWidth,
+      viewportHeight: helpers.viewportHeight,
+      allowClusterDrill: clusterZoomMode !== 'none',
+    });
+
+    const triCodes = [
+      c0?.code ?? defaultClusterCode(v0),
+      c1?.code ?? defaultClusterCode(v1),
+      c2?.code ?? defaultClusterCode(v2),
+    ];
+    const triCrumb = buildTriangleBreadcrumbInfo([c0, c1, c2], triCodes);
+    const triMixed = mixOklabColors(
+      [c0, c1, c2]
+        .filter((c): c is ClusterDescriptor<TItem, TTagMeta, TClusterMeta> =>
+          Boolean(c),
+        )
+        .map((c) => ({ oklab: c.oklab, weight: 1 })),
+    );
+
+    const axes = buildLocalSubspaceAxes({
+      coveredItems,
+      depth: ctx.parentDepth,
+      kind: 'triangle',
+      options,
+      helpers,
+    });
+
+    // For tiny subsets (< 4 items) or zero subspace variance, use 3-way spotlight or barycentric fallback
+    if (axes.length === 0 || coveredItems.length <= 3) {
+      if (axes.length > 0) {
+        const meanWeights =
+          localBary[0]?.rootWeights ?? mixRootWeightMaps(w0Base, 1, w1Base, 0);
+        return {
+          nextFrame: buildSubspaceSpotlightFrame({
+            frameId: `sub-spot-${parentFrame.frameId}-t${triangleIndex}`,
+            label: triCrumb.label,
+            shortLabel: triCrumb.shortLabel,
+            accentHex: triMixed.hex,
+            breadcrumbSegments: triCrumb.segments,
+            parentContextLabel: truncateClean(triCrumb.shortLabel, 20),
+            coveredItems,
+            baseRootWeights: meanWeights,
+            parentDepth: ctx.parentDepth,
+            options,
+            helpers,
+            neighbors,
+            sourceTrianglePoints: [p0, p1, p2],
+            innerPadding: focusPadding,
+            meshOrientation: parentFrame.mesh.orientation,
+            contextTriangles: context.contextTriangles,
+            contextEdges: context.contextEdges,
+            contextClusters: context.contextClusters,
+            contextItems: context.contextItems,
+          }),
+        };
+      }
+      return baseBarycentric.drillIntoTriangle!(ctx);
+    }
+
+    const rawProtos = clusterItemsInLocalSubspace({
+      coveredItems,
+      axes,
+      localBary,
+      targetK: Math.min(6, coveredItems.length),
+      getItemLabel: options?.getItemLabel,
+    });
+
+    if (rawProtos.length < 3) {
+      const meanWeights =
+        localBary[0]?.rootWeights ?? mixRootWeightMaps(w0Base, 1, w1Base, 0);
+      return {
+        nextFrame: buildSubspaceSpotlightFrame({
+          frameId: `sub-spot-${parentFrame.frameId}-t${triangleIndex}`,
+          label: triCrumb.label,
+          shortLabel: triCrumb.shortLabel,
+          accentHex: triMixed.hex,
+          breadcrumbSegments: triCrumb.segments,
+          parentContextLabel: truncateClean(triCrumb.shortLabel, 20),
+          coveredItems,
+          baseRootWeights: meanWeights,
+          parentDepth: ctx.parentDepth,
+          options,
+          helpers,
+          neighbors,
+          sourceTrianglePoints: [p0, p1, p2],
+          innerPadding: focusPadding,
+          meshOrientation: parentFrame.mesh.orientation,
+          contextTriangles: context.contextTriangles,
+          contextEdges: context.contextEdges,
+          contextClusters: context.contextClusters,
+          contextItems: context.contextItems,
+        }),
+      };
+    }
+
+    const alignedProtos = alignSixPrototypesToSubMesh(
+      rawProtos,
+      coveredItems.length,
+    );
+    const m = axes.length;
+
+    // Assign each item to its best-fitting planar sub-triangle among the 4 congruent faces
+    const faceCounts = [0, 0, 0, 0];
+    const itemAssignments = coveredItems.map((_, itemIdx) => {
+      const b = localBary[itemIdx]!;
+      const dists = alignedProtos.map((proto, vIdx) => {
+        let dSq = 0;
+        for (let a = 0; a < m; a++) {
+          const diff = axes[a]!.values[itemIdx]! - proto.centroid[a]!;
+          dSq += diff * diff;
+        }
+        const vb = SUB_MESH_VERTEX_BARY[vIdx]!;
+        const spatialPrior =
+          0.08 *
+          ((b.l0 - vb[0]) * (b.l0 - vb[0]) +
+            (b.l1 - vb[1]) * (b.l1 - vb[1]) +
+            (b.l2 - vb[2]) * (b.l2 - vb[2]));
+        return Math.sqrt(dSq + spatialPrior);
+      });
+
+      const minD = Math.min(...dists);
+      const meanD =
+        dists.reduce((acc, d) => acc + d, 0) / Math.max(1, dists.length);
+      const kernelBandwidth = Math.max(0.32, meanD * 0.68);
+      const vAff = dists.map(
+        (d) => Math.exp(-((d - minD) / kernelBandwidth) * 1.65) + 0.03,
+      );
+
+      let bestFaceIdx = 0;
+      let bestFaceScore = -Infinity;
+      for (let fIdx = 0; fIdx < subMesh.triangles.length; fIdx++) {
+        const [va, vb, vc] = subMesh.triangles[fIdx]!.vertices;
+        const maxCornerAff = Math.max(vAff[va]!, vAff[vb]!, vAff[vc]!);
+        const sumFaceAff = vAff[va]! + vAff[vb]! + vAff[vc]!;
+        const crowdPenalty = 1 + 0.12 * (faceCounts[fIdx] ?? 0);
+        const score = (0.58 * sumFaceAff + 0.42 * maxCornerAff) / crowdPenalty;
+        if (score > bestFaceScore) {
+          bestFaceScore = score;
+          bestFaceIdx = fIdx;
+        }
+      }
+
+      faceCounts[bestFaceIdx] = (faceCounts[bestFaceIdx] ?? 0) + 1;
+      const [va, vb, vc] = subMesh.triangles[bestFaceIdx]!.vertices;
+      const rawTriW = [vAff[va]!, vAff[vb]!, vAff[vc]!];
+      const sumTriW = rawTriW[0]! + rawTriW[1]! + rawTriW[2]! || 1;
+      // Gentle soft-simplex interior spread (84% prototype pull + 16% barycenter cushion)
+      const unitWeights = [va, vb, vc].map((vIdx, pos) => {
+        const w = 0.84 * (rawTriW[pos]! / sumTriW) + 0.16 * (1 / 3);
+        return {
+          clusterIndex: vIdx,
+          weight: w,
+          coverage: w,
+        };
+      });
+      return { faceIndex: bestFaceIdx, unitWeights };
+    });
+
+    const maxFaceCount = Math.max(...faceCounts);
+    // Strict anti-loop guarantee: if every item still landed in a single sub-triangle,
+    // emit a 3-way local subspace spotlight frame so item counts strictly shrink.
+    if (maxFaceCount >= coveredItems.length) {
+      const meanWeights =
+        localBary[0]?.rootWeights ?? mixRootWeightMaps(w0Base, 1, w1Base, 0);
+      return {
+        nextFrame: buildSubspaceSpotlightFrame({
+          frameId: `sub-spot-${parentFrame.frameId}-t${triangleIndex}`,
+          label: triCrumb.label,
+          shortLabel: triCrumb.shortLabel,
+          accentHex: triMixed.hex,
+          breadcrumbSegments: triCrumb.segments,
+          parentContextLabel: truncateClean(triCrumb.shortLabel, 20),
+          coveredItems,
+          baseRootWeights: meanWeights,
+          parentDepth: ctx.parentDepth,
+          options,
+          helpers,
+          neighbors,
+          sourceTrianglePoints: [p0, p1, p2],
+          innerPadding: focusPadding,
+          meshOrientation: parentFrame.mesh.orientation,
+          contextTriangles: context.contextTriangles,
+          contextEdges: context.contextEdges,
+          contextClusters: context.contextClusters,
+          contextItems: context.contextItems,
+        }),
+      };
+    }
+
+    const vWeights: ReadonlyMap<number, number>[] = [
+      w0Base,
+      w1Base,
+      w2Base,
+      mixRootWeightMaps(w0Base, 0.5, w1Base, 0.5),
+      mixRootWeightMaps(w1Base, 0.5, w2Base, 0.5),
+      mixRootWeightMaps(w2Base, 0.5, w0Base, 0.5),
+    ];
+
+    const vertexColors = vWeights.map((vw, vIdx) => {
+      if (vIdx < 3) {
+        const corner = [c0, c1, c2][vIdx];
+        if (corner) return { hex: corner.colorHex, oklab: corner.oklab };
+      }
+      return mixOklabColors(
+        [...vw.entries()].map(([rIdx, rw]) => ({
+          oklab: helpers.rootClusters[rIdx]!.oklab,
+          weight: rw,
+        })),
+      );
+    });
+
+    const vertexMembers = Array.from(
+      { length: 6 },
+      () =>
+        new Map<
+          string,
+          {
+            readonly item: TItem;
+            readonly weight: number;
+            readonly coverage: number;
+            readonly isExclusive: boolean;
+          }
+        >(),
+    );
+
+    const subItems: ZoomItemAnchorInput<TItem, TTagMeta>[] = coveredItems.map(
+      (it, idx) => {
+        const assign = itemAssignments[idx]!;
+        let anchorX = 0;
+        let anchorY = 0;
+        for (const uw of assign.unitWeights) {
+          const vp = subMesh.vertices[uw.clusterIndex]!;
+          anchorX += vp.x * uw.weight;
+          anchorY += vp.y * uw.weight;
+          vertexMembers[uw.clusterIndex]!.set(it.id, {
+            item: it.item,
+            weight: uw.weight,
+            coverage: uw.coverage,
+            isExclusive: assign.unitWeights.length === 1,
+          });
+        }
+        const itemMix = mixOklabColors(
+          assign.unitWeights.map((uw) => ({
+            oklab: vertexColors[uw.clusterIndex]!.oklab,
+            weight: uw.weight,
+          })),
+        );
+        return {
+          ...it,
+          anchorX,
+          anchorY,
+          unitWeights: assign.unitWeights,
+          mixedColorHex: itemMix.hex,
+          mixedOklab: itemMix.oklab,
+        };
+      },
+    );
+
+    const parentCorners = [c0, c1, c2];
+    const subClusters: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[] =
+      vWeights.map((vw, vIdx) => {
+        const vert = subMesh.vertices[vIdx]!;
+        const parentCorner = vIdx < 3 ? parentCorners[vIdx] : undefined;
+        const vCol = vertexColors[vIdx]!;
+        const proto = alignedProtos[vIdx]!;
+        const fmt = formatMixLabel(vw, helpers.rootClusters);
+        const mixWeights = buildMixWeights(vw, helpers.rootClusters);
+        const members = [...vertexMembers[vIdx]!.entries()].map(
+          ([itemId, rec]) => ({
+            item: rec.item,
+            itemId,
+            coverage: rec.coverage,
+            normalizedWeight: rec.weight,
+            isExclusiveVertexMember: rec.isExclusive,
+          }),
+        );
+
+        return buildSynthesizedClusterDescriptor({
+          clusterIndex: vIdx,
+          clusterUid: helpers.allocateClusterUid(),
+          code: parentCorner ? parentCorner.code : fmt.code,
+          defaultLabel: proto.label,
+          oklab: vCol.oklab,
+          hex: vCol.hex,
+          vertex: vert,
+          coreTags: [],
+          sharedTags: [],
+          members,
+          featureSummary: `Subspace cluster (${proto.label})`,
+          role: 'intermediate',
+          mixWeights,
+          subclusterLabel: proto.label,
+          parentContextLabel: parentCorner
+            ? deriveCornerParentContextLabel(parentCorner)
+            : undefined,
+          deriveClusterMeta: helpers.deriveClusterMeta,
+        });
+      });
+
+    const itemRootMap = new Map<string, ReadonlyMap<number, number>>();
+    coveredItems.forEach((it, idx) => {
+      itemRootMap.set(it.id, localBary[idx]!.rootWeights);
+    });
+
+    return {
+      nextFrame: {
+        frameId: `sub-${parentFrame.frameId}-t${triangleIndex}`,
+        kind: 'triangle',
+        label: triCrumb.label,
+        shortLabel: triCrumb.shortLabel,
+        accentHex: triMixed.hex,
+        breadcrumbSegments: triCrumb.segments,
+        mesh: subMesh,
+        clusters: subClusters,
+        items: subItems,
+        neighbors,
+        parentToFrameTransform: {
+          scale: transform.scale,
+          sourceCx: transform.sourceCx,
+          sourceCy: transform.sourceCy,
+          targetCx: transform.targetCx,
+          targetCy: transform.targetCy,
+        },
+        contextTriangles: context.contextTriangles,
+        contextEdges: context.contextEdges,
+        contextClusters: context.contextClusters,
+        contextItems: context.contextItems,
+        strategyData: {
+          kind: 'triangle',
+          parentTriIndex: triangleIndex,
+          vertexWeights: vWeights.map((rw) => ({ rootWeights: rw })),
+          itemRootWeights: itemRootMap,
+        } satisfies InternalFrameMeta,
+      },
+    };
+  };
+
+  const drillClusterSubspace = (
+    ctx: ZoomClusterDrillContext<TItem, TTagMeta, TClusterMeta>,
+  ): ZoomDrillOutcome<TItem, TTagMeta, TClusterMeta> | null => {
+    if (clusterZoomMode === 'none') {
+      return null;
+    }
+    if (
+      clusterZoomMode === 'spotlight' &&
+      ctx.parentDepth >= MAX_ZOOM_DRILL_DEPTH
+    ) {
+      return null;
+    }
+    if (ctx.parentDepth > MAX_ZOOM_DRILL_DEPTH) {
+      return null;
+    }
+    const { clusterIndex, parentFrame, itemScaleRatios, helpers } = ctx;
+    const meta = parentFrame.strategyData as InternalFrameMeta | undefined;
+    if (meta?.kind === 'cluster-spotlight') return null;
+
+    const cluster = parentFrame.clusters[clusterIndex];
+    if (!cluster) return null;
+
+    const incTris = parentFrame.mesh.triangles.filter((t) =>
+      t.vertices.includes(clusterIndex),
+    );
+
+    if (clusterZoomMode === 'incident-star') {
+      if (incTris.length === 0) return null;
+      if (meta?.kind === 'cluster-star' && clusterIndex === 0) {
+        return null;
+      }
+      return executeClusterStarDrill(ctx, true);
+    }
+
+    const directItems = parentFrame.items.filter((it) =>
+      it.unitWeights.some(
+        (uw) => uw.clusterIndex === clusterIndex && uw.weight >= 0.45,
+      ),
+    );
+    if (directItems.length <= 1) return null;
+    if (stopWhenFullScale) {
+      const stats = computeFullScaleStats(
+        directItems.map((it) => it.id),
+        itemScaleRatios,
+        fullScaleThreshold,
+      );
+      if (!stats.hasUnderScaled) return null;
+    }
+
+    const targetVert = parentFrame.mesh.vertices[clusterIndex];
+    const sourceSpan = Math.max(40, parentFrame.mesh.sideLength * 0.58);
+    let sourceTrianglePoints:
+      | readonly [Point2D, Point2D, Point2D]
+      | undefined;
+    if (incTris.length === 1 && targetVert) {
+      const [va, vb, vc] = incTris[0]!.vertices;
+      const qa = parentFrame.mesh.vertices[va]!;
+      const qb = parentFrame.mesh.vertices[vb]!;
+      const qc = parentFrame.mesh.vertices[vc]!;
+      const qLen = Math.max(1, Math.hypot(qb.x - qa.x, qb.y - qa.y));
+      const ratio = sourceSpan / qLen;
+      const qCx = (qa.x + qb.x + qc.x) / 3;
+      const qCy = (qa.y + qb.y + qc.y) / 3;
+      sourceTrianglePoints = [
+        {
+          x: targetVert.x + (qa.x - qCx) * ratio,
+          y: targetVert.y + (qa.y - qCy) * ratio,
+        },
+        {
+          x: targetVert.x + (qb.x - qCx) * ratio,
+          y: targetVert.y + (qb.y - qCy) * ratio,
+        },
+        {
+          x: targetVert.x + (qc.x - qCx) * ratio,
+          y: targetVert.y + (qc.y - qCy) * ratio,
+        },
+      ];
+    }
+    const hasSurroundingContext =
+      parentFrame.mesh.triangles.length > 1 ||
+      (parentFrame.contextTriangles?.length ?? 0) > 0;
+    const focusPadding = computeContextAwarePadding(
+      helpers.viewportWidth,
+      helpers.viewportHeight,
+      helpers.innerPadding,
+      hasSurroundingContext,
+    );
+    const { transform: spotTransform } =
+      buildOrientedSingleTriangleMeshWithTransform({
+        viewportWidth: helpers.viewportWidth,
+        viewportHeight: helpers.viewportHeight,
+        innerPadding: focusPadding,
+        sourceTrianglePoints,
+        orientation: parentFrame.mesh.orientation,
+        sourceCenter: targetVert
+          ? { x: targetVert.x, y: targetVert.y }
+          : undefined,
+        sourceSpan,
+      });
+    const spotContext = buildNeighborhoodContext({
+      parentFrame,
+      excludedTriangleIndices: new Set<number>(),
+      excludedVertexIndices: new Set<number>([clusterIndex]),
+      activeParentEdgeKeys: new Set<string>(),
+      activeItemIds: new Set(directItems.map((it) => it.id)),
+      parentSettledItems: helpers.parentSettledItems,
+      transform: spotTransform,
+      viewportWidth: helpers.viewportWidth,
+      viewportHeight: helpers.viewportHeight,
+      allowClusterDrill: true,
+    });
+
+    const spotCrumb = buildClusterBreadcrumbInfo(cluster);
+    return {
+      nextFrame: buildSubspaceSpotlightFrame({
+        frameId: `sub-spotlight-${parentFrame.frameId}-c${clusterIndex}`,
+        label: spotCrumb.label,
+        shortLabel: spotCrumb.shortLabel,
+        accentHex: cluster.colorHex,
+        breadcrumbSegments: spotCrumb.segments,
+        parentContextLabel: deriveCornerParentContextLabel(cluster),
+        coveredItems: directItems,
+        baseRootWeights: getFrameVertexRootWeights(parentFrame, clusterIndex),
+        parentDepth: ctx.parentDepth,
+        options,
+        helpers,
+        neighbors: [],
+        sourceTrianglePoints,
+        innerPadding: focusPadding,
+        meshOrientation: parentFrame.mesh.orientation,
+        sourceCenter: targetVert
+          ? { x: targetVert.x, y: targetVert.y }
+          : undefined,
+        sourceSpan,
+        contextTriangles: spotContext.contextTriangles,
+        contextEdges: spotContext.contextEdges,
+        contextClusters: spotContext.contextClusters,
+        contextItems: spotContext.contextItems,
+      }),
+    };
+  };
+
+  return {
+    name: 'subspace-recluster',
+    mode: 'drill-down',
+    evaluateTargets: baseBarycentric.evaluateTargets,
+    drillIntoTriangle: drillTriangleSubspace,
+    drillIntoCluster: drillClusterSubspace,
+    drillToNeighbor(ctx) {
+      const { localTarget } = parseScopedNeighborId(ctx.neighborId);
+      const { parentFrame, itemScaleRatios, helpers } = ctx;
+      if (localTarget.startsWith('tri:')) {
+        const triIdx = parseInt(localTarget.slice(4), 10);
+        if (!Number.isFinite(triIdx)) return null;
+        const outcome = drillTriangleSubspace({
+          triangleIndex: triIdx,
+          parentFrame,
+          parentDepth: ctx.currentDepth - 1,
+          itemScaleRatios,
+          helpers,
+        });
+        return outcome ? { ...outcome, replaceTop: true } : null;
+      }
+      if (localTarget.startsWith('cluster:')) {
+        const cIdx = parseInt(localTarget.slice(8), 10);
+        if (!Number.isFinite(cIdx)) return null;
+        const targetCluster = parentFrame.clusters[cIdx];
+        if (!targetCluster) return null;
+        const outcome = drillClusterSubspace({
+          clusterUid: targetCluster.clusterUid,
+          clusterIndex: cIdx,
+          parentFrame,
+          parentDepth: ctx.currentDepth - 1,
+          itemScaleRatios,
+          helpers,
+        });
+        return outcome ? { ...outcome, replaceTop: true } : null;
+      }
+      return null;
+    },
+  };
+}
+
+// ============================================================================
+// Strategy 4: Classic Free Camera Zoom Strategy (Continuous Wheel + Pinch + Pan)
 // ============================================================================
 
 /**
@@ -3724,6 +6643,7 @@ export function createFreeCameraZoomStrategy<
       }
       return {
         drillableTriangleIndices: [],
+        focusableTriangleIndices: [],
         drillableClusterUids: [],
         isLeafReached: false,
         fullScaleItemRatio: ids.length > 0 ? full / ids.length : 1,
@@ -3731,4 +6651,5 @@ export function createFreeCameraZoomStrategy<
     },
   };
 }
+
 

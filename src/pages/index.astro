@@ -1,0 +1,437 @@
+---
+import { getCollection } from 'astro:content';
+import { HeroAtlasIsland } from '../components/islands/HeroAtlasIsland';
+import { buildCommonsThumbManifest } from '../demo/commonsThumbs.server';
+import {
+  getDatasetItemCount,
+  getDatasetSourceInfo,
+} from '../demo/data/multimodalCatalog';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { ALL_STRATEGY_IDS, getStrategySpec } from '../site/strategies';
+import { SITE_META, withBase } from '../site/url';
+
+const thumbManifest = await buildCommonsThumbManifest(['media', 'zoo-species']);
+
+const datasets = (await getCollection('datasets')).sort(
+  (a, b) => a.data.order - b.data.order,
+);
+
+const latestNotes = (await getCollection('notes'))
+  .sort((a, b) => b.data.publishedDate.localeCompare(a.data.publishedDate))
+  .slice(0, 3);
+
+const installTargets = [
+  {
+    id: 'svg',
+    label: 'Vanilla TS / SVG',
+    shortCmd: 'npm i @simplex-viz/svg',
+    fullCmd: 'npm install @simplex-viz/svg',
+    hint: 'Framework-agnostic SVG — works in Vanilla TS, Vue, Svelte, or Angular without React.',
+  },
+  {
+    id: 'core',
+    label: 'Headless Core',
+    shortCmd: 'npm i @simplex-viz/core',
+    fullCmd: 'npm install @simplex-viz/core',
+    hint: 'Zero-dependency math, clustering & SAT layout engine for Node, Workers, or Canvas.',
+  },
+  {
+    id: 'react',
+    label: 'React',
+    shortCmd: 'npm i @simplex-viz/react',
+    fullCmd: 'npm install @simplex-viz/react',
+    hint: 'Type-safe React 18 & 19 <SimplexTopicGraph /> component and controller hook.',
+  },
+] as const;
+
+const pipelineStages = [
+  {
+    num: '01',
+    title: 'Mesh Triangulation',
+    href: withBase('/docs/stage-1-mesh'),
+    strategy: getStrategySpec('adaptive-hex-mesh').name,
+    summary: 'Exact 60° equilateral lattice adapted to aspect ratio.',
+    icon: 'mesh',
+  },
+  {
+    num: '02',
+    title: 'Simplex Projection',
+    href: withBase('/docs/stage-2-clustering'),
+    strategy: getStrategySpec('soft-simplex-embeddings').shortName,
+    summary: 'QAP placement and barycentric weights for tags or vectors.',
+    icon: 'clustering',
+  },
+  {
+    num: '03',
+    title: 'OKLab Color',
+    href: withBase('/docs/stage-3-color'),
+    strategy: getStrategySpec('oklab-edge-contrast').name,
+    summary: 'Maximal edge contrast and chroma-preserving blends.',
+    icon: 'color',
+  },
+  {
+    num: '04',
+    title: 'Convex Layout',
+    href: withBase('/docs/stage-4-layout'),
+    strategy: getStrategySpec('collision-local-layout').shortName,
+    summary: 'PBD + SAT separation with guaranteed 0.0 px overlap.',
+    icon: 'layout',
+  },
+  {
+    num: '05',
+    title: 'Conformal Zoom',
+    href: withBase('/docs/stage-5-zoom'),
+    strategy: getStrategySpec('subspace-recluster-zoom').shortName,
+    summary: 'Local subspace re-clustering on 1:4 equilateral sub-meshes.',
+    icon: 'zoom',
+  },
+] as const;
+---
+
+<BaseLayout
+  title={SITE_META.defaultTitle}
+  description={SITE_META.defaultDescription}
+>
+  <!-- Section 1: Concise Centered Hero + Multi-Stack Install + Full-Width Live Demo -->
+  <section class="border-b border-slate-200/80 bg-white dark:border-slate-800/80 dark:bg-[#0B0F17]">
+    <div class="mx-auto max-w-7xl px-4 pt-10 pb-12 sm:px-6 sm:pt-14 sm:pb-16 lg:px-8">
+      <div class="mx-auto max-w-3xl text-center">
+        <h1 class="text-[clamp(2.15rem,4vw,3.4rem)] leading-[1.08] font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
+          Overlap-Free 60° Simplex Atlases.
+        </h1>
+        <p class="mx-auto mt-3 max-w-xl text-sm sm:text-base leading-relaxed text-slate-600 dark:text-slate-300">
+          Project embeddings, pairwise similarities, or tagged collections onto an equilateral mesh with OKLab color and 1:4 zoom.
+        </p>
+
+        <!-- Multi-Target Install Switcher (Vanilla/SVG, Headless Core, React) -->
+        <div class="mx-auto mt-6 max-w-md">
+          <div class="overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50/80 text-left dark:border-slate-800 dark:bg-[#07090E]">
+            <div
+              role="tablist"
+              aria-label="Choose package layer"
+              class="flex items-center border-b border-slate-200/80 bg-slate-100/80 px-1.5 pt-1.5 dark:border-slate-800/90 dark:bg-[#0B0F17]"
+            >
+              {
+                installTargets.map((target, idx) => (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={idx === 0 ? 'true' : 'false'}
+                    data-install-tab={target.id}
+                    data-short-cmd={target.shortCmd}
+                    data-full-cmd={target.fullCmd}
+                    data-install-hint={target.hint}
+                    class:list={[
+                      'cursor-pointer rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap',
+                      idx === 0
+                        ? 'bg-slate-50 text-slate-950 font-semibold dark:bg-[#07090E] dark:text-cyan-300'
+                        : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200',
+                    ]}
+                  >
+                    {target.label}
+                  </button>
+                ))
+              }
+            </div>
+
+            <div class="flex items-center justify-between gap-3 px-3.5 py-2.5 font-mono text-xs text-slate-800 dark:text-slate-200">
+              <span id="sv-hero-install-text" class="truncate">
+                {installTargets[0].shortCmd}
+              </span>
+              <button
+                type="button"
+                id="sv-hero-copy-btn"
+                data-copy-cmd={installTargets[0].fullCmd}
+                class="cursor-pointer rounded px-2 py-0.5 font-sans text-xs font-semibold text-cyan-700 hover:bg-slate-200/70 dark:text-cyan-300 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+
+          <p class="mt-2.5 text-xs text-slate-500 dark:text-slate-400">
+            <span id="sv-hero-install-hint">{installTargets[0].hint}</span>{' '}
+            <a
+              href={withBase('/docs/quickstart')}
+              class="font-semibold text-cyan-700 hover:underline dark:text-cyan-300 whitespace-nowrap"
+            >
+              Quickstart →
+            </a>
+          </p>
+        </div>
+      </div>
+
+      <!-- Full-Width Interactive Atlas Showcase -->
+      <div class="mt-8 sm:mt-10">
+        <HeroAtlasIsland thumbManifest={thumbManifest} client:load />
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 2: Visual 5-Stage Pipeline -->
+  <section class="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+    <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+      <div class="max-w-xl">
+        <p class="text-xs font-medium text-slate-500 dark:text-slate-400">
+          Composable Architecture
+        </p>
+        <h2 class="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
+          Five independent stages with named strategies
+        </h2>
+      </div>
+      <a
+        href={withBase('/docs/strategies')}
+        class="text-xs font-semibold text-cyan-700 hover:underline dark:text-cyan-300 whitespace-nowrap shrink-0"
+      >
+        Browse all {ALL_STRATEGY_IDS.length} strategies →
+      </a>
+    </div>
+
+    <div class="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      {
+        pipelineStages.map((stage) => (
+          <a
+            href={stage.href}
+            class="group flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-5 hover:border-cyan-500/70 dark:border-slate-800/90 dark:bg-[#0B0F17] dark:hover:border-cyan-400/60 transition-colors"
+          >
+            <div>
+              <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-slate-50 border border-slate-200/70 dark:bg-[#07090E] dark:border-slate-800">
+                {stage.icon === 'mesh' && (
+                  <svg class="h-7 w-7" viewBox="0 0 32 32" fill="none">
+                    <polygon points="16,4 6,22 26,22" stroke="#06B6D4" stroke-width="1.6" fill="#06B6D4" fill-opacity="0.1" />
+                    <circle cx="16" cy="4" r="2.2" fill="#06B6D4" />
+                    <circle cx="6" cy="22" r="2.2" fill="#F59E0B" />
+                    <circle cx="26" cy="22" r="2.2" fill="#D946EF" />
+                  </svg>
+                )}
+                {stage.icon === 'clustering' && (
+                  <svg class="h-7 w-7" viewBox="0 0 32 32" fill="none">
+                    <polygon points="16,4 6,24 26,24" stroke="currentColor" class="text-slate-300 dark:text-slate-700" stroke-width="1.4" stroke-dasharray="2 2" />
+                    <circle cx="16" cy="17" r="3" fill="#06B6D4" />
+                    <circle cx="12" cy="19" r="2.1" fill="#F59E0B" />
+                    <circle cx="20" cy="18.5" r="2.1" fill="#D946EF" />
+                  </svg>
+                )}
+                {stage.icon === 'color' && (
+                  <svg class="h-7 w-7" viewBox="0 0 32 32" fill="none">
+                    <line x1="6" y1="22" x2="26" y2="10" stroke="currentColor" class="text-slate-300 dark:text-slate-700" stroke-width="1.5" />
+                    <circle cx="7" cy="21.5" r="3.6" fill="#06B6D4" />
+                    <circle cx="16" cy="16" r="3.2" fill="#10B981" />
+                    <circle cx="25" cy="10.5" r="3.6" fill="#F59E0B" />
+                  </svg>
+                )}
+                {stage.icon === 'layout' && (
+                  <svg class="h-7 w-7" viewBox="0 0 32 32" fill="none">
+                    <circle cx="11.5" cy="16" r="5.5" stroke="#06B6D4" stroke-width="1.5" fill="#06B6D4" fill-opacity="0.14" />
+                    <circle cx="21.5" cy="16" r="4.2" stroke="#D946EF" stroke-width="1.5" fill="#D946EF" fill-opacity="0.14" />
+                  </svg>
+                )}
+                {stage.icon === 'zoom' && (
+                  <svg class="h-7 w-7" viewBox="0 0 32 32" fill="none">
+                    <polygon points="16,4 5,24 27,24" stroke="#06B6D4" stroke-width="1.5" />
+                    <polygon points="10.5,14 21.5,14 16,24" stroke="#F59E0B" stroke-width="1.4" stroke-dasharray="2 2" fill="#F59E0B" fill-opacity="0.12" />
+                  </svg>
+                )}
+              </div>
+
+              <p class="font-mono text-xs text-slate-400 dark:text-slate-500 tabular-nums">
+                Stage {stage.num}
+              </p>
+              <h3 class="mt-1 text-base font-semibold text-slate-950 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors">
+                {stage.title}
+              </h3>
+              <p class="mt-1.5 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                {stage.summary}
+              </p>
+            </div>
+
+            <p class="mt-4 border-t border-slate-200/70 pt-3 text-xs font-medium text-slate-700 dark:border-slate-800/80 dark:text-slate-300">
+              {stage.strategy}
+            </p>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- Section 3: Interactive Domain Examples (Real Open-Access Datasets) -->
+  <section class="border-y border-slate-200/80 bg-white dark:border-slate-800/80 dark:bg-[#0B0F17]">
+    <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+      <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div class="max-w-xl">
+          <p class="text-xs font-medium text-slate-500 dark:text-slate-400">
+            Real Open-Access Datasets
+          </p>
+          <h2 class="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
+            Explore six domain atlases directly in the browser
+          </h2>
+        </div>
+        <div class="flex items-center gap-5 text-xs font-semibold shrink-0">
+          <a
+            href={withBase('/playground')}
+            class="text-slate-600 hover:text-cyan-700 hover:underline dark:text-slate-300 dark:hover:text-cyan-300 whitespace-nowrap"
+          >
+            Custom JSON Playground →
+          </a>
+          <a
+            href={withBase('/examples')}
+            class="text-cyan-700 hover:underline dark:text-cyan-300 whitespace-nowrap"
+          >
+            All {datasets.length} examples →
+          </a>
+        </div>
+      </div>
+
+      <div class="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+        {
+          datasets.map((ds) => {
+            const itemCount = getDatasetItemCount(ds.data.datasetId);
+            const source = getDatasetSourceInfo(ds.data.datasetId);
+            const clusteringSpec = getStrategySpec(ds.data.clusteringStrategy);
+            const zoomSpec = getStrategySpec(ds.data.zoomStrategy);
+            return (
+              <a
+                href={withBase(`/examples/${ds.id}`)}
+                class="group flex flex-col justify-between rounded-xl border border-slate-200/90 bg-slate-50/60 p-5 sm:p-6 hover:border-cyan-500/70 dark:border-slate-800/90 dark:bg-[#07090E] dark:hover:border-cyan-400/60 transition-colors"
+              >
+                <div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+                    {ds.data.domainLabel} · {itemCount} items · {source.sourceShort}
+                  </p>
+                  <h3 class="mt-2 text-lg font-semibold leading-snug text-slate-950 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors [text-wrap:balance]">
+                    {ds.data.title}
+                  </h3>
+                  <p class="mt-2 text-xs sm:text-[13px] leading-relaxed text-slate-600 dark:text-slate-300 line-clamp-3">
+                    {ds.data.description}
+                  </p>
+                </div>
+
+                <div class="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/80 pt-3.5 text-xs dark:border-slate-800/80">
+                  <span class="text-slate-600 dark:text-slate-300 truncate">
+                    {clusteringSpec.shortName} · {zoomSpec.shortName}
+                  </span>
+                  <span class="font-semibold text-cyan-700 group-hover:underline dark:text-cyan-300 whitespace-nowrap shrink-0">
+                    Open →
+                  </span>
+                </div>
+              </a>
+            );
+          })
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 4: Dedicated Latest Notes Section -->
+  {
+    latestNotes.length > 0 && (
+      <section class="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+        <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div class="max-w-xl">
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">
+              Latest Notes
+            </p>
+            <h2 class="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
+              Engineering deep dives &amp; release updates
+            </h2>
+          </div>
+          <a
+            href={withBase('/notes')}
+            class="text-xs font-semibold text-cyan-700 hover:underline dark:text-cyan-300 whitespace-nowrap shrink-0"
+          >
+            All notes →
+          </a>
+        </div>
+
+        <div class="mt-10 grid grid-cols-1 gap-5 md:grid-cols-3">
+          {latestNotes.map((note) => (
+            <a
+              href={withBase(`/notes/${note.id}`)}
+              class="group flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-6 hover:border-cyan-500/70 dark:border-slate-800/90 dark:bg-[#0B0F17] dark:hover:border-cyan-400/60 transition-colors"
+            >
+              <div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+                  {note.data.publishedDate} · {note.data.readingMinutes} min read
+                </p>
+                <h3 class="mt-2 text-base sm:text-lg font-semibold text-slate-950 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors [text-wrap:balance]">
+                  {note.data.title}
+                </h3>
+                <p class="mt-2 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300 line-clamp-3">
+                  {note.data.description}
+                </p>
+              </div>
+
+              <p class="mt-5 text-xs font-semibold text-cyan-700 group-hover:underline dark:text-cyan-300">
+                Read note →
+              </p>
+            </a>
+          ))}
+        </div>
+      </section>
+    )
+  }
+</BaseLayout>
+
+<script is:inline>
+  (function () {
+    var tabs = document.querySelectorAll('[data-install-tab]');
+    var cmdText = document.getElementById('sv-hero-install-text');
+    var copyBtn = document.getElementById('sv-hero-copy-btn');
+    var hintEl = document.getElementById('sv-hero-install-hint');
+
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        var shortCmd = tab.getAttribute('data-short-cmd');
+        var fullCmd = tab.getAttribute('data-full-cmd');
+        var hint = tab.getAttribute('data-install-hint');
+        if (cmdText && shortCmd) cmdText.textContent = shortCmd;
+        if (copyBtn && fullCmd) copyBtn.setAttribute('data-copy-cmd', fullCmd);
+        if (hintEl && hint) hintEl.textContent = hint;
+
+        tabs.forEach(function (other) {
+          var isSelected = other === tab;
+          other.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+          if (isSelected) {
+            other.classList.add(
+              'bg-slate-50',
+              'text-slate-950',
+              'font-semibold',
+              'dark:bg-[#07090E]',
+              'dark:text-cyan-300',
+            );
+            other.classList.remove(
+              'text-slate-500',
+              'dark:text-slate-400',
+            );
+          } else {
+            other.classList.remove(
+              'bg-slate-50',
+              'text-slate-950',
+              'font-semibold',
+              'dark:bg-[#07090E]',
+              'dark:text-cyan-300',
+            );
+            other.classList.add(
+              'text-slate-500',
+              'dark:text-slate-400',
+            );
+          }
+        });
+      });
+    });
+
+    document.addEventListener('click', function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest('[data-copy-cmd]') : null;
+      if (!btn) return;
+      var cmd = btn.getAttribute('data-copy-cmd');
+      if (!cmd || !navigator.clipboard) return;
+      navigator.clipboard.writeText(cmd).then(function () {
+        var original = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(function () {
+          btn.textContent = original;
+        }, 1400);
+      });
+    });
+  })();
+</script>

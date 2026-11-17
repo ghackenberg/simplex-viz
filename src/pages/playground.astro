@@ -1,0 +1,12 @@
+---
+import { PlaygroundWorkspace } from '../components/islands/PlaygroundWorkspace';
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  fullViewport
+  title="Interactive Tagged Dataset Playground"
+  description="Build your own multi-tag dataset from scratch or import JSON via copy & paste, file dialog, or desktop drag-and-drop directly onto the SimplexViz 60° mesh canvas."
+>
+  <PlaygroundWorkspace client:load />
+</BaseLayout>

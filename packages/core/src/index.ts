@@ -11,3 +11,4 @@ export * from './camera';
 export * from './engine';
 export * from './snapshot';
 export * from './zoom';
+export * from './discriminativeLabels';

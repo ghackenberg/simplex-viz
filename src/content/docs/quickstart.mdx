@@ -1,0 +1,111 @@
+---
+title: "Quickstart & Three-Layer Architecture"
+shortTitle: "Quickstart & Overview"
+description: "Install SimplexViz in under two minutes, understand its strict headless/SVG/React package separation, and inspect every default setting."
+section: "Getting Started"
+order: 1
+readingMinutes: 5
+updatedDate: "2026-11-15"
+summaryPoints:
+  - "Zero-config defaults solve 60-degree equilateral simplex layouts with guaranteed 0.0 px convex overlap."
+  - "Works identically for tagged records, single- or multi-modal vector embeddings, and pairwise similarity kernels."
+  - "Strictly decoupled into @simplex-viz/core (0 dependencies, no DOM), @simplex-viz/svg, and @simplex-viz/react."
+relatedApiSlug: "react"
+---
+
+SimplexViz maps high-dimensional collections onto an **adaptive 60° equilateral triangle mesh**, blends node colors in perceptual **OKLab** space, separates every convex hull to **`0.0 px` overlap**, and supports conformal **`1:4` hierarchical drill-down**.
+
+## Choose Your Package Layer
+
+Each higher-level package re-exports all strategies, views, and TypeScript types from lower layers—install only the single package matching your runtime:
+
+| Package | Runtime & Dependencies | Primary Entry Points |
+| --- | --- | --- |
+| `@simplex-viz/react` | React 18 / 19 | `<SimplexTopicGraph />`, `useSimplexGraphController()` |
+| `@simplex-viz/svg` | Vanilla TS, Vue, Svelte, Angular, Web Components | `createSimplexSvg()`, `SimplexSvgController`, `SvgRendererAdapter` |
+| `@simplex-viz/core` | Browser, Node.js, Bun, Deno, Web Workers (`0` deps, no DOM) | `solveSimplexSnapshot()`, `SimplexGraphEngine` |
+
+## React Quickstart
+
+```bash
+npm install @simplex-viz/react
+```
+
+```tsx
+import { SimplexTopicGraph, createBarycentricZoomStrategy } from '@simplex-viz/react';
+
+const items = [
+  { id: '1', label: 'Simplex Mesh', tags: ['geometry', 'triangulation', 'math'] },
+  { id: '2', label: 'OKLab Mixing', tags: ['color', 'geometry', 'perception'] },
+  { id: '3', label: 'SAT Solver', tags: ['collision', 'geometry'] },
+];
+
+const zoom = createBarycentricZoomStrategy();
+
+export function KnowledgeAtlas() {
+  return (
+    <div style={{ width: '100%', height: 560 }}>
+      <SimplexTopicGraph
+        items={items}
+        preset="glyphs"
+        zoomStrategy={zoom}
+        tooltip
+      />
+    </div>
+  );
+}
+```
+
+## Vanilla TypeScript / Framework-Agnostic SVG
+
+```bash
+npm install @simplex-viz/svg
+```
+
+```ts
+import { createSimplexSvg } from '@simplex-viz/svg';
+
+const controller = createSimplexSvg('#atlas', items);
+```
+
+## Untagged Vector Embeddings Quickstart
+
+When passing an embedding or pairwise similarity `clusteringStrategy`, `getTags` becomes optional at both the TypeScript type level and runtime:
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createSoftSimplexEmbeddingClusteringStrategy,
+} from '@simplex-viz/react';
+
+interface AudioSample {
+  readonly id: string;
+  readonly label: string;
+  readonly timbreVec: readonly number[];
+  readonly prosodyVec: readonly number[];
+}
+
+const audioClustering = createSoftSimplexEmbeddingClusteringStrategy<AudioSample>({
+  getEmbedding: [
+    { name: 'Timbre', getVector: (s) => s.timbreVec, weight: 0.7 },
+    { name: 'Prosody', getVector: (s) => s.prosodyVec, weight: 0.3 },
+  ],
+  metric: 'cosine',
+  triangleSpread: 0.45,
+});
+
+<SimplexTopicGraph items={samples} clusteringStrategy={audioClustering} tooltip />;
+```
+
+## Complete Default Settings Table
+
+Every pipeline stage ships with a named deterministic default strategy out of the box:
+
+| Stage / Option | Canonical Strategy | Factory & Out-of-the-Box Behavior |
+| --- | --- | --- |
+| `meshStrategy` | **Adaptive Hex Lattice** | `createAdaptiveHexMeshStrategy()` — Aspect-aligned full-canvas 60° equilateral lattice (`minSideLength: 130 px`, `maxClusters: 14`, adaptive `innerPadding: 32–48 px`). |
+| `clusteringStrategy` | **Jaccard Annealing Clustering** | `createJaccardAnnealingClusteringStrategy()` — Jaccard partitioning + QAP Simulated Annealing + `'planar-hitting-set'` + `'explaining-away'`. |
+| `colorStrategy` | **OKLab Edge Contrast** | `createOklabContrastColorStrategy()` — Greedy + swap OKLab edge contrast (`ΔE_OK`) + barycentric OKLab mixing. |
+| `layoutStrategy` | **Uniform PBD Layout** | `createPbdUniformLayoutStrategy()` — Mesh-inward fan seeder + space-filling PBD dispersion + global uniform scale search (`0.0 px` overlap). |
+| `zoomStrategy` | **Continuous Free Camera** | `createFreeCameraZoomStrategy()` — Continuous cursor wheel zoom, drag-to-pan, and 2-finger touch pinch. |
+| `preset` / `theme` | **Geometric Preset (Dark)** | `'geometric'` / `'dark'` — Morphing geometric SVG content shapes + cluster badges on dark canvas. |

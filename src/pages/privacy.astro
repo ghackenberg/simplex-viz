@@ -1,0 +1,137 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SITE_META, withBase } from '../site/url';
+---
+
+<BaseLayout
+  title="Privacy Policy"
+  description="Privacy policy (Datenschutzerklärung) for the SimplexViz documentation and project website by Dr. Georg Hackenberg pursuant to GDPR and TKG 2021."
+>
+  <div class="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+    <header>
+      <p class="text-xs font-medium text-slate-500 dark:text-slate-400">
+        Data Protection · GDPR (DSGVO) &amp; Austrian TKG 2021
+      </p>
+      <h1 class="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-slate-950 dark:text-white">
+        Privacy Policy
+      </h1>
+    </header>
+
+    <div class="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
+      <div class="sv-prose lg:col-span-8">
+        <h2>1. Controller (<em>Verantwortlicher</em>)</h2>
+        <p>
+          The controller responsible for data processing on this website within the meaning of Art. 4(7) of the EU General Data Protection Regulation (GDPR / <em>DSGVO</em>) is:
+        </p>
+        <p>
+          <strong>Dr. Georg Hackenberg</strong><br />
+          Edthof 13a, 4645 Grünau im Almtal, Austria<br />
+          Email: <a href="mailto:georg.hackenberg@fh-wels.at">georg.hackenberg@fh-wels.at</a><br />
+          Phone: <a href="tel:+436648048444066">+43 664 80484 44066</a><br />
+          Website:{' '}
+          <a href="https://hackenberg.tech" target="_blank" rel="noreferrer">
+            https://hackenberg.tech
+          </a>
+        </p>
+
+        <h2>2. Privacy by Design: Zero Tracking, Zero Cookies, Self-Hosted Assets</h2>
+        <p>
+          This project website and documentation portal is pre-rendered as static HTML and operates strictly without invasive tracking:
+        </p>
+        <ul>
+          <li>
+            <strong>No Analytics or Telemetry:</strong> We do not use Google Analytics, tracking pixels, session recording, or fingerprinting scripts.
+          </li>
+          <li>
+            <strong>No Tracking Cookies:</strong> This website sets zero HTTP cookies.
+          </li>
+          <li>
+            <strong>Self-Hosted Web Fonts &amp; Media Thumbnails:</strong> All typography (<em>Plus Jakarta Sans</em> and <em>IBM Plex Mono</em>) as well as all example dataset preview thumbnails (including Wikimedia Commons film posters and zoological photographs) are bundled locally and served from the same origin—your browser makes zero automatic external requests to Google Fonts, Wikimedia servers, or third-party CDNs when viewing pages.
+          </li>
+          <li>
+            <strong>Client-Side Interactive Demos:</strong> All interactive SimplexViz examples (including Web Audio vowel synthesis) execute purely locally inside your browser memory; no user data is transmitted to external APIs.
+          </li>
+        </ul>
+
+        <h2>3. Local Theme Preference (<code>localStorage</code>)</h2>
+        <p>
+          When you explicitly switch the color theme (<em>Light</em>, <em>Dark</em>, or <em>System</em>) in the site header, your browser stores the preference string under the key <code>simplex-theme</code> in local browser storage (<code>window.localStorage</code>). This value never leaves your device, is never transmitted over the network, and serves solely to fulfill your requested visual setting across page navigations (§ 165(3) TKG 2021 / Art. 6(1)(f) GDPR).
+        </p>
+
+        <h2>4. Server Log Files &amp; Static Hosting</h2>
+        <p>
+          When accessing pages of this static website (hosted via <code>hackenberg.tech</code> / GitHub Pages infrastructure), the delivering web server automatically processes technical HTTP request metadata required to establish a secure TLS connection and transmit static assets:
+        </p>
+        <ul>
+          <li>IP address of the requesting device</li>
+          <li>Date, timestamp, and requested URL path</li>
+          <li>HTTP status code and transferred byte volume</li>
+          <li>Browser user-agent string and referrer URL (if sent by your browser)</li>
+        </ul>
+        <p>
+          Processing is carried out on the legal basis of Art. 6(1)(f) GDPR (legitimate interest in secure, reliable, and abuse-resistant technical provision of the online documentation). Log data is not merged with other data sources and is automatically rotated and deleted in accordance with hosting retention schedules.
+        </p>
+
+        <h2>5. Direct Contact via Email or Phone</h2>
+        <p>
+          If you contact us by email or telephone, the contact details and message content you provide are processed exclusively for handling your inquiry and any follow-up questions (Art. 6(1)(b) GDPR for pre-contractual/contractual communication or Art. 6(1)(f) GDPR for general technical/open-source inquiries). We do not share this information with third parties without your consent.
+        </p>
+
+        <h2>6. External Links</h2>
+        <p>
+          This website contains outgoing reference and attribution links to external third-party platforms—including the{' '}
+          <a href={SITE_META.repoUrl} target="_blank" rel="noreferrer">GitHub repository</a>,{' '}
+          <a href={SITE_META.npmUrl} target="_blank" rel="noreferrer">npmjs package registry</a>,{' '}
+          <code>arxiv.org</code>, <code>wikipedia.org</code>, <code>commons.wikimedia.org</code>, and <code>creativecommons.org</code>. No personal data or IP address is transferred to those providers until you actively click an external link, after which the privacy policies of the respective platform operator apply.
+        </p>
+
+        <h2>7. Your Rights under GDPR &amp; Supervisory Authority</h2>
+        <p>
+          Under Art. 15–21 GDPR, you have the right at any time to request access to your personal data, rectification, erasure, restriction of processing, data portability, and to object to processing based on Art. 6(1)(f) GDPR.
+        </p>
+        <p>
+          If you believe that the processing of your personal data infringes data protection law, you also have the right to lodge a complaint with a supervisory authority—in Austria:
+        </p>
+        <p>
+          <strong>Austrian Data Protection Authority (<em>Österreichische Datenschutzbehörde</em>)</strong><br />
+          Barichgasse 40–42, 1030 Vienna, Austria<br />
+          Website:{' '}
+          <a href="https://www.dsb.gv.at" target="_blank" rel="noreferrer">
+            https://www.dsb.gv.at
+          </a>
+        </p>
+      </div>
+
+      <!-- Side Summary Card -->
+      <aside class="space-y-6 lg:col-span-4">
+        <section class="rounded-xl border border-slate-200/90 bg-white p-5 text-xs dark:border-slate-800/90 dark:bg-[#0B0F17]">
+          <p class="font-semibold text-slate-900 dark:text-slate-100">
+            Technical Privacy Summary
+          </p>
+          <ul class="mt-3 space-y-2 border-t border-slate-200/80 pt-3 text-slate-600 dark:border-slate-800/80 dark:text-slate-400">
+            <li>Cookies set: <strong class="font-mono text-slate-900 dark:text-slate-100">0</strong></li>
+            <li>Analytics / trackers: <strong class="font-mono text-slate-900 dark:text-slate-100">None</strong></li>
+            <li>External font / media CDNs: <strong class="font-mono text-slate-900 dark:text-slate-100">None (self-hosted)</strong></li>
+            <li>Local storage: <code class="font-mono">simplex-theme</code> only</li>
+          </ul>
+          <div class="mt-4 flex flex-col gap-2 border-t border-slate-200/80 pt-3 dark:border-slate-800/80">
+            <a
+              href={withBase('/imprint')}
+              class="font-semibold text-cyan-700 hover:underline dark:text-cyan-300"
+            >
+              Imprint &amp; Legal Disclosure →
+            </a>
+            <a
+              href={SITE_META.authorUrl}
+              target="_blank"
+              rel="noreferrer"
+              class="text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white transition-colors"
+            >
+              Visit hackenberg.tech ↗
+            </a>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+</BaseLayout>

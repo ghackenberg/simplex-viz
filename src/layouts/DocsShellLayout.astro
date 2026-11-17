@@ -1,0 +1,439 @@
+---
+import { getCollection } from 'astro:content';
+import OnThisPage from '../components/OnThisPage.astro';
+import BaseLayout from './BaseLayout.astro';
+import { getStrategiesByStage } from '../site/strategies';
+import { withBase } from '../site/url';
+
+interface HeadingItem {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  title: string;
+  description: string;
+  kicker: string;
+  metaLine: string;
+  headings?: HeadingItem[];
+  activeSlug: string;
+  activeGroup: 'overview' | 'docs' | 'strategies' | 'api';
+  activeStage?: number;
+  summaryPoints?: string[];
+  jsonLd?: Record<string, unknown>;
+}
+
+const {
+  title,
+  description,
+  kicker,
+  metaLine,
+  headings = [],
+  activeSlug,
+  activeGroup,
+  activeStage,
+  summaryPoints = [],
+  jsonLd,
+} = Astro.props;
+
+const allDocs = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order);
+const allApi = (await getCollection('api')).sort((a, b) => a.data.order - b.data.order);
+
+const gettingStartedDocs = allDocs.filter((d) => d.data.section === 'Getting Started');
+const stageDocs = allDocs.filter((d) => d.data.section === 'Core Strategies');
+const customizationDocs = allDocs.filter((d) => d.data.section === 'Customization');
+
+const tocHeadings = headings.filter((h) => h.depth === 2 || h.depth === 3);
+---
+
+<BaseLayout title={title} description={description} jsonLd={jsonLd}>
+  <div class="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+    <!-- Mobile & Tablet Collapsible Chapter Switcher -->
+    <details class="group mt-5 rounded-xl border border-slate-200/90 bg-white lg:hidden dark:border-slate-800/80 dark:bg-[#0B0F17]">
+      <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between px-4 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
+        <span>Docs Navigation ({kicker})</span>
+        <span class="font-mono text-slate-400 transition-transform group-open:rotate-90">›</span>
+      </summary>
+      <nav aria-label="Mobile documentation sections" class="grid grid-cols-1 gap-5 border-t border-slate-200/80 p-4 text-xs sm:grid-cols-2 dark:border-slate-800/80">
+        <div class="space-y-4">
+          <div>
+            <p class="mb-1.5 font-semibold text-slate-900 dark:text-slate-100">Getting Started</p>
+            <ul class="space-y-1">
+              <li>
+                <a
+                  href={withBase('/docs')}
+                  class:list={[
+                    'block rounded-md px-2.5 py-1.5',
+                    activeGroup === 'overview'
+                      ? 'bg-slate-100 font-semibold text-slate-950 dark:bg-slate-800 dark:text-cyan-300'
+                      : 'text-slate-600 dark:text-slate-400',
+                  ]}
+                >
+                  Docs Overview
+                </a>
+              </li>
+              {
+                [...gettingStartedDocs, ...customizationDocs].map((entry) => {
+                  const active = activeGroup === 'docs' && activeSlug === entry.id;
+                  return (
+                    <li>
+                      <a
+                        href={withBase(`/docs/${entry.id}`)}
+                        class:list={[
+                          'block rounded-md px-2.5 py-1.5',
+                          active
+                            ? 'bg-slate-100 font-semibold text-slate-950 dark:bg-slate-800 dark:text-cyan-300'
+                            : 'text-slate-600 dark:text-slate-400',
+                        ]}
+                      >
+                        {entry.data.shortTitle}
+                      </a>
+                    </li>
+                  );
+                })
+              }
+            </ul>
+          </div>
+
+          <div>
+            <p class="mb-1.5 font-semibold text-slate-900 dark:text-slate-100">API Reference</p>
+            <ul class="space-y-1">
+              <li>
+                <a
+                  href={withBase('/docs/api')}
+                  class:list={[
+                    'block rounded-md px-2.5 py-1.5',
+                    activeGroup === 'api' && activeSlug === 'index'
+                      ? 'bg-slate-100 font-semibold text-slate-950 dark:bg-slate-800 dark:text-cyan-300'
+                      : 'text-slate-600 dark:text-slate-400',
+                  ]}
+                >
+                  All Packages
+                </a>
+              </li>
+              {
+                allApi.map((entry) => {
+                  const active = activeGroup === 'api' && activeSlug === entry.id;
+                  return (
+                    <li>
+                      <a
+                        href={withBase(`/docs/api/${entry.id}`)}
+                        class:list={[
+                          'block rounded-md px-2.5 py-1.5 font-mono',
+                          active
+                            ? 'bg-slate-100 font-semibold text-slate-950 dark:bg-slate-800 dark:text-cyan-300'
+                            : 'text-slate-600 dark:text-slate-400',
+                        ]}
+                      >
+                        {entry.data.packageName}
+                      </a>
+                    </li>
+                  );
+                })
+              }
+            </ul>
+          </div>
+        </div>
+
+        <div>
+          <div class="mb-1.5 flex items-center justify-between">
+            <p class="font-semibold text-slate-900 dark:text-slate-100">Strategies (5 Stages · 18)</p>
+            <a href={withBase('/docs/strategies')} class="text-cyan-700 hover:underline dark:text-cyan-300">
+              All →
+            </a>
+          </div>
+          <div class="space-y-2.5">
+            {
+              stageDocs.map((stageEntry) => {
+                const stNum = (stageEntry.data.stageNumber ?? 1) as 1 | 2 | 3 | 4 | 5;
+                const stageStrategies = getStrategiesByStage(stNum);
+                const stageActive = activeGroup === 'docs' && activeSlug === stageEntry.id;
+                return (
+                  <div>
+                    <a
+                      href={withBase(`/docs/${stageEntry.id}`)}
+                      class:list={[
+                        'block rounded-md px-2 py-1 font-medium',
+                        stageActive
+                          ? 'bg-slate-100 text-slate-950 dark:bg-slate-800 dark:text-cyan-300'
+                          : 'text-slate-700 dark:text-slate-300',
+                      ]}
+                    >
+                      {stageEntry.data.shortTitle}
+                    </a>
+                    <ul class="mt-0.5 space-y-0.5 border-l border-slate-200 pl-2.5 ml-2 dark:border-slate-800">
+                      {stageStrategies.map((spec) => {
+                        const subActive = activeGroup === 'strategies' && activeSlug === spec.id;
+                        return (
+                          <li>
+                            <a
+                              href={withBase(spec.strategyDocPath)}
+                              class:list={[
+                                'block rounded px-2 py-1 text-[11px]',
+                                subActive
+                                  ? 'bg-slate-100 font-semibold text-slate-950 dark:bg-slate-800 dark:text-cyan-300'
+                                  : 'text-slate-500 dark:text-slate-400',
+                              ]}
+                            >
+                              {spec.name}
+                            </a>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                );
+              })
+            }
+          </div>
+        </div>
+      </nav>
+    </details>
+
+    <div
+      class:list={[
+        'grid grid-cols-1 gap-8 lg:gap-10 py-6 lg:py-10',
+        tocHeadings.length > 0
+          ? 'lg:grid-cols-[248px_minmax(0,1fr)] xl:grid-cols-[248px_minmax(0,1fr)_200px]'
+          : 'lg:grid-cols-[248px_minmax(0,1fr)]',
+      ]}
+    >
+      <!-- Desktop Left Navigation Sidebar -->
+      <aside class="hidden lg:block lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2">
+        <nav aria-label="Documentation sections" class="space-y-6 text-xs">
+          <div>
+            <p class="mb-2 font-semibold text-slate-900 dark:text-slate-100">
+              Getting Started
+            </p>
+            <ul class="space-y-1">
+              <li>
+                <a
+                  href={withBase('/docs')}
+                  aria-current={activeGroup === 'overview' ? 'page' : undefined}
+                  class:list={[
+                    'block rounded-md px-2.5 py-1.5 transition-colors',
+                    activeGroup === 'overview'
+                      ? 'bg-slate-200/75 font-semibold text-slate-950 dark:bg-slate-800/90 dark:text-cyan-300'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-100',
+                  ]}
+                >
+                  Docs Overview
+                </a>
+              </li>
+              {
+                gettingStartedDocs.map((entry) => {
+                  const active = activeGroup === 'docs' && activeSlug === entry.id;
+                  return (
+                    <li>
+                      <a
+                        href={withBase(`/docs/${entry.id}`)}
+                        aria-current={active ? 'page' : undefined}
+                        class:list={[
+                          'block rounded-md px-2.5 py-1.5 transition-colors',
+                          active
+                            ? 'bg-slate-200/75 font-semibold text-slate-950 dark:bg-slate-800/90 dark:text-cyan-300'
+                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-100',
+                        ]}
+                      >
+                        {entry.data.shortTitle}
+                      </a>
+                    </li>
+                  );
+                })
+              }
+              {
+                customizationDocs.map((entry) => {
+                  const active = activeGroup === 'docs' && activeSlug === entry.id;
+                  return (
+                    <li>
+                      <a
+                        href={withBase(`/docs/${entry.id}`)}
+                        aria-current={active ? 'page' : undefined}
+                        class:list={[
+                          'block rounded-md px-2.5 py-1.5 transition-colors',
+                          active
+                            ? 'bg-slate-200/75 font-semibold text-slate-950 dark:bg-slate-800/90 dark:text-cyan-300'
+                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-100',
+                        ]}
+                      >
+                        {entry.data.shortTitle}
+                      </a>
+                    </li>
+                  );
+                })
+              }
+            </ul>
+          </div>
+
+          <div>
+            <div class="mb-2 flex items-center justify-between">
+              <p class="font-semibold text-slate-900 dark:text-slate-100">
+                Strategies
+              </p>
+              <a
+                href={withBase('/docs/strategies')}
+                aria-current={activeGroup === 'strategies' && activeSlug === 'index' ? 'page' : undefined}
+                class:list={[
+                  'text-[11px] transition-colors',
+                  activeGroup === 'strategies' && activeSlug === 'index'
+                    ? 'font-semibold text-cyan-700 dark:text-cyan-300'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white',
+                ]}
+              >
+                Catalog (18)
+              </a>
+            </div>
+
+            <div class="space-y-2">
+              {
+                stageDocs.map((stageEntry) => {
+                  const stNum = (stageEntry.data.stageNumber ?? 1) as 1 | 2 | 3 | 4 | 5;
+                  const stageStrategies = getStrategiesByStage(stNum);
+                  const isStagePage = activeGroup === 'docs' && activeSlug === stageEntry.id;
+                  const hasActiveChild =
+                    activeStage === stNum ||
+                    stageStrategies.some(
+                      (s) => activeGroup === 'strategies' && activeSlug === s.id,
+                    );
+                  const openByDefault = isStagePage || hasActiveChild || activeGroup === 'strategies';
+
+                  return (
+                    <details open={openByDefault} class="group/stage">
+                      <summary class="flex cursor-pointer list-none items-center justify-between rounded-md px-2 py-1 text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800/50">
+                        <a
+                          href={withBase(`/docs/${stageEntry.id}`)}
+                          aria-current={isStagePage ? 'page' : undefined}
+                          class:list={[
+                            'truncate pr-2',
+                            isStagePage
+                              ? 'font-semibold text-cyan-700 dark:text-cyan-300'
+                              : 'font-medium hover:text-slate-950 dark:hover:text-white',
+                          ]}
+                        >
+                          {stageEntry.data.shortTitle}
+                        </a>
+                        <span class="font-mono text-[11px] text-slate-400 transition-transform group-open/stage:rotate-90">
+                          ›
+                        </span>
+                      </summary>
+
+                      <ul class="mt-1 ml-2.5 space-y-0.5 border-l border-slate-200/90 pl-2.5 dark:border-slate-800">
+                        {stageStrategies.map((spec) => {
+                          const subActive =
+                            activeGroup === 'strategies' && activeSlug === spec.id;
+                          return (
+                            <li>
+                              <a
+                                href={withBase(spec.strategyDocPath)}
+                                aria-current={subActive ? 'page' : undefined}
+                                class:list={[
+                                  'block rounded-md px-2 py-1 text-[11.5px] leading-snug transition-colors',
+                                  subActive
+                                    ? 'bg-slate-200/75 font-semibold text-slate-950 dark:bg-slate-800/90 dark:text-cyan-300'
+                                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-100',
+                                ]}
+                              >
+                                {spec.name}
+                              </a>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </details>
+                  );
+                })
+              }
+            </div>
+          </div>
+
+          <div>
+            <div class="mb-2 flex items-center justify-between">
+              <p class="font-semibold text-slate-900 dark:text-slate-100">
+                API Reference
+              </p>
+              <a
+                href={withBase('/docs/api')}
+                class:list={[
+                  'text-[11px] transition-colors',
+                  activeGroup === 'api' && activeSlug === 'index'
+                    ? 'font-semibold text-cyan-700 dark:text-cyan-300'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white',
+                ]}
+              >
+                Overview
+              </a>
+            </div>
+            <ul class="space-y-1 font-mono">
+              {
+                allApi.map((entry) => {
+                  const active = activeGroup === 'api' && activeSlug === entry.id;
+                  return (
+                    <li>
+                      <a
+                        href={withBase(`/docs/api/${entry.id}`)}
+                        aria-current={active ? 'page' : undefined}
+                        class:list={[
+                          'block rounded-md px-2.5 py-1.5 transition-colors',
+                          active
+                            ? 'bg-slate-200/75 font-semibold text-slate-950 dark:bg-slate-800/90 dark:text-cyan-300'
+                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-100',
+                        ]}
+                      >
+                        {entry.data.packageName}
+                      </a>
+                    </li>
+                  );
+                })
+              }
+            </ul>
+          </div>
+        </nav>
+      </aside>
+
+      <!-- Main Article Column -->
+      <article class="min-w-0 pb-12">
+        <header>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
+            {kicker} · {metaLine}
+          </p>
+
+          <h1 class="mt-2.5 text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
+            {title}
+          </h1>
+          <p class="mt-3 max-w-3xl text-sm sm:text-base leading-relaxed text-slate-600 dark:text-slate-300">
+            {description}
+          </p>
+
+          {
+            summaryPoints.length > 0 && (
+              <div class="mt-5 rounded-xl border border-slate-200/90 bg-white p-4 dark:border-slate-800/80 dark:bg-[#0B0F17]">
+                <p class="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                  Key Takeaways
+                </p>
+                <ul class="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                  {summaryPoints.map((pt) => (
+                    <li>{pt}</li>
+                  ))}
+                </ul>
+              </div>
+            )
+          }
+        </header>
+
+        <div class="sv-prose mt-8 overflow-x-hidden">
+          <slot />
+        </div>
+      </article>
+
+      <!-- Right Table of Contents -->
+      {
+        tocHeadings.length > 0 && (
+          <aside class="hidden xl:block xl:sticky xl:top-20 xl:self-start xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
+            <OnThisPage headings={tocHeadings} framed={false} />
+          </aside>
+        )
+      }
+    </div>
+  </div>
+</BaseLayout>

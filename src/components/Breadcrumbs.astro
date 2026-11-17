@@ -1,0 +1,55 @@
+---
+import { withBase } from '../site/url';
+
+export interface BreadcrumbItem {
+  readonly label: string;
+  readonly href?: string;
+}
+
+interface Props {
+  items: readonly BreadcrumbItem[];
+}
+
+const { items } = Astro.props;
+const trail: BreadcrumbItem[] = [
+  { label: 'Home', href: withBase('/') },
+  ...items.map((item) => ({
+    label: item.label,
+    href: item.href ? withBase(item.href) : undefined,
+  })),
+];
+---
+
+<nav aria-label="Breadcrumb" class="mb-5">
+  <ol class="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+    {
+      trail.map((item, idx) => {
+        const isLast = idx === trail.length - 1;
+        return (
+          <li class="inline-flex min-w-0 items-center gap-1.5">
+            {idx > 0 && (
+              <span aria-hidden="true" class="text-slate-300 dark:text-slate-600 select-none">
+                /
+              </span>
+            )}
+            {item.href && !isLast ? (
+              <a
+                href={item.href}
+                class="font-medium text-slate-600 hover:text-cyan-700 hover:underline dark:text-slate-300 dark:hover:text-cyan-300 transition-colors whitespace-nowrap"
+              >
+                {item.label}
+              </a>
+            ) : (
+              <span
+                aria-current="page"
+                class="max-w-[260px] sm:max-w-[460px] truncate font-medium text-slate-900 dark:text-slate-100"
+              >
+                {item.label}
+              </span>
+            )}
+          </li>
+        );
+      })
+    }
+  </ol>
+</nav>

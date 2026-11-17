@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://hackenberg.tech/simplex-viz/sitemap-index.xml
+# AI & LLM Documentation Corpus:
+# https://hackenberg.tech/simplex-viz/llms.txt
+# https://hackenberg.tech/simplex-viz/llms-full.txt

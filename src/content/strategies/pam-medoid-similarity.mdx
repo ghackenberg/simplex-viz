@@ -1,0 +1,51 @@
+---
+strategyId: "pam-medoid-similarity"
+order: 8
+signature: "createSimilarityClusteringStrategy<TItem, TTagMeta>(options: SimilarityClusteringOptions<TItem>): SimplexClusteringStrategy<TItem, TTagMeta>"
+updatedDate: "2026-11-16"
+readingMinutes: 5
+whenToUse:
+  - "Use when items have neither tags nor fixed-length vectors—only a pairwise similarity function S(a, b) ∈ [0, 1]."
+  - "Ideal for string edit distances, Gower trait kernels, AST/graph kernels, SQL join overlap, or biological sequence alignment."
+optionsTable:
+  - name: "getSimilarity"
+    type: "(a: TItem, b: TItem) => number"
+    defaultValue: "required"
+    description: "Symmetric domain similarity score clamped to [0, 1]."
+  - name: "features"
+    type: "readonly SubspaceZoomFeature<TItem>[] | undefined"
+    defaultValue: "undefined"
+    description: "Optional boolean, categorical, or numeric domain traits used to synthesize base-rate-aware, collision-free defaultLabels across all K medoid clusters."
+  - name: "clusterCount"
+    type: "number | undefined"
+    defaultValue: "auto (round(√N))"
+    description: "Preferred number of medoids K."
+  - name: "anchorRule"
+    type: "'simplex-projection' | 'top-1'"
+    defaultValue: "'simplex-projection'"
+    description: "Barycentric weighting across adjacent medoids on the planar mesh."
+  - name: "representativeCount"
+    type: "number"
+    defaultValue: "3"
+    description: "Number of top medoid/member items retained for cluster labeling."
+---
+
+## Partitioning Around Medoids (PAM) on 60° Meshes
+
+**Pairwise k-Medoids Projection** builds the symmetric `N × N` similarity matrix, selects `K` real domain items as cluster medoids via deterministic farthest-first initialization plus PAM swap refinement, embeds inter-medoid similarity onto the 60° mesh via QAP annealing, and projects every item onto its closest planar medoid triangle. Supplying `features` (or `deriveLabel`) turns medoid neighborhoods into concise, pairwise-distinct taxonomic or domain badges rather than raw exemplar IDs.
+
+## Usage Example
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createSimilarityClusteringStrategy,
+} from '@simplex-viz/react';
+
+const kernelClustering = createSimilarityClusteringStrategy<Protein>({
+  getSimilarity: (a, b) => computeBlastAlignmentScore(a, b),
+  clusterCount: 6,
+});
+
+<SimplexTopicGraph items={proteins} clusteringStrategy={kernelClustering} />;
+```

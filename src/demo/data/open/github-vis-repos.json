@@ -1,0 +1,974 @@
+[
+  {
+    "id": "gh-d3-d3",
+    "fullName": "d3/d3",
+    "name": "d3",
+    "description": "Bring data to life with SVG, Canvas and HTML. :bar_chart::chart_with_upwards_trend::tada:",
+    "stars": 113938,
+    "language": "Shell",
+    "topics": [
+      "charts",
+      "d3",
+      "data-visualization",
+      "svg"
+    ],
+    "url": "https://github.com/d3/d3"
+  },
+  {
+    "id": "gh-netdata-netdata",
+    "fullName": "netdata/netdata",
+    "name": "netdata",
+    "description": "The fastest path to AI-powered full stack observability, even for lean teams.",
+    "stars": 81431,
+    "language": "Go",
+    "topics": [
+      "data-visualization",
+      "machine-learning"
+    ],
+    "url": "https://github.com/netdata/netdata"
+  },
+  {
+    "id": "gh-grafana-grafana",
+    "fullName": "grafana/grafana",
+    "name": "grafana",
+    "description": "The open and composable observability and data visualization platform. Visualize metrics, logs, and traces from multiple sources like Promet",
+    "stars": 77936,
+    "language": "TypeScript",
+    "topics": [
+      "data-visualization",
+      "typescript"
+    ],
+    "url": "https://github.com/grafana/grafana"
+  },
+  {
+    "id": "gh-apache-superset",
+    "fullName": "apache/superset",
+    "name": "superset",
+    "description": "Apache Superset is a Data Visualization and Data Exploration Platform",
+    "stars": 75525,
+    "language": "Python",
+    "topics": [
+      "data-visualization",
+      "react"
+    ],
+    "url": "https://github.com/apache/superset"
+  },
+  {
+    "id": "gh-apache-echarts",
+    "fullName": "apache/echarts",
+    "name": "echarts",
+    "description": "Apache ECharts is a powerful, interactive charting and data visualization library for browser",
+    "stars": 67733,
+    "language": "TypeScript",
+    "topics": [
+      "canvas",
+      "charts",
+      "data-visualization",
+      "svg"
+    ],
+    "url": "https://github.com/apache/echarts"
+  },
+  {
+    "id": "gh-cathrynlavery-diagram-design",
+    "fullName": "cathrynlavery/diagram-design",
+    "name": "diagram-design",
+    "description": "Editorial diagram design for Claude Code, Codex, GitHub Copilot, Cursor, Factory Droid, Qoder, and Pi. 45 diagram types. Self-contained HTML",
+    "stars": 67472,
+    "language": "HTML",
+    "topics": [
+      "data-visualization",
+      "diagrams",
+      "svg"
+    ],
+    "url": "https://github.com/cathrynlavery/diagram-design"
+  },
+  {
+    "id": "gh-metabase-metabase",
+    "fullName": "metabase/metabase",
+    "name": "metabase",
+    "description": "The easy-to-use open source Business Intelligence and Embedded Analytics tool that lets everyone work with data :bar_chart:",
+    "stars": 50354,
+    "language": "Clojure",
+    "topics": [
+      "data-visualization",
+      "visualization"
+    ],
+    "url": "https://github.com/metabase/metabase"
+  },
+  {
+    "id": "gh-pixijs-pixijs",
+    "fullName": "pixijs/pixijs",
+    "name": "pixijs",
+    "description": "The HTML5 Creation Engine: Create beautiful digital content with the fastest, most flexible 2D WebGL renderer.",
+    "stars": 48745,
+    "language": "TypeScript",
+    "topics": [
+      "canvas",
+      "data-visualization",
+      "javascript",
+      "webgl"
+    ],
+    "url": "https://github.com/pixijs/pixijs"
+  },
+  {
+    "id": "gh-streamlit-streamlit",
+    "fullName": "streamlit/streamlit",
+    "name": "streamlit",
+    "description": "Streamlit — The agent-native framework for data apps and dashboards.",
+    "stars": 46380,
+    "language": "Python",
+    "topics": [
+      "data-visualization",
+      "machine-learning"
+    ],
+    "url": "https://github.com/streamlit/streamlit"
+  },
+  {
+    "id": "gh-gradio-app-gradio",
+    "fullName": "gradio-app/gradio",
+    "name": "gradio",
+    "description": "Build and share delightful machine learning apps, all in Python. 🌟 Star to support our work!",
+    "stars": 44063,
+    "language": "Python",
+    "topics": [
+      "data-visualization",
+      "machine-learning"
+    ],
+    "url": "https://github.com/gradio-app/gradio"
+  },
+  {
+    "id": "gh-directus-directus",
+    "fullName": "directus/directus",
+    "name": "directus",
+    "description": "The flexible backend for all your projects 🐰 Turn your DB into a headless CMS, admin panels, or apps with a custom UI, instant APIs, auth &",
+    "stars": 38727,
+    "language": "TypeScript",
+    "topics": [
+      "data-visualization",
+      "javascript",
+      "typescript"
+    ],
+    "url": "https://github.com/directus/directus"
+  },
+  {
+    "id": "gh-academic-awesome-datascience",
+    "fullName": "academic/awesome-datascience",
+    "name": "awesome-datascience",
+    "description": ":memo: An awesome Data Science repository to learn and apply for real world problems.",
+    "stars": 30335,
+    "language": "TypeScript",
+    "topics": [
+      "data-visualization",
+      "machine-learning"
+    ],
+    "url": "https://github.com/academic/awesome-datascience"
+  },
+  {
+    "id": "gh-plotly-dash",
+    "fullName": "plotly/dash",
+    "name": "dash",
+    "description": "Data Apps & Dashboards for Python. No JavaScript Required.",
+    "stars": 24489,
+    "language": "Python",
+    "topics": [
+      "data-visualization",
+      "react"
+    ],
+    "url": "https://github.com/plotly/dash"
+  },
+  {
+    "id": "gh-lukasmasuch-best-of-ml-python",
+    "fullName": "lukasmasuch/best-of-ml-python",
+    "name": "best-of-ml-python",
+    "description": "🏆 A ranked list of awesome machine learning Python libraries. Updated weekly.",
+    "stars": 23870,
+    "language": "TypeScript",
+    "topics": [
+      "data-visualization",
+      "machine-learning"
+    ],
+    "url": "https://github.com/lukasmasuch/best-of-ml-python"
+  },
+  {
+    "id": "gh-marimo-team-marimo",
+    "fullName": "marimo-team/marimo",
+    "name": "marimo",
+    "description": "A reactive notebook for Python — run reproducible experiments, query with SQL, execute as a script, deploy as an app, and version with git. ",
+    "stars": 23558,
+    "language": "Python",
+    "topics": [
+      "data-visualization",
+      "machine-learning"
+    ],
+    "url": "https://github.com/marimo-team/marimo"
+  },
+  {
+    "id": "gh-matplotlib-matplotlib",
+    "fullName": "matplotlib/matplotlib",
+    "name": "matplotlib",
+    "description": "matplotlib: plotting with Python",
+    "stars": 23464,
+    "language": "Python",
+    "topics": [
+      "data-visualization",
+      "plotting"
+    ],
+    "url": "https://github.com/matplotlib/matplotlib"
+  },
+  {
+    "id": "gh-airbnb-visx",
+    "fullName": "airbnb/visx",
+    "name": "visx",
+    "description": "🐯 visx | visualization components",
+    "stars": 21110,
+    "language": "TypeScript",
+    "topics": [
+      "d3",
+      "data-visualization",
+      "react",
+      "svg"
+    ],
+    "url": "https://github.com/airbnb/visx"
+  },
+  {
+    "id": "gh-plotly-plotly-js",
+    "fullName": "plotly/plotly.js",
+    "name": "plotly.js",
+    "description": "Open-source JavaScript charting library behind Plotly and Dash",
+    "stars": 18380,
+    "language": "JavaScript",
+    "topics": [
+      "charts",
+      "d3",
+      "data-visualization",
+      "visualization"
+    ],
+    "url": "https://github.com/plotly/plotly.js"
+  },
+  {
+    "id": "gh-hicccc77-weflow",
+    "fullName": "hicccc77/WeFlow",
+    "name": "WeFlow",
+    "description": "WeFlow - 一个本地的微信聊天记录导出和年度报告应用",
+    "stars": 16081,
+    "language": "TypeScript",
+    "topics": [
+      "data-visualization",
+      "typescript"
+    ],
+    "url": "https://github.com/hicccc77/WeFlow"
+  },
+  {
+    "id": "gh-terkelg-awesome-creative-coding",
+    "fullName": "terkelg/awesome-creative-coding",
+    "name": "awesome-creative-coding",
+    "description": "Creative Coding: Generative Art, Data visualization, Interaction Design, Resources.",
+    "stars": 15609,
+    "language": "HTML",
+    "topics": [
+      "data-visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/terkelg/awesome-creative-coding"
+  },
+  {
+    "id": "gh-apexcharts-apexcharts-js",
+    "fullName": "apexcharts/apexcharts.js",
+    "name": "apexcharts.js",
+    "description": "📊 Interactive JavaScript Charts built on SVG",
+    "stars": 15192,
+    "language": "JavaScript",
+    "topics": [
+      "charts",
+      "data-visualization",
+      "javascript",
+      "svg"
+    ],
+    "url": "https://github.com/apexcharts/apexcharts.js"
+  },
+  {
+    "id": "gh-visgl-deck-gl",
+    "fullName": "visgl/deck.gl",
+    "name": "deck.gl",
+    "description": "WebGL2 powered visualization framework",
+    "stars": 14760,
+    "language": "TypeScript",
+    "topics": [
+      "data-visualization",
+      "javascript",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/visgl/deck.gl"
+  },
+  {
+    "id": "gh-antvis-g6",
+    "fullName": "antvis/G6",
+    "name": "G6",
+    "description": "♾ A Graph Visualization Framework in JavaScript.",
+    "stars": 12395,
+    "language": "TypeScript",
+    "topics": [
+      "data-visualization",
+      "graph",
+      "visualization",
+      "typescript"
+    ],
+    "url": "https://github.com/antvis/G6"
+  },
+  {
+    "id": "gh-jacomyal-sigma-js",
+    "fullName": "jacomyal/sigma.js",
+    "name": "sigma.js",
+    "description": "A JavaScript library aimed at visualizing graphs of thousands of nodes and edges",
+    "stars": 12240,
+    "language": "TypeScript",
+    "topics": [
+      "data-visualization",
+      "graph",
+      "javascript",
+      "webgl"
+    ],
+    "url": "https://github.com/jacomyal/sigma.js"
+  },
+  {
+    "id": "gh-keplergl-kepler-gl",
+    "fullName": "keplergl/kepler.gl",
+    "name": "kepler.gl",
+    "description": "Kepler.gl is a powerful open source geospatial analysis tool for large-scale data sets.",
+    "stars": 12096,
+    "language": "TypeScript",
+    "topics": [
+      "data-visualization",
+      "visualization",
+      "typescript"
+    ],
+    "url": "https://github.com/keplergl/kepler.gl"
+  },
+  {
+    "id": "gh-perspective-dev-perspective",
+    "fullName": "perspective-dev/perspective",
+    "name": "perspective",
+    "description": "A data visualization and analytics component, especially well-suited for large and/or streaming datasets.",
+    "stars": 11432,
+    "language": "Rust",
+    "topics": [
+      "charts",
+      "data-visualization",
+      "javascript",
+      "react"
+    ],
+    "url": "https://github.com/perspective-dev/perspective"
+  },
+  {
+    "id": "gh-formidablelabs-victory",
+    "fullName": "FormidableLabs/victory",
+    "name": "victory",
+    "description": "A collection of composable React components for building interactive data visualizations",
+    "stars": 11247,
+    "language": "HTML",
+    "topics": [
+      "charts",
+      "d3",
+      "data-visualization",
+      "react"
+    ],
+    "url": "https://github.com/FormidableLabs/victory"
+  },
+  {
+    "id": "gh-leeoniya-uplot",
+    "fullName": "leeoniya/uPlot",
+    "name": "uPlot",
+    "description": "📈 A small, fast chart for time series, lines, areas, ohlc & bars",
+    "stars": 10641,
+    "language": "JavaScript",
+    "topics": [
+      "charts",
+      "data-visualization",
+      "graph",
+      "plotting"
+    ],
+    "url": "https://github.com/leeoniya/uPlot"
+  },
+  {
+    "id": "gh-polakowo-vectorbt",
+    "fullName": "polakowo/vectorbt",
+    "name": "vectorbt",
+    "description": "The research engine that gives you an unfair advantage. Run thousands of trading ideas before others finish one.",
+    "stars": 9862,
+    "language": "Python",
+    "topics": [
+      "data-visualization",
+      "machine-learning"
+    ],
+    "url": "https://github.com/polakowo/vectorbt"
+  },
+  {
+    "id": "gh-c3js-c3",
+    "fullName": "c3js/c3",
+    "name": "c3",
+    "description": ":bar_chart: A D3-based reusable chart library",
+    "stars": 9352,
+    "language": "JavaScript",
+    "topics": [
+      "d3",
+      "data-visualization",
+      "graph",
+      "svg"
+    ],
+    "url": "https://github.com/c3js/c3"
+  },
+  {
+    "id": "gh-rawgraphs-rawgraphs-app",
+    "fullName": "rawgraphs/rawgraphs-app",
+    "name": "rawgraphs-app",
+    "description": "A web interface to create custom vector-based visualizations on top of RAWGraphs core",
+    "stars": 9058,
+    "language": "JavaScript",
+    "topics": [
+      "data-visualization",
+      "svg",
+      "visualization",
+      "javascript"
+    ],
+    "url": "https://github.com/rawgraphs/rawgraphs-app"
+  },
+  {
+    "id": "gh-uber-react-vis",
+    "fullName": "uber/react-vis",
+    "name": "react-vis",
+    "description": "Data Visualization Components",
+    "stars": 8784,
+    "language": "JavaScript",
+    "topics": [
+      "data-visualization",
+      "react",
+      "visualization",
+      "javascript"
+    ],
+    "url": "https://github.com/uber/react-vis"
+  },
+  {
+    "id": "gh-visgl-react-map-gl",
+    "fullName": "visgl/react-map-gl",
+    "name": "react-map-gl",
+    "description": "React friendly API wrapper around MapboxGL JS",
+    "stars": 8515,
+    "language": "TypeScript",
+    "topics": [
+      "data-visualization",
+      "react",
+      "webgl",
+      "typescript"
+    ],
+    "url": "https://github.com/visgl/react-map-gl"
+  },
+  {
+    "id": "gh-northwoodssoftware-gojs",
+    "fullName": "NorthwoodsSoftware/GoJS",
+    "name": "GoJS",
+    "description": "JavaScript diagramming library for interactive flowcharts, org charts, design tools, planning tools, visual languages.",
+    "stars": 8504,
+    "language": "JavaScript",
+    "topics": [
+      "canvas",
+      "charts",
+      "data-visualization",
+      "graph"
+    ],
+    "url": "https://github.com/NorthwoodsSoftware/GoJS"
+  },
+  {
+    "id": "gh-antvis-f2",
+    "fullName": "antvis/F2",
+    "name": "F2",
+    "description": "📱📈An elegant, interactive and flexible charting library for mobile.",
+    "stars": 7997,
+    "language": "JavaScript",
+    "topics": [
+      "charts",
+      "data-visualization",
+      "visualization",
+      "javascript"
+    ],
+    "url": "https://github.com/antvis/F2"
+  },
+  {
+    "id": "gh-chatlab-chatlab",
+    "fullName": "ChatLab/ChatLab",
+    "name": "ChatLab",
+    "description": "Local-first chat history analyzer with AI. | 本地优先的 AI 聊天记录分析工具",
+    "stars": 7656,
+    "language": "TypeScript",
+    "topics": [
+      "data-visualization",
+      "typescript"
+    ],
+    "url": "https://github.com/ChatLab/ChatLab"
+  },
+  {
+    "id": "gh-plotly-plotly-py",
+    "fullName": "plotly/plotly.py",
+    "name": "plotly.py",
+    "description": "The interactive graphing library for Python :sparkles:",
+    "stars": 18907,
+    "language": "Python",
+    "topics": [
+      "d3",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/plotly/plotly.py"
+  },
+  {
+    "id": "gh-antvis-g2",
+    "fullName": "antvis/G2",
+    "name": "G2",
+    "description": "📊 The concise and progressive visualization grammar.",
+    "stars": 12665,
+    "language": "TypeScript",
+    "topics": [
+      "animation",
+      "canvas",
+      "svg",
+      "visualization"
+    ],
+    "url": "https://github.com/antvis/G2"
+  },
+  {
+    "id": "gh-netflix-vizceral",
+    "fullName": "Netflix/vizceral",
+    "name": "vizceral",
+    "description": "WebGL visualization for displaying animated traffic graphs",
+    "stars": 4099,
+    "language": "JavaScript",
+    "topics": [
+      "graph",
+      "visualization",
+      "webgl",
+      "javascript"
+    ],
+    "url": "https://github.com/Netflix/vizceral"
+  },
+  {
+    "id": "gh-anvaka-vivagraphjs",
+    "fullName": "anvaka/VivaGraphJS",
+    "name": "VivaGraphJS",
+    "description": "Graph drawing library for JavaScript",
+    "stars": 3869,
+    "language": "JavaScript",
+    "topics": [
+      "graph",
+      "visualization",
+      "webgl",
+      "javascript"
+    ],
+    "url": "https://github.com/anvaka/VivaGraphJS"
+  },
+  {
+    "id": "gh-thi-ng-umbrella",
+    "fullName": "thi-ng/umbrella",
+    "name": "umbrella",
+    "description": "⛱  Broadly scoped ecosystem & mono-repository of 215 TypeScript projects (and ~185 examples) for general purpose, functional, data driven de",
+    "stars": 3838,
+    "language": "TypeScript",
+    "topics": [
+      "color",
+      "geometry",
+      "typescript",
+      "visualization"
+    ],
+    "url": "https://github.com/thi-ng/umbrella"
+  },
+  {
+    "id": "gh-pissang-claygl",
+    "fullName": "pissang/claygl",
+    "name": "claygl",
+    "description": "A WebGL graphic library for building scalable Web3D applications",
+    "stars": 2865,
+    "language": "JavaScript",
+    "topics": [
+      "visualization",
+      "webgl",
+      "javascript"
+    ],
+    "url": "https://github.com/pissang/claygl"
+  },
+  {
+    "id": "gh-ecomfe-echarts-gl",
+    "fullName": "ecomfe/echarts-gl",
+    "name": "echarts-gl",
+    "description": "Extension pack for Apache ECharts, providing globe visualization and 3D plots.",
+    "stars": 2714,
+    "language": "JavaScript",
+    "topics": [
+      "javascript",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/ecomfe/echarts-gl"
+  },
+  {
+    "id": "gh-graphistry-pygraphistry",
+    "fullName": "graphistry/pygraphistry",
+    "name": "pygraphistry",
+    "description": "PyGraphistry is a Python library to quickly load, shape, embed, and explore big graphs with the GPU-accelerated Graphistry visual graph anal",
+    "stars": 2582,
+    "language": "Python",
+    "topics": [
+      "graph",
+      "network-analysis",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/graphistry/pygraphistry"
+  },
+  {
+    "id": "gh-jberg-butterchurn",
+    "fullName": "jberg/butterchurn",
+    "name": "butterchurn",
+    "description": "Butterchurn is a WebGL implementation of the Milkdrop Visualizer",
+    "stars": 1994,
+    "language": "JavaScript",
+    "topics": [
+      "visualization",
+      "wasm",
+      "webgl",
+      "javascript"
+    ],
+    "url": "https://github.com/jberg/butterchurn"
+  },
+  {
+    "id": "gh-cosmosgl-graph",
+    "fullName": "cosmosgl/graph",
+    "name": "graph",
+    "description": "GPU-accelerated force graph layout and rendering",
+    "stars": 1308,
+    "language": "TypeScript",
+    "topics": [
+      "graph",
+      "visualization",
+      "webgl",
+      "typescript"
+    ],
+    "url": "https://github.com/cosmosgl/graph"
+  },
+  {
+    "id": "gh-itowns-itowns",
+    "fullName": "iTowns/itowns",
+    "name": "itowns",
+    "description": "A Three.js-based framework written in Javascript/WebGL for visualizing 3D geospatial data",
+    "stars": 1281,
+    "language": "JavaScript",
+    "topics": [
+      "javascript",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/iTowns/itowns"
+  },
+  {
+    "id": "gh-antvis-g",
+    "fullName": "antvis/G",
+    "name": "G",
+    "description": "💥 A flexible rendering engine for visualization.",
+    "stars": 1218,
+    "language": "TypeScript",
+    "topics": [
+      "canvas",
+      "visualization",
+      "webgl",
+      "typescript"
+    ],
+    "url": "https://github.com/antvis/G"
+  },
+  {
+    "id": "gh-xeolabs-xeogl",
+    "fullName": "xeolabs/xeogl",
+    "name": "xeogl",
+    "description": "A WebGL-based 3D engine for technical visualization. Not actively maintained.",
+    "stars": 1172,
+    "language": "JavaScript",
+    "topics": [
+      "javascript",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/xeolabs/xeogl"
+  },
+  {
+    "id": "gh-nomic-ai-deepscatter",
+    "fullName": "nomic-ai/deepscatter",
+    "name": "deepscatter",
+    "description": "Zoomable, animated scatterplots in the browser that scales over a billion points",
+    "stars": 1162,
+    "language": "TypeScript",
+    "topics": [
+      "data-visualization",
+      "visualization",
+      "webgl",
+      "typescript"
+    ],
+    "url": "https://github.com/nomic-ai/deepscatter"
+  },
+  {
+    "id": "gh-xiaoiver-infinite-canvas-tutorial",
+    "fullName": "xiaoiver/infinite-canvas-tutorial",
+    "name": "infinite-canvas-tutorial",
+    "description": "A tutorial on infinite canvas",
+    "stars": 1122,
+    "language": "TypeScript",
+    "topics": [
+      "visualization",
+      "webgl",
+      "typescript"
+    ],
+    "url": "https://github.com/xiaoiver/infinite-canvas-tutorial"
+  },
+  {
+    "id": "gh-mapbox-webgl-wind",
+    "fullName": "mapbox/webgl-wind",
+    "name": "webgl-wind",
+    "description": "Wind power visualization with WebGL particles",
+    "stars": 1111,
+    "language": "JavaScript",
+    "topics": [
+      "javascript",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/mapbox/webgl-wind"
+  },
+  {
+    "id": "gh-k3d-tools-k3d-jupyter",
+    "fullName": "K3D-tools/K3D-jupyter",
+    "name": "K3D-jupyter",
+    "description": "WebGL 3D plotting for Jupyter: meshes, isosurfaces, volumes, voxels and point clouds from NumPy arrays, with a path-traced cinematic rendere",
+    "stars": 1043,
+    "language": "Python",
+    "topics": [
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/K3D-tools/K3D-jupyter"
+  },
+  {
+    "id": "gh-thi-ng-geom",
+    "fullName": "thi-ng/geom",
+    "name": "geom",
+    "description": "2D/3D geometry toolkit for Clojure/Clojurescript",
+    "stars": 999,
+    "language": "Clojure",
+    "topics": [
+      "charts",
+      "geometry",
+      "svg",
+      "visualization"
+    ],
+    "url": "https://github.com/thi-ng/geom"
+  },
+  {
+    "id": "gh-developmentseed-lonboard",
+    "fullName": "developmentseed/lonboard",
+    "name": "lonboard",
+    "description": "Fast, interactive geospatial data visualization in Jupyter.",
+    "stars": 978,
+    "language": "Python",
+    "topics": [
+      "data-visualization",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/developmentseed/lonboard"
+  },
+  {
+    "id": "gh-joewdavies-awesome-frontend-gis",
+    "fullName": "joewdavies/awesome-frontend-gis",
+    "name": "awesome-frontend-gis",
+    "description": "Geospatial resources for web development :earth_africa: 🗺️",
+    "stars": 885,
+    "language": "TypeScript",
+    "topics": [
+      "data-visualization",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/joewdavies/awesome-frontend-gis"
+  },
+  {
+    "id": "gh-kovacsv-jsmodeler",
+    "fullName": "kovacsv/JSModeler",
+    "name": "JSModeler",
+    "description": "A JavaScript framework to create and visualize 3D models.",
+    "stars": 655,
+    "language": "JavaScript",
+    "topics": [
+      "javascript",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/kovacsv/JSModeler"
+  },
+  {
+    "id": "gh-davidpiegza-graph-visualization",
+    "fullName": "davidpiegza/Graph-Visualization",
+    "name": "Graph-Visualization",
+    "description": "3D graph visualization with WebGL / Three.js",
+    "stars": 618,
+    "language": "JavaScript",
+    "topics": [
+      "graph",
+      "visualization",
+      "webgl",
+      "javascript"
+    ],
+    "url": "https://github.com/davidpiegza/Graph-Visualization"
+  },
+  {
+    "id": "gh-thoughtspile-grafar",
+    "fullName": "thoughtspile/grafar",
+    "name": "grafar",
+    "description": "Reactive multidimensional math & data visualization for the web.",
+    "stars": 592,
+    "language": "TypeScript",
+    "topics": [
+      "visualization",
+      "webgl",
+      "typescript"
+    ],
+    "url": "https://github.com/thoughtspile/grafar"
+  },
+  {
+    "id": "gh-poloclub-wizmap",
+    "fullName": "poloclub/wizmap",
+    "name": "wizmap",
+    "description": "Explore and interpret large embeddings in your browser with interactive visualization! 📍",
+    "stars": 540,
+    "language": "TypeScript",
+    "topics": [
+      "machine-learning",
+      "visualization",
+      "webgl",
+      "typescript"
+    ],
+    "url": "https://github.com/poloclub/wizmap"
+  },
+  {
+    "id": "gh-vcync-modv",
+    "fullName": "vcync/modV",
+    "name": "modV",
+    "description": "modular audio visualisation powered by JavaScript",
+    "stars": 499,
+    "language": "GLSL",
+    "topics": [
+      "canvas",
+      "javascript",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/vcync/modV"
+  },
+  {
+    "id": "gh-seanwong17-building-sunlight-simulator",
+    "fullName": "SeanWong17/building-sunlight-simulator",
+    "name": "building-sunlight-simulator",
+    "description": "纯前端楼盘采光模拟工具链：规划图标注 → 3D 阴影可视化 | Frontend-only building sunlight simulator: plan annotation to 3D shadow visualization",
+    "stars": 489,
+    "language": "JavaScript",
+    "topics": [
+      "javascript",
+      "threejs",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/SeanWong17/building-sunlight-simulator"
+  },
+  {
+    "id": "gh-dhruvmisra-pathfinding-visualizer-threejs",
+    "fullName": "dhruvmisra/Pathfinding-Visualizer-ThreeJS",
+    "name": "Pathfinding-Visualizer-ThreeJS",
+    "description": "A visualizer for pathfinding algorithms in 3D with maze generation, first-person view and device camera input.",
+    "stars": 483,
+    "language": "Vue",
+    "topics": [
+      "threejs",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/dhruvmisra/Pathfinding-Visualizer-ThreeJS"
+  },
+  {
+    "id": "gh-rolyatmax-audiofabric",
+    "fullName": "rolyatmax/audiofabric",
+    "name": "audiofabric",
+    "description": "a 3d music visualization",
+    "stars": 479,
+    "language": "JavaScript",
+    "topics": [
+      "visualization",
+      "webgl",
+      "javascript"
+    ],
+    "url": "https://github.com/rolyatmax/audiofabric"
+  },
+  {
+    "id": "gh-laytec-ag-plotly-blazor",
+    "fullName": "LayTec-AG/Plotly.Blazor",
+    "name": "Plotly.Blazor",
+    "description": "This library packages the well-known charting library plotly.js into a razor component that can be used in a Blazor project.",
+    "stars": 431,
+    "language": "C#",
+    "topics": [
+      "charts",
+      "data-visualization",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/LayTec-AG/Plotly.Blazor"
+  },
+  {
+    "id": "gh-hijiangtao-glmaps",
+    "fullName": "hijiangtao/glmaps",
+    "name": "glmaps",
+    "description": "Data visualization examples and tutorials from scratch. 数据可视化示例代码集与新手学习教程。",
+    "stars": 392,
+    "language": "JavaScript",
+    "topics": [
+      "data-visualization",
+      "threejs",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/hijiangtao/glmaps"
+  },
+  {
+    "id": "gh-frewsxcv-graphosaurus",
+    "fullName": "frewsxcv/graphosaurus",
+    "name": "graphosaurus",
+    "description": "3D graph viewer powered by WebGL (three.js)",
+    "stars": 391,
+    "language": "JavaScript",
+    "topics": [
+      "graph",
+      "javascript",
+      "threejs",
+      "visualization"
+    ],
+    "url": "https://github.com/frewsxcv/graphosaurus"
+  },
+  {
+    "id": "gh-chrisrzhou-react-globe",
+    "fullName": "chrisrzhou/react-globe",
+    "name": "react-globe",
+    "description": "Create beautiful and interactive React + ThreeJS globe visualizations with ease.",
+    "stars": 315,
+    "language": "JavaScript",
+    "topics": [
+      "react",
+      "threejs",
+      "visualization",
+      "webgl"
+    ],
+    "url": "https://github.com/chrisrzhou/react-globe"
+  }
+]

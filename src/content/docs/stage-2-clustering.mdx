@@ -1,0 +1,112 @@
+---
+title: "02. Clustering & Planar Simplex Projection"
+shortTitle: "02. Clustering & Projection"
+description: "Deep dive into Soft-Simplex interior spreading, Jaccard QAP annealing, multi-modal embeddings, NNLS barycentric projection, and PAM k-Medoids."
+section: "Core Strategies"
+order: 3
+stageNumber: 2
+readingMinutes: 9
+updatedDate: "2026-11-15"
+summaryPoints:
+  - "SimplexClusteringStrategy decouples data representation cleanly: tag strategies set requiresTags: true, while embedding and similarity strategies set requiresTags: false."
+  - "Quadratic Assignment Problem (QAP) simulated annealing places related clusters on adjacent mesh vertices so shared items land on planar edges and triangles."
+  - "Soft-Simplex strategies distribute multi-cluster items smoothly across triangle interiors while leaving single-cluster items free in a 360-degree halo."
+relatedApiSlug: "core"
+---
+
+import StrategyDiagram from '../../components/diagrams/StrategyDiagram.astro';
+import StrategyDecisionList from '../../components/docs/StrategyDecisionList.astro';
+import { StrategyLiveSandbox } from '../../components/islands/StrategyLiveSandbox';
+
+Stage 2 (`SimplexClusteringStrategy`) solves three coupled mathematical problems:
+
+1. **Partitioning**: Grouping domain items into `K` coherent topic clusters or medoids/centroids.
+2. **Planar Mesh Embedding (QAP)**: Assigning those `K` clusters to the `K` vertices of the 60° simplex mesh so pairwise cluster affinity aligns with 1-hop mesh adjacency (preserving identities across updates via the **Hungarian algorithm**).
+3. **Barycentric Simplex Anchoring**: Mapping every item onto its covering vertex (`1`-simplex), shared edge (`2`-simplex), or triangle face (`3`-simplex) with normalized weights `∑ w_i = 1`.
+
+<StrategyDiagram
+  kind="clustering"
+  caption="Left: Discrete Explaining-Away / sparse NNLS snaps items onto exact vertices, 2-cluster edges, or 3-cluster centroids. Right: Soft-Simplex blends continuous affinity across the best covering triangle while keeping single-cluster items unconstrained in a 360° halo."
+/>
+
+## Interactive Comparison: Soft-Simplex vs. Jaccard Annealing
+
+Toggle between **Soft-Simplex Tag Clustering** and **Jaccard Annealing Clustering** below, and drag `triangleSpread` to observe how multi-topic items populate triangle interiors without pulling single-topic halo nodes inward:
+
+<StrategyLiveSandbox mode="clustering" client:visible />
+
+## Strategy Decision Matrix
+
+<StrategyDecisionList
+  rows={[
+    {
+      strategyId: 'soft-simplex-tags',
+      callExample: 'createSoftSimplexTagClusteringStrategy(config?)',
+      modalityOrProfile: 'Discrete tags · requiresTags: true',
+      description:
+        'Recommended for rich tagged corpora. Combines load-balanced QAP with continuous interior spreading (triangleSpread: 0.45) while keeping single-cluster items unconstrained in a 360° vertex halo.',
+    },
+    {
+      strategyId: 'jaccard-qap-tags',
+      callExample: 'createJaccardAnnealingClusteringStrategy(config?)',
+      modalityOrProfile: 'Discrete tags · requiresTags: true',
+      description:
+        'Regularized Jaccard tag partitioning + QAP Simulated Annealing + planar hitting-set completion for crisp snapping onto vertices, shared 2-cluster edges, and 3-cluster centroids.',
+    },
+    {
+      strategyId: 'incremental-anchor-tags',
+      callExample: 'createIncrementalAnchorClusteringStrategy(config?)',
+      modalityOrProfile: 'Streaming tags · requiresTags: true',
+      description:
+        'Freezes existing vertex topics and UIDs on update(), routing newly arriving tags and items to their closest existing anchors without global reshuffling.',
+    },
+    {
+      strategyId: 'soft-simplex-embeddings',
+      callExample: 'createSoftSimplexEmbeddingClusteringStrategy(config)',
+      modalityOrProfile: '1 or M vectors · requiresTags: false',
+      description:
+        'Recommended for embeddings. Combines weighted multi-modal Spherical/L2 k-Means++ with load-balanced QAP and temperature-scaled interior 2-simplex projection.',
+    },
+    {
+      strategyId: 'nnls-simplex-embeddings',
+      callExample: 'createEmbeddingClusteringStrategy(config)',
+      modalityOrProfile: '1 or M vectors · requiresTags: false',
+      description:
+        'Spherical/Euclidean k-Means++ + QAP + closed-form Non-Negative Least Squares (NNLS) projection onto planar mesh triangles.',
+    },
+    {
+      strategyId: 'pam-medoid-similarity',
+      callExample: 'createSimilarityClusteringStrategy(config)',
+      modalityOrProfile: 'Kernel S(a, b) · requiresTags: false',
+      description:
+        'PAM k-Medoids + QAP mesh embedding + simplex projection for arbitrary pairwise similarity functions without explicit feature vectors.',
+    },
+  ]}
+/>
+
+## Tag Rules: Planar Hitting-Set & Explaining-Away
+
+In tagged collections, two subtle edge cases arise when projecting hypergraph tag overlaps onto a 2D planar triangulation:
+
+- **`sharedTagRule: 'planar-hitting-set'` *(Default)***: If a bridge tag co-occurs across clusters that cannot all touch on a planar graph, a weighted hitting-set pass promotes minimal bridge coverage onto shared mesh edges so cross-cutting items remain geometrically faithfully tethered.
+- **`anchorRule: 'explaining-away'` *(Default)***: Ranks incident clusters by specificity and prunes redundant secondary matches once an item's tags are explained, preventing generic tags from dragging every node toward the canvas center.
+
+## Closed-Form Planar NNLS Projection for Embeddings
+
+For untagged vector embeddings `x ∈ ℝ^d`, `createEmbeddingClusteringStrategy` evaluates every candidate vertex, mesh edge, and mesh triangle `τ = (c₁, c₂, c₃)` and solves the exact constrained least-squares projection onto the 2-simplex `Δ²`:
+
+```text
+minimize   || x − (w₁·μ₁ + w₂·μ₂ + w₃·μ₃) ||₂²
+subject to w₁, w₂, w₃ ≥ 0  and  w₁ + w₂ + w₃ = 1
+```
+
+Selecting the planar simplex `τ*` with minimal reconstruction residual guarantees that every embedded item lands inside a true planar mesh triangle rather than across non-adjacent clusters.
+
+## Base-Rate-Aware Discriminative Cluster Labeling (`features` & `peerClusters`)
+
+When clustering untagged embeddings or pairwise similarity kernels, naively naming each cluster after its most frequent category often produces duplicate badges whenever a single class dominates the corpus (for example, `77%` of classic feature films carrying `"Drama"` as a primary genre, or two penguin clusters sharing the same species).
+
+SimplexViz solves this directly inside Stage 2 and exposes the underlying primitives for custom `deriveClusterMeta` callbacks:
+
+1. **Built-In `features` Option on Embedding & Similarity Strategies**: Passing `features: SubspaceZoomFeature<TItem>[]` to `createSoftSimplexEmbeddingClusteringStrategy`, `createEmbeddingClusteringStrategy`, or `createSimilarityClusteringStrategy` invokes `assignDiscriminativeClusterLabels` across all `K` sibling clusters—scoring numeric features by standardized z-score separation (`|z_k|`), boolean/categorical facets by specificity lift above corpus base rates, and shared taxonomic groups by intra-group secondary contrast (such as *Adélie · Male* vs. *Adélie · Female*).
+2. **Sibling Context in `deriveClusterMeta`**: Every `ClusterDerivationContext<TItem, TTagMeta>` receives `allItems` and `peerClusters: readonly PeerClusterContext<TItem, TTagMeta>[]`, enabling custom domain meta builders to call `resolveDiscriminativeClusterLabel(ctx, { features })` or `disambiguatePeerClusterTitle(ctx, getBaseTitle, getQualifier)` with guaranteed pairwise uniqueness across the mesh.

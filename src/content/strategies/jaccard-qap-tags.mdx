@@ -1,0 +1,47 @@
+---
+strategyId: "jaccard-qap-tags"
+order: 4
+signature: "createJaccardAnnealingClusteringStrategy<TItem, TTagMeta>(options?: JaccardClusteringOptions<TItem>): SimplexClusteringStrategy<TItem, TTagMeta>"
+updatedDate: "2026-11-15"
+readingMinutes: 5
+whenToUse:
+  - "Built-in default clustering strategy when items carry discrete tags."
+  - "Best when you want crisp structural separation between 1-cluster halos, 2-cluster edge bridges, and 3-cluster centroids."
+optionsTable:
+  - name: "getTags"
+    type: "(item: TItem) => readonly string[]"
+    defaultValue: "item.tags"
+    description: "Extracts discrete topic tags per item."
+  - name: "sharedTagRule"
+    type: "'planar-hitting-set' | 'strict-core' | SharedTagExpansionFn"
+    defaultValue: "'planar-hitting-set'"
+    description: "Governs how bridge tags shared across non-adjacent clusters are routed onto mesh edges."
+  - name: "anchorRule"
+    type: "'explaining-away' | 'all-matching' | SimplexItemAnchorFn"
+    defaultValue: "'explaining-away'"
+    description: "Determines simplex unit weights for items matching multiple vertex clusters."
+  - name: "annealingSteps"
+    type: "number"
+    defaultValue: "1800"
+    description: "Deterministic Simulated Annealing iterations for QAP mesh vertex placement."
+---
+
+## Jaccard Tag Partitioning &amp; QAP Simulated Annealing
+
+**Jaccard Annealing Clustering** builds a regularized tag co-occurrence graph, partitions tags into `K` balanced clusters, and solves a **Quadratic Assignment Problem (QAP)** via deterministic Simulated Annealing so strongly co-occurring clusters sit on 1-hop adjacent mesh vertices. Across updates, the **Hungarian algorithm** matches new clusters to prior vertices to preserve cluster UIDs and OKLab colors.
+
+## Usage Example
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createJaccardAnnealingClusteringStrategy,
+} from '@simplex-viz/react';
+
+const jaccard = createJaccardAnnealingClusteringStrategy({
+  sharedTagRule: 'planar-hitting-set',
+  anchorRule: 'explaining-away',
+});
+
+<SimplexTopicGraph items={items} clusteringStrategy={jaccard} />;
+```

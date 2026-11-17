@@ -1,0 +1,60 @@
+---
+title: "UCI Zoo Animal Morphology Kernel"
+datasetId: "zoo-species"
+domainLabel: "Comparative Biology"
+representationLabel: "Pairwise Similarity Kernel S(a, b)"
+requiresTags: false
+dimensionsSummary: "Gower-weighted morphological similarity S(a, b) ∈ [0, 1] over 16 anatomical & ecological traits"
+meshStrategy: "adaptive-hex-mesh"
+clusteringStrategy: "pam-medoid-similarity"
+colorStrategy: "oklab-edge-contrast"
+layoutStrategy: "collision-local-layout"
+zoomStrategy: "subspace-recluster-zoom"
+nodeView: "domain"
+description: "Clusters all 101 animal species from Richard Forsyth's classic UCI Zoo dataset purely via a pairwise Gower trait kernel and PAM k-Medoids exemplar selection."
+publishedDate: "2026-11-15"
+readingMinutes: 5
+order: 5
+---
+
+## Dataset Provenance & Coordinate-Free Similarity Kernels
+
+Many scientific and enterprise domains lack clean Euclidean vectors or curated hashtag vocabularies, offering instead a **domain-specific pairwise similarity function `S(a, b) ∈ [0, 1]`** (for example edit distance over biological sequences, Gower similarity across mixed boolean/categorical records, or graph-edit kernels).
+
+This example loads all **101 named animal species** from **Richard S. Forsyth's UCI Zoo dataset** (`CC BY 4.0`)—rendered with self-hosted **Wikimedia Commons species photographs** (under Public Domain / Creative Commons licenses with full TASL attribution)—spanning mammals, birds, reptiles, fish, amphibians, insects, and marine invertebrates across 16 anatomical and ecological attributes (`hair`, `feathers`, `eggs`, `milk`, `airborne`, `aquatic`, `predator`, `toothed`, `backbone`, `breathes`, `venomous`, `fins`, `legs`, `tail`, `domestic`, `catsize`).
+
+## How PAM k-Medoids Anchors Real Species Exemplars
+
+- **Pairwise k-Medoids Projection & Ecological Disambiguation (`createSimilarityClusteringStrategy`)**: Rather than averaging boolean traits into synthetic centroids, **Partitioning Around Medoids (PAM)** selects *actual species* (such as *Dolphin*, *Eagle*, or *Frog*) as cluster medoids `m₁★ … m_K★` and embeds them onto adjacent 60° mesh vertices via QAP annealing. Peer-aware trait disambiguation (`features` / `disambiguatePeerClusterTitle`) distinguishes multiple mammalian or invertebrate medoids automatically (*Carnivores*, *Marine Mammals*, *Mammals · Small*, *Birds*, *Fish*, *Insects*, *Marine Fauna*).
+- **Subspace Re-Clustering Over the 16 UCI Traits (`createSubspaceZoomStrategy`)**: Once you zoom into a *Mammals* or *Birds* triangle, traits that are locally constant (`σ_local = 0`, such as `milk = true` and `backbone = true` across all mammals) vanish automatically, allowing intra-class UCI attributes (`predator`, `catsize`, `aquatic`, `legs`, `domestic`, `airborne`) to re-partition the `1:4` sub-mesh while outer corners preserve their parent clade header (`CARNIVORES / Cat-Sized`).
+
+## Reproduction Snippet
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createAdaptiveHexMeshStrategy,
+  createSimilarityClusteringStrategy,
+  createOklabContrastColorStrategy,
+  createCollisionDrivenLayoutStrategy,
+  createSubspaceZoomStrategy,
+} from '@simplex-viz/react';
+
+<SimplexTopicGraph
+  items={zooSpecies}
+  meshStrategy={createAdaptiveHexMeshStrategy()}
+  clusteringStrategy={createSimilarityClusteringStrategy({
+    clusterCount: 7,
+    getSimilarity: (a, b) => computeGowerTraitSimilarity(a.traits, b.traits),
+    features: uciZoo16TraitFeatures,
+  })}
+  colorStrategy={createOklabContrastColorStrategy()}
+  layoutStrategy={createCollisionDrivenLayoutStrategy()}
+  zoomStrategy={createSubspaceZoomStrategy({
+    features: uciZoo16TraitFeatures,
+    getSimilarity: (a, b) => computeGowerTraitSimilarity(a.traits, b.traits),
+    clusterZoomMode: 'incident-star',
+  })}
+  showZoomBreadcrumbs
+/>;
+```

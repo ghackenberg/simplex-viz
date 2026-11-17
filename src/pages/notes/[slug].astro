@@ -1,0 +1,177 @@
+---
+import { getCollection, render } from 'astro:content';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import OnThisPage from '../../components/OnThisPage.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { SITE_META, withBase } from '../../site/url';
+
+export async function getStaticPaths() {
+  const posts = (await getCollection('notes')).sort((a, b) =>
+    b.data.publishedDate.localeCompare(a.data.publishedDate),
+  );
+  return posts.map((post, idx) => ({
+    params: { slug: post.id },
+    props: {
+      post,
+      prevPost: idx < posts.length - 1 ? posts[idx + 1] : null,
+      nextPost: idx > 0 ? posts[idx - 1] : null,
+    },
+  }));
+}
+
+const { post, prevPost, nextPost } = Astro.props;
+const { Content, headings } = await render(post);
+const tocHeadings = headings.filter((h) => h.depth === 2 || h.depth === 3);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'TechArticle',
+  headline: post.data.title,
+  description: post.data.description,
+  datePublished: post.data.publishedDate,
+  author: {
+    '@type': 'Person',
+    name: post.data.author,
+    url: SITE_META.authorUrl,
+  },
+  publisher: {
+    '@type': 'Organization',
+    name: SITE_META.name,
+  },
+};
+---
+
+<BaseLayout
+  title={post.data.title}
+  description={post.data.description}
+  ogType="article"
+  publishedTime={post.data.publishedDate}
+  jsonLd={jsonLd}
+>
+  <div class="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+    <Breadcrumbs
+      items={[
+        { label: 'Notes', href: '/notes' },
+        { label: post.data.title },
+      ]}
+    />
+
+    <div class="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
+      <!-- Left Rail: Author Card Only -->
+      <aside class="order-2 lg:order-1 lg:col-span-3 lg:sticky lg:top-24 lg:self-start">
+        <div class="rounded-xl border border-slate-200/90 bg-white p-5 text-xs dark:border-slate-800/90 dark:bg-[#0B0F17]">
+          <p class="text-slate-500 dark:text-slate-400">Author</p>
+          <p class="mt-1 text-sm font-semibold text-slate-950 dark:text-white">
+            <a
+              href={SITE_META.authorUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="hover:text-cyan-700 hover:underline dark:hover:text-cyan-300 transition-colors"
+            >
+              {post.data.author}
+            </a>
+          </p>
+          <p class="mt-1 leading-relaxed text-slate-600 dark:text-slate-400">
+            {post.data.authorRole}
+          </p>
+
+          <dl class="mt-4 space-y-2 border-t border-slate-200/80 pt-4 dark:border-slate-800/80 tabular-nums">
+            <div class="flex justify-between gap-2">
+              <dt class="text-slate-500 dark:text-slate-400">Published</dt>
+              <dd class="font-mono text-slate-800 dark:text-slate-200">
+                {post.data.publishedDate}
+              </dd>
+            </div>
+            <div class="flex justify-between gap-2">
+              <dt class="text-slate-500 dark:text-slate-400">Reading Time</dt>
+              <dd class="font-mono text-slate-800 dark:text-slate-200">
+                {post.data.readingMinutes} min
+              </dd>
+            </div>
+          </dl>
+
+          <button
+            type="button"
+            id="sv-copy-article-url"
+            class="mt-4 w-full cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-[#07090E] dark:text-slate-200 dark:hover:bg-slate-800 transition-colors"
+          >
+            Copy Note Link
+          </button>
+        </div>
+      </aside>
+
+      <!-- Center Column: Constrained Article Prose -->
+      <article class="order-1 min-w-0 lg:order-2 lg:col-span-6">
+        <header>
+          <h1 class="text-2xl sm:text-4xl font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
+            {post.data.title}
+          </h1>
+          <p class="mt-4 max-w-[68ch] text-base leading-relaxed text-slate-600 dark:text-slate-300">
+            {post.data.description}
+          </p>
+        </header>
+
+        <div class="sv-prose mt-8 overflow-x-hidden">
+          <Content />
+        </div>
+
+        <nav
+          aria-label="Note pagination"
+          class="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2"
+        >
+          {
+            prevPost ? (
+              <a
+                href={withBase(`/notes/${prevPost.id}`)}
+                class="rounded-xl border border-slate-200/90 bg-white p-4 hover:border-cyan-500/70 dark:border-slate-800/90 dark:bg-[#0B0F17] dark:hover:border-cyan-400/60 transition-colors"
+              >
+                <span class="block text-xs text-slate-500 dark:text-slate-400">Older Note</span>
+                <span class="mt-1 block text-sm font-semibold text-slate-950 dark:text-white [text-wrap:balance]">
+                  ← {prevPost.data.title}
+                </span>
+              </a>
+            ) : (
+              <div />
+            )
+          }
+
+          {
+            nextPost && (
+              <a
+                href={withBase(`/notes/${nextPost.id}`)}
+                class="rounded-xl border border-slate-200/90 bg-white p-4 text-right hover:border-cyan-500/70 dark:border-slate-800/90 dark:bg-[#0B0F17] dark:hover:border-cyan-400/60 transition-colors"
+              >
+                <span class="block text-xs text-slate-500 dark:text-slate-400">Newer Note</span>
+                <span class="mt-1 block text-sm font-semibold text-slate-950 dark:text-white [text-wrap:balance]">
+                  {nextPost.data.title} →
+                </span>
+              </a>
+            )
+          }
+        </nav>
+      </article>
+
+      <!-- Right Rail: Sticky Table of Contents Only -->
+      <aside class="order-3 lg:col-span-3 lg:sticky lg:top-24 lg:self-start">
+        <OnThisPage headings={tocHeadings} framed />
+      </aside>
+    </div>
+  </div>
+</BaseLayout>
+
+<script is:inline>
+  (function () {
+    var copyBtn = document.getElementById('sv-copy-article-url');
+    if (!copyBtn) return;
+    copyBtn.addEventListener('click', function () {
+      if (!navigator.clipboard) return;
+      navigator.clipboard.writeText(window.location.href).then(function () {
+        var orig = copyBtn.textContent;
+        copyBtn.textContent = 'Link Copied';
+        setTimeout(function () {
+          copyBtn.textContent = orig;
+        }, 1400);
+      });
+    });
+  })();
+</script>

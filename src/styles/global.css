@@ -1,0 +1,225 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100%;
+    font-family: var(--font-sans);
+  }
+
+  .font-mono,
+  code,
+  pre {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Dual-theme Shiki syntax highlighting without client JS */
+html.dark .astro-code,
+html.dark .astro-code span {
+  color: var(--shiki-dark) !important;
+  background-color: #0b0f17 !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
+}
+
+html:not(.dark) .astro-code {
+  background-color: #f8fafc !important;
+}
+
+/* Clean prose typography for pre-rendered MDX documentation, API pages, and notes */
+.sv-prose {
+  font-size: 0.96875rem;
+  line-height: 1.72;
+  color: #334155;
+}
+
+.dark .sv-prose {
+  color: #cbd5e1;
+  letter-spacing: 0.005em;
+}
+
+.sv-prose > * + * {
+  margin-top: 1.25rem;
+}
+
+.sv-prose > :first-child {
+  margin-top: 0;
+}
+
+.sv-prose > p,
+.sv-prose > ul,
+.sv-prose > ol,
+.sv-prose > blockquote {
+  max-width: 70ch;
+}
+
+.sv-prose h2 {
+  margin-top: 2.25rem;
+  margin-bottom: 0.75rem;
+  scroll-margin-top: 5rem;
+  font-size: 1.375rem;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: #0f172a;
+  text-wrap: balance;
+}
+
+.dark .sv-prose h2 {
+  color: #f8fafc;
+}
+
+.sv-prose h3 {
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+  scroll-margin-top: 5rem;
+  font-size: 1.0625rem;
+  line-height: 1.4;
+  font-weight: 600;
+  color: #0f172a;
+  text-wrap: balance;
+}
+
+.dark .sv-prose h3 {
+  color: #f1f5f9;
+}
+
+.sv-prose strong {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.dark .sv-prose strong {
+  color: #f8fafc;
+}
+
+.sv-prose a {
+  color: #0891b2;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+.dark .sv-prose a {
+  color: #22d3ee;
+}
+
+.sv-prose ul,
+.sv-prose ol {
+  padding-left: 1.35rem;
+}
+
+.sv-prose ul {
+  list-style-type: disc;
+}
+
+.sv-prose ol {
+  list-style-type: decimal;
+}
+
+.sv-prose li + li {
+  margin-top: 0.4rem;
+}
+
+.sv-prose :not(pre) > code {
+  border-radius: 0.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background-color: rgba(241, 245, 249, 0.85);
+  padding: 0.1rem 0.35rem;
+  font-size: 0.825em;
+  color: #0f172a;
+}
+
+.dark .sv-prose :not(pre) > code {
+  border-color: rgba(51, 65, 85, 0.8);
+  background-color: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+}
+
+.sv-prose pre {
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+  padding: 1rem 1.15rem;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}
+
+.dark .sv-prose pre {
+  border-color: rgba(30, 41, 59, 0.9);
+}
+
+.sv-prose table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-collapse: collapse;
+  font-size: 0.84375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 48rem) {
+  .sv-prose table {
+    display: table;
+  }
+}
+
+.sv-prose thead th {
+  border-bottom: 1px solid #cbd5e1;
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.dark .sv-prose thead th {
+  border-bottom-color: #334155;
+  color: #f1f5f9;
+}
+
+.sv-prose tbody td {
+  border-bottom: 1px solid rgba(203, 213, 225, 0.6);
+  padding: 0.6rem 0.75rem;
+  vertical-align: top;
+}
+
+.dark .sv-prose tbody td {
+  border-bottom-color: rgba(30, 41, 59, 0.85);
+}
+
+/* iOS-compatible pure CSS fullscreen overlay (no Fullscreen API required) */
+html.sv-fullscreen-lock,
+html.sv-fullscreen-lock body {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
+.sv-atlas-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  border-width: 0 !important;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+}

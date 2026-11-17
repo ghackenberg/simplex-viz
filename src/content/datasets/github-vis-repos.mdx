@@ -1,0 +1,72 @@
+---
+title: "GitHub Visualization & WebGL Ecosystems"
+datasetId: "github-repos"
+domainLabel: "Open-Source Software"
+representationLabel: "Discrete Repository Topics"
+requiresTags: true
+dimensionsSummary: "Curated GitHub repository topics (#webgl, #d3, #threejs, #svg, #canvas, #graph, #wasm)"
+meshStrategy: "adaptive-hex-mesh"
+clusteringStrategy: "jaccard-qap-tags"
+colorStrategy: "oklab-edge-contrast"
+layoutStrategy: "collision-local-layout"
+zoomStrategy: "semantic-tag-split-zoom"
+nodeView: "domain"
+description: "Maps real open-source visualization, WebGL, shader, and graph-layout repositories from GitHub using crisp Jaccard QAP annealing and planar hitting-set bridge edges."
+publishedDate: "2026-11-15"
+readingMinutes: 4
+order: 2
+---
+
+## Dataset Provenance & Ecosystem Topology
+
+This dataset contains real public repository records queried from the **GitHub REST Search API** across the data-visualization, WebGL, GPU rendering, and network-analysis ecosystem (including projects such as `three.js`, `d3`, `apache/echarts`, `visx`, `cytoscape.js`, `deck.gl`, and `pixijs`). Each repository carries normalized technology and domain topics (`#webgl`, `#threejs`, `#svg`, `#canvas`, `#charts`, `#graph`, `#rust`, `#wasm`, `#typescript`).
+
+## Why Jaccard QAP Annealing Excels on Curated Tech Stacks
+
+Unlike broad prose tags, software ecosystem topics exhibit sharp structural boundaries: a repository either targets `#webgl` + `#shaders`, bridges `#svg` + `#charts`, or combines `#graph` + `#canvas`.
+
+- **Jaccard Annealing Clustering (`createJaccardAnnealingClusteringStrategy`)**: Partitions repository topics via regularized Jaccard affinity, embeds co-occurring ecosystems on adjacent 60° mesh vertices via Simulated Annealing, snaps shared dual-stack libraries onto exact 1-hop edges and triangle centroids, and disambiguates sibling hubs sharing a broad umbrella topic via `disambiguatePeerClusterTitle`.
+- **OKLab Edge Contrast (`createOklabContrastColorStrategy`)**: Maximizes perceptual `ΔE_OK` across neighboring technology hubs so adjacent stacks remain unmistakable at a glance.
+- **Exclusive-First Semantic 3→6 Tag Drill-Down (`createSemanticZoomStrategy`)**: Zooming into an overlapping ecosystem triangle—such as *Visualization – Data Vis – JavaScript*—ranks assigned sub-tags by **exclusivity across the 6 sibling sub-vertices** (`#graph`, `#threejs`, `#typescript`, `#webgl`) ahead of ubiquitous carrier tags (`#javascript`, `#visualization`). Refined corners render two-line context plaques (`VISUALIZATION / Graphs · JavaScript`, `DATA VIS / TypeScript`), unchanged corners remain clean single-line capsules (`JavaScript` without redundant header stutter), and sparse neighbor midpoints fall back to explicit `A ↔ B` bridge relations.
+
+## Reproduction Snippet
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createAdaptiveHexMeshStrategy,
+  createJaccardAnnealingClusteringStrategy,
+  createOklabContrastColorStrategy,
+  createCollisionDrivenLayoutStrategy,
+  createSemanticZoomStrategy,
+  disambiguatePeerClusterTitle,
+} from '@simplex-viz/react';
+
+<SimplexTopicGraph
+  items={repositories}
+  getId={(repo) => repo.id}
+  getTags={(repo) => repo.topics}
+  resolveTagMeta={(tag) => repoTagTaxonomy[tag]}
+  deriveClusterMeta={(ctx) => ({
+    title:
+      ctx.role === 'intermediate'
+        ? (ctx.subclusterLabel ?? ctx.defaultLabel)
+        : disambiguatePeerClusterTitle(
+            ctx,
+            (peer) => peer.coreTags[0]?.meta?.displayTitle ?? peer.defaultLabel,
+            (peer) => peer.coreTags[1]?.meta?.displayTitle,
+          ),
+  })}
+  meshStrategy={createAdaptiveHexMeshStrategy()}
+  clusteringStrategy={createJaccardAnnealingClusteringStrategy({
+    sharedTagRule: 'planar-hitting-set',
+    anchorRule: 'explaining-away',
+  })}
+  colorStrategy={createOklabContrastColorStrategy()}
+  layoutStrategy={createCollisionDrivenLayoutStrategy()}
+  zoomStrategy={createSemanticZoomStrategy({
+    clusterZoomMode: 'incident-star',
+  })}
+  showZoomBreadcrumbs
+/>;
+```

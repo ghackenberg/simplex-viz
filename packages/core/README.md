@@ -33,7 +33,7 @@ Before diving into the TypeScript API, the schematic diagram below traces a sing
   - **Pairwise similarities** (`createSimilarityClusteringStrategy`): PAM k-Medoids + QAP mesh embedding + simplex projection for arbitrary `(a, b) => [0, 1]` kernels.
   - **Tag clustering specialization** (`createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`): Regularized Jaccard partitioning, Simulated Annealing QAP, Weighted Hitting-Set planar completion, and backward tag pruning.
 - **Composable Layout (`Seeder × Relaxer × ScaleController`) & `0.0 px` SAT overlap**: Mix any `LayoutSeeder` (`phyllotaxis`, `mesh-inward-fan`, `warm-start`), `PositionRelaxer` (`barycentric-pbd`, `space-filling-pbd`), and `ScaleController` (`uniform-scale`, `collision-local-scale`, `density-prior-scale`, `fixed-scale`) via `createComposedLayoutStrategy()` / `solveComposedLayout()` with covering-triangle containment and zero convex overlap.
-- **Conformal `1:4` Hierarchical Zoom & Drill-Down**: `createBarycentricZoomStrategy` and `createSemanticZoomStrategy` subdivide triangles `1:4` while preserving exact `▲/▼/▶/◀` orientation, synthesize `'intermediate'` midpoint clusters, animate affine camera flights (`ZoomAffineTransform`), project dimmed clickable neighborhood context (with automatic multi-level zoom-out when clicking leaf neighbors), pass pointer events through content items on drillable triangles, and stop automatically once items reach `1.0x` full scale.
+- **Conformal `1:4` Hierarchical Zoom & Drill-Down**: `createBarycentricZoomStrategy`, `createSemanticZoomStrategy`, and `createSubspaceZoomStrategy` subdivide triangles `1:4` while preserving exact `▲/▼/▶/◀` orientation, synthesize `'intermediate'` midpoint clusters, focus non-subdividable leaf triangles cleanly as single triangles (`'triangle-focus'`, `leafTriangleFocus: true`) while keeping content items directly clickable, resolve both primary and intermediate clusters as uniform 1-ring `'incident-star'` meshes with barycentric simplex-distance item dimming, animate affine camera flights (`ZoomAffineTransform`), and project dimmed clickable neighborhood context.
 - **Interruptible C1-continuous animation & mathematical hit-testing**: Critically damped scalar springs, retargetable dual-layer transition state machines, and exact world-coordinate convex-hull + barycentric triangle-face hit-testing (`isPointInTriangle`).
 
 ## Installation
@@ -244,7 +244,7 @@ const engine = new SimplexGraphEngine<
   renderer: myRenderer,
   viewportWidth: 1200,
   viewportHeight: 800,
-  meshOptions: { innerPadding: 48, minSideLength: 140, maxSideLength: 280, maxClusters: 12 },
+  meshOptions: { innerPadding: 48, minSideLength: 130, maxClusters: 14 },
   layoutOptions: { clusterGapPx: 14, itemGapPx: 5, seed: 42 },
   onMetricsChange: (metrics) => {
     console.log('Overlap count:', metrics.overlapCount); // Always 0 when settled
@@ -309,9 +309,9 @@ Clustering strategies declare `requiresTags?: boolean` and support `initialize(c
 ### 4. `SimplexLayoutStrategy` & Composable Building Blocks (`Seeder × Relaxer × ScaleController`)
 
 Built-in layout strategy presets (all strictly guaranteeing **`0.0 px` overlap** and covering-triangle containment):
-- `createPbdUniformLayoutStrategy()` *(default)* — `createPhyllotaxisSeeder` + `createBarycentricPbdRelaxer` + `createUniformScaleController` (`warmStart: false`).
+- `createPbdUniformLayoutStrategy()` *(default)* — `createMeshInwardFanSeeder` + `createSpaceFillingPbdRelaxer` + `createUniformScaleController` (`warmStart: false`) so open covering triangles are utilized cleanly while preserving exact global size ratios.
 - `createWarmStartPbdLayoutStrategy()` — Same as above with `warmStart: true` for minimal movement across updates.
-- `createLocalAdaptiveLayoutStrategy({ crowdRadiusPx?, minLocalScale?, warmStart? })` — Uses `createDensityPriorScaleController` (`crowdRadiusPx: 76`, `minLocalScale: 0.42`) so sparse neighborhoods stay at `1.0` scale.
+- `createLocalAdaptiveLayoutStrategy({ crowdRadiusPx?, minLocalScale?, warmStart? })` — Combines `createMeshInwardFanSeeder` + `createSpaceFillingPbdRelaxer` + `createDensityPriorScaleController` (`crowdRadiusPx: 76`, `minLocalScale: 0.35`, `warmStart: true`) to spread pockets first, compute smooth radial crowd gradients on dispersed positions, and polish locally without global shrink.
 - `createCollisionDrivenLayoutStrategy({ minLocalScale?, shrinkFactor?, warmStart? })` — Combines `createMeshInwardFanSeeder` + `createSpaceFillingPbdRelaxer` + `createCollisionLocalScaleController` (`minLocalScale: 0.32`, `shrinkFactor: 0.85`, `warmStart: true`) to keep every non-colliding item at `1.0` scale and shrink only locally colliding pockets.
 
 Or compose custom layout pipelines via `createComposedLayoutStrategy(options)` / `solveComposedLayout(params)`:
@@ -323,12 +323,15 @@ Or compose custom layout pipelines via `createComposedLayoutStrategy(options)` /
 
 - `createFreeCameraZoomStrategy()` *(default)* — Continuous 2D camera (`mode: 'free-camera'`).
 - `createBarycentricZoomStrategy(options?)` (`mode: 'drill-down'`):
-  - `clusterZoomMode`: `'incident-star'` *(default)* | `'spotlight'` | `'none'`
+  - `clusterZoomMode`: `'incident-star'` *(default — uniform 1-ring incident-star mesh for both primary and intermediate clusters with barycentric simplex-distance dimming)* | `'spotlight'` | `'none'`
   - `adaptiveContrastStretch`: `true` *(default)* — Re-centers skewed parent weight distributions across the 4 sub-triangles.
   - `enableSectorFallback`: `true` *(default)* — Falls back to radial sector partitioning when weights are degenerate.
-  - `stopWhenFullScale`: `true` *(default)* — Marks triangles/clusters as leaf once all covered items reach `fullScaleThreshold` (`0.995` default).
+  - `stopWhenFullScale`: `true` *(default)* — Stops `1:4` subdivision once all covered items reach `fullScaleThreshold` (`0.995` default).
+  - `leafTriangleFocus`: `true` *(default)* — Keeps non-subdividable leaf triangles focusable as single triangles (`'triangle-focus'`) while leaving their content items directly clickable.
 - `createSemanticZoomStrategy(options?)` (`mode: 'drill-down'`):
-  - Re-partitions a focused triangle's discriminative tags across all `6` sub-vertices (`clusterZoomMode: 'incident-star'`, `stopWhenFullScale: true`, `fullScaleThreshold: 0.995`, `barycentricFallback: true`).
+  - Re-partitions a focused triangle's discriminative tags across all `6` sub-vertices (`clusterZoomMode: 'incident-star'`, `stopWhenFullScale: true`, `fullScaleThreshold: 0.995`, `leafTriangleFocus: true`, `barycentricFallback: true`).
+- `createSubspaceZoomStrategy(options?)` (`mode: 'drill-down'`):
+  - Representation-agnostic `6`-vertex local subspace refinement across embeddings, pairwise similarity kernels, and tags (`clusterZoomMode: 'incident-star'`, `stopWhenFullScale: true`, `fullScaleThreshold: 0.995`, `leafTriangleFocus: true`, `minItemsForRecluster: 6`, `blendFactor: 0.35`).
 - **Imperative Zoom Methods on `SimplexGraphEngine`**:
   `setZoomStrategy(strategy)`, `getZoomStrategy()`, `getZoomState()`, `drillDownTriangle(index)`, `drillDownCluster(uid)`, `drillToNeighbor(neighborId)`, `drillUp()`, `drillToDepth(depth)`, `drillToRoot()`.
 
@@ -340,11 +343,11 @@ Or compose custom layout pipelines via `createComposedLayoutStrategy(options)` /
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `innerPadding` | `number` | `48` | Padding around the usable simplex lattice in pixels. |
-| `sideLength` | `number` | `undefined` | Explicit equilateral triangle side length in pixels (overrides automatic `minSideLength`/`maxSideLength` sizing). |
-| `minSideLength` | `number` | `140` | Minimum preferred equilateral triangle edge length in pixels when `sideLength` is omitted. |
-| `maxSideLength` | `number` | `280` | Maximum preferred equilateral triangle edge length in pixels when `sideLength` is omitted. |
-| `maxClusters` | `number` | `12` | Upper bound on cluster vertices `K` in adaptive meshes. |
+| `innerPadding` | `number` | `32`–`48` (adaptive) | Padding around the usable simplex lattice in pixels (scales adaptively with viewport size when omitted). |
+| `sideLength` | `number` | `undefined` | Explicit equilateral triangle side length in pixels (overrides automatic sizing). |
+| `minSideLength` | `number` | `130` | Minimum preferred equilateral triangle edge length in pixels when `sideLength` is omitted. |
+| `maxSideLength` | `number` | `undefined` | Optional upper cap on equilateral triangle edge length in pixels (scales freely to fill the canvas when omitted). |
+| `maxClusters` | `number` | `14` | Upper bound on cluster vertices `K` in adaptive meshes. |
 
 ### `LayoutSolverOptions`
 

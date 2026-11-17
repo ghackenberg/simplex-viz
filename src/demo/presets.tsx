@@ -6,7 +6,6 @@ import {
   type VisualResolver,
 } from '@simplex-viz/core';
 import {
-  BadgeClusterSvgView,
   BarycentricSectorTriangleSvgView,
   BlueprintInsetTriangleSvgView,
   ClusterAnchorSvgView,
@@ -19,6 +18,7 @@ import {
   MultiSectorGlyphSvgView,
   OklabTintTriangleSvgView,
   PrecisionRailEdgeSvgView,
+  resolveClusterSurfaceColors,
   type BadgeClusterVisual,
   type ClusterAnchorVisual,
   type GeometricShapeKind,
@@ -30,6 +30,7 @@ import {
   type SvgTriangleView,
 } from '@simplex-viz/svg';
 import type { ReactNode } from 'react';
+import type { CommonsThumbManifest } from './commonsThumbs';
 import type { TagTaxonomyInfo } from './data/knowledgeCatalog';
 import type {
   BodyShapeItem,
@@ -37,6 +38,11 @@ import type {
   DemoEntity,
   VisualMediaItem,
 } from './data/multimodalCatalog';
+import {
+  ZOO_SYMBOL_PRIMITIVES,
+  resolveZooSymbolKind,
+  type ZooSymbolKind,
+} from './zooSymbols';
 
 export type ContentRendererKind = 'domain' | 'geometric' | 'multisector' | 'react-card';
 export type ClusterRendererKind = 'anchor' | 'badge' | 'react-card';
@@ -81,7 +87,7 @@ export interface DemoRenderConfig {
 }
 
 export const DEFAULT_DEMO_RENDER_CONFIG: DemoRenderConfig = {
-  contentRenderer: 'geometric',
+  contentRenderer: 'domain',
   clusterRenderer: 'badge',
   contentShapeMode: 'by-type',
   contentBaseRadius: 9,
@@ -90,48 +96,80 @@ export const DEFAULT_DEMO_RENDER_CONFIG: DemoRenderConfig = {
   domainGlyphScale: 1.0,
   mediaShowAspectTag: true,
   mediaShowVideoBadge: true,
-  voiceWaveformBars: 9,
+  voiceWaveformBars: 7,
   voiceShowPitchLabel: false,
   bodyShowCalibrationRing: true,
   bodyShowHeightLabel: false,
   donutInnerRatio: 0.44,
   donutAccentRing: false,
-  contentCardMaxChars: 17,
-  showContentCardMeta: true,
-  anchorRadius: 23,
-  clusterTitleMaxChars: 22,
-  showClusterMetaLine: true,
+  contentCardMaxChars: 16,
+  showContentCardMeta: false,
+  anchorRadius: 22,
+  clusterTitleMaxChars: 18,
+  showClusterMetaLine: false,
   triangleFaceStyle: 'oklab-tint',
   triangleFaceOpacity: 0.09,
   meshEdgeStyle: 'dashed',
   meshEdgeWidth: 1.0,
 };
 
+export type PaperFigureKind = 'geometry' | 'graphics' | 'vision' | 'hci' | 'ml' | 'theory';
+
 /**
- * Unified discriminated union for independent content visuals across SVG and React JSX renderers,
- * preserving complete type safety without `any`.
+ * Unified discriminated union for domain-optimized content visuals across SVG and React JSX renderers.
  */
 export type DemoContentVisual =
   | { readonly kind: 'geometric'; readonly shape: GeometricShapeVisual }
   | { readonly kind: 'multisector'; readonly glyph: MultiSectorGlyphVisual }
   | {
+      readonly kind: 'domain-knowledge';
+      readonly theme: SimplexTheme;
+      readonly width: number;
+      readonly height: number;
+      readonly codeTag: string;
+      readonly figureKind: PaperFigureKind;
+      readonly sectors: ReadonlyArray<{ readonly colorHex: string; readonly weight: number }>;
+      readonly colorHex: string;
+    }
+  | {
+      readonly kind: 'domain-repo';
+      readonly theme: SimplexTheme;
+      readonly width: number;
+      readonly height: number;
+      readonly repoName: string;
+      readonly starsLabel: string;
+      readonly langColorHex: string;
+      readonly colorHex: string;
+    }
+    | {
+      readonly kind: 'domain-zoo';
+      readonly theme: SimplexTheme;
+      readonly radius: number;
+      readonly symbolKind: ZooSymbolKind;
+      readonly photoUrl?: string;
+      readonly aquatic: boolean;
+      readonly colorHex: string;
+    }
+    | {
       readonly kind: 'domain-media';
       readonly theme: SimplexTheme;
       readonly width: number;
       readonly height: number;
+      readonly shortTitle: string;
+      readonly thumbnailUrl?: string;
+      readonly imdbRating: number;
       readonly aspectRatio: VisualMediaItem['aspectRatio'];
       readonly mediaKind: VisualMediaItem['mediaKind'];
       readonly motif: VisualMediaItem['motif'];
       readonly palette: readonly [string, string];
       readonly colorHex: string;
-      readonly showPlayBadge: boolean;
-      readonly showAspectTag: boolean;
     }
   | {
       readonly kind: 'domain-voice';
       readonly theme: SimplexTheme;
       readonly width: number;
       readonly height: number;
+      readonly ipaSymbol: string;
       readonly waveform: readonly number[];
       readonly barCount: number;
       readonly pitchHz: number;
@@ -142,6 +180,11 @@ export type DemoContentVisual =
       readonly kind: 'domain-body';
       readonly theme: SimplexTheme;
       readonly radius: number;
+      readonly species: string;
+      readonly billLengthMm: number;
+      readonly billDepthMm: number;
+      readonly flipperLengthMm: number;
+      readonly bodyMassG: number;
       readonly proportions: BodyShapeItem['proportions'];
       readonly heightCm: number;
       readonly posture: BodyShapeItem['posture'];
@@ -161,7 +204,7 @@ export type DemoContentVisual =
     };
 
 /**
- * Unified discriminated union for independent cluster visuals across SVG and React JSX renderers.
+ * Unified discriminated union for cluster visuals across SVG and React JSX renderers.
  */
 export type DemoClusterVisual =
   | { readonly kind: 'anchor'; readonly anchor: ClusterAnchorVisual }
@@ -179,13 +222,13 @@ export type DemoClusterVisual =
       readonly showMeta: boolean;
       readonly isIntermediate?: boolean;
       readonly shortBridgeTag?: string;
+      readonly parentContextLabel?: string;
       readonly accentColors?: readonly string[];
     };
 
 const geomBase = new GeometricShapeSvgView();
 const sectorBase = new MultiSectorGlyphSvgView();
 const anchorBase = new ClusterAnchorSvgView();
-const badgeBase = new BadgeClusterSvgView();
 
 export const demoGeometricContentView: SvgNodeView<DemoContentVisual> = {
   measureConvexHull: (v) =>
@@ -243,43 +286,86 @@ function createSvgEl<K extends keyof SVGElementTagNameMap>(
   return el;
 }
 
-function resolveStateStroke(
-  state: NodeRenderState<DemoContentVisual>,
+function resolveStateStroke<V>(
+  state: NodeRenderState<V>,
   isLight: boolean,
   fallbackHex: string,
 ): { stroke: string; strokeWidth: number; accentHalo: string | null } {
   const accent = isLight ? '#0891b2' : '#22d3ee';
   if (state.interaction.isPinned) {
-    return { stroke: '#f59e0b', strokeWidth: 2.2, accentHalo: '#f59e0b' };
+    return { stroke: '#f59e0b', strokeWidth: 2.15, accentHalo: '#f59e0b' };
   }
   if (state.interaction.isHovered) {
     return {
       stroke: isLight ? '#0f172a' : '#f8fafc',
-      strokeWidth: 2.1,
+      strokeWidth: 2.0,
       accentHalo: accent,
     };
   }
   if (state.interaction.isHighlighted) {
-    return { stroke: fallbackHex, strokeWidth: 1.8, accentHalo: accent };
+    return { stroke: fallbackHex, strokeWidth: 1.85, accentHalo: accent };
   }
-  return { stroke: fallbackHex, strokeWidth: 1.4, accentHalo: null };
+  return {
+    stroke: isLight ? '#cbd5e1' : '#293548',
+    strokeWidth: 1.05,
+    accentHalo: null,
+  };
+}
+
+const REPO_LANGUAGE_COLORS: Readonly<Record<string, string>> = {
+  TypeScript: '#3178c6',
+  JavaScript: '#eab308',
+  Rust: '#f97316',
+  Python: '#38bdf8',
+  Go: '#06b6d4',
+  HTML: '#ef4444',
+  CSS: '#8b5cf6',
+  Clojure: '#10b981',
+  'C++': '#f43f5e',
+  C: '#64748b',
+  Java: '#d97706',
+  Shell: '#22c55e',
+};
+
+function resolvePaperFigureAndCode(hashtags: readonly string[]): {
+  readonly codeTag: string;
+  readonly figureKind: PaperFigureKind;
+} {
+  const primary = hashtags[0] ?? 'cs.CG';
+  const shortSuffix = primary.includes('.')
+    ? primary.split('.')[1]!.slice(0, 3).toUpperCase()
+    : primary.slice(0, 3).toUpperCase();
+
+  if (primary === 'cs.CG' || primary === 'math.MG' || primary === 'geometry' || primary === 'triangulation') {
+    return { codeTag: shortSuffix, figureKind: 'geometry' };
+  }
+  if (primary === 'cs.GR' || primary === 'webgl' || primary === 'shaders') {
+    return { codeTag: shortSuffix, figureKind: 'graphics' };
+  }
+  if (primary === 'cs.CV') {
+    return { codeTag: shortSuffix, figureKind: 'vision' };
+  }
+  if (primary === 'cs.HC' || primary === 'cs.IR') {
+    return { codeTag: shortSuffix, figureKind: 'hci' };
+  }
+  if (primary === 'cs.LG' || primary === 'stat.ML' || primary === 'cs.AI') {
+    return { codeTag: shortSuffix, figureKind: 'ml' };
+  }
+  return { codeTag: shortSuffix, figureKind: 'theory' };
 }
 
 export const demoDomainContentView: SvgNodeView<DemoContentVisual> = {
   measureConvexHull: (v) => {
-    if (v.kind === 'domain-media') {
-      return rectToConvexPolygon(v.width + 3, v.height + 3);
+    if (v.kind === 'domain-media' || v.kind === 'domain-voice' || v.kind === 'domain-repo' || v.kind === 'domain-knowledge') {
+      return rectToConvexPolygon(v.width + 3.5, v.height + 3.5);
     }
-    if (v.kind === 'domain-voice') {
-      return rectToConvexPolygon(v.width + 3, v.height + 3);
-    }
-    if (v.kind === 'domain-body') {
+    if (v.kind === 'domain-zoo' || v.kind === 'domain-body') {
       return { kind: 'circle', radius: v.radius + 2.5 };
     }
     if (v.kind === 'geometric') {
       return geomBase.measureConvexHull(v.shape);
     }
-    return { kind: 'circle', radius: 12 };
+    return { kind: 'circle', radius: 13 };
   },
   mountOrUpdate: (groupEl, v, state) => {
     if (v.kind === 'geometric') {
@@ -294,6 +380,100 @@ export const demoDomainContentView: SvgNodeView<DemoContentVisual> = {
     while (groupEl.firstChild) groupEl.removeChild(groupEl.firstChild);
     const doc = groupEl.ownerDocument;
 
+    // 1. UCI ZOO: Wikimedia Commons Animal Photo Medallion (+ Zoological Silhouette Fallback)
+    if (v.kind === 'domain-zoo') {
+      const isLight = v.theme === 'light';
+      const r = v.radius;
+      const bgFill = isLight ? '#ffffff' : '#0b111e';
+      const { stroke, strokeWidth, accentHalo } = resolveStateStroke(
+        state,
+        isLight,
+        v.colorHex,
+      );
+
+      if (accentHalo) {
+        groupEl.appendChild(
+          createSvgEl(doc, 'circle', {
+            cx: 0,
+            cy: 0,
+            r: r + 3.4,
+            fill: 'none',
+            stroke: accentHalo,
+            'stroke-width': 1.4,
+            'stroke-opacity': 0.92,
+          }),
+        );
+      }
+
+      // Base circular medallion
+      groupEl.appendChild(
+        createSvgEl(doc, 'circle', {
+          cx: 0,
+          cy: 0,
+          r,
+          fill: bgFill,
+          'fill-opacity': isLight ? 0.98 : 0.96,
+        }),
+      );
+
+      // Soft taxonomic color wash + vector silhouette fallback (visible immediately before image decode or if photo absent)
+      groupEl.appendChild(
+        createSvgEl(doc, 'circle', {
+          cx: 0,
+          cy: 0,
+          r: Math.max(3, r - 1.5),
+          fill: v.colorHex,
+          'fill-opacity': isLight ? 0.12 : 0.16,
+        }),
+      );
+
+      const iconScale = (r / 13.0).toFixed(3);
+      const iconGroup = createSvgEl(doc, 'g', {
+        transform: `scale(${iconScale})`,
+      });
+      const primitives = ZOO_SYMBOL_PRIMITIVES[v.symbolKind];
+      for (const prim of primitives) {
+        iconGroup.appendChild(
+          createSvgEl(doc, prim.tag, {
+            ...prim.attrs,
+            fill: prim.cutout ? bgFill : v.colorHex,
+            'fill-opacity': prim.cutout ? 0.96 : 0.92,
+          }),
+        );
+      }
+      groupEl.appendChild(iconGroup);
+
+      // Self-hosted Wikimedia Commons animal photograph clipped cleanly to inner circle
+      if (v.photoUrl) {
+        const innerR = Math.max(4, r - 1.35);
+        groupEl.appendChild(
+          createSvgEl(doc, 'image', {
+            href: v.photoUrl,
+            x: (-innerR).toFixed(2),
+            y: (-innerR).toFixed(2),
+            width: (innerR * 2).toFixed(2),
+            height: (innerR * 2).toFixed(2),
+            preserveAspectRatio: 'xMidYMid slice',
+            'clip-path': 'circle(50% at 50% 50%)',
+          }),
+        );
+      }
+
+      // Quiet specimen bezel ring (lights up on hover / highlight / pin)
+      groupEl.appendChild(
+        createSvgEl(doc, 'circle', {
+          cx: 0,
+          cy: 0,
+          r,
+          fill: 'none',
+          stroke,
+          'stroke-width': strokeWidth,
+        }),
+      );
+      return;
+    }
+
+    // 2. VEGA CINEMA: 2:3 Vertical Public-Domain Theatrical Poster
     if (v.kind === 'domain-media') {
       const isLight = v.theme === 'light';
       const hw = v.width / 2;
@@ -307,27 +487,27 @@ export const demoDomainContentView: SvgNodeView<DemoContentVisual> = {
       if (accentHalo) {
         groupEl.appendChild(
           createSvgEl(doc, 'rect', {
-            x: -hw - 3.5,
-            y: -hh - 3.5,
-            width: v.width + 7,
-            height: v.height + 7,
-            rx: 5.5,
+            x: -hw - 3.0,
+            y: -hh - 3.0,
+            width: v.width + 6.0,
+            height: v.height + 6.0,
+            rx: 4.8,
             fill: 'none',
             stroke: accentHalo,
-            'stroke-width': 1.3,
-            'stroke-opacity': 0.9,
+            'stroke-width': 1.4,
+            'stroke-opacity': 0.92,
           }),
         );
       }
 
-      // Frame background + diagonal two-tone palette layer (defs-free for crossfade safety)
+      // Instant fallback poster backdrop before image decode
       groupEl.appendChild(
         createSvgEl(doc, 'rect', {
           x: -hw,
           y: -hh,
           width: v.width,
           height: v.height,
-          rx: 3.5,
+          rx: 3.0,
           fill: v.palette[1],
         }),
       );
@@ -335,210 +515,110 @@ export const demoDomainContentView: SvgNodeView<DemoContentVisual> = {
         createSvgEl(doc, 'polygon', {
           points: `${-hw},${-hh} ${hw},${-hh} ${-hw},${hh}`,
           fill: v.palette[0],
-          'fill-opacity': 0.55,
+          'fill-opacity': 0.35,
         }),
       );
 
-      // Motif vector artwork
-      if (v.motif === 'horizon') {
+      // Authentic Public-Domain theatrical poster (Astro-optimized 68×96 WebP)
+      const inset = 0.65;
+      if (v.thumbnailUrl) {
         groupEl.appendChild(
-          createSvgEl(doc, 'circle', {
-            cx: -hw * 0.36,
-            cy: -hh * 0.24,
-            r: Math.min(hw, hh) * 0.24,
-            fill: '#ffffff',
-            'fill-opacity': 0.42,
-          }),
-        );
-        groupEl.appendChild(
-          createSvgEl(doc, 'polygon', {
-            points: `${-hw},${hh} ${-hw * 0.28},${hh * 0.05} ${hw * 0.16},${hh * 0.52} ${hw * 0.55},${-hh * 0.04} ${hw},${hh}`,
-            fill: '#07090e',
-            'fill-opacity': 0.48,
-          }),
-        );
-      } else if (v.motif === 'architecture') {
-        groupEl.appendChild(
-          createSvgEl(doc, 'rect', {
-            x: -hw * 0.58,
-            y: -hh * 0.45,
-            width: v.width * 0.24,
-            height: v.height * 0.9,
-            fill: '#07090e',
-            'fill-opacity': 0.38,
-          }),
-        );
-        groupEl.appendChild(
-          createSvgEl(doc, 'rect', {
-            x: -hw * 0.05,
-            y: -hh * 0.18,
-            width: v.width * 0.32,
-            height: v.height * 0.72,
-            fill: '#ffffff',
-            'fill-opacity': 0.25,
-          }),
-        );
-      } else if (v.motif === 'portrait') {
-        const pr = Math.min(hw, hh) * 0.32;
-        groupEl.appendChild(
-          createSvgEl(doc, 'circle', {
-            cx: 0,
-            cy: -hh * 0.22,
-            r: pr,
-            fill: '#ffffff',
-            'fill-opacity': 0.46,
-          }),
-        );
-        groupEl.appendChild(
-          createSvgEl(doc, 'ellipse', {
-            cx: 0,
-            cy: hh * 0.68,
-            rx: pr * 1.65,
-            ry: hh * 0.52,
-            fill: '#07090e',
-            'fill-opacity': 0.48,
-          }),
-        );
-      } else if (v.motif === 'macro') {
-        const mr = Math.min(hw, hh) * 0.56;
-        groupEl.appendChild(
-          createSvgEl(doc, 'circle', {
-            cx: 0,
-            cy: 0,
-            r: mr,
-            fill: 'none',
-            stroke: '#ffffff',
-            'stroke-width': 1.2,
-            'stroke-opacity': 0.45,
-          }),
-        );
-        groupEl.appendChild(
-          createSvgEl(doc, 'circle', {
-            cx: -mr * 0.25,
-            cy: -mr * 0.2,
-            r: mr * 0.36,
-            fill: '#ffffff',
-            'fill-opacity': 0.35,
-          }),
-        );
-      } else if (v.motif === 'kinetic') {
-        groupEl.appendChild(
-          createSvgEl(doc, 'line', {
-            x1: -hw * 0.65,
-            y1: hh * 0.25,
-            x2: hw * 0.55,
-            y2: -hh * 0.45,
-            stroke: '#ffffff',
-            'stroke-width': 1.6,
-            'stroke-opacity': 0.55,
-            'stroke-linecap': 'round',
-          }),
-        );
-        groupEl.appendChild(
-          createSvgEl(doc, 'line', {
-            x1: -hw * 0.45,
-            y1: hh * 0.55,
-            x2: hw * 0.68,
-            y2: -hh * 0.08,
-            stroke: '#ffffff',
-            'stroke-width': 1.2,
-            'stroke-opacity': 0.4,
-            'stroke-linecap': 'round',
-          }),
-        );
-      } else {
-        const ar = Math.min(hw, hh) * 0.45;
-        groupEl.appendChild(
-          createSvgEl(doc, 'circle', {
-            cx: -ar * 0.45,
-            cy: 0,
-            r: ar,
-            fill: '#ffffff',
-            'fill-opacity': 0.26,
-          }),
-        );
-        groupEl.appendChild(
-          createSvgEl(doc, 'circle', {
-            cx: ar * 0.45,
-            cy: 0,
-            r: ar,
-            fill: '#07090e',
-            'fill-opacity': 0.3,
+          createSvgEl(doc, 'image', {
+            href: v.thumbnailUrl,
+            x: (-hw + inset).toFixed(2),
+            y: (-hh + inset).toFixed(2),
+            width: (v.width - inset * 2).toFixed(2),
+            height: (v.height - inset * 2).toFixed(2),
+            preserveAspectRatio: 'xMidYMid slice',
+            'clip-path': 'inset(0px round 2.5px)',
           }),
         );
       }
 
-      // Crisp border tinted by simplex mixedColorHex
+      // Dark bottom marquee scrim for crisp title legibility
+      const scrimH = 10.4;
+      groupEl.appendChild(
+        createSvgEl(doc, 'rect', {
+          x: (-hw + inset).toFixed(2),
+          y: (hh - scrimH).toFixed(2),
+          width: (v.width - inset * 2).toFixed(2),
+          height: (scrimH - inset).toFixed(2),
+          fill: '#050811',
+          'fill-opacity': 0.86,
+          'clip-path': 'inset(0px round 0px 0px 2.5px 2.5px)',
+        }),
+      );
+
+      // Centered concise poster title
+      const posterTitle =
+        v.shortTitle.length > 10 ? `${v.shortTitle.slice(0, 9).trim()}…` : v.shortTitle;
+      const titleEl = createSvgEl(doc, 'text', {
+        x: 0,
+        y: (hh - 3.0).toFixed(1),
+        'text-anchor': 'middle',
+        fill: '#f8fafc',
+        'font-size': 5.3,
+        'font-weight': 700,
+        'font-family': 'Plus Jakarta Sans, sans-serif',
+        'letter-spacing': '-0.01em',
+      });
+      titleEl.textContent = posterTitle;
+      groupEl.appendChild(titleEl);
+
+      // Top-left square cluster swatch pip (distinct from circular cluster badges)
+      groupEl.appendChild(
+        createSvgEl(doc, 'rect', {
+          x: (-hw + 2.3).toFixed(1),
+          y: (-hh + 2.3).toFixed(1),
+          width: 3.5,
+          height: 3.5,
+          rx: 0.9,
+          fill: v.colorHex,
+          stroke: '#050811',
+          'stroke-width': 0.7,
+        }),
+      );
+
+      // Acclaimed rating micro-star for top-rated classics (IMDb >= 8.0)
+      if (v.imdbRating >= 8.0) {
+        const starEl = createSvgEl(doc, 'text', {
+          x: (hw - 2.9).toFixed(1),
+          y: (-hh + 6.2).toFixed(1),
+          'text-anchor': 'end',
+          fill: '#fbbf24',
+          'font-size': 5.8,
+          'font-weight': 700,
+          'paint-order': 'stroke',
+          stroke: '#050811',
+          'stroke-width': 1.4,
+        });
+        starEl.textContent = '★';
+        groupEl.appendChild(starEl);
+      }
+
+      // Quiet gallery frame border at rest (lights up on hover / highlight / pin)
       groupEl.appendChild(
         createSvgEl(doc, 'rect', {
           x: -hw,
           y: -hh,
           width: v.width,
           height: v.height,
-          rx: 3.5,
+          rx: 3.0,
           fill: 'none',
           stroke,
           'stroke-width': strokeWidth,
         }),
       );
-
-      // Cluster-mix anchor dot in top-left corner
-      groupEl.appendChild(
-        createSvgEl(doc, 'circle', {
-          cx: -hw + 4.2,
-          cy: -hh + 4.2,
-          r: 2.3,
-          fill: v.colorHex,
-          stroke: isLight ? '#ffffff' : '#07090e',
-          'stroke-width': 0.75,
-        }),
-      );
-
-      if (v.mediaKind === 'video' && v.showPlayBadge) {
-        const pr = Math.max(4.5, Math.min(hw, hh) * 0.42);
-        groupEl.appendChild(
-          createSvgEl(doc, 'circle', {
-            cx: 0,
-            cy: 0,
-            r: pr,
-            fill: '#07090e',
-            'fill-opacity': 0.64,
-          }),
-        );
-        const tri = pr * 0.56;
-        groupEl.appendChild(
-          createSvgEl(doc, 'polygon', {
-            points: `${(-tri * 0.55).toFixed(1)},${(-tri * 0.85).toFixed(1)} ${(tri * 0.95).toFixed(1)},0 ${(-tri * 0.55).toFixed(1)},${(tri * 0.85).toFixed(1)}`,
-            fill: '#f8fafc',
-          }),
-        );
-      }
-
-      if (v.showAspectTag) {
-        const badgeEl = createSvgEl(doc, 'text', {
-          x: hw - 2.5,
-          y: hh - 2.4,
-          'text-anchor': 'end',
-          fill: '#f8fafc',
-          'font-size': 5.8,
-          'font-weight': 600,
-          'font-family': 'IBM Plex Mono, monospace',
-          'paint-order': 'stroke',
-          stroke: '#07090e',
-          'stroke-width': 1.8,
-          'stroke-linejoin': 'round',
-        });
-        badgeEl.textContent = v.aspectRatio;
-        groupEl.appendChild(badgeEl);
-      }
       return;
     }
 
-    if (v.kind === 'domain-voice') {
+    // 3. ARXIV KNOWLEDGE PAPERS: Scientific Manuscript Page Glyph
+    if (v.kind === 'domain-knowledge') {
       const isLight = v.theme === 'light';
       const hw = v.width / 2;
       const hh = v.height / 2;
-      const rx = hh;
+      const bgFill = isLight ? '#ffffff' : '#0c1220';
+      const ruleColor = isLight ? '#94a3b8' : '#475569';
       const { stroke, strokeWidth, accentHalo } = resolveStateStroke(
         state,
         isLight,
@@ -548,11 +628,303 @@ export const demoDomainContentView: SvgNodeView<DemoContentVisual> = {
       if (accentHalo) {
         groupEl.appendChild(
           createSvgEl(doc, 'rect', {
-            x: -hw - 3.5,
-            y: -hh - 3.5,
-            width: v.width + 7,
-            height: v.height + 7,
-            rx: rx + 3.5,
+            x: -hw - 3,
+            y: -hh - 3,
+            width: v.width + 6,
+            height: v.height + 6,
+            rx: 4.5,
+            fill: 'none',
+            stroke: accentHalo,
+            'stroke-width': 1.3,
+            'stroke-opacity': 0.9,
+          }),
+        );
+      }
+
+      // Manuscript page card with crisp sheet corners
+      groupEl.appendChild(
+        createSvgEl(doc, 'rect', {
+          x: -hw,
+          y: -hh,
+          width: v.width,
+          height: v.height,
+          rx: 2.5,
+          fill: bgFill,
+          'fill-opacity': isLight ? 0.98 : 0.96,
+          stroke,
+          'stroke-width': strokeWidth,
+        }),
+      );
+
+      // Multi-category barycentric color header bar across top of manuscript
+      const innerW = v.width - 2.4;
+      let cursorX = -hw + 1.2;
+      const totalWeight = v.sectors.reduce((acc, s) => acc + s.weight, 0) || 1;
+      for (const sec of v.sectors) {
+        const segW = (sec.weight / totalWeight) * innerW;
+        if (segW > 0.4) {
+          groupEl.appendChild(
+            createSvgEl(doc, 'rect', {
+              x: cursorX.toFixed(2),
+              y: (-hh + 1.2).toFixed(2),
+              width: segW.toFixed(2),
+              height: 3.1,
+              rx: 0.9,
+              fill: sec.colorHex,
+            }),
+          );
+          cursorX += segW;
+        }
+      }
+
+      // Miniature scientific figure matching primary arXiv discipline
+      const figY = -2.4;
+      if (v.figureKind === 'geometry') {
+        groupEl.appendChild(
+          createSvgEl(doc, 'polygon', {
+            points: `0,${figY - 5.2} ${6.2},${figY + 3.4} ${-6.2},${figY + 3.4}`,
+            fill: v.colorHex,
+            'fill-opacity': 0.18,
+            stroke: v.colorHex,
+            'stroke-width': 1.05,
+            'stroke-linejoin': 'round',
+          }),
+        );
+        groupEl.appendChild(
+          createSvgEl(doc, 'line', {
+            x1: 0,
+            y1: figY - 5.2,
+            x2: 1.2,
+            y2: figY + 3.4,
+            stroke: v.colorHex,
+            'stroke-width': 0.85,
+          }),
+        );
+      } else if (v.figureKind === 'graphics') {
+        groupEl.appendChild(
+          createSvgEl(doc, 'polygon', {
+            points: `0,${figY - 5.4} 5.8,${figY - 2.2} 5.8,${figY + 2.6} 0,${figY + 5.2} -5.8,${figY + 2.6} -5.8,${figY - 2.2}`,
+            fill: v.colorHex,
+            'fill-opacity': 0.16,
+            stroke: v.colorHex,
+            'stroke-width': 1.0,
+          }),
+        );
+        groupEl.appendChild(
+          createSvgEl(doc, 'path', {
+            d: `M -5.8 ${figY - 2.2} L 0 ${figY + 0.8} L 5.8 ${figY - 2.2} M 0 ${figY + 0.8} L 0 ${figY + 5.2}`,
+            fill: 'none',
+            stroke: v.colorHex,
+            'stroke-width': 0.85,
+          }),
+        );
+      } else if (v.figureKind === 'vision') {
+        groupEl.appendChild(
+          createSvgEl(doc, 'path', {
+            d: `M -6.4 ${figY} Q 0 ${figY - 5.4} 6.4 ${figY} Q 0 ${figY + 5.4} -6.4 ${figY} Z`,
+            fill: v.colorHex,
+            'fill-opacity': 0.16,
+            stroke: v.colorHex,
+            'stroke-width': 1.05,
+          }),
+        );
+        groupEl.appendChild(
+          createSvgEl(doc, 'circle', {
+            cx: 0,
+            cy: figY,
+            r: 1.9,
+            fill: v.colorHex,
+          }),
+        );
+      } else if (v.figureKind === 'ml') {
+        groupEl.appendChild(
+          createSvgEl(doc, 'path', {
+            d: `M -6.2 ${figY + 3.4} C -2.2 ${figY + 3.2}, -1.2 ${figY - 4.4}, 6.2 ${figY - 4.2}`,
+            fill: 'none',
+            stroke: v.colorHex,
+            'stroke-width': 1.35,
+            'stroke-linecap': 'round',
+          }),
+        );
+        groupEl.appendChild(
+          createSvgEl(doc, 'circle', { cx: -3.6, cy: figY + 1.8, r: 1.2, fill: v.colorHex }),
+        );
+        groupEl.appendChild(
+          createSvgEl(doc, 'circle', { cx: 3.4, cy: figY - 3.6, r: 1.2, fill: v.colorHex }),
+        );
+      } else {
+        groupEl.appendChild(
+          createSvgEl(doc, 'line', {
+            x1: 0,
+            y1: figY - 4.2,
+            x2: -4.4,
+            y2: figY + 2.6,
+            stroke: v.colorHex,
+            'stroke-width': 1.05,
+          }),
+        );
+        groupEl.appendChild(
+          createSvgEl(doc, 'line', {
+            x1: 0,
+            y1: figY - 4.2,
+            x2: 4.4,
+            y2: figY + 2.6,
+            stroke: v.colorHex,
+            'stroke-width': 1.05,
+          }),
+        );
+        groupEl.appendChild(
+          createSvgEl(doc, 'circle', { cx: 0, cy: figY - 4.2, r: 1.7, fill: v.colorHex }),
+        );
+        groupEl.appendChild(
+          createSvgEl(doc, 'circle', { cx: -4.4, cy: figY + 2.6, r: 1.5, fill: v.colorHex }),
+        );
+        groupEl.appendChild(
+          createSvgEl(doc, 'circle', { cx: 4.4, cy: figY + 2.6, r: 1.5, fill: v.colorHex }),
+        );
+      }
+
+      // Abstract manuscript text lines
+      groupEl.appendChild(
+        createSvgEl(doc, 'line', {
+          x1: -hw + 3.4,
+          y1: 5.0,
+          x2: hw - 3.4,
+          y2: 5.0,
+          stroke: ruleColor,
+          'stroke-width': 1.0,
+          'stroke-opacity': 0.55,
+          'stroke-linecap': 'round',
+        }),
+      );
+      groupEl.appendChild(
+        createSvgEl(doc, 'line', {
+          x1: -hw + 3.4,
+          y1: 7.6,
+          x2: hw - 6.8,
+          y2: 7.6,
+          stroke: ruleColor,
+          'stroke-width': 1.0,
+          'stroke-opacity': 0.45,
+          'stroke-linecap': 'round',
+        }),
+      );
+
+      // Discipline short code at bottom
+      const codeEl = createSvgEl(doc, 'text', {
+        x: 0,
+        y: hh - 2.6,
+        'text-anchor': 'middle',
+        fill: isLight ? '#334155' : '#cbd5e1',
+        'font-size': 5.8,
+        'font-weight': 700,
+        'font-family': 'IBM Plex Mono, monospace',
+      });
+      codeEl.textContent = v.codeTag;
+      groupEl.appendChild(codeEl);
+      return;
+    }
+
+    // 4. GITHUB REPOS: Crisp Rectangular Open-Source Code Tile (non-capsule)
+    if (v.kind === 'domain-repo') {
+      const isLight = v.theme === 'light';
+      const hw = v.width / 2;
+      const hh = v.height / 2;
+      const { stroke, strokeWidth, accentHalo } = resolveStateStroke(
+        state,
+        isLight,
+        v.colorHex,
+      );
+
+      if (accentHalo) {
+        groupEl.appendChild(
+          createSvgEl(doc, 'rect', {
+            x: -hw - 3,
+            y: -hh - 3,
+            width: v.width + 6,
+            height: v.height + 6,
+            rx: 5.0,
+            fill: 'none',
+            stroke: accentHalo,
+            'stroke-width': 1.3,
+            'stroke-opacity': 0.9,
+          }),
+        );
+      }
+
+      groupEl.appendChild(
+        createSvgEl(doc, 'rect', {
+          x: -hw,
+          y: -hh,
+          width: v.width,
+          height: v.height,
+          rx: 3.0,
+          fill: isLight ? '#ffffff' : '#0c1220',
+          'fill-opacity': isLight ? 0.98 : 0.96,
+          stroke,
+          'stroke-width': strokeWidth,
+        }),
+      );
+
+      // Square programming-language swatch (distinct from circular dots)
+      groupEl.appendChild(
+        createSvgEl(doc, 'rect', {
+          x: (-hw + 5.0).toFixed(1),
+          y: -2.4,
+          width: 4.8,
+          height: 4.8,
+          rx: 1.1,
+          fill: v.langColorHex,
+        }),
+      );
+
+      // Short repository name (never owner/ prefix)
+      const nameEl = createSvgEl(doc, 'text', {
+        x: (-hw + 13.4).toFixed(1),
+        y: 2.8,
+        fill: isLight ? '#0f172a' : '#f1f5f9',
+        'font-size': 8.0,
+        'font-weight': 600,
+        'font-family': 'IBM Plex Mono, monospace',
+      });
+      nameEl.textContent = v.repoName;
+      groupEl.appendChild(nameEl);
+
+      // Compact star readout on right
+      const starsEl = createSvgEl(doc, 'text', {
+        x: (hw - 5.2).toFixed(1),
+        y: 2.5,
+        'text-anchor': 'end',
+        fill: isLight ? '#64748b' : '#94a3b8',
+        'font-size': 6.7,
+        'font-weight': 600,
+        'font-family': 'IBM Plex Mono, monospace',
+      });
+      starsEl.textContent = `${v.starsLabel}★`;
+      groupEl.appendChild(starsEl);
+      return;
+    }
+
+    // 5. UCI VOWELS: Rectangular Acoustic Spectrogram Tile (non-capsule)
+    if (v.kind === 'domain-voice') {
+      const isLight = v.theme === 'light';
+      const hw = v.width / 2;
+      const hh = v.height / 2;
+      const rx = 3.2;
+      const { stroke, strokeWidth, accentHalo } = resolveStateStroke(
+        state,
+        isLight,
+        v.colorHex,
+      );
+
+      if (accentHalo) {
+        groupEl.appendChild(
+          createSvgEl(doc, 'rect', {
+            x: -hw - 3.0,
+            y: -hh - 3.0,
+            width: v.width + 6.0,
+            height: v.height + 6.0,
+            rx: rx + 2.4,
             fill: 'none',
             stroke: accentHalo,
             'stroke-width': 1.3,
@@ -569,32 +941,58 @@ export const demoDomainContentView: SvgNodeView<DemoContentVisual> = {
           height: v.height,
           rx,
           fill: isLight ? '#ffffff' : '#0b101b',
-          'fill-opacity': isLight ? 0.96 : 0.94,
+          'fill-opacity': isLight ? 0.98 : 0.96,
           stroke,
           'stroke-width': strokeWidth,
         }),
       );
 
-      const wavePadLeft = 6.5;
-      const pitchReserve = v.showPitchLabel ? 24 : 6.5;
-      const waveSpan = Math.max(14, v.width - wavePadLeft - pitchReserve);
-      const startX = -hw + wavePadLeft;
-      const count = Math.max(4, Math.min(v.waveform.length, v.barCount));
-      const step = waveSpan / count;
-      const barW = Math.max(1.6, Math.min(3.2, step * 0.62));
-      const maxBarH = v.height - 6.5;
-
+      // Subtle recessed oscilloscope well behind LPC formant bars
+      const divX = -hw + 18.8;
       groupEl.appendChild(
-        createSvgEl(doc, 'line', {
-          x1: startX,
-          y1: 0,
-          x2: startX + waveSpan,
-          y2: 0,
-          stroke: v.colorHex,
-          'stroke-opacity': 0.28,
-          'stroke-width': 0.8,
+        createSvgEl(doc, 'rect', {
+          x: (divX + 0.6).toFixed(2),
+          y: (-hh + 1.8).toFixed(2),
+          width: Math.max(8, hw - divX - 2.4).toFixed(2),
+          height: (v.height - 3.6).toFixed(2),
+          rx: 1.8,
+          fill: isLight ? '#f1f5f9' : '#060a12',
         }),
       );
+
+      // Left IPA phoneme symbol
+      const cleanIpa = v.ipaSymbol.replace(/\//g, '');
+      const ipaEl = createSvgEl(doc, 'text', {
+        x: (-hw + 9.8).toFixed(1),
+        y: 2.9,
+        'text-anchor': 'middle',
+        fill: isLight ? '#0f172a' : '#f8fafc',
+        'font-size': 8.2,
+        'font-weight': 700,
+        'font-family': 'Plus Jakarta Sans, sans-serif',
+      });
+      ipaEl.textContent = cleanIpa;
+      groupEl.appendChild(ipaEl);
+
+      // Hairline divider between IPA symbol and LPC spectrum
+      groupEl.appendChild(
+        createSvgEl(doc, 'line', {
+          x1: divX.toFixed(1),
+          y1: (-hh + 2.5).toFixed(1),
+          x2: divX.toFixed(1),
+          y2: (hh - 2.5).toFixed(1),
+          stroke: isLight ? '#e2e8f0' : '#1e293b',
+          'stroke-width': 0.85,
+        }),
+      );
+
+      const startX = divX + 2.8;
+      const rightPad = v.showPitchLabel ? 22 : 4.5;
+      const waveSpan = Math.max(14, hw - rightPad - startX);
+      const count = Math.max(4, Math.min(v.waveform.length, v.barCount));
+      const step = waveSpan / count;
+      const barW = Math.max(1.5, Math.min(2.6, step * 0.62));
+      const maxBarH = v.height - 6.6;
 
       for (let i = 0; i < count; i++) {
         const sampleIdx = Math.min(
@@ -602,7 +1000,7 @@ export const demoDomainContentView: SvgNodeView<DemoContentVisual> = {
           Math.floor((i * v.waveform.length) / count),
         );
         const amp = v.waveform[sampleIdx] ?? 0.4;
-        const barH = Math.max(3, amp * maxBarH);
+        const barH = Math.max(2.6, amp * maxBarH);
         const bx = startX + i * step + (step - barW) / 2;
         groupEl.appendChild(
           createSvgEl(doc, 'rect', {
@@ -610,20 +1008,20 @@ export const demoDomainContentView: SvgNodeView<DemoContentVisual> = {
             y: (-barH / 2).toFixed(2),
             width: barW.toFixed(2),
             height: barH.toFixed(2),
-            rx: (barW / 2).toFixed(2),
+            rx: 0.7,
             fill: v.colorHex,
-            'fill-opacity': 0.92,
+            'fill-opacity': 0.94,
           }),
         );
       }
 
       if (v.showPitchLabel) {
         const pitchEl = createSvgEl(doc, 'text', {
-          x: hw - 5.5,
+          x: hw - 4.8,
           y: 2.3,
           'text-anchor': 'end',
           fill: isLight ? '#334155' : '#cbd5e1',
-          'font-size': 6.6,
+          'font-size': 6.4,
           'font-weight': 600,
           'font-family': 'IBM Plex Mono, monospace',
         });
@@ -633,9 +1031,11 @@ export const demoDomainContentView: SvgNodeView<DemoContentVisual> = {
       return;
     }
 
+    // 6. PALMER PENGUINS: Biometric Penguin Morphometric Medallion
     if (v.kind === 'domain-body') {
       const isLight = v.theme === 'light';
       const r = v.radius;
+      const bgFill = isLight ? '#ffffff' : '#0b101b';
       const { stroke, strokeWidth, accentHalo } = resolveStateStroke(
         state,
         isLight,
@@ -647,7 +1047,7 @@ export const demoDomainContentView: SvgNodeView<DemoContentVisual> = {
           createSvgEl(doc, 'circle', {
             cx: 0,
             cy: 0,
-            r: r + 4,
+            r: r + 3.4,
             fill: 'none',
             stroke: accentHalo,
             'stroke-width': 1.35,
@@ -661,8 +1061,8 @@ export const demoDomainContentView: SvgNodeView<DemoContentVisual> = {
           cx: 0,
           cy: 0,
           r,
-          fill: isLight ? '#ffffff' : '#0b101b',
-          'fill-opacity': isLight ? 0.96 : 0.94,
+          fill: bgFill,
+          'fill-opacity': isLight ? 0.98 : 0.96,
           stroke,
           'stroke-width': strokeWidth,
         }),
@@ -673,78 +1073,130 @@ export const demoDomainContentView: SvgNodeView<DemoContentVisual> = {
           createSvgEl(doc, 'circle', {
             cx: 0,
             cy: 0,
-            r: Math.max(4, r - 2.6),
+            r: Math.max(4, r - 2.3),
             fill: 'none',
             stroke: v.colorHex,
-            'stroke-opacity': 0.34,
-            'stroke-width': 0.8,
-            'stroke-dasharray': '2.2 2',
+            'stroke-opacity': 0.2,
+            'stroke-width': 0.7,
+            'stroke-dasharray': '2 2.4',
           }),
         );
       }
 
-      const scale = r / 15.5;
-      const p = v.proportions;
-      const sw = p.shoulderW * 6.4 * scale;
-      const ww = p.waistW * 5.2 * scale;
-      const hw = p.hipW * 5.9 * scale;
-      const figShiftY = v.showHeightLabel ? -2.2 * scale : 0.2 * scale;
+      // Parameterize penguin morphology from real specimen measurements
+      const s = r / 15.5;
+      const massFactor = Math.max(0.82, Math.min(1.22, v.bodyMassG / 4200));
+      const flipperSpan = Math.max(0.85, Math.min(1.25, v.flipperLengthMm / 200));
+      const billLen = Math.max(2.6, Math.min(5.2, ((v.billLengthMm - 32) / 26) * 2.6 + 2.6)) * s;
+      const billHalfDepth = Math.max(0.85, Math.min(1.65, ((v.billDepthMm - 13) / 8.5) * 0.8 + 0.85)) * s;
+      const bodyRx = 4.3 * massFactor * s;
+      const bodyRy = 6.4 * s;
+      const headR = 2.9 * s;
+      const headY = -5.6 * s;
+      const bodyY = 1.4 * s;
 
-      const figGroup = createSvgEl(doc, 'g', {
-        transform: `translate(0, ${figShiftY.toFixed(2)}) rotate(${(p.leanDeg * 0.5).toFixed(1)})`,
+      const pgGroup = createSvgEl(doc, 'g', {
+        transform: `translate(${(-0.5 * s).toFixed(2)}, ${(0.3 * s).toFixed(2)})`,
       });
-      figGroup.appendChild(
+
+      // Left & right flippers scaled by flipperLengthMm
+      pgGroup.appendChild(
+        createSvgEl(doc, 'path', {
+          d: `M ${(-bodyRx * 0.75).toFixed(2)} ${(-2.0 * s).toFixed(2)} Q ${(-bodyRx - 2.8 * flipperSpan * s).toFixed(2)} ${(1.6 * s).toFixed(2)} ${(-bodyRx - 1.1 * flipperSpan * s).toFixed(2)} ${(5.6 * s).toFixed(2)} Q ${(-bodyRx * 0.5).toFixed(2)} ${(3.6 * s).toFixed(2)} ${(-bodyRx * 0.55).toFixed(2)} ${(0.4 * s).toFixed(2)} Z`,
+          fill: v.colorHex,
+          'fill-opacity': 0.92,
+        }),
+      );
+      pgGroup.appendChild(
+        createSvgEl(doc, 'path', {
+          d: `M ${(bodyRx * 0.75).toFixed(2)} ${(-2.0 * s).toFixed(2)} Q ${(bodyRx + 2.4 * flipperSpan * s).toFixed(2)} ${(1.6 * s).toFixed(2)} ${(bodyRx + 0.9 * flipperSpan * s).toFixed(2)} ${(5.4 * s).toFixed(2)} Q ${(bodyRx * 0.5).toFixed(2)} ${(3.6 * s).toFixed(2)} ${(bodyRx * 0.55).toFixed(2)} ${(0.4 * s).toFixed(2)} Z`,
+          fill: v.colorHex,
+          'fill-opacity': 0.92,
+        }),
+      );
+
+      // Dorsal body & head
+      pgGroup.appendChild(
+        createSvgEl(doc, 'ellipse', {
+          cx: 0,
+          cy: bodyY.toFixed(2),
+          rx: bodyRx.toFixed(2),
+          ry: bodyRy.toFixed(2),
+          fill: v.colorHex,
+        }),
+      );
+      pgGroup.appendChild(
         createSvgEl(doc, 'circle', {
           cx: 0,
-          cy: (-7.6 * scale).toFixed(2),
-          r: (2.0 * scale).toFixed(2),
+          cy: headY.toFixed(2),
+          r: headR.toFixed(2),
           fill: v.colorHex,
         }),
       );
-      figGroup.appendChild(
-        createSvgEl(doc, 'polygon', {
-          points: `${(-sw).toFixed(1)},${(-4.6 * scale).toFixed(1)} ${sw.toFixed(1)},${(-4.6 * scale).toFixed(1)} ${ww.toFixed(1)},${(0.4 * scale).toFixed(1)} ${hw.toFixed(1)},${(3.0 * scale).toFixed(1)} ${(-hw).toFixed(1)},${(3.0 * scale).toFixed(1)} ${(-ww).toFixed(1)},${(0.4 * scale).toFixed(1)}`,
-          fill: v.colorHex,
-          'fill-opacity': 0.88,
-        }),
-      );
-      figGroup.appendChild(
-        createSvgEl(doc, 'line', {
-          x1: (-hw * 0.45).toFixed(1),
-          y1: (3.0 * scale).toFixed(1),
-          x2: (-hw * 0.52).toFixed(1),
-          y2: (8.6 * scale).toFixed(1),
-          stroke: v.colorHex,
-          'stroke-width': Math.max(1.2, 1.8 * scale),
-          'stroke-linecap': 'round',
-        }),
-      );
-      figGroup.appendChild(
-        createSvgEl(doc, 'line', {
-          x1: (hw * 0.45).toFixed(1),
-          y1: (3.0 * scale).toFixed(1),
-          x2: (hw * 0.52).toFixed(1),
-          y2: (8.6 * scale).toFixed(1),
-          stroke: v.colorHex,
-          'stroke-width': Math.max(1.2, 1.8 * scale),
-          'stroke-linecap': 'round',
-        }),
-      );
-      groupEl.appendChild(figGroup);
 
-      if (v.showHeightLabel) {
-        const hEl = createSvgEl(doc, 'text', {
-          x: 0,
-          y: (r - 3.0).toFixed(1),
-          'text-anchor': 'middle',
-          fill: isLight ? '#475569' : '#94a3b8',
-          'font-size': 5.6,
-          'font-weight': 600,
-          'font-family': 'IBM Plex Mono, monospace',
-        });
-        hEl.textContent = `${v.heightCm}cm`;
-        groupEl.appendChild(hEl);
+      // Parameterized culmen (beak) projecting to right: length = billLengthMm, thickness = billDepthMm
+      pgGroup.appendChild(
+        createSvgEl(doc, 'polygon', {
+          points: `${(headR * 0.65).toFixed(2)},${(headY - billHalfDepth).toFixed(2)} ${(headR * 0.65 + billLen).toFixed(2)},${(headY + 0.25 * s).toFixed(2)} ${(headR * 0.65).toFixed(2)},${(headY + billHalfDepth).toFixed(2)}`,
+          fill: v.species === 'Gentoo' ? '#f97316' : v.colorHex,
+        }),
+      );
+
+      // Countershaded white belly
+      pgGroup.appendChild(
+        createSvgEl(doc, 'ellipse', {
+          cx: (0.45 * s).toFixed(2),
+          cy: (bodyY + 0.9 * s).toFixed(2),
+          rx: (bodyRx * 0.62).toFixed(2),
+          ry: (bodyRy * 0.74).toFixed(2),
+          fill: bgFill,
+          'fill-opacity': 0.95,
+        }),
+      );
+
+      // Species-distinctive cranial markings
+      if (v.species === 'Gentoo') {
+        // Gentoo white bonnet patch above eye
+        pgGroup.appendChild(
+          createSvgEl(doc, 'ellipse', {
+            cx: (-0.2 * s).toFixed(2),
+            cy: (headY - 0.8 * s).toFixed(2),
+            rx: (1.5 * s).toFixed(2),
+            ry: (0.85 * s).toFixed(2),
+            fill: bgFill,
+          }),
+        );
+      } else if (v.species === 'Chinstrap') {
+        // Chinstrap white cheek + crisp chin band
+        pgGroup.appendChild(
+          createSvgEl(doc, 'circle', {
+            cx: (0.55 * s).toFixed(2),
+            cy: (headY + 0.2 * s).toFixed(2),
+            r: (1.45 * s).toFixed(2),
+            fill: bgFill,
+          }),
+        );
+        pgGroup.appendChild(
+          createSvgEl(doc, 'path', {
+            d: `M ${(-0.5 * s).toFixed(2)} ${(headY + 1.1 * s).toFixed(2)} Q ${(0.6 * s).toFixed(2)} ${(headY + 2.1 * s).toFixed(2)} ${(1.7 * s).toFixed(2)} ${(headY + 0.6 * s).toFixed(2)}`,
+            fill: 'none',
+            stroke: v.colorHex,
+            'stroke-width': Math.max(0.75, 0.85 * s),
+          }),
+        );
+      } else {
+        // Adélie crisp white eye-ring
+        pgGroup.appendChild(
+          createSvgEl(doc, 'circle', {
+            cx: (0.75 * s).toFixed(2),
+            cy: (headY - 0.25 * s).toFixed(2),
+            r: (0.9 * s).toFixed(2),
+            fill: bgFill,
+          }),
+        );
       }
+
+      groupEl.appendChild(pgGroup);
     }
   },
 };
@@ -765,15 +1217,232 @@ export const demoAnchorClusterView: SvgNodeView<DemoClusterVisual> = {
   },
 };
 
+function computeMinimalBadgeDimensions(badge: BadgeClusterVisual): {
+  readonly width: number;
+  readonly height: number;
+} {
+  if (badge.variant === 'intermediate') {
+    const label = (badge.title || badge.code).trim();
+    const parentCtx = (badge.parentContextLabel ?? '').trim();
+    if (parentCtx.length > 0) {
+      const topW = Math.round(parentCtx.length * 5.25 + 24);
+      const botW = Math.round(label.length * 5.9 + 22);
+      return {
+        width: Math.max(66, topW, botW),
+        height: 32,
+      };
+    }
+    return {
+      width: Math.max(48, Math.round(label.length * 5.8 + 20)),
+      height: 22,
+    };
+  }
+  const hasMeta = badge.metaLine.trim().length > 0;
+  const labelW = Math.round(badge.title.length * 6.35 + 26);
+  if (!hasMeta) {
+    return {
+      width: Math.max(54, labelW),
+      height: 25,
+    };
+  }
+  const metaW = Math.round(badge.metaLine.length * 5.3 + 26);
+  return {
+    width: Math.max(96, labelW, metaW),
+    height: 38,
+  };
+}
+
+/**
+ * Saturated Cartographic Cluster Capsule & Subcluster Plaque SVG View:
+ * - Primary clusters render as full-round jewel-tone capsules (`rx = halfH`) with guaranteed
+ *   WCAG-AA `#ffffff` white typography and a solid outer docking halo ring.
+ * - Intermediate `1:4` sub-clusters consistently use the same saturated jewel-tone fill + `#ffffff`
+ *   white typography inside a chamfered hexagonal silhouette with a dashed outer halo ring:
+ *   outer corners preserve `parentContextLabel` on an eyebrow line above the local facet, while
+ *   edge midpoints display a single-line local facet or parent bridge relation (`A ↔ B`).
+ */
 export const demoBadgeClusterView: SvgNodeView<DemoClusterVisual> = {
-  // Intentionally omits measureConvexHull so @simplex-viz/svg performs automatic getBBox() measurement
-  mountOrUpdate: (g, v, state) => {
-    if (v.kind === 'badge') {
-      badgeBase.mountOrUpdate(g, v.badge, {
-        ...state,
-        visual: v.badge,
-        transition: null,
+  measureConvexHull: (v) => {
+    if (v.kind !== 'badge') return { kind: 'circle', radius: 20 };
+    const { width, height } = computeMinimalBadgeDimensions(v.badge);
+    const pad = v.badge.variant === 'intermediate' ? 8 : 9;
+    return rectToConvexPolygon(width + pad, height + pad);
+  },
+  mountOrUpdate: (groupEl, v, state) => {
+    if (v.kind !== 'badge') return;
+    while (groupEl.firstChild) groupEl.removeChild(groupEl.firstChild);
+    const doc = groupEl.ownerDocument;
+    const badge = v.badge;
+    const theme = badge.theme === 'light' ? 'light' : 'dark';
+    const isLight = theme === 'light';
+    const { width, height } = computeMinimalBadgeDimensions(badge);
+    const halfW = width / 2;
+    const halfH = height / 2;
+    const isActive = state.interaction.isHovered || state.interaction.isHighlighted;
+    const palette = resolveClusterSurfaceColors(badge.colorHex, theme);
+
+    if (badge.variant === 'intermediate') {
+      const label = (badge.title || badge.code).trim();
+      const parentCtx = (badge.parentContextLabel ?? '').trim();
+      const hasParentCtx = parentCtx.length > 0;
+      const cut = hasParentCtx ? 6.4 : 5.4;
+      const haloPad = hasParentCtx ? 2.5 : 2.3;
+      const chamferPts = (hw: number, hh: number, c: number, dy = 0): string =>
+        `${(-hw + c).toFixed(1)},${(-hh + dy).toFixed(1)} ${(hw - c).toFixed(1)},${(-hh + dy).toFixed(1)} ${hw.toFixed(1)},${dy.toFixed(1)} ${(hw - c).toFixed(1)},${(hh + dy).toFixed(1)} ${(-hw + c).toFixed(1)},${(hh + dy).toFixed(1)} ${(-hw).toFixed(1)},${dy.toFixed(1)}`;
+
+      // 1. Subtle grounding shadow
+      groupEl.appendChild(
+        createSvgEl(doc, 'polygon', {
+          points: chamferPts(halfW, halfH, cut, 1.4),
+          fill: '#020617',
+          'fill-opacity': isLight ? 0.15 : 0.42,
+        }),
+      );
+
+      // 2. Dashed outer chamfered docking halo ring
+      groupEl.appendChild(
+        createSvgEl(doc, 'polygon', {
+          points: chamferPts(halfW + haloPad, halfH + haloPad, cut + 1.0),
+          fill: 'none',
+          stroke: state.interaction.isPinned ? '#f59e0b' : palette.haloHex,
+          'stroke-width': isActive ? 1.75 : 1.15,
+          'stroke-opacity':
+            isActive || state.interaction.isPinned ? 0.96 : isLight ? 0.54 : 0.68,
+          ...(isActive ? {} : { 'stroke-dasharray': '3 2' }),
+          'stroke-linejoin': 'round',
+        }),
+      );
+
+      // 3. Saturated OKLab-calibrated jewel-tone chamfered body
+      groupEl.appendChild(
+        createSvgEl(doc, 'polygon', {
+          points: chamferPts(halfW, halfH, cut),
+          fill: palette.solidFillHex,
+          stroke: state.interaction.isPinned ? '#fef08a' : '#ffffff',
+          'stroke-width': isActive ? 1.5 : 0.95,
+          'stroke-opacity': isActive ? 0.92 : 0.28,
+          'stroke-linejoin': 'round',
+        }),
+      );
+
+      if (hasParentCtx) {
+        const parentEl = createSvgEl(doc, 'text', {
+          x: 0,
+          y: -4.2,
+          'text-anchor': 'middle',
+          fill: '#ffffff',
+          'fill-opacity': 0.78,
+          'font-size': 7.3,
+          'font-weight': 700,
+          'letter-spacing': '0.05em',
+          'font-family': 'IBM Plex Mono, monospace',
+        });
+        parentEl.textContent = parentCtx.toUpperCase();
+        groupEl.appendChild(parentEl);
+
+        const facetEl = createSvgEl(doc, 'text', {
+          x: 0,
+          y: 7.5,
+          'text-anchor': 'middle',
+          fill: '#ffffff',
+          'font-size': 9.2,
+          'font-weight': 700,
+          'letter-spacing': '0.01em',
+          'font-family': 'Plus Jakarta Sans, sans-serif',
+        });
+        facetEl.textContent = label;
+        groupEl.appendChild(facetEl);
+      } else {
+        const textEl = createSvgEl(doc, 'text', {
+          x: 0,
+          y: 3.2,
+          'text-anchor': 'middle',
+          fill: '#ffffff',
+          'font-size': 9.1,
+          'font-weight': 700,
+          'letter-spacing': '0.01em',
+          'font-family': 'Plus Jakarta Sans, sans-serif',
+        });
+        textEl.textContent = label;
+        groupEl.appendChild(textEl);
+      }
+      return;
+    }
+
+    const hasMeta = badge.metaLine.trim().length > 0;
+    const rx = halfH;
+    const haloPad = 2.6;
+
+    // 1. Subtle grounding shadow lifting primary cluster anchor above canvas
+    groupEl.appendChild(
+      createSvgEl(doc, 'rect', {
+        x: -halfW,
+        y: -halfH + 1.6,
+        width,
+        height,
+        rx,
+        fill: '#020617',
+        'fill-opacity': isLight ? 0.16 : 0.45,
+      }),
+    );
+
+    // 2. Outer docking halo ring in calibrated cluster hue
+    groupEl.appendChild(
+      createSvgEl(doc, 'rect', {
+        x: (-halfW - haloPad).toFixed(2),
+        y: (-halfH - haloPad).toFixed(2),
+        width: (width + haloPad * 2).toFixed(2),
+        height: (height + haloPad * 2).toFixed(2),
+        rx: (rx + haloPad).toFixed(2),
+        fill: 'none',
+        stroke: state.interaction.isPinned ? '#f59e0b' : palette.haloHex,
+        'stroke-width': isActive ? 1.85 : 1.2,
+        'stroke-opacity':
+          isActive || state.interaction.isPinned ? 0.96 : isLight ? 0.48 : 0.64,
+      }),
+    );
+
+    // 3. Saturated OKLab-calibrated jewel-tone capsule body
+    groupEl.appendChild(
+      createSvgEl(doc, 'rect', {
+        x: -halfW,
+        y: -halfH,
+        width,
+        height,
+        rx,
+        fill: palette.solidFillHex,
+        stroke: state.interaction.isPinned ? '#fef08a' : '#ffffff',
+        'stroke-width': isActive ? 1.6 : 1.0,
+        'stroke-opacity': isActive ? 0.92 : 0.28,
+      }),
+    );
+
+    // 4. High-contrast centered white typography (guaranteed >= 4.85:1 WCAG AA)
+    const titleEl = createSvgEl(doc, 'text', {
+      x: 0,
+      y: hasMeta ? -2.2 : 3.7,
+      'text-anchor': 'middle',
+      fill: '#ffffff',
+      'font-size': 10.5,
+      'font-weight': 700,
+      'letter-spacing': '0.01em',
+      'font-family': 'Plus Jakarta Sans, sans-serif',
+    });
+    titleEl.textContent = badge.title;
+    groupEl.appendChild(titleEl);
+
+    if (hasMeta) {
+      const metaEl = createSvgEl(doc, 'text', {
+        x: 0,
+        y: 10.6,
+        'text-anchor': 'middle',
+        fill: '#ffffff',
+        'fill-opacity': 0.85,
+        'font-size': 8.3,
+        'font-family': 'IBM Plex Mono, monospace',
       });
+      metaEl.textContent = badge.metaLine;
+      groupEl.appendChild(metaEl);
     }
   },
 };
@@ -864,7 +1533,19 @@ function resolveEntityShape(entity: DemoEntity): GeometricShapeKind {
   if (entity.kind === 'voice') {
     return entity.voice.pitchHz > 180 ? 'star' : 'circle';
   }
-  // body-shape
+  if (entity.kind === 'zoo-species') {
+    switch (entity.zoo.taxonomicGroup) {
+      case 'Mammal':
+        return 'circle';
+      case 'Bird':
+        return 'diamond';
+      case 'Fish':
+      case 'Amphibian':
+        return 'hexagon';
+      default:
+        return 'star';
+    }
+  }
   switch (entity.body.posture) {
     case 'athletic':
       return 'hexagon';
@@ -879,41 +1560,40 @@ function resolveEntityShape(entity: DemoEntity): GeometricShapeKind {
 
 function resolveEntitySizeBonus(entity: DemoEntity): number {
   if (entity.kind === 'knowledge') {
-    return Math.min(4, Math.floor(entity.entry.readingMinutes / 8));
+    return Math.min(3.5, Math.floor(entity.entry.readingMinutes / 8));
   }
   if (entity.kind === 'media') {
-    return entity.media.mediaKind === 'video' ? 2.5 : 1;
+    return entity.media.mediaKind === 'video' ? 2.0 : 1;
   }
   if (entity.kind === 'voice') {
-    return Math.min(3.5, Math.floor(entity.voice.durationSec / 10));
+    return Math.min(3.0, Math.floor(entity.voice.durationSec / 10));
   }
-  return Math.max(0, Math.min(3.5, (entity.body.heightCm - 162) / 10));
+  if (entity.kind === 'zoo-species') {
+    return entity.zoo.predator ? 1.2 : 0;
+  }
+  return Math.max(0, Math.min(3.0, (entity.body.heightCm - 18) / 3));
 }
 
 function formatEntityCardMeta(entity: DemoEntity): string {
   if (entity.kind === 'knowledge') {
-    const typeMark =
-      entity.entry.contentType === 'article'
-        ? 'ART'
-        : entity.entry.contentType === 'video'
-          ? 'VID'
-          : 'PRJ';
-    return `${typeMark} · ${entity.entry.readingMinutes} min`;
+    return entity.entry.primaryAuthor ?? `${entity.entry.publishedYear}`;
   }
   if (entity.kind === 'media') {
-    return entity.media.mediaKind === 'video'
-      ? `VID · ${entity.media.durationSec ?? 0}s · ${entity.media.aspectRatio}`
-      : `IMG · ${entity.media.resolutionLabel}`;
+    return `IMDb ${entity.media.imdbRating.toFixed(1)} · RT ${entity.media.rottenTomatoes}%`;
   }
   if (entity.kind === 'voice') {
-    return `${entity.voice.pitchHz} Hz · ${entity.voice.durationSec}s`;
+    return `${entity.voice.language} · ${entity.voice.speakerProfile}`;
   }
-  return `${entity.body.posture} · ${entity.body.heightCm} cm`;
+  if (entity.kind === 'zoo-species') {
+    return `${entity.zoo.taxonomicGroup} · ${entity.zoo.legs} legs`;
+  }
+  return `${entity.body.species} · ${entity.body.bodyMassG}g`;
 }
 
 export function createDemoVisualResolver(
   config: DemoRenderConfig,
   theme: SimplexTheme = 'dark',
+  thumbManifest?: CommonsThumbManifest,
 ): VisualResolver<
   DemoEntity,
   DemoContentVisual,
@@ -925,42 +1605,100 @@ export function createDemoVisualResolver(
     resolveContentVisual: (item, ctx) => {
       const sizeBonus = config.scaleByReadingTime ? resolveEntitySizeBonus(item) : 0;
 
-      if (config.contentRenderer === 'domain' && item.kind !== 'knowledge') {
+      if (config.contentRenderer === 'domain') {
         const s = config.domainGlyphScale;
+
+        // GitHub Open-Source Repositories
+        if (item.kind === 'knowledge' && item.entry.repoName) {
+          const shortRepo = truncateLabel(item.entry.repoName, 11);
+          const starsLabel = item.entry.repoStarsLabel ?? '';
+          const langHex =
+            (item.entry.repoLanguage && REPO_LANGUAGE_COLORS[item.entry.repoLanguage]) ||
+            ctx.mixedColorHex;
+          const computedW = Math.max(
+            62,
+            Math.round(18 + shortRepo.length * 4.9 + (starsLabel.length + 1) * 4.4 + 8),
+          );
+          return {
+            kind: 'domain-repo',
+            theme,
+            width: Math.round(computedW * s),
+            height: Math.round(21 * s),
+            repoName: shortRepo,
+            starsLabel,
+            langColorHex: langHex,
+            colorHex: ctx.mixedColorHex,
+          };
+        }
+
+        // arXiv Scientific Papers
+        if (item.kind === 'knowledge') {
+          const { codeTag, figureKind } = resolvePaperFigureAndCode(item.entry.hashtags);
+          return {
+            kind: 'domain-knowledge',
+            theme,
+            width: Math.round(25 * s),
+            height: Math.round(31 * s),
+            codeTag,
+            figureKind,
+            sectors: ctx.unitClusters.map((uc) => ({
+              colorHex: uc.cluster.colorHex,
+              weight: uc.weight,
+            })),
+            colorHex: ctx.mixedColorHex,
+          };
+        }
+
+        // UCI Zoo Species
+        if (item.kind === 'zoo-species') {
+          const symbolKind = resolveZooSymbolKind(
+            item.zoo.speciesName,
+            item.zoo.taxonomicGroup,
+          );
+          const predBonus = config.scaleByReadingTime && item.zoo.predator ? 1.1 : 0;
+          const localPath = item.zoo.mediaCredit?.localPath;
+          const photoUrl = localPath ? thumbManifest?.[localPath]?.canvasSrc : undefined;
+          return {
+            kind: 'domain-zoo',
+            theme,
+            radius: Number(((14.4 + predBonus) * s).toFixed(1)),
+            symbolKind,
+            photoUrl,
+            aquatic: item.zoo.aquatic,
+            colorHex: ctx.mixedColorHex,
+          };
+        }
+
+        // Vega Cinema Movies (2:3 vertical Public-Domain posters)
         if (item.kind === 'media') {
-          const aspectScale =
-            item.media.aspectRatio === '16:9'
-              ? { w: 34, h: 20 }
-              : item.media.aspectRatio === '4:3'
-                ? { w: 30, h: 23 }
-                : { w: 24, h: 24 };
-          const bonus = config.scaleByReadingTime && item.media.mediaKind === 'video' ? 1.12 : 1.0;
+          const thumbnailUrl = thumbManifest?.[item.media.mediaCredit.localPath]?.canvasSrc;
+          const bonus =
+            config.scaleByReadingTime && item.media.mediaKind === 'video' ? 1.06 : 1.0;
           return {
             kind: 'domain-media',
             theme,
-            width: Math.round(aspectScale.w * s * bonus),
-            height: Math.round(aspectScale.h * s * bonus),
+            width: Math.round(33 * s * bonus),
+            height: Math.round(47 * s * bonus),
+            shortTitle: item.media.shortTitle,
+            thumbnailUrl,
+            imdbRating: item.media.imdbRating,
             aspectRatio: item.media.aspectRatio,
             mediaKind: item.media.mediaKind,
             motif: item.media.motif,
             palette: item.media.palette,
             colorHex: ctx.mixedColorHex,
-            showPlayBadge: config.mediaShowVideoBadge,
-            showAspectTag: config.mediaShowAspectTag,
           };
         }
 
+        // UCI Spoken Vowels
         if (item.kind === 'voice') {
-          const durBonus = config.scaleByReadingTime
-            ? Math.min(8, Math.round(item.voice.durationSec / 6))
-            : 0;
-          const baseW = (config.voiceShowPitchLabel ? 58 : 42) + durBonus;
-          const baseH = config.voiceShowPitchLabel ? 22 : 24;
+          const baseW = config.voiceShowPitchLabel ? 68 : 50;
           return {
             kind: 'domain-voice',
             theme,
             width: Math.round(baseW * s),
-            height: Math.round(baseH * s),
+            height: Math.round(22 * s),
+            ipaSymbol: item.voice.language,
             waveform: item.voice.waveform,
             barCount: config.voiceWaveformBars,
             pitchHz: item.voice.pitchHz,
@@ -969,14 +1707,19 @@ export function createDemoVisualResolver(
           };
         }
 
-        // body-shape
+        // Palmer Penguins Biometrics
         const statureBonus = config.scaleByReadingTime
-          ? Math.max(-1.5, Math.min(3.5, (item.body.heightCm - 172) / 6))
+          ? Math.max(-1.4, Math.min(2.8, (item.body.bodyMassG - 3800) / 600))
           : 0;
         return {
           kind: 'domain-body',
           theme,
-          radius: Math.round((17.5 + statureBonus) * s),
+          radius: Number(((16.2 + statureBonus) * s).toFixed(1)),
+          species: item.body.species,
+          billLengthMm: item.body.billLengthMm,
+          billDepthMm: item.body.billDepthMm,
+          flipperLengthMm: item.body.flipperLengthMm,
+          bodyMassG: item.body.bodyMassG,
           proportions: item.body.proportions,
           heightCm: item.body.heightCm,
           posture: item.body.posture,
@@ -986,7 +1729,7 @@ export function createDemoVisualResolver(
         };
       }
 
-      if (config.contentRenderer === 'geometric' || (config.contentRenderer === 'domain' && item.kind === 'knowledge')) {
+      if (config.contentRenderer === 'geometric') {
         const shape: GeometricShapeKind =
           config.contentShapeMode === 'by-type'
             ? resolveEntityShape(item)
@@ -1028,7 +1771,11 @@ export function createDemoVisualResolver(
         };
       }
 
-      const snippet = truncateLabel(item.title, config.contentCardMaxChars);
+      const displayHeadline =
+        item.kind === 'knowledge' && item.entry.repoName
+          ? item.entry.repoName
+          : item.title;
+      const snippet = truncateLabel(displayHeadline, config.contentCardMaxChars);
       const metaLine = formatEntityCardMeta(item);
       return {
         kind: 'react-card',
@@ -1048,7 +1795,14 @@ export function createDemoVisualResolver(
       const accentColors = cluster.mixWeights
         ?.slice(0, 2)
         .map((m) => m.colorHex);
-      const bridgeSuffix = cluster.meta.shortBridgeTag ?? '';
+      const bridgeSuffix =
+        cluster.meta.shortBridgeTag ||
+        cluster.subclusterLabel ||
+        cluster.defaultLabel ||
+        cluster.code;
+      const parentContextLabel = isIntermediate
+        ? (cluster.meta.parentContextLabel ?? cluster.parentContextLabel)
+        : undefined;
 
       if (config.clusterRenderer === 'anchor') {
         return {
@@ -1061,27 +1815,33 @@ export function createDemoVisualResolver(
             radius: config.anchorRadius,
             theme,
             variant: isIntermediate ? 'intermediate' : 'primary',
+            parentContextLabel,
             accentColors,
           },
         };
       }
 
       const shortTitle = truncateLabel(cluster.meta.title, config.clusterTitleMaxChars);
+      const shortBridge = truncateLabel(
+        bridgeSuffix,
+        Math.max(22, config.clusterTitleMaxChars + 4),
+      );
       if (config.clusterRenderer === 'badge') {
         const metaLine = isIntermediate
           ? ''
           : config.showClusterMetaLine
             ? cluster.meta.subtitle
-            : `${cluster.meta.memberCount} items`;
+            : '';
         return {
           kind: 'badge',
           badge: {
             code: cluster.code,
-            title: isIntermediate ? bridgeSuffix : shortTitle,
+            title: isIntermediate ? shortBridge : shortTitle,
             metaLine,
             colorHex: cluster.colorHex,
             theme,
             variant: isIntermediate ? 'intermediate' : 'primary',
+            parentContextLabel,
             accentColors,
           },
         };
@@ -1090,7 +1850,7 @@ export function createDemoVisualResolver(
       return {
         kind: 'react-card',
         theme,
-        key: `rc:${theme}:${isIntermediate ? 'int' : 'pri'}:${cluster.clusterUid}:${cluster.code}:${isIntermediate ? bridgeSuffix : shortTitle}:${cluster.meta.memberCount}:${cluster.meta.subtitle}:${cluster.colorHex}:${config.clusterTitleMaxChars}:${config.showClusterMetaLine ? 1 : 0}`,
+        key: `rc:${theme}:${isIntermediate ? 'int' : 'pri'}:${cluster.clusterUid}:${parentContextLabel ?? ''}:${isIntermediate ? shortBridge : shortTitle}:${cluster.colorHex}:${config.clusterTitleMaxChars}:${config.showClusterMetaLine ? 1 : 0}`,
         colorHex: cluster.colorHex,
         code: cluster.code,
         title: shortTitle,
@@ -1099,25 +1859,37 @@ export function createDemoVisualResolver(
         maxChars: config.clusterTitleMaxChars,
         showMeta: config.showClusterMetaLine,
         isIntermediate,
-        shortBridgeTag: bridgeSuffix,
+        shortBridgeTag: shortBridge,
+        parentContextLabel,
         accentColors,
       };
     },
 
     getVisualCacheKey: (visual) => {
+      if (visual.kind === 'domain-knowledge') {
+        const secKey = visual.sectors
+          .map((s) => `${s.colorHex}:${s.weight.toFixed(2)}`)
+          .join('|');
+        return `dk:${visual.theme}:${visual.width}x${visual.height}:${visual.codeTag}:${visual.figureKind}:${visual.colorHex}:${secKey}`;
+      }
+      if (visual.kind === 'domain-repo') {
+        return `dr:${visual.theme}:${visual.width}x${visual.height}:${visual.repoName}:${visual.starsLabel}:${visual.langColorHex}:${visual.colorHex}`;
+      }
+      if (visual.kind === 'domain-zoo') {
+        return `dz:${visual.theme}:${visual.radius}:${visual.symbolKind}:${visual.photoUrl ?? 'sym'}:${visual.colorHex}`;
+      }
       if (visual.kind === 'domain-media') {
-        return `dm:${visual.theme}:${visual.width}x${visual.height}:${visual.mediaKind}:${visual.motif}:${visual.palette.join(',')}:${visual.colorHex}:${visual.showPlayBadge ? 1 : 0}:${visual.showAspectTag ? 1 : 0}`;
+        return `dm:${visual.theme}:${visual.width}x${visual.height}:${visual.shortTitle}:${visual.thumbnailUrl ?? 'fallback'}:${visual.imdbRating}:${visual.colorHex}`;
       }
       if (visual.kind === 'domain-voice') {
         const waveKey = visual.waveform
           .slice(0, visual.barCount)
           .map((w) => w.toFixed(2))
           .join(',');
-        return `dv:${visual.theme}:${visual.width}x${visual.height}:${visual.barCount}:${visual.pitchHz}:${visual.colorHex}:${visual.showPitchLabel ? 1 : 0}:${waveKey}`;
+        return `dv:${visual.theme}:${visual.width}x${visual.height}:${visual.ipaSymbol}:${visual.barCount}:${visual.pitchHz}:${visual.colorHex}:${visual.showPitchLabel ? 1 : 0}:${waveKey}`;
       }
       if (visual.kind === 'domain-body') {
-        const p = visual.proportions;
-        return `db:${visual.theme}:${visual.radius}:${visual.heightCm}:${visual.posture}:${visual.colorHex}:${visual.showCalibrationRing ? 1 : 0}:${visual.showHeightLabel ? 1 : 0}:${p.shoulderW.toFixed(2)}:${p.waistW.toFixed(2)}:${p.hipW.toFixed(2)}:${p.leanDeg}`;
+        return `db:${visual.theme}:${visual.radius}:${visual.species}:${visual.billLengthMm}:${visual.billDepthMm}:${visual.flipperLengthMm}:${visual.bodyMassG}:${visual.colorHex}:${visual.showCalibrationRing ? 1 : 0}`;
       }
       if (visual.kind === 'geometric') {
         return `g:${visual.shape.theme ?? 'dark'}:${visual.shape.shape}:${visual.shape.radius}:${visual.shape.strokeWidth ?? 1.4}:${visual.shape.fillHex}`;
@@ -1129,94 +1901,18 @@ export function createDemoVisualResolver(
         return `m:${visual.glyph.theme ?? 'dark'}:${visual.glyph.outerRadius.toFixed(1)}:${visual.glyph.innerRadius.toFixed(1)}:${visual.glyph.accentRingHex ?? 'none'}:${secKey}`;
       }
       if (visual.kind === 'anchor') {
-        return `ga:${visual.anchor.theme ?? 'dark'}:${visual.anchor.variant ?? 'primary'}:${visual.anchor.code}:${visual.anchor.memberCount}:${visual.anchor.radius}:${visual.anchor.colorHex}`;
+        return `ga:${visual.anchor.theme ?? 'dark'}:${visual.anchor.variant ?? 'primary'}:${visual.anchor.parentContextLabel ?? ''}:${visual.anchor.code}:${visual.anchor.memberCount}:${visual.anchor.radius}:${visual.anchor.colorHex}`;
       }
       if (visual.kind === 'badge') {
-        return `mb:${visual.badge.theme ?? 'dark'}:${visual.badge.variant ?? 'primary'}:${visual.badge.code}:${visual.badge.title}:${visual.badge.metaLine}:${visual.badge.colorHex}`;
+        return `mb:${visual.badge.theme ?? 'dark'}:${visual.badge.variant ?? 'primary'}:${visual.badge.parentContextLabel ?? ''}:${visual.badge.title}:${visual.badge.metaLine}:${visual.badge.colorHex}`;
       }
       return visual.key;
     },
   };
 }
 
-function renderDomainMiniThumbnail(
-  entity: DemoEntity,
-  accentHex: string,
-  isLight: boolean,
-  boxX: number,
-  boxY: number,
-): ReactNode {
-  if (entity.kind === 'voice') {
-    const bars = entity.voice.waveform.slice(0, 7);
-    return (
-      <g transform={`translate(${boxX}, ${boxY})`}>
-        {bars.map((amp, i) => {
-          const h = Math.max(3, amp * 13);
-          return (
-            <rect
-              key={i}
-              x={i * 2.8}
-              y={7 - h / 2}
-              width={1.7}
-              height={h}
-              rx={0.7}
-              fill={accentHex}
-              fillOpacity={0.9}
-            />
-          );
-        })}
-      </g>
-    );
-  }
-
-  if (entity.kind === 'body-shape') {
-    const p = entity.body.proportions;
-    const sw = p.shoulderW * 6;
-    const ww = p.waistW * 5.2;
-    const hw = p.hipW * 5.8;
-    return (
-      <g transform={`translate(${boxX + 9}, ${boxY + 7}) rotate(${p.leanDeg * 0.45})`}>
-        <circle cx={0} cy={-5.6} r={1.9} fill={accentHex} />
-        <polygon
-          points={`${-sw},-3 ${sw},-3 ${ww},1.5 ${hw},4 ${-hw},4 ${-ww},1.5`}
-          fill={accentHex}
-          fillOpacity={0.85}
-        />
-        <line x1={-hw * 0.5} y1={4} x2={-hw * 0.55} y2={9.5} stroke={accentHex} strokeWidth={1.6} strokeLinecap="round" />
-        <line x1={hw * 0.5} y1={4} x2={hw * 0.55} y2={9.5} stroke={accentHex} strokeWidth={1.6} strokeLinecap="round" />
-      </g>
-    );
-  }
-
-  if (entity.kind === 'media') {
-    return (
-      <g transform={`translate(${boxX}, ${boxY})`}>
-        <rect
-          x={0}
-          y={0.5}
-          width={18}
-          height={13}
-          rx={2.5}
-          fill={entity.media.palette[1]}
-          stroke={accentHex}
-          strokeWidth={1.1}
-        />
-        <circle cx={5.5} cy={4.8} r={2.2} fill={entity.media.palette[0]} />
-        <polygon points="1,12.5 7,7.5 11.5,10.5 14.5,8.2 17,12.5" fill={accentHex} fillOpacity={0.8} />
-        {entity.media.mediaKind === 'video' && (
-          <polygon points="7.5,4.2 12.2,7 7.5,9.8" fill={isLight ? '#ffffff' : '#f8fafc'} />
-        )}
-      </g>
-    );
-  }
-
-  return null;
-}
-
 /**
  * Declarative React JSX renderer for content item mini-cards.
- * Automatically renders domain-specific vector thumbnails for Voice waveforms, Body Silhouettes,
- * and Visual Media frames, measured via `getBBox()` by `@simplex-viz/react`.
  */
 export function renderDemoContentCard(
   entity: DemoEntity,
@@ -1225,13 +1921,17 @@ export function renderDemoContentCard(
 ): ReactNode {
   const cardVisual = state.visual.kind === 'react-card' ? state.visual : null;
   const isLight = cardVisual?.theme === 'light';
-  const maxChars = cardVisual?.maxChars ?? 17;
-  const showMeta = cardVisual?.showMeta ?? true;
-  const snippet = cardVisual?.headline ?? truncateLabel(entity.title, maxChars);
+  const maxChars = cardVisual?.maxChars ?? 16;
+  const showMeta = cardVisual?.showMeta ?? false;
+  const rawHeadline =
+    entity.kind === 'knowledge' && entity.entry.repoName
+      ? entity.entry.repoName
+      : entity.title;
+  const snippet = cardVisual?.headline ?? truncateLabel(rawHeadline, maxChars);
   const metaLine = cardVisual?.metaLine ?? formatEntityCardMeta(entity);
-  const hasRichThumb = entity.kind !== 'knowledge';
-  const thumbPad = hasRichThumb ? 23 : 17;
 
+  const isHighlightedOrHovered =
+    state.interaction.isHovered || state.interaction.isHighlighted;
   const stroke = state.interaction.isPinned
     ? isLight
       ? '#d97706'
@@ -1240,15 +1940,22 @@ export function renderDemoContentCard(
       ? isLight
         ? '#0f172a'
         : '#f8fafc'
-      : ctx.mixedColorHex;
+      : state.interaction.isHighlighted
+        ? ctx.mixedColorHex
+        : isLight
+          ? '#cbd5e1'
+          : '#293548';
 
   const width = Math.max(
-    90,
+    64,
     Math.round(
-      Math.max(snippet.length * 5.2 + thumbPad + 9, showMeta ? metaLine.length * 4.8 + thumbPad + 8 : 0),
+      Math.max(
+        snippet.length * 5.2 + 24,
+        showMeta ? metaLine.length * 4.8 + 24 : 0,
+      ),
     ),
   );
-  const height = showMeta ? 31 : 22;
+  const height = showMeta ? 30 : 21;
   const halfW = width / 2;
   const halfH = height / 2;
 
@@ -1259,27 +1966,25 @@ export function renderDemoContentCard(
         y={-halfH}
         width={width}
         height={height}
-        rx={5}
+        rx={3.0}
         fill={isLight ? '#ffffff' : '#0d1320'}
-        fillOpacity={isLight ? 0.97 : 0.95}
+        fillOpacity={isLight ? 0.98 : 0.96}
         stroke={stroke}
-        strokeWidth={state.interaction.isHovered ? 1.8 : 1.15}
+        strokeWidth={isHighlightedOrHovered || state.interaction.isPinned ? 1.85 : 1.05}
       />
-      {hasRichThumb ? (
-        renderDomainMiniThumbnail(entity, ctx.mixedColorHex, isLight, -halfW + 4, -7)
-      ) : (
-        <circle
-          cx={-halfW + 10}
-          cy={showMeta ? -4 : 0}
-          r={3.2}
-          fill={ctx.mixedColorHex}
-        />
-      )}
+      <rect
+        x={-halfW + 6.2}
+        y={showMeta ? -6.3 : -2.3}
+        width={4.6}
+        height={4.6}
+        rx={1.1}
+        fill={ctx.mixedColorHex}
+      />
       <text
-        x={-halfW + thumbPad}
-        y={showMeta ? -2 : 3}
+        x={-halfW + 15.2}
+        y={showMeta ? -2 : 2.8}
         fill={isLight ? '#0f172a' : '#f1f5f9'}
-        fontSize={8.5}
+        fontSize={8.3}
         fontWeight={600}
         fontFamily="Plus Jakarta Sans, sans-serif"
       >
@@ -1287,10 +1992,10 @@ export function renderDemoContentCard(
       </text>
       {showMeta && (
         <text
-          x={-halfW + (hasRichThumb ? thumbPad : 7)}
-          y={10}
+          x={-halfW + 15.2}
+          y={9.5}
           fill={isLight ? '#475569' : '#94a3b8'}
-          fontSize={7.3}
+          fontSize={7.2}
           fontFamily="IBM Plex Mono, monospace"
         >
           {metaLine}
@@ -1301,146 +2006,195 @@ export function renderDemoContentCard(
 }
 
 /**
- * Declarative React JSX renderer for rich cluster summary cards across all datasets.
+ * Declarative React JSX renderer for saturated cartographic cluster capsules
+ * and saturated chamfered sub-cluster plaques.
  */
 export function renderDemoClusterCard(
   cluster: ClusterDescriptor<DemoEntity, TagTaxonomyInfo, DemoClusterSummary>,
   state: NodeRenderState<DemoClusterVisual>,
 ): ReactNode {
   const cardVisual = state.visual.kind === 'react-card' ? state.visual : null;
-  const isLight = cardVisual?.theme === 'light';
+  const theme = cardVisual?.theme === 'light' ? 'light' : 'dark';
+  const isLight = theme === 'light';
+  const isActive = state.interaction.isHovered || state.interaction.isHighlighted;
   const isIntermediate =
     cardVisual?.isIntermediate ??
     (cluster.role === 'intermediate' || Boolean(cluster.meta.isIntermediate));
-  const stroke =
-    state.interaction.isHovered || state.interaction.isHighlighted
-      ? isLight
-        ? '#0f172a'
-        : '#f8fafc'
-      : cluster.colorHex;
+  const palette = resolveClusterSurfaceColors(cluster.colorHex, theme);
 
   if (isIntermediate) {
-    const suffix = (cardVisual?.shortBridgeTag ?? cluster.meta.shortBridgeTag ?? '').trim();
-    const hasSuffix = suffix.length > 0 && suffix !== cluster.code;
-    const codeW = cluster.code.length * 5.8;
-    const sufW = hasSuffix ? (suffix.length + 3) * 5.4 : 0;
-    const width = Math.max(52, Math.round(22 + codeW + sufW + 10));
-    const height = 22;
+    const suffix = (
+      cardVisual?.shortBridgeTag ||
+      cluster.meta.shortBridgeTag ||
+      cluster.subclusterLabel ||
+      cluster.defaultLabel ||
+      cluster.code
+    ).trim();
+    const parentCtx = (
+      cardVisual?.parentContextLabel ??
+      cluster.meta.parentContextLabel ??
+      cluster.parentContextLabel ??
+      ''
+    ).trim();
+    const hasParentCtx = parentCtx.length > 0;
+    const width = hasParentCtx
+      ? Math.max(
+          66,
+          Math.round(parentCtx.length * 5.25 + 24),
+          Math.round(suffix.length * 5.9 + 22),
+        )
+      : Math.max(48, Math.round(suffix.length * 5.8 + 20));
+    const height = hasParentCtx ? 32 : 22;
     const halfW = width / 2;
     const halfH = height / 2;
-    const cut = 5.5;
-    const markerX = -halfW + 12;
-    const dSize = 3.8;
-    const colorA = cardVisual?.accentColors?.[0] ?? cluster.colorHex;
-    const colorB = cardVisual?.accentColors?.[1] ?? cluster.colorHex;
-    const polyPts = `${-halfW + cut},${-halfH} ${halfW - cut},${-halfH} ${halfW},0 ${halfW - cut},${halfH} ${-halfW + cut},${halfH} ${-halfW},0`;
+    const cut = hasParentCtx ? 6.4 : 5.4;
+    const haloPad = hasParentCtx ? 2.5 : 2.3;
+    const chamferPts = (hw: number, hh: number, c: number, dy = 0): string =>
+      `${(-hw + c).toFixed(1)},${(-hh + dy).toFixed(1)} ${(hw - c).toFixed(1)},${(-hh + dy).toFixed(1)} ${hw.toFixed(1)},${dy.toFixed(1)} ${(hw - c).toFixed(1)},${(hh + dy).toFixed(1)} ${(-hw + c).toFixed(1)},${(hh + dy).toFixed(1)} ${(-hw).toFixed(1)},${dy.toFixed(1)}`;
 
     return (
       <g>
         <polygon
-          points={polyPts}
-          fill={isLight ? '#f8fafc' : '#0b111d'}
-          fillOpacity={isLight ? 0.94 : 0.88}
-          stroke={stroke}
-          strokeWidth={state.interaction.isHovered ? 1.8 : 1.15}
-          strokeDasharray={
-            state.interaction.isHovered || state.interaction.isHighlighted
-              ? undefined
-              : '3 2'
+          points={chamferPts(halfW, halfH, cut, 1.4)}
+          fill="#020617"
+          fillOpacity={isLight ? 0.15 : 0.42}
+        />
+        <polygon
+          points={chamferPts(halfW + haloPad, halfH + haloPad, cut + 1.0)}
+          fill="none"
+          stroke={state.interaction.isPinned ? '#f59e0b' : palette.haloHex}
+          strokeWidth={isActive ? 1.75 : 1.15}
+          strokeOpacity={
+            isActive || state.interaction.isPinned ? 0.96 : isLight ? 0.54 : 0.68
           }
+          strokeDasharray={isActive ? undefined : '3 2'}
           strokeLinejoin="round"
         />
         <polygon
-          points={`${markerX},${-dSize} ${markerX},${dSize} ${markerX - dSize},0`}
-          fill={colorA}
+          points={chamferPts(halfW, halfH, cut)}
+          fill={palette.solidFillHex}
+          stroke={state.interaction.isPinned ? '#fef08a' : '#ffffff'}
+          strokeWidth={isActive ? 1.5 : 0.95}
+          strokeOpacity={isActive ? 0.92 : 0.28}
+          strokeLinejoin="round"
         />
-        <polygon
-          points={`${markerX},${-dSize} ${markerX + dSize},0 ${markerX},${dSize}`}
-          fill={colorB}
-        />
-        <text
-          x={-halfW + 20}
-          y={3.2}
-          fill={isLight ? '#0f172a' : '#e2e8f0'}
-          fontSize={9.2}
-          fontWeight={600}
-          fontFamily="IBM Plex Mono, monospace"
-        >
-          {cluster.code}
-        </text>
-        {hasSuffix && (
+        {hasParentCtx ? (
+          <>
+            <text
+              x={0}
+              y={-4.2}
+              textAnchor="middle"
+              fill="#ffffff"
+              fillOpacity={0.78}
+              fontSize={7.3}
+              fontWeight={700}
+              letterSpacing="0.05em"
+              fontFamily="IBM Plex Mono, monospace"
+            >
+              {parentCtx.toUpperCase()}
+            </text>
+            <text
+              x={0}
+              y={7.5}
+              textAnchor="middle"
+              fill="#ffffff"
+              fontSize={9.2}
+              fontWeight={700}
+              letterSpacing="0.01em"
+              fontFamily="Plus Jakarta Sans, sans-serif"
+            >
+              {suffix}
+            </text>
+          </>
+        ) : (
           <text
-            x={-halfW + 20 + codeW + 3}
+            x={0}
             y={3.2}
-            fill={isLight ? '#475569' : '#94a3b8'}
-            fontSize={8.6}
-            fontWeight={500}
-            fontFamily="IBM Plex Mono, monospace"
+            textAnchor="middle"
+            fill="#ffffff"
+            fontSize={9.1}
+            fontWeight={700}
+            letterSpacing="0.01em"
+            fontFamily="Plus Jakarta Sans, sans-serif"
           >
-            {`· ${suffix}`}
+            {suffix}
           </text>
         )}
       </g>
     );
   }
 
-  const maxChars = cardVisual?.maxChars ?? 22;
-  const showMeta = cardVisual?.showMeta ?? true;
+  const maxChars = cardVisual?.maxChars ?? 18;
+  const showMeta = cardVisual?.showMeta ?? false;
   const title = cardVisual?.title ?? truncateLabel(cluster.meta.title, maxChars);
-  const codeSpan = Math.max(20, cluster.code.length * 6.4 + 6);
-  const titleOffset = 23 + codeSpan;
-
   const metaLine = cluster.meta.subtitle;
   const width = Math.max(
-    136,
+    54,
     Math.round(
-      Math.max(title.length * 6.4 + titleOffset + 10, showMeta ? metaLine.length * 5.5 + 22 : 0),
+      Math.max(title.length * 6.35 + 26, showMeta ? metaLine.length * 5.3 + 26 : 0),
     ),
   );
-  const height = showMeta ? 48 : 30;
+  const height = showMeta ? 38 : 25;
   const halfW = width / 2;
   const halfH = height / 2;
+  const rx = halfH;
+  const haloPad = 2.6;
 
   return (
     <g>
       <rect
         x={-halfW}
+        y={-halfH + 1.6}
+        width={width}
+        height={height}
+        rx={rx}
+        fill="#020617"
+        fillOpacity={isLight ? 0.16 : 0.45}
+      />
+      <rect
+        x={-halfW - haloPad}
+        y={-halfH - haloPad}
+        width={width + haloPad * 2}
+        height={height + haloPad * 2}
+        rx={rx + haloPad}
+        fill="none"
+        stroke={state.interaction.isPinned ? '#f59e0b' : palette.haloHex}
+        strokeWidth={isActive ? 1.85 : 1.2}
+        strokeOpacity={
+          isActive || state.interaction.isPinned ? 0.96 : isLight ? 0.48 : 0.64
+        }
+      />
+      <rect
+        x={-halfW}
         y={-halfH}
         width={width}
         height={height}
-        rx={7}
-        fill={isLight ? '#ffffff' : '#0a0f1a'}
-        fillOpacity={isLight ? 0.97 : 0.96}
-        stroke={stroke}
-        strokeWidth={state.interaction.isHovered ? 2.2 : 1.5}
+        rx={rx}
+        fill={palette.solidFillHex}
+        stroke={state.interaction.isPinned ? '#fef08a' : '#ffffff'}
+        strokeWidth={isActive ? 1.6 : 1.0}
+        strokeOpacity={isActive ? 0.92 : 0.28}
       />
-      <circle cx={-halfW + 13} cy={showMeta ? -8 : 0} r={4.5} fill={cluster.colorHex} />
       <text
-        x={-halfW + 23}
-        y={showMeta ? -5 : 3.5}
-        fill={isLight ? '#0f172a' : cluster.colorHex}
-        fontSize={10}
-        fontWeight={600}
-        fontFamily="IBM Plex Mono, monospace"
-      >
-        {cluster.code}
-      </text>
-      <text
-        x={Math.round(-halfW + titleOffset)}
-        y={showMeta ? -5 : 3.5}
-        fill={isLight ? '#0f172a' : '#f8fafc'}
+        x={0}
+        y={showMeta ? -2.2 : 3.7}
+        textAnchor="middle"
+        fill="#ffffff"
         fontSize={10.5}
-        fontWeight={600}
+        fontWeight={700}
+        letterSpacing="0.01em"
         fontFamily="Plus Jakarta Sans, sans-serif"
       >
         {title}
       </text>
       {showMeta && (
         <text
-          x={-halfW + 9}
-          y={13}
-          fill={isLight ? '#475569' : '#94a3b8'}
-          fontSize={9}
+          x={0}
+          y={10.6}
+          textAnchor="middle"
+          fill="#ffffff"
+          fillOpacity={0.85}
+          fontSize={8.3}
           fontFamily="IBM Plex Mono, monospace"
         >
           {metaLine}

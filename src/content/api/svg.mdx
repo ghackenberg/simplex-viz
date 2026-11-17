@@ -1,0 +1,116 @@
+---
+title: "@simplex-viz/svg API Reference"
+packageName: "@simplex-viz/svg"
+version: "0.6.0"
+layerLabel: "Framework-Agnostic SVG Scene Graph & Controller"
+description: "Portable SVG renderer, offscreen getBBox() hull measurement, root pointer hit-testing, 1:4 subdivision previews, and breadcrumbs for Vanilla TS, Vue, Svelte, or Angular."
+order: 2
+zeroRuntimeDeps: false
+installCommand: "npm install @simplex-viz/svg"
+exportsTable:
+  - symbol: "createSimplexSvg"
+    kind: "Function"
+    signature: |-
+      createSimplexSvg(
+        container: HTMLElement | string,
+        itemsOrOptions: readonly TItem[] | SimplexSvgOptions<...>,
+        maybeOptions?: Partial<SimplexSvgOptions<...>>,
+      ): SimplexSvgController<...>
+    summary: "Zero-boilerplate factory mounting a complete interactive SVG simplex atlas into an HTMLElement or CSS selector."
+  - symbol: "SimplexSvgController"
+    kind: "Class"
+    signature: |-
+      new SimplexSvgController<
+        TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta
+      >(options: SimplexSvgOptions<...>)
+    summary: "Manages ResizeObserver, requestAnimationFrame loop, pointer/wheel/pinch gestures, tooltips, and zoom breadcrumbs."
+  - symbol: "SvgRendererAdapter"
+    kind: "Class"
+    signature: "new SvgRendererAdapter(options: SvgRendererAdapterOptions)"
+    summary: "Low-level SimplexRendererAdapter reconciling SVG layers, dual-layer crossfades, and internal 1:4 drillable edges."
+  - symbol: "GeometricShapeSvgView"
+    kind: "View Plugin"
+    signature: |-
+      new GeometricShapeSvgView<
+        TItem, TTagMeta, TClusterMeta
+      >()
+    summary: "Morphs content nodes across circle, rounded-square, diamond, hexagon, and triangle shapes."
+  - symbol: "MultiSectorGlyphSvgView"
+    kind: "View Plugin"
+    signature: |-
+      new MultiSectorGlyphSvgView<
+        TItem, TTagMeta, TClusterMeta
+      >()
+    summary: "Renders multi-arc donut glyphs proportional to an item's barycentric cluster weights."
+  - symbol: "OklabTintTriangleSvgView"
+    kind: "View Plugin"
+    signature: "new OklabTintTriangleSvgView(options?: OklabTintTriangleOptions)"
+    summary: "Default triangle face view with subtle OKLab fills, hover/focus perimeter strokes, and dimmed neighbor context."
+  - symbol: "BadgeClusterSvgView"
+    kind: "View Plugin"
+    signature: "new BadgeClusterSvgView()"
+    summary: "WCAG-AA saturated OKLab cluster view rendering full-round capsules for primary clusters and chamfered hexagonal plaques (with optional two-line parentContextLabel) for intermediate sub-clusters."
+  - symbol: "DashedMeshEdgeSvgView"
+    kind: "View Plugin"
+    signature: "new DashedMeshEdgeSvgView(options?: DashedMeshEdgeOptions)"
+    summary: "Default dashed 60-degree mesh edge view, automatically reused for internal 1:4 drillable triangle subdivision lines."
+---
+
+## Mounting in Vanilla TypeScript, Vue, Svelte, or Angular
+
+`createSimplexSvg` accepts either a CSS selector (`'#atlas'`) or an `HTMLElement` reference and returns a `SimplexSvgController` whose `.destroy()` method cleans up all DOM listeners and `ResizeObserver` instances:
+
+```ts
+import {
+  createSimplexSvg,
+  createSubspaceZoomStrategy,
+  GradientTriangleSvgView,
+  ClusterTintedEdgeSvgView,
+} from '@simplex-viz/svg';
+
+const controller = createSimplexSvg('#atlas', {
+  items,
+  preset: 'glyphs',
+  theme: 'dark',
+  triangleView: new GradientTriangleSvgView({ baseOpacity: 0.16 }),
+  edgeView: new ClusterTintedEdgeSvgView({ strokeWidth: 1.35 }),
+  zoomStrategy: createSubspaceZoomStrategy(),
+  showZoomBreadcrumbs: true,
+  tooltip: true,
+});
+
+// Clean up on unmount:
+// controller.destroy();
+```
+
+## Custom `SvgNodeView` Contract
+
+Implement `SvgNodeView<TVisual, TRenderState>` when building high-throughput custom SVG glyphs that update imperatively at 60 fps without virtual-DOM overhead:
+
+```ts
+import type { SvgNodeView, ContentNodeRenderState } from '@simplex-viz/svg';
+
+export const pillNodeView: SvgNodeView<
+  { label: string; colorHex: string },
+  ContentNodeRenderState<{ label: string; colorHex: string }, MyItem>
+> = {
+  createElement(doc) {
+    const g = doc.createElementNS('http://www.w3.org/2000/svg', 'g');
+    const rect = doc.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    const text = doc.createElementNS('http://www.w3.org/2000/svg', 'text');
+    g.append(rect, text);
+    return g;
+  },
+  updateElement(g, visual, state) {
+    const [rect, text] = g.children as unknown as [SVGRectElement, SVGTextElement];
+    rect.setAttribute('x', '-42');
+    rect.setAttribute('y', '-12');
+    rect.setAttribute('width', '84');
+    rect.setAttribute('height', '24');
+    rect.setAttribute('rx', '6');
+    rect.setAttribute('fill', visual.colorHex);
+    rect.setAttribute('opacity', state.interaction.isDimmed ? '0.28' : '1');
+    text.textContent = visual.label;
+  },
+};
+```

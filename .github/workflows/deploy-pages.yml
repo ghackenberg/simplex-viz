@@ -1,8 +1,7 @@
 name: Deploy Demo to GitHub Pages
 
 on:
-  push:
-    branches: [main]
+  # Temporarily manual-only while the website is being finalized (re-enable push on main when ready)
   workflow_dispatch:
 
 permissions:

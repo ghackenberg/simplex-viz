@@ -1,0 +1,1600 @@
+[
+  {
+    "id": "film-1",
+    "title": "Casablanca",
+    "shortTitle": "Casablanca",
+    "releaseYear": 1941,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 102,
+    "imdbRating": 8.8,
+    "rottenTomatoes": 97,
+    "budgetMusd": 0.95,
+    "worldwideGrossMusd": 10.46,
+    "receptionVector": [
+      0.9,
+      0.97,
+      0.7947,
+      0.563
+    ],
+    "productionVector": [
+      0.2991,
+      0.4895,
+      0.1543,
+      0.7342
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-1-casablanca.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:CasablancaPoster-Gold.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Casablanca_(film)",
+      "fileTitle": "File:CasablancaPoster-Gold.jpg",
+      "author": "Bill Gold",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-2",
+    "title": "Jaws",
+    "shortTitle": "Jaws",
+    "releaseYear": 1975,
+    "genre": "Horror",
+    "mpaa": "PG",
+    "runtimeMin": 124,
+    "imdbRating": 8.3,
+    "rottenTomatoes": 100,
+    "budgetMusd": 12,
+    "worldwideGrossMusd": 470.7,
+    "receptionVector": [
+      0.775,
+      0.99,
+      0.7643,
+      0.7025
+    ],
+    "productionVector": [
+      0.7228,
+      0.99,
+      0.28,
+      0.99
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-2-jaws.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Jaws_movie_poster.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Jaws_(film)",
+      "fileTitle": "File:Jaws movie poster.jpg",
+      "author": "Roger Kastel",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-3",
+    "title": "It's a Wonderful Life",
+    "shortTitle": "It's a Wonde…",
+    "releaseYear": 1945,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 130,
+    "imdbRating": 8.7,
+    "rottenTomatoes": 94,
+    "budgetMusd": 3.18,
+    "worldwideGrossMusd": 6.6,
+    "receptionVector": [
+      0.875,
+      0.94,
+      0.7166,
+      0.5585
+    ],
+    "productionVector": [
+      0.5009,
+      0.4205,
+      0.3143,
+      0.1384
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-3-it-s-a-wonderful-life.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:It%27s_a_Wonderful_Life_(1946_poster).jpeg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/It%27s_a_Wonderful_Life",
+      "fileTitle": "File:It's a Wonderful Life (1946 poster).jpeg",
+      "author": "\"Copyright 1946 RKO Radio Pictures Inc. \"",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-4",
+    "title": "To Kill A Mockingbird",
+    "shortTitle": "To Kill A Mo…",
+    "releaseYear": 1962,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 129,
+    "imdbRating": 8.4,
+    "rottenTomatoes": 97,
+    "budgetMusd": 2,
+    "worldwideGrossMusd": 13.13,
+    "receptionVector": [
+      0.8,
+      0.97,
+      0.685,
+      0.653
+    ],
+    "productionVector": [
+      0.4235,
+      0.5235,
+      0.3086,
+      0.4377
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-4-to-kill-a-mockingbird.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:To_Kill_a_Mockingbird_(1963_US_theatrical_poster).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/To_Kill_a_Mockingbird_(film)",
+      "fileTitle": "File:To Kill a Mockingbird (1963 US theatrical poster).jpg",
+      "author": "\"Copyright © 1963 by Universal Pictures Co., Inc. \"",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-5",
+    "title": "Lawrence of Arabia",
+    "shortTitle": "Lawrence of…",
+    "releaseYear": 1962,
+    "genre": "Adventure",
+    "mpaa": "Approved",
+    "runtimeMin": 227,
+    "imdbRating": 8.6,
+    "rottenTomatoes": 98,
+    "budgetMusd": 15,
+    "worldwideGrossMusd": 70,
+    "receptionVector": [
+      0.85,
+      0.98,
+      0.6785,
+      0.617
+    ],
+    "productionVector": [
+      0.76,
+      0.7742,
+      0.8686,
+      0.3111
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-5-lawrence-of-arabia.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Lawrence_of_arabia_ver3_xxlg.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Lawrence_of_Arabia_(film)",
+      "fileTitle": "File:Lawrence of arabia ver3 xxlg.jpg",
+      "author": "Incorporates artwork by Howard Terpning",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-6",
+    "title": "Some Like it Hot",
+    "shortTitle": "Some Like it…",
+    "releaseYear": 1959,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 121,
+    "imdbRating": 8.3,
+    "rottenTomatoes": 97,
+    "budgetMusd": 2.88,
+    "worldwideGrossMusd": 25,
+    "receptionVector": [
+      0.775,
+      0.97,
+      0.6525,
+      0.6755
+    ],
+    "productionVector": [
+      0.4846,
+      0.62,
+      0.2629,
+      0.5779
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-6-some-like-it-hot.png",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Some_Like_It_Hot_(1959_poster).png",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Some_Like_It_Hot",
+      "fileTitle": "File:Some Like It Hot (1959 poster).png",
+      "author": "Designed by Macario Gómez Quibus . \"Copyright 1959 – United Artists Co…",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-7",
+    "title": "The Sting",
+    "shortTitle": "The Sting",
+    "releaseYear": 1973,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 129,
+    "imdbRating": 8.4,
+    "rottenTomatoes": 91,
+    "budgetMusd": 5.5,
+    "worldwideGrossMusd": 159.62,
+    "receptionVector": [
+      0.8,
+      0.91,
+      0.6495,
+      0.599
+    ],
+    "productionVector": [
+      0.5924,
+      0.8976,
+      0.3086,
+      0.99
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-7-the-sting.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:The_Sting_(1973_alt_poster).jpeg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/The_Sting",
+      "fileTitle": "File:The Sting (1973 alt poster).jpeg",
+      "author": "Illustrator unknown; presumably a work-for-hire for distributor Univer…",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-8",
+    "title": "The Bridge on the River Kwai",
+    "shortTitle": "Bridge on th…",
+    "releaseYear": 1957,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 161,
+    "imdbRating": 8.4,
+    "rottenTomatoes": 95,
+    "budgetMusd": 3,
+    "worldwideGrossMusd": 33.3,
+    "receptionVector": [
+      0.8,
+      0.95,
+      0.6315,
+      0.635
+    ],
+    "productionVector": [
+      0.4912,
+      0.6629,
+      0.4914,
+      0.74
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-8-the-bridge-on-the-river-kwai.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:The_Bridge_on_the_River_Kwai_(1958_US_poster_-_Style_A).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/The_Bridge_on_the_River_Kwai",
+      "fileTitle": "File:The Bridge on the River Kwai (1958 US poster - Style A).jpg",
+      "author": "\"Copyright © 1958 Columbia Pictures Corporation .\"",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-9",
+    "title": "Ben-Hur",
+    "shortTitle": "Ben-Hur",
+    "releaseYear": 1959,
+    "genre": "Adventure",
+    "mpaa": "Approved",
+    "runtimeMin": 212,
+    "imdbRating": 8.2,
+    "rottenTomatoes": 91,
+    "budgetMusd": 15,
+    "worldwideGrossMusd": 73,
+    "receptionVector": [
+      0.75,
+      0.91,
+      0.6312,
+      0.644
+    ],
+    "productionVector": [
+      0.76,
+      0.7805,
+      0.7829,
+      0.3244
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-9-ben-hur.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Ben_Hur_1959_film_Poster.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Ben-Hur_(1959_film)",
+      "fileTitle": "File:Ben Hur 1959 film Poster.jpg",
+      "author": "Reynold Brown",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-10",
+    "title": "Singin' in the Rain",
+    "shortTitle": "Singin' in t…",
+    "releaseYear": 1952,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 103,
+    "imdbRating": 8.4,
+    "rottenTomatoes": 100,
+    "budgetMusd": 2.54,
+    "worldwideGrossMusd": 3.6,
+    "receptionVector": [
+      0.8,
+      0.99,
+      0.6225,
+      0.68
+    ],
+    "productionVector": [
+      0.4634,
+      0.3298,
+      0.16,
+      0.0945
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-10-singin-in-the-rain.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Singin%27_in_the_Rain_(1952_poster).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Singin%27_in_the_Rain",
+      "fileTitle": "File:Singin' in the Rain (1952 poster).jpg",
+      "author": "\"Copyright 1952 Loew's Incorporated \"",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-11",
+    "title": "Spartacus",
+    "shortTitle": "Spartacus",
+    "releaseYear": 1960,
+    "genre": "Action",
+    "mpaa": "Approved",
+    "runtimeMin": 197,
+    "imdbRating": 8,
+    "rottenTomatoes": 96,
+    "budgetMusd": 12,
+    "worldwideGrossMusd": 60,
+    "receptionVector": [
+      0.7,
+      0.96,
+      0.6094,
+      0.734
+    ],
+    "productionVector": [
+      0.7228,
+      0.7511,
+      0.6971,
+      0.3333
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-11-spartacus.png",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Spartacus_-_1960_-_poster.png",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Spartacus_(film)",
+      "fileTitle": "File:Spartacus - 1960 - poster.png",
+      "author": "Reynold Brown",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-12",
+    "title": "On the Waterfront",
+    "shortTitle": "On the Water…",
+    "releaseYear": 1954,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 108,
+    "imdbRating": 8.4,
+    "rottenTomatoes": 100,
+    "budgetMusd": 0.91,
+    "worldwideGrossMusd": 9.6,
+    "receptionVector": [
+      0.8,
+      0.99,
+      0.5766,
+      0.68
+    ],
+    "productionVector": [
+      0.2919,
+      0.4766,
+      0.1886,
+      0.7033
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-12-on-the-waterfront.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:On_the_Waterfront_(1954_poster).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/On_the_Waterfront",
+      "fileTitle": "File:On the Waterfront (1954 poster).jpg",
+      "author": "Illustrator unknown. \"Copyright 1954 – Columbia Pictures Corp. \".",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-13",
+    "title": "The Apartment",
+    "shortTitle": "The Apartment",
+    "releaseYear": 1959,
+    "genre": "Romantic Comedy",
+    "mpaa": "Approved",
+    "runtimeMin": 125,
+    "imdbRating": 8.4,
+    "rottenTomatoes": 91,
+    "budgetMusd": 3,
+    "worldwideGrossMusd": 24.6,
+    "receptionVector": [
+      0.8,
+      0.91,
+      0.5579,
+      0.599
+    ],
+    "productionVector": [
+      0.4912,
+      0.6176,
+      0.2857,
+      0.5467
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-13-the-apartment.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:The_Apartment_(1960_poster).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/The_Apartment",
+      "fileTitle": "File:The Apartment (1960 poster).jpg",
+      "author": "\"Copyright © 1960 – United Artists Corporation \".",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-14",
+    "title": "Rebecca",
+    "shortTitle": "Rebecca",
+    "releaseYear": 1939,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 130,
+    "imdbRating": 8.4,
+    "rottenTomatoes": 100,
+    "budgetMusd": 1.29,
+    "worldwideGrossMusd": 6,
+    "receptionVector": [
+      0.8,
+      0.99,
+      0.5533,
+      0.68
+    ],
+    "productionVector": [
+      0.35,
+      0.4063,
+      0.3143,
+      0.3106
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-14-rebecca.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Rebecca_(1939_poster).jpeg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Rebecca_(1940_film)",
+      "fileTitle": "File:Rebecca (1939 poster).jpeg",
+      "author": "\"© 1939 by United Artists Corporation .\"",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-15",
+    "title": "Strangers on a Train",
+    "shortTitle": "Strangers on…",
+    "releaseYear": 1951,
+    "genre": "Drama",
+    "mpaa": "PG",
+    "runtimeMin": 101,
+    "imdbRating": 8.3,
+    "rottenTomatoes": 98,
+    "budgetMusd": 1.2,
+    "worldwideGrossMusd": 7,
+    "receptionVector": [
+      0.775,
+      0.98,
+      0.5482,
+      0.6845
+    ],
+    "productionVector": [
+      0.3381,
+      0.4293,
+      0.1486,
+      0.3889
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-15-strangers-on-a-train.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Strangers_on_a_Train_(film).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Strangers_on_a_Train_(film)",
+      "fileTitle": "File:Strangers on a Train (film).jpg",
+      "author": "Bill Gold",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-16",
+    "title": "High Noon",
+    "shortTitle": "High Noon",
+    "releaseYear": 1951,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 85,
+    "imdbRating": 8.3,
+    "rottenTomatoes": 95,
+    "budgetMusd": 0.73,
+    "worldwideGrossMusd": 8,
+    "receptionVector": [
+      0.775,
+      0.95,
+      0.5477,
+      0.6575
+    ],
+    "productionVector": [
+      0.2551,
+      0.4493,
+      0.0571,
+      0.7306
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-16-high-noon.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:High_Noon_(1952_poster).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/High_Noon",
+      "fileTitle": "File:High Noon (1952 poster).jpg",
+      "author": "\"Copyright 1952 – United Artists Corporation .\"",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-17",
+    "title": "A Streetcar Named Desire",
+    "shortTitle": "A Streetcar…",
+    "releaseYear": 1951,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 122,
+    "imdbRating": 8.1,
+    "rottenTomatoes": 89,
+    "budgetMusd": 1.8,
+    "worldwideGrossMusd": 8,
+    "receptionVector": [
+      0.725,
+      0.89,
+      0.546,
+      0.6485
+    ],
+    "productionVector": [
+      0.4059,
+      0.4493,
+      0.2686,
+      0.2963
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-17-a-streetcar-named-desire.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:A_Streetcar_Named_Desire_(1951).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/A_Streetcar_Named_Desire_(1951_film)",
+      "fileTitle": "File:A Streetcar Named Desire (1951).jpg",
+      "author": "Bill Gold",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-18",
+    "title": "Mr. Smith Goes To Washington",
+    "shortTitle": "Mr. Smith Go…",
+    "releaseYear": 1938,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 129,
+    "imdbRating": 8.2,
+    "rottenTomatoes": 97,
+    "budgetMusd": 1.5,
+    "worldwideGrossMusd": 9,
+    "receptionVector": [
+      0.75,
+      0.97,
+      0.5438,
+      0.698
+    ],
+    "productionVector": [
+      0.3754,
+      0.467,
+      0.3086,
+      0.4
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-18-mr-smith-goes-to-washington.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Mr._Smith_Goes_to_Washington_(1939_poster).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Mr._Smith_Goes_to_Washington",
+      "fileTitle": "File:Mr. Smith Goes to Washington (1939 poster).jpg",
+      "author": "Illustrator unknown; work-for-hire on behalf of Columbia Pictures .",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-19",
+    "title": "House of Wax",
+    "shortTitle": "House of Wax",
+    "releaseYear": 1953,
+    "genre": "Drama",
+    "mpaa": "R",
+    "runtimeMin": 88,
+    "imdbRating": 5.4,
+    "rottenTomatoes": 94,
+    "budgetMusd": 0.66,
+    "worldwideGrossMusd": 23.8,
+    "receptionVector": [
+      0.05,
+      0.94,
+      0.5383,
+      0.99
+    ],
+    "productionVector": [
+      0.2378,
+      0.6126,
+      0.0743,
+      0.99
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-19-house-of-wax.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:House_of_Wax_(1953_film_poster).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/House_of_Wax_(1953_film)",
+      "fileTitle": "File:House of Wax (1953 film poster).jpg",
+      "author": "Illustrator unknown. \"Copyright 1953 Warner Bros. Pictures Distributin…",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-20",
+    "title": "West Side Story",
+    "shortTitle": "West Side St…",
+    "releaseYear": 1961,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 153,
+    "imdbRating": 7.7,
+    "rottenTomatoes": 92,
+    "budgetMusd": 6,
+    "worldwideGrossMusd": 43.7,
+    "receptionVector": [
+      0.625,
+      0.92,
+      0.5249,
+      0.7655
+    ],
+    "productionVector": [
+      0.607,
+      0.7036,
+      0.4457,
+      0.4856
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-20-west-side-story.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:West_Side_Story_1961_film_poster.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/West_Side_Story_(1961_film)",
+      "fileTitle": "File:West Side Story 1961 film poster.jpg",
+      "author": "Joe Caroff",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-21",
+    "title": "Eraserhead",
+    "shortTitle": "Eraserhead",
+    "releaseYear": 1976,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 89,
+    "imdbRating": 7.4,
+    "rottenTomatoes": 90,
+    "budgetMusd": 0.1,
+    "worldwideGrossMusd": 7,
+    "receptionVector": [
+      0.55,
+      0.9,
+      0.5089,
+      0.815
+    ],
+    "productionVector": [
+      0.01,
+      0.4293,
+      0.08,
+      0.99
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-21-eraserhead.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Eraserhead_-_Filmex_%2777_poster.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Eraserhead",
+      "fileTitle": "File:Eraserhead - Filmex '77 poster.jpg",
+      "author": "Filmex",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-22",
+    "title": "The Hustler",
+    "shortTitle": "The Hustler",
+    "releaseYear": 1961,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 134,
+    "imdbRating": 8.1,
+    "rottenTomatoes": 97,
+    "budgetMusd": 2,
+    "worldwideGrossMusd": 7.6,
+    "receptionVector": [
+      0.725,
+      0.97,
+      0.5016,
+      0.7205
+    ],
+    "productionVector": [
+      0.4235,
+      0.4417,
+      0.3371,
+      0.2533
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-22-the-hustler.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:The_Hustler_(1961_film_poster).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/The_Hustler",
+      "fileTitle": "File:The Hustler (1961 film poster).jpg",
+      "author": "\"Copyright © 1961 – Twentieth Century–Fox Film Corp. \"",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-23",
+    "title": "It Happened One Night",
+    "shortTitle": "It Happened…",
+    "releaseYear": 1933,
+    "genre": "Romantic Comedy",
+    "mpaa": "Approved",
+    "runtimeMin": 105,
+    "imdbRating": 8.3,
+    "rottenTomatoes": 97,
+    "budgetMusd": 0.33,
+    "worldwideGrossMusd": 2.5,
+    "receptionVector": [
+      0.775,
+      0.97,
+      0.4997,
+      0.6755
+    ],
+    "productionVector": [
+      0.12,
+      0.2752,
+      0.1714,
+      0.5128
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-23-it-happened-one-night.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:It-happened-one-night-poster.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/It_Happened_One_Night",
+      "fileTitle": "File:It-happened-one-night-poster.jpg",
+      "author": "Columbia Pictures Corp.",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-24",
+    "title": "The Man Who Shot Liberty Valance",
+    "shortTitle": "Man Who Shot…",
+    "releaseYear": 1962,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 123,
+    "imdbRating": 8.1,
+    "rottenTomatoes": 97,
+    "budgetMusd": 3.2,
+    "worldwideGrossMusd": 8,
+    "receptionVector": [
+      0.725,
+      0.97,
+      0.4842,
+      0.7205
+    ],
+    "productionVector": [
+      0.502,
+      0.4493,
+      0.2743,
+      0.1667
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-24-the-man-who-shot-liberty-valance.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:The_Man_Who_Shot_Liberty_Valance_(1962_poster).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/The_Man_Who_Shot_Liberty_Valance",
+      "fileTitle": "File:The Man Who Shot Liberty Valance (1962 poster).jpg",
+      "author": "\"Copyright © 1962 Paramount Pictures Corporation and John Ford Product…",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-25",
+    "title": "The Longest Day",
+    "shortTitle": "Longest Day",
+    "releaseYear": 1962,
+    "genre": "Action",
+    "mpaa": "Approved",
+    "runtimeMin": 178,
+    "imdbRating": 7.8,
+    "rottenTomatoes": 92,
+    "budgetMusd": 10,
+    "worldwideGrossMusd": 50.1,
+    "receptionVector": [
+      0.65,
+      0.92,
+      0.4458,
+      0.743
+    ],
+    "productionVector": [
+      0.6923,
+      0.7241,
+      0.5886,
+      0.334
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-25-the-longest-day.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Stuart_Whitman_in_The_Longest_Day_(publicity_still).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/The_Longest_Day_(film)",
+      "fileTitle": "File:Stuart Whitman in The Longest Day (publicity still).jpg",
+      "author": "unknown (20th Century Fox)",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-26",
+    "title": "Peter Pan",
+    "shortTitle": "Peter Pan",
+    "releaseYear": 1953,
+    "genre": "Adventure",
+    "mpaa": "PG",
+    "runtimeMin": 77,
+    "imdbRating": 7.1,
+    "rottenTomatoes": 83,
+    "budgetMusd": 4,
+    "worldwideGrossMusd": 87.4,
+    "receptionVector": [
+      0.475,
+      0.83,
+      0.4385,
+      0.8195
+    ],
+    "productionVector": [
+      0.5393,
+      0.8074,
+      0.0114,
+      0.99
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-26-peter-pan.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Peter_Pan_(1953_poster).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Peter_Pan_(1953_film)",
+      "fileTitle": "File:Peter Pan (1953 poster).jpg",
+      "author": "Illustrator unknown. \"Copyright 1952 RKO Radio Pictures Inc.\"",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-27",
+    "title": "From Here to Eternity",
+    "shortTitle": "From Here to…",
+    "releaseYear": 1953,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 118,
+    "imdbRating": 7.9,
+    "rottenTomatoes": 86,
+    "budgetMusd": 1.65,
+    "worldwideGrossMusd": 30.5,
+    "receptionVector": [
+      0.675,
+      0.86,
+      0.4212,
+      0.6665
+    ],
+    "productionVector": [
+      0.3913,
+      0.6498,
+      0.2457,
+      0.99
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-27-from-here-to-eternity.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:From_Here_to_Eternity_(1953_poster).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/From_Here_to_Eternity",
+      "fileTitle": "File:From Here to Eternity (1953 poster).jpg",
+      "author": "\"Copyright 1953 Columbia Pictures Corp. \"",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-28",
+    "title": "Spellbound",
+    "shortTitle": "Spellbound",
+    "releaseYear": 1944,
+    "genre": "Drama",
+    "mpaa": "G",
+    "runtimeMin": 111,
+    "imdbRating": 7.7,
+    "rottenTomatoes": 87,
+    "budgetMusd": 1.5,
+    "worldwideGrossMusd": 7,
+    "receptionVector": [
+      0.625,
+      0.87,
+      0.4165,
+      0.7205
+    ],
+    "productionVector": [
+      0.3754,
+      0.4293,
+      0.2057,
+      0.3111
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-28-spellbound.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Spellbound-1945.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Spellbound_(1945_film)",
+      "fileTitle": "File:Spellbound-1945.jpg",
+      "author": "National Board of Review; photo by Selznick International Pictures, Va…",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-29",
+    "title": "Cat on a Hot Tin Roof",
+    "shortTitle": "Cat on a Hot…",
+    "releaseYear": 1958,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 108,
+    "imdbRating": 8,
+    "rottenTomatoes": 100,
+    "budgetMusd": 3,
+    "worldwideGrossMusd": 17.57,
+    "receptionVector": [
+      0.7,
+      0.99,
+      0.4152,
+      0.77
+    ],
+    "productionVector": [
+      0.4912,
+      0.5672,
+      0.1886,
+      0.3905
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-29-cat-on-a-hot-tin-roof.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Cat_roof.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Cat_on_a_Hot_Tin_Roof_(1958_film)",
+      "fileTitle": "File:Cat roof.jpg",
+      "author": "Reynold Brown",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-30",
+    "title": "The Lost Weekend",
+    "shortTitle": "Lost Weekend",
+    "releaseYear": 1944,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 101,
+    "imdbRating": 8.2,
+    "rottenTomatoes": 100,
+    "budgetMusd": 1.25,
+    "worldwideGrossMusd": 11,
+    "receptionVector": [
+      0.75,
+      0.99,
+      0.3837,
+      0.725
+    ],
+    "productionVector": [
+      0.345,
+      0.497,
+      0.1486,
+      0.5867
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-30-the-lost-weekend.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:The_Lost_Weekend_(1945_film).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/The_Lost_Weekend",
+      "fileTitle": "File:The Lost Weekend (1945 film).jpg",
+      "author": "Illustrator unknown. \"Copyright 1945 Paramount Pictures Inc. \"",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-31",
+    "title": "The Trouble With Harry",
+    "shortTitle": "Trouble With…",
+    "releaseYear": 1955,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 99,
+    "imdbRating": 7.2,
+    "rottenTomatoes": 89,
+    "budgetMusd": 1.2,
+    "worldwideGrossMusd": 7,
+    "receptionVector": [
+      0.5,
+      0.89,
+      0.3799,
+      0.851
+    ],
+    "productionVector": [
+      0.3381,
+      0.4293,
+      0.1371,
+      0.3889
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-31-the-trouble-with-harry.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:The_Trouble_with_Harry.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/The_Trouble_with_Harry",
+      "fileTitle": "File:The Trouble with Harry.jpg",
+      "author": "Copyrighted by Paramount Pictures. Artists(s) not known.",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-32",
+    "title": "Red River",
+    "shortTitle": "Red River",
+    "releaseYear": 1947,
+    "genre": "Action",
+    "mpaa": "Approved",
+    "runtimeMin": 133,
+    "imdbRating": 7.8,
+    "rottenTomatoes": 100,
+    "budgetMusd": 3,
+    "worldwideGrossMusd": 9.01,
+    "receptionVector": [
+      0.65,
+      0.99,
+      0.3666,
+      0.815
+    ],
+    "productionVector": [
+      0.4912,
+      0.4672,
+      0.3314,
+      0.2003
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-32-red-river.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Red_River_(1948)_poster.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Red_River_(1948_film)",
+      "fileTitle": "File:Red River (1948) poster.jpg",
+      "author": "artist unknown. Copyright held by United Artists.",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-33",
+    "title": "The Alamo",
+    "shortTitle": "The Alamo",
+    "releaseYear": 1960,
+    "genre": "Western",
+    "mpaa": "PG-13",
+    "runtimeMin": 162,
+    "imdbRating": 5.9,
+    "rottenTomatoes": 54,
+    "budgetMusd": 12,
+    "worldwideGrossMusd": 7.9,
+    "receptionVector": [
+      0.175,
+      0.54,
+      0.3581,
+      0.8285
+    ],
+    "productionVector": [
+      0.7228,
+      0.4475,
+      0.4971,
+      0.0439
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-33-the-alamo.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:The_Alamo_1960_poster.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/The_Alamo_(1960_film)",
+      "fileTitle": "File:The Alamo 1960 poster.jpg",
+      "author": "Reynold Brown",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-34",
+    "title": "Notorious",
+    "shortTitle": "Notorious",
+    "releaseYear": 1945,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 101,
+    "imdbRating": 6.3,
+    "rottenTomatoes": 97,
+    "budgetMusd": 2,
+    "worldwideGrossMusd": 24.46,
+    "receptionVector": [
+      0.275,
+      0.97,
+      0.3542,
+      0.99
+    ],
+    "productionVector": [
+      0.4235,
+      0.6167,
+      0.1486,
+      0.8155
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-34-notorious.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Notorious_(1946_film_poster).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Notorious_(1946_film)",
+      "fileTitle": "File:Notorious (1946 film poster).jpg",
+      "author": "\"Copyright 1946 RKO Radio Pictures Inc. \"",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-35",
+    "title": "You Can't Take It With You",
+    "shortTitle": "You Can't Ta…",
+    "releaseYear": 1937,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 126,
+    "imdbRating": 8,
+    "rottenTomatoes": 96,
+    "budgetMusd": 1.64,
+    "worldwideGrossMusd": 4,
+    "receptionVector": [
+      0.7,
+      0.96,
+      0.3337,
+      0.734
+    ],
+    "productionVector": [
+      0.3907,
+      0.3455,
+      0.2914,
+      0.1622
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-35-you-can-t-take-it-with-you.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:You_Can%27t_Take_it_With_You_film_poster.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/You_Can%27t_Take_It_with_You_(film)",
+      "fileTitle": "File:You Can't Take it With You film poster.jpg",
+      "author": "Columbia Pictures",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-36",
+    "title": "M*A*S*H",
+    "shortTitle": "M*A*S*H",
+    "releaseYear": 1970,
+    "genre": "Drama",
+    "mpaa": "R",
+    "runtimeMin": 116,
+    "imdbRating": 8.6,
+    "rottenTomatoes": 95,
+    "budgetMusd": 3.5,
+    "worldwideGrossMusd": 81.6,
+    "receptionVector": [
+      0.85,
+      0.95,
+      0.3234,
+      0.59
+    ],
+    "productionVector": [
+      0.5169,
+      0.7971,
+      0.2343,
+      0.99
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-36-m-a-s-h.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:M*A*S*H_(1970_film_poster).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/M*A*S*H_(film)",
+      "fileTitle": "File:M*A*S*H (1970 film poster).jpg",
+      "author": "Distributed by 20th Century Fox .",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-37",
+    "title": "Cleopatra",
+    "shortTitle": "Cleopatra",
+    "releaseYear": 1963,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 248,
+    "imdbRating": 6.8,
+    "rottenTomatoes": 40,
+    "budgetMusd": 36,
+    "worldwideGrossMusd": 62,
+    "receptionVector": [
+      0.4,
+      0.4,
+      0.32,
+      0.5
+    ],
+    "productionVector": [
+      0.9063,
+      0.756,
+      0.9886,
+      0.1148
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-37-cleopatra.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Cleopatra_poster.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Cleopatra_(1963_film)",
+      "fileTitle": "File:Cleopatra poster.jpg",
+      "author": "After Howard Terpning",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-38",
+    "title": "The Wrong Man",
+    "shortTitle": "The Wrong Man",
+    "releaseYear": 1956,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 105,
+    "imdbRating": 7.5,
+    "rottenTomatoes": 89,
+    "budgetMusd": 1.2,
+    "worldwideGrossMusd": 2,
+    "receptionVector": [
+      0.575,
+      0.89,
+      0.3132,
+      0.7835
+    ],
+    "productionVector": [
+      0.3381,
+      0.2417,
+      0.1714,
+      0.1111
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-38-the-wrong-man.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:The-Wrong-Man-poster.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/The_Wrong_Man",
+      "fileTitle": "File:The-Wrong-Man-poster.jpg",
+      "author": "Copyrighted by Warner Bros., Inc.. Artists(s) not known.",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-39",
+    "title": "Topaz",
+    "shortTitle": "Topaz",
+    "releaseYear": 1969,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 126,
+    "imdbRating": 6.2,
+    "rottenTomatoes": 71,
+    "budgetMusd": 4,
+    "worldwideGrossMusd": 6,
+    "receptionVector": [
+      0.25,
+      0.71,
+      0.2877,
+      0.914
+    ],
+    "productionVector": [
+      0.5393,
+      0.4063,
+      0.2914,
+      0.1
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-39-topaz.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Topaz_(1969)_trailer.webm",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Topaz_(1969_film)",
+      "fileTitle": "File:Topaz (1969) trailer.webm",
+      "author": "Alfred Hitchcock",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-40",
+    "title": "Gentleman's Agreement",
+    "shortTitle": "Gentleman's…",
+    "releaseYear": 1946,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 118,
+    "imdbRating": 7.4,
+    "rottenTomatoes": 83,
+    "budgetMusd": 2,
+    "worldwideGrossMusd": 7.8,
+    "receptionVector": [
+      0.55,
+      0.83,
+      0.2379,
+      0.752
+    ],
+    "productionVector": [
+      0.4235,
+      0.4455,
+      0.2457,
+      0.26
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-40-gentleman-s-agreement.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Gentleman%27s_Agreement_(1947_poster).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Gentleman%27s_Agreement",
+      "fileTitle": "File:Gentleman's Agreement (1947 poster).jpg",
+      "author": "\"Copyright 1947 - By Twentieth Century–Fox Film Corp. \"",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-41",
+    "title": "The Greatest Show on Earth",
+    "shortTitle": "Greatest Sho…",
+    "releaseYear": 1952,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 152,
+    "imdbRating": 6.8,
+    "rottenTomatoes": 41,
+    "budgetMusd": 4,
+    "worldwideGrossMusd": 36,
+    "receptionVector": [
+      0.4,
+      0.41,
+      0.2249,
+      0.509
+    ],
+    "productionVector": [
+      0.5393,
+      0.6746,
+      0.44,
+      0.6
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-41-the-greatest-show-on-earth.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Cecil_B._DeMille%27s_Greatest_!_The_Greatest_Show_on_Earth,_1952.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/The_Greatest_Show_on_Earth_(film)",
+      "fileTitle": "File:Cecil B. DeMille's Greatest ! The Greatest Show on Earth, 1952.jpg",
+      "author": "Paramount Pictures",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-42",
+    "title": "Exodus",
+    "shortTitle": "Exodus",
+    "releaseYear": 1960,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 208,
+    "imdbRating": 6.8,
+    "rottenTomatoes": 67,
+    "budgetMusd": 4,
+    "worldwideGrossMusd": 21.75,
+    "receptionVector": [
+      0.4,
+      0.67,
+      0.1963,
+      0.743
+    ],
+    "productionVector": [
+      0.5393,
+      0.5991,
+      0.76,
+      0.3625
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-42-exodus.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Exodus_poster.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Exodus_(1960_film)",
+      "fileTitle": "File:Exodus poster.jpg",
+      "author": "Saul Bass",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-43",
+    "title": "55 Days at Peking",
+    "shortTitle": "55 Days at P…",
+    "releaseYear": 1962,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 154,
+    "imdbRating": 6.8,
+    "rottenTomatoes": 57,
+    "budgetMusd": 17,
+    "worldwideGrossMusd": 10,
+    "receptionVector": [
+      0.4,
+      0.57,
+      0.1154,
+      0.653
+    ],
+    "productionVector": [
+      0.7809,
+      0.4828,
+      0.4514,
+      0.0392
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-43-55-days-at-peking.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:55-Days-Peking.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/55_Days_at_Peking",
+      "fileTitle": "File:55-Days-Peking.jpg",
+      "author": "Incorporates artwork by Howard Terpning",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-44",
+    "title": "The Broadway Melody",
+    "shortTitle": "Broadway Mel…",
+    "releaseYear": 1928,
+    "genre": "Musical",
+    "mpaa": "Approved",
+    "runtimeMin": 100,
+    "imdbRating": 6.7,
+    "rottenTomatoes": 38,
+    "budgetMusd": 0.38,
+    "worldwideGrossMusd": 4.36,
+    "receptionVector": [
+      0.375,
+      0.38,
+      0.1088,
+      0.5045
+    ],
+    "productionVector": [
+      0.1456,
+      0.3584,
+      0.1429,
+      0.7666
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-44-the-broadway-melody.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Broadway_Melody_poster.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/The_Broadway_Melody",
+      "fileTitle": "File:Broadway Melody poster.jpg",
+      "author": "MGM",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-45",
+    "title": "Sweet Sweetback's Baad Asssss Song",
+    "shortTitle": "Sweet Sweetb…",
+    "releaseYear": 1971,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 97,
+    "imdbRating": 5.6,
+    "rottenTomatoes": 62,
+    "budgetMusd": 0.15,
+    "worldwideGrossMusd": 15.2,
+    "receptionVector": [
+      0.1,
+      0.62,
+      0.0885,
+      0.968
+    ],
+    "productionVector": [
+      0.01,
+      0.5455,
+      0.1257,
+      0.99
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-45-sweet-sweetback-s-baad-asssss-so.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:Sweet_sweetback_poster.jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/Sweet_Sweetback%27s_Baadasssss_Song",
+      "fileTitle": "File:Sweet sweetback poster.jpg",
+      "author": "Employee(s) of Cinemation Industries",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-46",
+    "title": "The Ten Commandments",
+    "shortTitle": "Ten Commandm…",
+    "releaseYear": 1956,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 220,
+    "imdbRating": 2.5,
+    "rottenTomatoes": 90,
+    "budgetMusd": 13.5,
+    "worldwideGrossMusd": 80,
+    "receptionVector": [
+      0.01,
+      0.9,
+      0.0802,
+      0.99
+    ],
+    "productionVector": [
+      0.7424,
+      0.7942,
+      0.8286,
+      0.3951
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-46-the-ten-commandments.jpg",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:The_Ten_Commandments_(1956_film_poster).jpg",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/The_Ten_Commandments_(1956_film)",
+      "fileTitle": "File:The Ten Commandments (1956 film poster).jpg",
+      "author": "Illustrated by Macario Gómez Quibus . \"Copyright © 1956 Paramount Pict…",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  },
+  {
+    "id": "film-47",
+    "title": "The Pirate",
+    "shortTitle": "The Pirate",
+    "releaseYear": 1947,
+    "genre": "Drama",
+    "mpaa": "Approved",
+    "runtimeMin": 102,
+    "imdbRating": 7.1,
+    "rottenTomatoes": 71,
+    "budgetMusd": 3.7,
+    "worldwideGrossMusd": 2.96,
+    "receptionVector": [
+      0.475,
+      0.71,
+      0.0763,
+      0.7115
+    ],
+    "productionVector": [
+      0.5262,
+      0.3002,
+      0.1543,
+      0.0533
+    ],
+    "mediaCredit": {
+      "localPath": "/commons/cinema/film-47-the-pirate.png",
+      "commonsFileUrl": "https://commons.wikimedia.org/wiki/File:The_Pirate_(1948_film)_poster.png",
+      "wikipediaUrl": "https://en.wikipedia.org/wiki/The_Pirate_(1948_film)",
+      "fileTitle": "File:The Pirate (1948 film) poster.png",
+      "author": "Loew's Inc.",
+      "licenseShort": "Public domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/"
+    }
+  }
+]

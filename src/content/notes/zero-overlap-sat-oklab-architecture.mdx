@@ -1,0 +1,29 @@
+---
+title: "Why Force-Directed Hairballs Fail: Guaranteed 0.0 px Overlap with SAT & OKLab"
+description: "Engineering notes on strict zero-dependency package boundaries, Separating Axis Theorem Minimum Translation Vectors, and perceptual OKLab color mixing."
+publishedDate: "2026-11-02"
+author: "Dr. Georg Hackenberg"
+authorRole: "Creator of SimplexViz"
+category: "Architecture"
+readingMinutes: 5
+featured: false
+---
+
+import StrategyDiagram from '../../components/diagrams/StrategyDiagram.astro';
+
+Spring-electric force graphs treat node overlap as a soft penalty: increase repulsion and related nodes fly apart; increase attraction and text cards collide into unreadable stacks.
+
+## Exact Convex Hulls + Spatial Hash SAT
+
+SimplexViz treats **covering-triangle containment** and **zero convex overlap** as hard geometric invariants rather than soft forces:
+
+- Renderers measure every node—whether a 10 px circle, a 14-bar waveform capsule, or a 110×28 px React JSX card—into an exact `ConvexGeometry` (`ConvexCircle` or `ConvexPolygon`).
+- `UniformSpatialHashGrid` prunes broad-phase pair checks to `O(N)` expected time per iteration.
+- Narrow-phase **Separating Axis Theorem (SAT)** computes exact Minimum Translation Vectors (`computeConvexMtv`, `computeCirclePolygonMtv`), clamping every node strictly inside its covering simplex envelope until `maxPenetrationPx === 0`.
+
+<StrategyDiagram
+  kind="color"
+  caption="Graph-coloring OKLab edge contrast optimization paired with chroma-preserving barycentric color mixing."
+/>
+
+Combined with perceptual **OKLab** edge-contrast optimization, interdisciplinary bridge items retain crisp luminance and vivid hue separation on both light and dark canvases.

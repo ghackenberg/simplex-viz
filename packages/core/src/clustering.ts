@@ -6,6 +6,7 @@ import type {
   ClusterMemberRef,
   ContentLayoutContext,
   IdentifiedItem,
+  PeerClusterContext,
   Point2D,
   SimplexMesh,
   TagDescriptor,
@@ -1086,7 +1087,8 @@ export function computeSimplexClustering<TItem, TTagMeta, TClusterMeta>(params: 
     meta: resolveTagMeta ? resolveTagMeta(tag) : undefined,
   });
 
-  const clusters: ClusterDescriptor<TItem, TTagMeta, TClusterMeta | undefined>[] = [];
+  const allItems: readonly TItem[] = rawWithColor.map((r) => r.entry.item);
+  const baseContexts: Array<Omit<ClusterDerivationContext<TItem, TTagMeta>, 'allItems' | 'peerClusters'>> = [];
   for (let v = 0; v < K; v++) {
     const vertex = mesh.vertices[v]!;
     const color = assignedColors[v]!;
@@ -1103,7 +1105,7 @@ export function computeSimplexClustering<TItem, TTagMeta, TClusterMeta>(params: 
         .map((t) => t.tag)
         .join(' · ') || `Cluster ${v + 1}`;
 
-    const derivationCtx: ClusterDerivationContext<TItem, TTagMeta> = {
+    baseContexts.push({
       clusterIndex: v,
       clusterUid: matchedUids[v]!,
       code: `T${v + 1}`,
@@ -1119,8 +1121,25 @@ export function computeSimplexClustering<TItem, TTagMeta, TClusterMeta>(params: 
       coreTags,
       sharedTags,
       members: membersPerCluster[v]!,
-    };
+    });
+  }
 
+  const peerClusters: readonly PeerClusterContext<TItem, TTagMeta>[] = baseContexts.map((b) => ({
+    clusterIndex: b.clusterIndex,
+    clusterUid: b.clusterUid,
+    code: b.code,
+    defaultLabel: b.defaultLabel,
+    coreTags: b.coreTags,
+    members: b.members,
+  }));
+
+  const clusters: ClusterDescriptor<TItem, TTagMeta, TClusterMeta | undefined>[] = [];
+  for (let v = 0; v < K; v++) {
+    const derivationCtx: ClusterDerivationContext<TItem, TTagMeta> = {
+      ...baseContexts[v]!,
+      allItems,
+      peerClusters,
+    };
     const meta = deriveClusterMeta ? deriveClusterMeta(derivationCtx) : undefined;
     clusters.push({
       ...derivationCtx,

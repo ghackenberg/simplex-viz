@@ -1,0 +1,868 @@
+[
+  {
+    "id": "arxiv-2611.16965",
+    "arxivId": "2611.16965",
+    "title": "Asymptotic Dimension of Persistence Modules of Bounded Presentation",
+    "primaryAuthor": "Sushovan Majhi",
+    "publishedYear": 2026,
+    "categories": [
+      "math.MG",
+      "cs.CG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.15792",
+    "arxivId": "2611.15792",
+    "title": "Bounded Knapsack in Truly Subquadratic Time",
+    "primaryAuthor": "Huanyi Zhou",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.DS",
+      "cs.CG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.15783",
+    "arxivId": "2611.15783",
+    "title": "A Linear-Time Construction on Achieving a Sublinear Energy Gap on Smale's Seventh Problem",
+    "primaryAuthor": "Rishabh Kabra",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CG",
+      "math.MG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.15320",
+    "arxivId": "2611.15320",
+    "title": "Delaunay-Based Nearest Neighbor Search with Grid-Accelerated Queries and Parallel Construction",
+    "primaryAuthor": "Pengfei Wang",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.GR",
+      "cs.CG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.14892",
+    "arxivId": "2611.14892",
+    "title": "Almost Optimal Lower Bounds under Almost ETH for Approximating Euclidean k-means",
+    "primaryAuthor": "Karthik C. S.",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CG",
+      "cs.DS",
+      "stat.ML"
+    ]
+  },
+  {
+    "id": "arxiv-2611.14430",
+    "arxivId": "2611.14430",
+    "title": "Linear-size graphs at every strict dismantling level",
+    "primaryAuthor": "Jesús F. Espinoza",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CG",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2611.13600",
+    "arxivId": "2611.13600",
+    "title": "Parameterized Complexity and Geometric Approximation of Riesz Energy Subset Selection",
+    "primaryAuthor": "Michael Emmerich",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CG",
+      "cs.DS"
+    ]
+  },
+  {
+    "id": "arxiv-2611.12468",
+    "arxivId": "2611.12468",
+    "title": "Sets of reach are",
+    "primaryAuthor": "André Lieutier",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CG",
+      "math.MG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.09745",
+    "arxivId": "2611.09745",
+    "title": "Multiscale Closing Index (MCI) for measuring structural similarity between 2D point sets",
+    "primaryAuthor": "Nicolò Zava",
+    "publishedYear": 2026,
+    "categories": [
+      "math.MG",
+      "cs.CG",
+      "cs.CV"
+    ]
+  },
+  {
+    "id": "arxiv-2611.09600",
+    "arxivId": "2611.09600",
+    "title": "Coresets for Capacitated Clustering via Dual Concentration",
+    "primaryAuthor": "Milind Prabhu",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.DS",
+      "cs.CG",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.09166",
+    "arxivId": "2611.09166",
+    "title": "Separating Measures by Hyperplanes",
+    "primaryAuthor": "José Correa",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CG",
+      "math.MG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.08546",
+    "arxivId": "2611.08546",
+    "title": "Bourgain's Theorem for a Union of Euclidean Metric Spaces",
+    "primaryAuthor": "Dimitar Chakarov",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.DS",
+      "cs.CG",
+      "math.MG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.07100",
+    "arxivId": "2611.07100",
+    "title": "Stacking Stars: Minimum-Area Packing with and without Rotation",
+    "primaryAuthor": "Mikkel Abrahamsen",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CG",
+      "cs.DS"
+    ]
+  },
+  {
+    "id": "arxiv-2611.06998",
+    "arxivId": "2611.06998",
+    "title": "Resolving Tusnády's Problem",
+    "primaryAuthor": "Nicola Wengiel",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CG",
+      "cs.DS"
+    ]
+  },
+  {
+    "id": "arxiv-2611.06092",
+    "arxivId": "2611.06092",
+    "title": "Constant-Round Massively Parallel Algorithms for Approximate MSTs in Metric Spaces",
+    "primaryAuthor": "Eunjin Oh",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.DS",
+      "cs.CG",
+      "cs.DC"
+    ]
+  },
+  {
+    "id": "arxiv-2611.06055",
+    "arxivId": "2611.06055",
+    "title": "Softmax Attention with Any Temperature in Fixed Dimension: Matching the Best Known Maximum-Inner-Product Bounds",
+    "primaryAuthor": "Zixuan Huang",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.DS",
+      "cs.CG",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.05019",
+    "arxivId": "2611.05019",
+    "title": "Faster Planar Diameter using Pseudoline Envelopes",
+    "primaryAuthor": "Da Wei Zheng",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.DS",
+      "cs.CG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.04829",
+    "arxivId": "2611.04829",
+    "title": "Geometric Bin Packing Beyond Convexity: Approximation Schemes without Augmentation",
+    "primaryAuthor": "Lucas de Oliveira Silva",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CG",
+      "cs.DS"
+    ]
+  },
+  {
+    "id": "arxiv-2611.04444",
+    "arxivId": "2611.04444",
+    "title": "Binary Huffman Coding with Unequal Letter Costs Is NP-Complete",
+    "primaryAuthor": "L. Sunil Chandran",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.DS",
+      "cs.CG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.01368",
+    "arxivId": "2611.01368",
+    "title": "An for Mixed Volumes",
+    "primaryAuthor": "Xiaoyu Chen",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.DS",
+      "cs.CG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.00721",
+    "arxivId": "2611.00721",
+    "title": "Representation-Aware Closed-Surface Parameterization: Exact Sensitivity Analysis and Pole-Aware Planar Preconditioning",
+    "primaryAuthor": "Zixi Yi",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CG",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2610.42075",
+    "arxivId": "2610.42075",
+    "title": "Implicit Additively Weighted Geodesic Voronoi Diagrams and Applications",
+    "primaryAuthor": "Bruce W. Brewer",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CG",
+      "cs.DS"
+    ]
+  },
+  {
+    "id": "arxiv-2610.41945",
+    "arxivId": "2610.41945",
+    "title": "Optimal Average Distortion for Non-Expansive Embeddings of Euclidean Metrics into the Line: With applications to cut-matching games and vertex expansion",
+    "primaryAuthor": "Jack Spalding-Jamieson",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.DS",
+      "cs.CG",
+      "math.MG"
+    ]
+  },
+  {
+    "id": "arxiv-2610.40625",
+    "arxivId": "2610.40625",
+    "title": "Constant-Factor Approximation for Capacitated Clustering in Low Dimension with Centers",
+    "primaryAuthor": "Kangke Cheng",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CG",
+      "cs.DS"
+    ]
+  },
+  {
+    "id": "arxiv-2610.39753",
+    "arxivId": "2610.39753",
+    "title": "Four-Coloring Planar Graphs in Linear Time",
+    "primaryAuthor": "Yuta Inoue",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.DS",
+      "cs.CG"
+    ]
+  },
+  {
+    "id": "arxiv-2610.38920",
+    "arxivId": "2610.38920",
+    "title": "Dimension Reduction and Coresets for Min-Sum -Clustering",
+    "primaryAuthor": "Asaf Dallal",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.DS",
+      "cs.CG"
+    ]
+  },
+  {
+    "id": "arxiv-2610.38369",
+    "arxivId": "2610.38369",
+    "title": "The 120-Cell Dissected by the Hyperplanes of Its Final Stellation: the golden ring Z[phi] as foundation, from Kramer's seven cells to 2,455,201 cells in 338 orbits",
+    "primaryAuthor": "Miguel E. Pérez Ibarra",
+    "publishedYear": 2026,
+    "categories": [
+      "math.MG",
+      "cs.CG"
+    ]
+  },
+  {
+    "id": "arxiv-2610.36766",
+    "arxivId": "2610.36766",
+    "title": "On surfaces, that fill the space",
+    "primaryAuthor": "E. V. Shchepin",
+    "publishedYear": 2026,
+    "categories": [
+      "math.MG",
+      "cs.CG"
+    ]
+  },
+  {
+    "id": "arxiv-2610.35495",
+    "arxivId": "2610.35495",
+    "title": "Query Complexity of Learning Axis-Aligned Partitions",
+    "primaryAuthor": "Hadley Black",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.DS",
+      "cs.CG",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2610.34651",
+    "arxivId": "2610.34651",
+    "title": "Approximating the Euclidean Ball by Polytopes: Surprising Rates in High Dimensions",
+    "primaryAuthor": "Yegor Gorodzha",
+    "publishedYear": 2026,
+    "categories": [
+      "math.MG",
+      "cs.CG",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.18340",
+    "arxivId": "2611.18340",
+    "title": "DIRT: Depth-completed Image-based Rendering using Two-band Blending for Live Novel-view Synthesis",
+    "primaryAuthor": "Mathias Harrer",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2611.18267",
+    "arxivId": "2611.18267",
+    "title": "TetraCoder: Adaptive Tetrahedral Encoding for Neural Fields",
+    "primaryAuthor": "Daniele Della Pietra",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.GR",
+      "cs.CV"
+    ]
+  },
+  {
+    "id": "arxiv-2611.18253",
+    "arxivId": "2611.18253",
+    "title": "Pose-based Neural Clothing for Animated Characters",
+    "primaryAuthor": "Julian N. Heidenreich",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.GR",
+      "cs.CV"
+    ]
+  },
+  {
+    "id": "arxiv-2611.17762",
+    "arxivId": "2611.17762",
+    "title": "Creative Product Design under Brand Image Constraints",
+    "primaryAuthor": "Takeshi Onishi",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.AI",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2611.17321",
+    "arxivId": "2611.17321",
+    "title": "BrickFlow: Connectivity-Guided Brick Reconstruction",
+    "primaryAuthor": "Peter Kulits",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2611.17298",
+    "arxivId": "2611.17298",
+    "title": "Consistent Video-to-Video Translation via Explicit Correspondences",
+    "primaryAuthor": "Gaurav Parmar",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.AI",
+      "cs.GR",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.17185",
+    "arxivId": "2611.17185",
+    "title": "Neural Render Proxies for Interactive and Differentiable Lighting",
+    "primaryAuthor": "Sergio Sancho",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.GR",
+      "cs.CV"
+    ]
+  },
+  {
+    "id": "arxiv-2611.16701",
+    "arxivId": "2611.16701",
+    "title": "Sprint3D: Accelerating End-to-End 3D Asset Generation through Pipeline Optimization",
+    "primaryAuthor": "Sho Kuno",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2611.14451",
+    "arxivId": "2611.14451",
+    "title": "A Lightweight Differentiable Method for Real-Time Skin Rendering and Digitization",
+    "primaryAuthor": "Mario Marquez-Balduque",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2611.12716",
+    "arxivId": "2611.12716",
+    "title": "Spaghetti Splatting: Differentiating Curvilinear Dirac Masses via Convolution",
+    "primaryAuthor": "George Shramko",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2611.12319",
+    "arxivId": "2611.12319",
+    "title": "Mitigating SM-Level Load Imbalance in 3D Gaussian Splatting on GPUs",
+    "primaryAuthor": "Junha Ryu",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.DC",
+      "cs.CV",
+      "cs.GR",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.12162",
+    "arxivId": "2611.12162",
+    "title": "Same Physics, Different Gradients: A State-of-the-Art Report on Differentiable Physics Simulation",
+    "primaryAuthor": "Lei Shu",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.GR",
+      "cs.CV",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.12103",
+    "arxivId": "2611.12103",
+    "title": "Real-Time Volumetric Light Transport Inference without a Path",
+    "primaryAuthor": "Ludwic Leonard",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.GR",
+      "cs.CV"
+    ]
+  },
+  {
+    "id": "arxiv-2611.11640",
+    "arxivId": "2611.11640",
+    "title": "Feel My Focus: Gaze-Triggered Digital Twin Creation for Remote Collaboration",
+    "primaryAuthor": "Shih-Yu Ma",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.HC",
+      "cs.CV",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2611.11561",
+    "arxivId": "2611.11561",
+    "title": "From Sketch to Design: A Cross-scale Workflow for Procedural Generative Urban Design",
+    "primaryAuthor": "Jin Gao",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.HC",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2611.11087",
+    "arxivId": "2611.11087",
+    "title": "SoftPAT3D: Physics-Augmented Text-to-3D Scene Generation with Deformables",
+    "primaryAuthor": "Lei Shu",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2611.10713",
+    "arxivId": "2611.10713",
+    "title": "Quadratic Bezier Splatting with Structural Initialization for Efficient Painting Rendering",
+    "primaryAuthor": "Jinfan Liu",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2611.10699",
+    "arxivId": "2611.10699",
+    "title": "PLS-GS: Probabilistic Lidar Scaffolds for Compact, Surface-Aligned Gaussian Splatting",
+    "primaryAuthor": "Krishnan Harikumar",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2611.10523",
+    "arxivId": "2611.10523",
+    "title": "Action Transfer Across Character Body Plans in Latent-Action World Models: An Empirical Study of Animated Characters",
+    "primaryAuthor": "Amarnath R",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.GR",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.10088",
+    "arxivId": "2611.10088",
+    "title": "Same Pixels, Different Documents: Measuring Part-Level Editability in Image Vectorization",
+    "primaryAuthor": "Boheng Zhu",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2611.08994",
+    "arxivId": "2611.08994",
+    "title": "The Drawing You Watch Is the Portrait You Keep: A Replayable Machine Portrait Studio",
+    "primaryAuthor": "Vinod Rajpurohit",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.HC",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2611.08897",
+    "arxivId": "2611.08897",
+    "title": "Segmenting Geometric Textures of 3D Meshes",
+    "primaryAuthor": "Weidan Xiong",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.GR",
+      "cs.CV"
+    ]
+  },
+  {
+    "id": "arxiv-2611.08665",
+    "arxivId": "2611.08665",
+    "title": "Dynamic GPU Voxel Grids and Voxel-sequential Processing in NanoVDB",
+    "primaryAuthor": "Eftychios Sifakis",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.GR",
+      "cs.CV",
+      "cs.DC"
+    ]
+  },
+  {
+    "id": "arxiv-2611.08645",
+    "arxivId": "2611.08645",
+    "title": "From Geometry to Function: A Multi-Task LiDAR Benchmark Dataset for Semantic and Functional Parsing of Urban Facades",
+    "primaryAuthor": "Abdiaziz Muse",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.AI",
+      "cs.GR",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.08342",
+    "arxivId": "2611.08342",
+    "title": "4D Point Splatting for mmWave Radar Micro-Doppler Differentiable Rendering",
+    "primaryAuthor": "Adnan Armouti",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.GR",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.08288",
+    "arxivId": "2611.08288",
+    "title": "Hierarchical Incremental Beta Splatting for Online Reconstruction",
+    "primaryAuthor": "Linus Franke",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.GR"
+    ]
+  },
+  {
+    "id": "arxiv-2611.12930",
+    "arxivId": "2611.12930",
+    "title": "Topology-Aware Reinforcement Learning for CAD Decomposition toward All-Hexahedral Meshing",
+    "primaryAuthor": "Jiaming Peng",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.GR",
+      "cs.CV",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.07909",
+    "arxivId": "2611.07909",
+    "title": "EDGAR: Efficient Diffusion-Driven Gaussian Avatar Refinement via Synthetic Failure",
+    "primaryAuthor": "Kwan Yun",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.GR",
+      "cs.CV",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.07900",
+    "arxivId": "2611.07900",
+    "title": "Structure from Collision via Hypothesis-Space Reasoning",
+    "primaryAuthor": "Takuhiro Kaneko",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.AI",
+      "cs.GR",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.07730",
+    "arxivId": "2611.07730",
+    "title": "Seeing Beyond the Next Step: World-Model-Guided Human-Like Navigation in Multi-Agent Scenes",
+    "primaryAuthor": "Seong-Eun Hong",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.GR",
+      "cs.AI",
+      "cs.CV"
+    ]
+  },
+  {
+    "id": "arxiv-2611.18439",
+    "arxivId": "2611.18439",
+    "title": "Between Obligations and Evidence: A Participatory Study of Translating the EU AI Act into Technical Requirements",
+    "primaryAuthor": "Helma Torkamaan",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.AI",
+      "cs.HC"
+    ]
+  },
+  {
+    "id": "arxiv-2611.18284",
+    "arxivId": "2611.18284",
+    "title": "Clean Tickets, Wrong Orders: Catching Silent Errors with a Language Model in Your Browser Tab",
+    "primaryAuthor": "Umar Ahmed",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.LG",
+      "cs.HC"
+    ]
+  },
+  {
+    "id": "arxiv-2611.18230",
+    "arxivId": "2611.18230",
+    "title": "Personalization of Basic and Moral Values Guiding LLM-Controlled Assistant Robots",
+    "primaryAuthor": "Mateusz Wozniak",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.HC",
+      "cs.AI"
+    ]
+  },
+  {
+    "id": "arxiv-2611.17856",
+    "arxivId": "2611.17856",
+    "title": "DECODE: Diagnosing Interpretability Failures in Automated Interpretation Process",
+    "primaryAuthor": "Dohyun Kim",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.AI",
+      "cs.HC"
+    ]
+  },
+  {
+    "id": "arxiv-2611.17802",
+    "arxivId": "2611.17802",
+    "title": "Multimodal Person Concept Model for Person Identification under Varying Observation Conditions",
+    "primaryAuthor": "Mizuho Okitani",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.AI",
+      "cs.HC",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.17564",
+    "arxivId": "2611.17564",
+    "title": "AI-Voyager: A Public-Interest System for Human-AI Civic Reasoning to Contest and Shape the Rules That Govern AI",
+    "primaryAuthor": "Snehalkumar `Neil' S. Gaikwad",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.AI",
+      "cs.HC"
+    ]
+  },
+  {
+    "id": "arxiv-2611.17101",
+    "arxivId": "2611.17101",
+    "title": "A Compact xDAWN-Guided Spatio-Temporal Network with Filter-Bank Convolution for P300 Detection",
+    "primaryAuthor": "Mohammad Mahdi Habibi Bina",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.HC",
+      "cs.AI"
+    ]
+  },
+  {
+    "id": "arxiv-2611.16609",
+    "arxivId": "2611.16609",
+    "title": "A Dual-Branch Graph and Convolutional Network for Interpretable Movement EEG Classification",
+    "primaryAuthor": "Maryam Ostadsharif Memar",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.AI",
+      "cs.HC",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.16473",
+    "arxivId": "2611.16473",
+    "title": "Robots That Talk Too Much and Don't Listen Enough",
+    "primaryAuthor": "Graham Wilcock",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.AI",
+      "cs.HC"
+    ]
+  },
+  {
+    "id": "arxiv-2611.16173",
+    "arxivId": "2611.16173",
+    "title": "Between Niti and Nyaya: A Society-Centered Framework for AI Governance",
+    "primaryAuthor": "Snehalkumar `Neil' S. Gaikwad",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.AI",
+      "cs.HC"
+    ]
+  },
+  {
+    "id": "arxiv-2611.16107",
+    "arxivId": "2611.16107",
+    "title": "Trained on What Screen Readers Cannot Read: Accessibility Debt in the GUI Corpora Behind Computer-Use Agents",
+    "primaryAuthor": "Obada Kraishan",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.HC",
+      "cs.AI"
+    ]
+  },
+  {
+    "id": "arxiv-2611.15720",
+    "arxivId": "2611.15720",
+    "title": "Terms of Care: Designing for Participation in Data Governance by Disability Communities",
+    "primaryAuthor": "Madiha Zahrah Choksi",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.HC",
+      "cs.AI"
+    ]
+  },
+  {
+    "id": "arxiv-2611.15460",
+    "arxivId": "2611.15460",
+    "title": "Read and Ignore: What Self-Directed LLM Agents Do in Public Service Scenarios",
+    "primaryAuthor": "Diana Kozachek",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.AI",
+      "cs.HC"
+    ]
+  },
+  {
+    "id": "arxiv-2611.15242",
+    "arxivId": "2611.15242",
+    "title": "Computational Raga Recognition: A Theory-Driven Approach",
+    "primaryAuthor": "Janay Sukheja",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.HC",
+      "cs.LG"
+    ]
+  },
+  {
+    "id": "arxiv-2611.15121",
+    "arxivId": "2611.15121",
+    "title": "\"I don't know what I don't know\": Exploring the Benefits and Challenges of AI in Interdisciplinary Research",
+    "primaryAuthor": "Indu Panigrahi",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.HC",
+      "cs.AI"
+    ]
+  },
+  {
+    "id": "arxiv-2611.15044",
+    "arxivId": "2611.15044",
+    "title": "Estimating Image Creativity",
+    "primaryAuthor": "Nisan Chhetri",
+    "publishedYear": 2026,
+    "categories": [
+      "cs.CV",
+      "cs.AI",
+      "cs.HC",
+      "cs.LG"
+    ]
+  }
+]

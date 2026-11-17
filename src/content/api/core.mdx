@@ -1,0 +1,159 @@
+---
+title: "@simplex-viz/core API Reference"
+packageName: "@simplex-viz/core"
+version: "0.6.0"
+layerLabel: "Headless Geometry, Clustering, OKLab & SAT Engine"
+description: "Pure ES2022 TypeScript engine with zero runtime dependencies and zero DOM globals for browsers, Node.js, Bun, Deno, and Web Workers."
+order: 1
+zeroRuntimeDeps: true
+installCommand: "npm install @simplex-viz/core"
+exportsTable:
+  - symbol: "solveSimplexSnapshot"
+    kind: "Function"
+    signature: |-
+      solveSimplexSnapshot<TItem, TTagMeta, TClusterMeta>(
+        items: readonly TItem[],
+        options?: SimplexSolverOptions<TItem, TTagMeta, TClusterMeta>,
+      ): SimplexSnapshotResult<TItem, TTagMeta, TClusterMeta>
+    summary: "Synchronous one-shot solver returning clusters, mesh triangles, OKLab colors, and 0.0 px non-overlapping item coordinates."
+  - symbol: "SimplexGraphEngine"
+    kind: "Class"
+    signature: |-
+      new SimplexGraphEngine<
+        TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta
+      >(config: SimplexEngineConfig<...>)
+    summary: "Stateful 60 fps engine with live mutations, spring transitions, convex/triangle hit-testing, and conformal 1:4 drill-down."
+  - symbol: "createAdaptiveHexMeshStrategy"
+    kind: "Function"
+    signature: |-
+      createAdaptiveHexMeshStrategy<TItem>(
+        defaults?: Partial<MeshOptions>,
+      ): SimplexMeshStrategy<TItem>
+    summary: "Selects aspect-aligned 60-degree lattice orientation, row parity, and full-canvas scaling automatically (supports explicit sideLength)."
+  - symbol: "createSoftSimplexEmbeddingClusteringStrategy"
+    kind: "Function"
+    signature: |-
+      createSoftSimplexEmbeddingClusteringStrategy<TItem, TTagMeta>(
+        options: SoftSimplexEmbeddingClusteringOptions<TItem>,
+      ): SimplexClusteringStrategy<TItem, TTagMeta>
+    summary: "Clusters single- or multi-modal vector embeddings via load-balanced QAP, continuous interior simplex projection, and optional contrastive feature naming."
+  - symbol: "createSoftSimplexTagClusteringStrategy"
+    kind: "Function"
+    signature: |-
+      createSoftSimplexTagClusteringStrategy<TItem, TTagMeta>(
+        config?: SoftSimplexTagClusteringConfig<TTagMeta>,
+      ): SimplexClusteringStrategy<TItem, TTagMeta>
+    summary: "Partitions discrete tags with smooth triangleSpread interior anchoring and unconstrained 360-degree vertex halos."
+  - symbol: "createComposedLayoutStrategy"
+    kind: "Function"
+    signature: |-
+      createComposedLayoutStrategy<TItem>(
+        options: ComposedLayoutStrategyOptions<TItem>,
+      ): SimplexLayoutStrategy<TItem>
+    summary: "Composes any LayoutSeeder × PositionRelaxer × ScaleController with guaranteed 0.0 px convex SAT separation."
+  - symbol: "createPbdUniformLayoutStrategy"
+    kind: "Function"
+    signature: |-
+      createPbdUniformLayoutStrategy(): SimplexLayoutStrategy
+    summary: "Default space-filling uniform layout strategy dispersing items across open covering triangles while preserving one exact global scale factor α."
+  - symbol: "createLocalAdaptiveLayoutStrategy"
+    kind: "Function"
+    signature: |-
+      createLocalAdaptiveLayoutStrategy(
+        options?: { crowdRadiusPx?: number; minLocalScale?: number; warmStart?: boolean },
+      ): SimplexLayoutStrategy
+    summary: "Post-dispersion smooth radial crowd-kernel layout with local halo collision polish and zero global shrink collateral."
+  - symbol: "createCollisionDrivenLayoutStrategy"
+    kind: "Function"
+    signature: |-
+      createCollisionDrivenLayoutStrategy(
+        options?: CollisionDrivenLayoutOptions,
+      ): SimplexLayoutStrategy
+    summary: "Space-filling local pocket layout keeping all non-colliding items at 1.0x leaf scale and shrinking only colliding pairs."
+  - symbol: "createSubspaceZoomStrategy"
+    kind: "Function"
+    signature: |-
+      createSubspaceZoomStrategy<TItem, TTagMeta, TClusterMeta>(
+        options?: SubspaceZoomStrategyOptions<TItem>,
+      ): SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>
+    summary: "Local variance-projected 1:4 sub-clustering with exact 6! QAP alignment, uniform 1-ring cluster stars, and single-triangle leaf focus."
+  - symbol: "createBarycentricZoomStrategy"
+    kind: "Function"
+    signature: |-
+      createBarycentricZoomStrategy<TItem, TTagMeta, TClusterMeta>(
+        options?: BarycentricZoomStrategyOptions,
+      ): SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>
+    summary: "Conformal 1:4 equilateral subdivision with Adaptive Contrast Stretch, 1-ring cluster stars, and single-triangle leaf focus."
+  - symbol: "createSemanticZoomStrategy"
+    kind: "Function"
+    signature: |-
+      createSemanticZoomStrategy<TItem, TTagMeta, TClusterMeta>(
+        options?: SemanticZoomStrategyOptions,
+      ): SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>
+    summary: "Exclusive-first 3→6 sub-vertex tag re-partitioning with collision-free labels, 1-ring cluster stars, and single-triangle leaf focus."
+  - symbol: "assignDiscriminativeClusterLabels"
+    kind: "Function"
+    signature: |-
+      assignDiscriminativeClusterLabels<TItem>(
+        clusters: readonly DiscriminativeClusterInput<TItem>[],
+        allItems: readonly TItem[],
+        options: DiscriminativeClusterLabelOptions<TItem>,
+      ): readonly string[]
+    summary: "Scores numeric, boolean, and categorical features against corpus base rates to assign pairwise-distinct labels across sibling clusters."
+  - symbol: "resolveDiscriminativeClusterLabel"
+    kind: "Function"
+    signature: |-
+      resolveDiscriminativeClusterLabel<TItem, TTagMeta>(
+        ctx: ClusterDerivationContext<TItem, TTagMeta>,
+        options: DiscriminativeClusterLabelOptions<TItem>,
+      ): string
+    summary: "Convenience helper for deriveClusterMeta that resolves a cluster's base-rate-aware, collision-free label using ctx.peerClusters and ctx.allItems."
+---
+
+## Overview & Runtime Guarantees
+
+`@simplex-viz/core` compiles strictly against `lib: ["ES2022"]` with `"dependencies": {}`. ESLint enforces module boundaries banning `window`, `document`, SVG, or React imports inside `packages/core`.
+
+## Imperative Engine Lifecycle (`SimplexGraphEngine`)
+
+```ts
+import {
+  SimplexGraphEngine,
+  createSubspaceZoomStrategy,
+  createCollisionDrivenLayoutStrategy,
+} from '@simplex-viz/core';
+
+const engine = new SimplexGraphEngine({
+  items,
+  viewportWidth: 1200,
+  viewportHeight: 780,
+  visualResolver,
+  renderer,
+  layoutStrategy: createCollisionDrivenLayoutStrategy(),
+  zoomStrategy: createSubspaceZoomStrategy({ clusterZoomMode: 'incident-star' }),
+});
+
+// Mutate items without remounting:
+engine.addItems(newItems);
+engine.updateItems(modifiedItems);
+engine.removeItems(['id-1']);
+
+// Swap any pipeline stage at runtime:
+engine.setMeshOptions({ sideLength: 210 });
+engine.setZoomStrategy(createSubspaceZoomStrategy({ clusterZoomMode: 'spotlight' }));
+
+// Navigate hierarchical drill-down programmatically:
+engine.drillDownTriangle(0);
+engine.drillDownCluster(clusterUid);
+engine.drillUp();
+engine.drillToRoot();
+```
+
+## Low-Level Pure Math Primitives
+
+All internal solvers are exported as pure standalone functions:
+
+- **Mesh & Affine Transforms**: `buildSimplexMesh`, `buildSimplexLattice`, `buildSubdividedTriangleMesh`, `buildIncidentStarMesh`, `applyZoomAffine`, `invertZoomAffine`, `composeZoomAffine`
+- **Clustering, QAP & Discriminative Labeling**: `computeSimplexClustering`, `embedSimilarityMatrixOnMesh`, `partitionTagsJaccard`, `embedClustersQapAnnealing`, `completePlanarSharedTags`, `matchClustersHungarian`, `assignDiscriminativeClusterLabels`, `resolveDiscriminativeClusterLabel`, `disambiguatePeerClusterTitle`
+- **Convex Geometry & SAT**: `computeConvexHull`, `rectToConvexPolygon`, `regularPolygon`, `starConvexHull`, `isPointInTriangle`, `computeConvexMtv`, `hitTestConvexGeometry`, `UniformSpatialHashGrid`
+- **OKLab Perceptual Color**: `hexToOklab`, `oklabToHex`, `mixOklabColors`, `lerpOklabHex`, `generatePerceptualClusterPalette`, `assignMeshClusterColors`

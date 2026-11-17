@@ -1,0 +1,589 @@
+---
+import type { CanonicalStrategyId } from '../../site/strategies';
+
+interface Props {
+  strategyId: CanonicalStrategyId;
+}
+
+const { strategyId } = Astro.props;
+
+const CAPTIONS: Record<CanonicalStrategyId, string> = {
+  'adaptive-hex-mesh':
+    'Evaluates horizontal vs. vertical axis orientations and staggered 60° row parity (wideFirst) to maximize equilateral triangle side length s inside viewport (W × H).',
+  'fixed-grid-mesh':
+    'Locks an exact (cols × rows) vertex grid topology across viewport aspect changes, scaling equilateral edge length s uniformly without adding or dropping vertices.',
+  'soft-simplex-tags':
+    'Spreads 2- and 3-cluster tagged items continuously across planar triangle interiors (triangleSpread) while leaving single-cluster items unconstrained in a 360° vertex halo.',
+  'jaccard-qap-tags':
+    'Partitions tags via regularized Jaccard similarity, embeds related clusters on adjacent mesh vertices via QAP Simulated Annealing, and snaps shared items onto planar edges and centroids.',
+  'incremental-anchor-tags':
+    'Freezes existing vertex cluster anchors and OKLab colors across live update() calls, attaching newly arriving tags and items locally without global topic reshuffling.',
+  'soft-simplex-embeddings':
+    'Combines 1 to M weighted vector modalities via Spherical/L2 k-Means++ and load-balanced QAP, projecting embeddings smoothly across planar 2-simplex interiors.',
+  'nnls-simplex-embeddings':
+    'Evaluates candidate planar triangles τ = (μ₁, μ₂, μ₃) and solves exact Non-Negative Least Squares (wᵢ ≥ 0, ∑ wᵢ = 1) to anchor each vector with minimal reconstruction residual.',
+  'pam-medoid-similarity':
+    'Operates directly on arbitrary pairwise similarity kernels S(a, b) ∈ [0, 1] without coordinates—selecting real exemplar medoids via PAM swaps and embedding them onto the 60° mesh.',
+  'oklab-edge-contrast':
+    'Optimizes vertex hue assignment via 1-hop edge swaps to maximize minimum ΔE_OK, then interpolates multi-cluster items in OKLab with chroma restoration.',
+  'theme-adaptive-oklab':
+    'Adapts perceptual lightness L and chroma C automatically to canvas polarity (L ≈ 0.56 on crisp light backgrounds vs. L ≈ 0.74 on dark obsidian surfaces) while preserving hue identity.',
+  'custom-brand-palette':
+    'Maps design-system hex swatches onto the simplex mesh using edge-contrast graph coloring while mixing bridge items in perceptual OKLab space.',
+  'collision-local-layout':
+    'Preserves full 1.00x leaf scale in sparse triangles and shrinks only locally colliding node pockets via iterative SAT separation until 0.0 px overlap is achieved.',
+  'pbd-uniform-layout':
+    'Seeds co-located nodes on a golden-angle Vogel spiral (137.5°) and binary-searches a single global scale α across the entire atlas so quantitative size ratios remain exact.',
+  'warm-start-pbd-layout':
+    'Carries settled world coordinates (x, y) from frame t into frame t + 1 during live item mutations so existing nodes settle locally with minimal displacement.',
+  'density-adaptive-layout':
+    'Estimates smooth local crowd density within radius R prior to final convex SAT relaxation, producing gradual spatial scale transitions from dense cores to outer halos.',
+  'subspace-recluster-zoom':
+    'Projects out zero-variance parent traits (σ_local = 0), re-clusters covered items over high-variance local features, and aligns 6 labeled sub-clusters onto the 1:4 sub-mesh via exact 6! QAP search.',
+  'barycentric-subdivision-zoom':
+    'Splits any equilateral triangle along its 3 edge midpoints into 4 conformal sub-triangles (3▲ + 1▼) and applies Adaptive Contrast Stretch to spread tightly bunched items.',
+  'semantic-tag-split-zoom':
+    'Discovers the most discriminative sub-tags inside a focused triangle and promotes them onto the 3 edge midpoints, re-partitioning items across all 6 sub-vertices.',
+  'free-camera-zoom':
+    'Applies a continuous 2D affine camera transform (cursor-centered wheel zoom k, pointer pan, and two-finger touch pinch) over fixed world coordinates without re-solving sub-meshes.',
+};
+---
+
+<figure class="not-prose my-6 rounded-xl border border-slate-200/90 bg-white p-4 sm:p-6 dark:border-slate-800/90 dark:bg-[#0B0F17]">
+  <div class="overflow-hidden rounded-lg border border-slate-200/70 bg-slate-50/70 px-3 py-4 sm:px-5 dark:border-slate-800/80 dark:bg-[#07090E]">
+    {
+      strategyId === 'adaptive-hex-mesh' && (
+        <svg viewBox="0 0 640 200" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Adaptive Hex Lattice mechanism">
+          <rect x="20" y="24" width="256" height="152" rx="8" fill="none" stroke="currentColor" stroke-opacity="0.22" stroke-dasharray="4 3" />
+          <text x="32" y="42" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">Wide Viewport (horizontal, wideFirst: true)</text>
+          <g stroke="#06B6D4" stroke-opacity="0.55" stroke-width="1.5" fill="#06B6D4" fill-opacity="0.06">
+            <polygon points="66,68 148,68 107,139" />
+            <polygon points="148,68 230,68 189,139" />
+            <polygon points="107,139 148,68 189,139" />
+          </g>
+          <line x1="66" y1="56" x2="148" y2="56" stroke="#F59E0B" stroke-width="1.6" />
+          <text x="107" y="51" text-anchor="middle" fill="#F59E0B" class="font-mono text-[9.5px] font-semibold">max s (60°)</text>
+          {[[66,68],[148,68],[230,68],[107,139],[189,139]].map(([x,y]) => (
+            <circle cx={x} cy={y} r="6.5" fill="#06B6D4" />
+          ))}
+
+          <path d="M 298 100 L 342 100" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+          <polygon points="342,100 335,96 335,104" fill="currentColor" fill-opacity="0.45" />
+          <text x="320" y="90" text-anchor="middle" class="fill-slate-500 font-mono text-[9px]">resize</text>
+
+          <rect x="368" y="16" width="244" height="168" rx="8" fill="none" stroke="currentColor" stroke-opacity="0.22" stroke-dasharray="4 3" />
+          <text x="380" y="34" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">Tall Aspect → vertical orientation</text>
+          <g stroke="#10B981" stroke-opacity="0.55" stroke-width="1.5" fill="#10B981" fill-opacity="0.06">
+            <polygon points="452,52 524,93 452,134" />
+            <polygon points="452,134 524,93 524,175" />
+            <polygon points="524,93 596,52 596,134" />
+          </g>
+          {[[452,52],[524,93],[452,134],[524,175],[596,52],[596,134]].map(([x,y]) => (
+            <circle cx={x} cy={y} r="6.5" fill="#10B981" />
+          ))}
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'fixed-grid-mesh' && (
+        <svg viewBox="0 0 640 200" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Fixed Grid Lattice mechanism">
+          <text x="24" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">Pinned Grid: cols = 3, rows = 2 (K = 6 invariant)</text>
+          <g stroke="#F59E0B" stroke-opacity="0.5" stroke-width="1.5" stroke-dasharray="4 3" fill="#F59E0B" fill-opacity="0.05">
+            <polygon points="56,64 146,64 101,142" />
+            <polygon points="146,64 236,64 191,142" />
+            <polygon points="101,142 146,64 191,142" />
+            <polygon points="236,64 281,142 191,142" />
+          </g>
+          {[[56,64,'0,0'],[146,64,'0,1'],[236,64,'0,2'],[101,142,'1,0'],[191,142,'1,1'],[281,142,'1,2']].map(([x,y,lbl]) => (
+            <g>
+              <circle cx={x} cy={y} r="12" fill="#F59E0B" fill-opacity="0.2" stroke="#F59E0B" stroke-width="1.5" />
+              <text x={x} y={Number(y)+3} text-anchor="middle" class="fill-current font-mono text-[8.5px] font-semibold">{lbl}</text>
+            </g>
+          ))}
+
+          <path d="M 308 104 L 352 104" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+          <polygon points="352,104 345,100 345,108" fill="currentColor" fill-opacity="0.45" />
+          <text x="330" y="94" text-anchor="middle" class="fill-slate-500 font-mono text-[9px]">compact</text>
+
+          <text x="376" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">Same (r, c) indices · scaled side s&apos;</text>
+          <g stroke="#06B6D4" stroke-opacity="0.5" stroke-width="1.5" stroke-dasharray="4 3" fill="#06B6D4" fill-opacity="0.05">
+            <polygon points="396,74 462,74 429,131" />
+            <polygon points="462,74 528,74 495,131" />
+            <polygon points="429,131 462,74 495,131" />
+            <polygon points="528,74 561,131 495,131" />
+          </g>
+          {[[396,74,'0,0'],[462,74,'0,1'],[528,74,'0,2'],[429,131,'1,0'],[495,131,'1,1'],[561,131,'1,2']].map(([x,y,lbl]) => (
+            <g>
+              <circle cx={x} cy={y} r="10.5" fill="#06B6D4" fill-opacity="0.2" stroke="#06B6D4" stroke-width="1.5" />
+              <text x={x} y={Number(y)+3} text-anchor="middle" class="fill-current font-mono text-[8px] font-semibold">{lbl}</text>
+            </g>
+          ))}
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'soft-simplex-tags' && (
+        <svg viewBox="0 0 640 205" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Soft-Simplex Tag Clustering mechanism">
+          <text x="28" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">1. Multi-Tag Corpus</text>
+          <rect x="28" y="42" width="166" height="34" rx="6" fill="currentColor" fill-opacity="0.05" stroke="currentColor" stroke-opacity="0.2" />
+          <text x="38" y="63" class="fill-current font-mono text-[10px]">Item A: [#cg, #gr, #ml]</text>
+          <rect x="28" y="86" width="166" height="34" rx="6" fill="currentColor" fill-opacity="0.05" stroke="currentColor" stroke-opacity="0.2" />
+          <text x="38" y="107" class="fill-current font-mono text-[10px]">Item B: [#cg, #gr]</text>
+          <rect x="28" y="130" width="166" height="34" rx="6" fill="currentColor" fill-opacity="0.05" stroke="currentColor" stroke-opacity="0.2" />
+          <text x="38" y="151" class="fill-current font-mono text-[10px]">Item C: [#cg] (1-tag)</text>
+
+          <path d="M 214 104 L 268 104" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+          <polygon points="268,104 261,100 261,108" fill="currentColor" fill-opacity="0.45" />
+          <text x="241" y="93" text-anchor="middle" class="fill-cyan-600 dark:fill-cyan-400 font-mono text-[9px]">spread 0.45</text>
+
+          <text x="296" y="24" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">2. Interior Simplex Spread + 360° Halo</text>
+          <circle cx="445" cy="52" r="32" fill="none" stroke="#06B6D4" stroke-opacity="0.45" stroke-dasharray="3 3" stroke-width="1.4" />
+          <polygon points="445,52 345,182 545,182" fill="#06B6D4" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="4 3" />
+          <circle cx="445" cy="52" r="13" fill="#06B6D4" />
+          <circle cx="345" cy="182" r="13" fill="#F59E0B" />
+          <circle cx="545" cy="182" r="13" fill="#D946EF" />
+          <text x="445" y="56" text-anchor="middle" fill="#fff" class="font-mono text-[9px] font-bold">#cg</text>
+          <text x="345" y="186" text-anchor="middle" fill="#fff" class="font-mono text-[9px] font-bold">#gr</text>
+          <text x="545" y="186" text-anchor="middle" fill="#fff" class="font-mono text-[9px] font-bold">#ml</text>
+
+          <circle cx="416" cy="36" r="5.5" fill="#06B6D4" />
+          <circle cx="474" cy="37" r="5.5" fill="#06B6D4" />
+          <circle cx="445" cy="21" r="5.5" fill="#06B6D4" />
+          <text x="515" y="34" class="fill-cyan-600 dark:fill-cyan-400 font-mono text-[9px]">360° halo (C)</text>
+
+          <circle cx="395" cy="117" r="6" fill="#52C280" />
+          <circle cx="430" cy="122" r="6" fill="#4BA8B8" />
+          <circle cx="462" cy="134" r="6.5" fill="#9D8AC7" />
+          <circle cx="442" cy="154" r="6" fill="#B58E92" />
+          <circle cx="486" cy="152" r="5.5" fill="#BA7AC8" />
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'jaccard-qap-tags' && (
+        <svg viewBox="0 0 640 205" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Jaccard QAP Annealing mechanism">
+          <text x="24" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">1. QAP Simulated Annealing</text>
+          <line x1="70" y1="75" x2="175" y2="75" stroke="#06B6D4" stroke-width="2.5" />
+          <line x1="70" y1="75" x2="122" y2="158" stroke="#10B981" stroke-width="2.5" />
+          <line x1="175" y1="75" x2="122" y2="158" stroke="#F59E0B" stroke-width="1.4" stroke-dasharray="3 3" />
+          <circle cx="70" cy="75" r="14" fill="#06B6D4" />
+          <circle cx="175" cy="75" r="14" fill="#F59E0B" />
+          <circle cx="122" cy="158" r="14" fill="#D946EF" />
+          <text x="122" y="65" text-anchor="middle" class="fill-current font-mono text-[9px]">high Jaccard → 1-hop edge</text>
+
+          <path d="M 235 108 L 295 108" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+          <polygon points="295,108 288,104 288,112" fill="currentColor" fill-opacity="0.45" />
+          <text x="265" y="96" text-anchor="middle" class="fill-slate-500 font-mono text-[9px]">anchor</text>
+
+          <text x="328" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">2. Crisp Vertex / Edge / Centroid Snapping</text>
+          <polygon points="465,42 368,178 562,178" fill="currentColor" fill-opacity="0.03" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="4 3" />
+          <circle cx="465" cy="42" r="13" fill="#06B6D4" />
+          <circle cx="368" cy="178" r="13" fill="#F59E0B" />
+          <circle cx="562" cy="178" r="13" fill="#D946EF" />
+          <circle cx="416.5" cy="110" r="7" fill="#5DC479" stroke="#fff" stroke-width="1.2" />
+          <circle cx="513.5" cy="110" r="7" fill="#709CE1" stroke="#fff" stroke-width="1.2" />
+          <circle cx="465" cy="178" r="7" fill="#E67A83" stroke="#fff" stroke-width="1.2" />
+          <circle cx="465" cy="132" r="7.5" fill="#A58EB8" stroke="#fff" stroke-width="1.2" />
+          <text x="465" y="152" text-anchor="middle" class="fill-slate-500 dark:fill-slate-400 font-mono text-[9px]">w = (⅓, ⅓, ⅓)</text>
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'incremental-anchor-tags' && (
+        <svg viewBox="0 0 640 200" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Incremental Tag Anchoring mechanism">
+          <text x="24" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">Frame t (Frozen Vertex Anchors &amp; UIDs)</text>
+          <polygon points="125,46 52,166 198,166" fill="none" stroke="currentColor" stroke-opacity="0.32" stroke-width="1.5" stroke-dasharray="4 3" />
+          <circle cx="125" cy="46" r="13" fill="#06B6D4" />
+          <circle cx="52" cy="166" r="13" fill="#F59E0B" />
+          <circle cx="198" cy="166" r="13" fill="#D946EF" />
+          <text x="125" y="50" text-anchor="middle" fill="#fff" class="font-mono text-[8.5px] font-bold">C1🔒</text>
+          <text x="52" y="170" text-anchor="middle" fill="#fff" class="font-mono text-[8.5px] font-bold">C2🔒</text>
+          <text x="198" y="170" text-anchor="middle" fill="#fff" class="font-mono text-[8.5px] font-bold">C3🔒</text>
+
+          <path d="M 248 106 L 328 106" stroke="#06B6D4" stroke-width="1.6" />
+          <polygon points="328,106 320,102 320,110" fill="#06B6D4" />
+          <text x="288" y="94" text-anchor="middle" class="fill-cyan-600 dark:fill-cyan-400 font-mono text-[9.5px]">+ addItems()</text>
+
+          <text x="364" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">Frame t+1 (Zero Global Reshuffle)</text>
+          <polygon points="475,46 402,166 548,166" fill="none" stroke="currentColor" stroke-opacity="0.32" stroke-width="1.5" stroke-dasharray="4 3" />
+          <circle cx="475" cy="46" r="13" fill="#06B6D4" />
+          <circle cx="402" cy="166" r="13" fill="#F59E0B" />
+          <circle cx="548" cy="166" r="13" fill="#D946EF" />
+          <circle cx="514" cy="106" r="7.5" fill="#10B981" stroke="#fff" stroke-width="1.5" />
+          <circle cx="514" cy="106" r="13" fill="none" stroke="#10B981" stroke-dasharray="2 2" />
+          <text x="572" y="109" class="fill-emerald-600 dark:fill-emerald-400 font-mono text-[9.5px] font-semibold">new tag tethered</text>
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'soft-simplex-embeddings' && (
+        <svg viewBox="0 0 640 205" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Soft-Simplex Embedding Projection mechanism">
+          <text x="24" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">1. Multi-Modal Vector Sources</text>
+          <rect x="24" y="46" width="176" height="44" rx="7" fill="#06B6D4" fill-opacity="0.08" stroke="#06B6D4" stroke-opacity="0.5" />
+          <text x="36" y="65" class="fill-current font-mono text-[9.5px] font-semibold">v_scene ∈ ℝ^d (w = 0.65)</text>
+          <text x="36" y="80" class="fill-slate-500 font-mono text-[9px]">[0.91, 0.14, 0.62, ...]</text>
+
+          <rect x="24" y="106" width="176" height="44" rx="7" fill="#F59E0B" fill-opacity="0.08" stroke="#F59E0B" stroke-opacity="0.5" />
+          <text x="36" y="125" class="fill-current font-mono text-[9.5px] font-semibold">v_style ∈ ℝ^m (w = 0.35)</text>
+          <text x="36" y="140" class="fill-slate-500 font-mono text-[9px]">[0.28, 0.88, 0.41, ...]</text>
+
+          <path d="M 220 100 L 292 100" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+          <polygon points="292,100 285,96 285,104" fill="currentColor" fill-opacity="0.45" />
+          <text x="256" y="88" text-anchor="middle" class="fill-slate-500 font-mono text-[9px]">k-Means++ &amp; QAP</text>
+
+          <text x="326" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">2. Smooth Interior 2-Simplex Projection</text>
+          <polygon points="468,42 372,178 564,178" fill="#06B6D4" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="4 3" />
+          <circle cx="468" cy="42" r="13" fill="#06B6D4" />
+          <circle cx="372" cy="178" r="13" fill="#F59E0B" />
+          <circle cx="564" cy="178" r="13" fill="#D946EF" />
+          {[[448,96,'#23B9B5'],[484,106,'#6B9BE4'],[432,134,'#7FB576'],[468,128,'#9B94BF'],[502,144,'#BC7EC6'],[456,158,'#C8897E']].map(([x,y,c]) => (
+            <circle cx={x} cy={y} r="6" fill={String(c)} />
+          ))}
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'nnls-simplex-embeddings' && (
+        <svg viewBox="0 0 640 205" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Planar NNLS Embedding Projection mechanism">
+          <text x="28" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">Orthogonal Projection onto Planar 2-Simplex Δ²</text>
+          <polygon points="195,58 85,172 315,162" fill="#06B6D4" fill-opacity="0.08" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+          <circle cx="195" cy="58" r="10" fill="#06B6D4" />
+          <circle cx="85" cy="172" r="10" fill="#F59E0B" />
+          <circle cx="315" cy="162" r="10" fill="#D946EF" />
+          <text x="195" y="43" text-anchor="middle" class="fill-current font-mono text-[10px]">μ₁</text>
+          <text x="68" y="176" text-anchor="middle" class="fill-current font-mono text-[10px]">μ₂</text>
+          <text x="334" y="166" text-anchor="middle" class="fill-current font-mono text-[10px]">μ₃</text>
+
+          <circle cx="242" cy="48" r="6.5" fill="#10B981" />
+          <text x="262" y="51" class="fill-emerald-600 dark:fill-emerald-400 font-mono text-[10px] font-semibold">x ∈ ℝ^d</text>
+          <line x1="242" y1="48" x2="204" y2="128" stroke="#10B981" stroke-width="1.6" stroke-dasharray="4 3" />
+          <circle cx="204" cy="128" r="7" fill="#10B981" stroke="#fff" stroke-width="1.5" />
+          <text x="204" y="148" text-anchor="middle" class="fill-current font-mono text-[9.5px] font-semibold">x̂ = ∑ wᵢμᵢ</text>
+
+          <rect x="372" y="56" width="242" height="96" rx="8" fill="currentColor" fill-opacity="0.04" stroke="currentColor" stroke-opacity="0.18" />
+          <text x="388" y="82" class="fill-current font-mono text-[10.5px] font-semibold">Closed-Form Planar NNLS:</text>
+          <text x="388" y="106" class="fill-cyan-700 dark:fill-cyan-300 font-mono text-[10px]">min ‖x − (w₁μ₁ + w₂μ₂ + w₃μ₃)‖₂²</text>
+          <text x="388" y="128" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">s.t. wᵢ ≥ 0,  w₁ + w₂ + w₃ = 1</text>
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'pam-medoid-similarity' && (
+        <svg viewBox="0 0 640 205" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Pairwise k-Medoids Projection mechanism">
+          <text x="28" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">1. Kernel Matrix S(a, b) ∈ [0, 1]</text>
+          {[0,1,2,3,4].map((r) =>
+            [0,1,2,3,4].map((c) => {
+              const diag = r === c;
+              const hi = (r + c) % 3 === 0;
+              return (
+                <rect
+                  x={36 + c * 28}
+                  y={44 + r * 26}
+                  width="24"
+                  height="22"
+                  rx="3"
+                  fill={diag ? '#06B6D4' : hi ? '#06B6D4' : '#64748B'}
+                  fill-opacity={diag ? '0.85' : hi ? '0.42' : '0.15'}
+                />
+              );
+            })
+          )}
+
+          <path d="M 206 108 L 282 108" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+          <polygon points="282,108 275,104 275,112" fill="currentColor" fill-opacity="0.45" />
+          <text x="244" y="96" text-anchor="middle" class="fill-slate-500 font-mono text-[9px]">PAM Medoids</text>
+
+          <text x="318" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">2. Real Exemplar Medoids on 60° Mesh</text>
+          <polygon points="462,42 366,176 558,176" fill="#06B6D4" fill-opacity="0.05" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="4 3" />
+          <circle cx="462" cy="42" r="14" fill="#06B6D4" />
+          <circle cx="366" cy="176" r="14" fill="#F59E0B" />
+          <circle cx="558" cy="176" r="14" fill="#D946EF" />
+          <text x="462" y="46" text-anchor="middle" fill="#fff" class="font-mono text-[8.5px] font-bold">m₁★</text>
+          <text x="366" y="180" text-anchor="middle" fill="#fff" class="font-mono text-[8.5px] font-bold">m₂★</text>
+          <text x="558" y="180" text-anchor="middle" fill="#fff" class="font-mono text-[8.5px] font-bold">m₃★</text>
+          <circle cx="432" cy="116" r="6" fill="#46B894" />
+          <circle cx="488" cy="124" r="6" fill="#8C8EC8" />
+          <circle cx="462" cy="154" r="6" fill="#CA8486" />
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'oklab-edge-contrast' && (
+        <svg viewBox="0 0 640 190" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="OKLab Edge Contrast mechanism">
+          <text x="24" y="26" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">1-Hop Mesh Graph Coloring (max min ΔE_OK)</text>
+          <line x1="68" y1="104" x2="152" y2="46" stroke="#06B6D4" stroke-width="2" />
+          <line x1="152" y1="46" x2="236" y2="104" stroke="#D946EF" stroke-width="2" />
+          <line x1="68" y1="104" x2="236" y2="104" stroke="#F59E0B" stroke-width="2" />
+          <line x1="68" y1="104" x2="152" y2="162" stroke="#10B981" stroke-width="2" />
+          <line x1="236" y1="104" x2="152" y2="162" stroke="#3B82F6" stroke-width="2" />
+          <circle cx="152" cy="46" r="13" fill="#06B6D4" />
+          <circle cx="68" cy="104" r="13" fill="#F59E0B" />
+          <circle cx="236" cy="104" r="13" fill="#D946EF" />
+          <circle cx="152" cy="162" r="13" fill="#10B981" />
+
+          <text x="336" y="42" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">Naive sRGB midpoint (desaturated)</text>
+          {['#06B6D4','#46A99F','#7E9F6F','#BA9E3D','#F59E0B'].map((hex, i) => (
+            <rect x={336 + i * 54} y="52" width="48" height="24" rx="4" fill={hex} />
+          ))}
+          <text x="336" y="114" class="fill-current font-mono text-[10px] font-semibold">Chroma-Preserving OKLab Mix</text>
+          {['#06B6D4','#18C1A8','#63C674','#B6BC3B','#F59E0B'].map((hex, i) => (
+            <rect x={336 + i * 54} y="124" width="48" height="24" rx="4" fill={hex} />
+          ))}
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'theme-adaptive-oklab' && (
+        <svg viewBox="0 0 640 190" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Theme-Adaptive OKLab mechanism">
+          <rect x="24" y="24" width="276" height="142" rx="10" fill="#FFFFFF" stroke="#CBD5E1" />
+          <text x="40" y="48" fill="#334155" class="font-mono text-[10px] font-semibold">Light Surface · Target L ≈ 0.56</text>
+          {['#0E7490','#B45309','#A21CAF','#047857','#1D4ED8'].map((hex, i) => (
+            <circle cx={64 + i * 48} cy="106" r="16" fill={hex} />
+          ))}
+          <text x="40" y="150" fill="#64748B" class="font-mono text-[9.5px]">Crisp WCAG contrast on white</text>
+
+          <rect x="340" y="24" width="276" height="142" rx="10" fill="#0B0F17" stroke="#1E293B" />
+          <text x="356" y="48" fill="#E2E8F0" class="font-mono text-[10px] font-semibold">Dark Surface · Target L ≈ 0.74</text>
+          {['#22D3EE','#FBBF24','#E879F9','#34D399','#60A5FA'].map((hex, i) => (
+            <circle cx={380 + i * 48} cy="106" r="16" fill={hex} />
+          ))}
+          <text x="356" y="150" fill="#94A3B8" class="font-mono text-[9.5px]">Same hue angles · lifted luminance</text>
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'custom-brand-palette' && (
+        <svg viewBox="0 0 640 190" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Custom Brand Palette mechanism">
+          <text x="28" y="32" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">1. Design-System Hex Swatches</text>
+          {['#0891B2','#D97706','#C026D3','#059669'].map((hex, i) => (
+            <g>
+              <rect x="28" y={46 + i * 32} width="26" height="22" rx="4" fill={hex} />
+              <text x="64" y={61 + i * 32} class="fill-current font-mono text-[10px]">{hex}</text>
+            </g>
+          ))}
+
+          <path d="M 188 100 L 278 100" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+          <polygon points="278,100 271,96 271,104" fill="currentColor" fill-opacity="0.45" />
+          <text x="233" y="88" text-anchor="middle" class="fill-slate-500 font-mono text-[9px]">edge-contrast</text>
+
+          <text x="316" y="32" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">2. Mesh Assignment + OKLab Bridge Mix</text>
+          <polygon points="456,46 364,166 548,166" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="4 3" />
+          <circle cx="456" cy="46" r="14" fill="#0891B2" />
+          <circle cx="364" cy="166" r="14" fill="#D97706" />
+          <circle cx="548" cy="166" r="14" fill="#C026D3" />
+          <circle cx="410" cy="106" r="8" fill="#639D4F" />
+          <circle cx="502" cy="106" r="8" fill="#6F67CE" />
+          <circle cx="456" cy="166" r="8" fill="#DA5277" />
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'collision-local-layout' && (
+        <svg viewBox="0 0 640 195" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Collision-Local Pocket Layout mechanism">
+          <polygon points="175,28 75,168 275,168" fill="#06B6D4" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.35" stroke-dasharray="4 3" stroke-width="1.5" />
+          <polygon points="275,168 175,28 375,28" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-dasharray="4 3" stroke-width="1.5" />
+          <polygon points="375,28 275,168 475,168" fill="#D946EF" fill-opacity="0.05" stroke="currentColor" stroke-opacity="0.35" stroke-dasharray="4 3" stroke-width="1.5" />
+          {[[158,105],[178,101],[168,120],[188,118],[146,126],[166,138],[186,136],[148,148],[204,146],[172,154]].map(([x,y]) => (
+            <circle cx={x} cy={y} r="5.5" fill="#06B6D4" />
+          ))}
+          <circle cx="362" cy="112" r="12" fill="#D946EF" />
+          <circle cx="398" cy="136" r="12" fill="#D946EF" />
+          <text x="175" y="186" text-anchor="middle" class="fill-cyan-600 dark:fill-cyan-400 font-mono text-[10px] font-semibold">Dense pocket: α_local = 0.52 (drillable)</text>
+          <text x="395" y="186" text-anchor="middle" class="fill-fuchsia-600 dark:fill-fuchsia-400 font-mono text-[10px] font-semibold">Sparse neighbor: α_local = 1.00 (leaf)</text>
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'pbd-uniform-layout' && (
+        <svg viewBox="0 0 640 195" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Uniform PBD Layout mechanism">
+          <text x="32" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">1. Phyllotaxis Golden-Angle Seed (137.5°)</text>
+          <circle cx="136" cy="110" r="56" fill="none" stroke="currentColor" stroke-opacity="0.2" stroke-dasharray="3 3" />
+          {[0,1,2,3,4,5,6,7,8].map((n) => {
+            const ang = n * 2.39996;
+            const rad = 8 + Math.sqrt(n) * 14;
+            return <circle cx={136 + Math.cos(ang)*rad} cy={110 + Math.sin(ang)*rad} r="6.5" fill="#06B6D4" />;
+          })}
+
+          <path d="M 232 110 L 308 110" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+          <polygon points="308,110 301,106 301,114" fill="currentColor" fill-opacity="0.45" />
+          <text x="270" y="98" text-anchor="middle" class="fill-slate-500 font-mono text-[9px]">global α + SAT</text>
+
+          <text x="342" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">2. Exact Size Ratios · 0.0 px Convex Overlap</text>
+          <polygon points="468,36 372,172 564,172" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-dasharray="4 3" stroke-width="1.5" />
+          <circle cx="446" cy="116" r="11" fill="#06B6D4" />
+          <circle cx="476" cy="112" r="7.5" fill="#10B981" />
+          <circle cx="462" cy="138" r="9" fill="#F59E0B" />
+          <circle cx="492" cy="138" r="6" fill="#D946EF" />
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'warm-start-pbd-layout' && (
+        <svg viewBox="0 0 640 190" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Warm-Start PBD Layout mechanism">
+          <text x="32" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">Frame t (Settled Coordinates Cached)</text>
+          <polygon points="145,40 65,166 225,166" fill="none" stroke="currentColor" stroke-opacity="0.32" stroke-dasharray="4 3" stroke-width="1.5" />
+          <circle cx="132" cy="116" r="8" fill="#06B6D4" />
+          <circle cx="158" cy="118" r="8" fill="#06B6D4" />
+          <circle cx="145" cy="140" r="8" fill="#06B6D4" />
+
+          <path d="M 262 108 L 342 108" stroke="#10B981" stroke-width="1.6" />
+          <polygon points="342,108 335,104 335,112" fill="#10B981" />
+          <text x="302" y="96" text-anchor="middle" class="fill-emerald-600 dark:fill-emerald-400 font-mono text-[9px]">warm-start MTV</text>
+
+          <text x="378" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">Frame t+1 (Minimal Local Shift on Insert)</text>
+          <polygon points="485,40 405,166 565,166" fill="none" stroke="currentColor" stroke-opacity="0.32" stroke-dasharray="4 3" stroke-width="1.5" />
+          <circle cx="468" cy="114" r="8" fill="#06B6D4" />
+          <circle cx="502" cy="116" r="8" fill="#06B6D4" />
+          <circle cx="485" cy="146" r="8" fill="#06B6D4" />
+          <circle cx="485" cy="124" r="8.5" fill="#F59E0B" stroke="#fff" stroke-width="1.5" />
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'density-adaptive-layout' && (
+        <svg viewBox="0 0 640 195" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Density-Adaptive Layout mechanism">
+          <circle cx="240" cy="108" r="62" fill="#06B6D4" fill-opacity="0.08" stroke="#06B6D4" stroke-opacity="0.45" stroke-dasharray="4 3" />
+          <text x="240" y="36" text-anchor="middle" class="fill-cyan-600 dark:fill-cyan-400 font-mono text-[10px]">Crowd Kernel Radius R = 76 px</text>
+          {[[228,98],[250,96],[238,115],[258,114],[220,118],[242,132]].map(([x,y]) => (
+            <circle cx={x} cy={y} r="5.8" fill="#06B6D4" />
+          ))}
+          <circle cx="332" cy="96" r="8.5" fill="#10B981" />
+          <circle cx="412" cy="88" r="11.5" fill="#F59E0B" />
+          <circle cx="468" cy="122" r="12.5" fill="#D946EF" />
+          <text x="435" y="164" text-anchor="middle" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">Smooth scale gradient from core → outer halo</text>
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'subspace-recluster-zoom' && (
+        <svg viewBox="0 0 640 205" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Subspace Re-Clustering Drill-Down mechanism">
+          <text x="24" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">1. Local Subset Variance Filter</text>
+          <rect x="24" y="44" width="212" height="34" rx="6" fill="currentColor" fill-opacity="0.04" stroke="currentColor" stroke-opacity="0.18" stroke-dasharray="3 2" />
+          <text x="36" y="65" class="fill-slate-400 dark:fill-slate-500 font-mono text-[9.5px] line-through">milk = true (σ_local = 0.00)</text>
+
+          <rect x="24" y="88" width="212" height="36" rx="6" fill="#06B6D4" fill-opacity="0.1" stroke="#06B6D4" stroke-opacity="0.55" />
+          <text x="36" y="110" class="fill-current font-mono text-[9.5px] font-semibold">predator / budget (σ = 0.49)</text>
+
+          <rect x="24" y="134" width="212" height="36" rx="6" fill="#10B981" fill-opacity="0.1" stroke="#10B981" stroke-opacity="0.55" />
+          <text x="36" y="156" class="fill-current font-mono text-[9.5px] font-semibold">aquatic / era (σ = 0.46)</text>
+
+          <path d="M 254 110 L 334 110" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+          <polygon points="334,110 327,106 327,114" fill="currentColor" fill-opacity="0.45" />
+          <text x="294" y="98" text-anchor="middle" class="fill-cyan-600 dark:fill-cyan-400 font-mono text-[9px]">6! QAP align</text>
+
+          <text x="362" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">2. Re-Clustered 1:4 Subspace Mesh</text>
+          <polygon points="488,42 396,178 580,178" fill="#06B6D4" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.45" stroke-width="1.5" />
+          <polygon points="442,110 534,110 488,178" fill="#10B981" fill-opacity="0.08" stroke="currentColor" stroke-opacity="0.45" stroke-width="1.4" stroke-dasharray="4 3" />
+          <circle cx="488" cy="42" r="10.5" fill="#06B6D4" />
+          <circle cx="396" cy="178" r="10.5" fill="#F59E0B" />
+          <circle cx="580" cy="178" r="10.5" fill="#D946EF" />
+          <circle cx="442" cy="110" r="9.5" fill="#10B981" />
+          <circle cx="534" cy="110" r="9.5" fill="#6366F1" />
+          <circle cx="488" cy="178" r="9.5" fill="#EC4899" />
+          <text x="488" y="25" text-anchor="middle" class="fill-cyan-600 dark:fill-cyan-400 font-mono text-[8.5px] font-semibold">Predators</text>
+          <text x="424" y="106" text-anchor="end" class="fill-emerald-600 dark:fill-emerald-400 font-mono text-[8.5px] font-semibold">Aquatic</text>
+          <text x="552" y="106" class="fill-indigo-600 dark:fill-indigo-400 font-mono text-[8.5px] font-semibold">Large Size</text>
+          <text x="488" y="198" text-anchor="middle" class="fill-pink-600 dark:fill-pink-400 font-mono text-[8.5px] font-semibold">Domestic</text>
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'barycentric-subdivision-zoom' && (
+        <svg viewBox="0 0 640 205" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Barycentric 1:4 Drill-Down mechanism">
+          <text x="36" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">1. Conformal 1:4 Midpoint Split (3▲ + 1▼)</text>
+          <polygon points="155,38 65,180 245,180" fill="#06B6D4" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="4 3" />
+          <polygon points="110,109 200,109 155,180" fill="#F59E0B" fill-opacity="0.1" stroke="#F59E0B" stroke-width="1.5" stroke-dasharray="4 3" />
+          <circle cx="155" cy="38" r="9.5" fill="#06B6D4" />
+          <circle cx="65" cy="180" r="9.5" fill="#F59E0B" />
+          <circle cx="245" cy="180" r="9.5" fill="#D946EF" />
+          <circle cx="110" cy="109" r="7" fill="#5DC479" />
+          <circle cx="200" cy="109" r="7" fill="#709CE1" />
+          <circle cx="155" cy="180" r="7" fill="#E67A83" />
+
+          <path d="M 278 112 L 348 112" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+          <polygon points="348,112 341,108 341,116" fill="currentColor" fill-opacity="0.45" />
+          <text x="313" y="99" text-anchor="middle" class="fill-cyan-600 dark:fill-cyan-400 font-mono text-[9px]">contrast stretch</text>
+
+          <text x="378" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">2. Expanded Sub-Mesh + Dimmed Neighbors</text>
+          <polygon points="490,38 395,180 585,180" fill="#06B6D4" fill-opacity="0.08" stroke="#06B6D4" stroke-width="1.6" />
+          <polygon points="442.5,109 537.5,109 490,180" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-dasharray="4 3" />
+          <circle cx="490" cy="82" r="7.5" fill="#06B6D4" />
+          <circle cx="442" cy="152" r="7.5" fill="#F59E0B" />
+          <circle cx="536" cy="152" r="7.5" fill="#D946EF" />
+          <circle cx="490" cy="134" r="7.5" fill="#10B981" />
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'semantic-tag-split-zoom' && (
+        <svg viewBox="0 0 640 205" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Semantic 3 to 6 Tag Drill-Down mechanism">
+          <text x="28" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">1. Focused 3-Topic Triangle</text>
+          <polygon points="145,42 62,178 228,178" fill="#06B6D4" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="4 3" />
+          <circle cx="145" cy="42" r="12" fill="#06B6D4" />
+          <circle cx="62" cy="178" r="12" fill="#F59E0B" />
+          <circle cx="228" cy="178" r="12" fill="#D946EF" />
+          <text x="145" y="46" text-anchor="middle" fill="#fff" class="font-mono text-[8.5px] font-bold">#cg</text>
+          <text x="62" y="182" text-anchor="middle" fill="#fff" class="font-mono text-[8.5px] font-bold">#gr</text>
+          <text x="228" y="182" text-anchor="middle" fill="#fff" class="font-mono text-[8.5px] font-bold">#ml</text>
+
+          <path d="M 262 112 L 342 112" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+          <polygon points="342,112 335,108 335,116" fill="currentColor" fill-opacity="0.45" />
+          <text x="302" y="99" text-anchor="middle" class="fill-cyan-600 dark:fill-cyan-400 font-mono text-[9px]">3 → 6 sub-tags</text>
+
+          <text x="372" y="28" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">2. Discriminative Sub-Tags on Midpoints</text>
+          <polygon points="488,42 396,178 580,178" fill="#06B6D4" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.45" stroke-width="1.5" />
+          <polygon points="442,110 534,110 488,178" fill="#F59E0B" fill-opacity="0.08" stroke="currentColor" stroke-opacity="0.45" stroke-width="1.4" stroke-dasharray="4 3" />
+          <circle cx="488" cy="42" r="11" fill="#06B6D4" />
+          <circle cx="396" cy="178" r="11" fill="#F59E0B" />
+          <circle cx="580" cy="178" r="11" fill="#D946EF" />
+          <circle cx="442" cy="110" r="10.5" fill="#10B981" />
+          <circle cx="534" cy="110" r="10.5" fill="#6366F1" />
+          <circle cx="488" cy="178" r="10.5" fill="#EC4899" />
+          <text x="415" y="104" text-anchor="end" class="fill-emerald-600 dark:fill-emerald-400 font-mono text-[9px] font-semibold">#mesh</text>
+          <text x="560" y="104" class="fill-indigo-600 dark:fill-indigo-400 font-mono text-[9px] font-semibold">#nerf</text>
+          <text x="488" y="198" text-anchor="middle" class="fill-pink-600 dark:fill-pink-400 font-mono text-[9px] font-semibold">#shader</text>
+        </svg>
+      )
+    }
+
+    {
+      strategyId === 'free-camera-zoom' && (
+        <svg viewBox="0 0 640 195" class="w-full h-auto text-slate-800 dark:text-slate-200" role="img" aria-label="Continuous Free Camera mechanism">
+          <rect x="44" y="24" width="552" height="148" rx="10" fill="none" stroke="currentColor" stroke-opacity="0.22" stroke-dasharray="4 3" />
+          <text x="60" y="46" class="fill-slate-500 dark:fill-slate-400 font-mono text-[10px]">World Space (Fixed Layout Coordinates)</text>
+          <polygon points="220,56 145,156 295,156" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-width="1.4" />
+          <polygon points="295,156 220,56 370,56" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-width="1.4" />
+          <polygon points="370,56 295,156 445,156" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-width="1.4" />
+          <circle cx="220" cy="56" r="8" fill="#06B6D4" />
+          <circle cx="295" cy="156" r="8" fill="#F59E0B" />
+          <circle cx="370" cy="56" r="8" fill="#D946EF" />
+          <rect x="242" y="64" width="176" height="92" rx="6" fill="#06B6D4" fill-opacity="0.09" stroke="#06B6D4" stroke-width="1.8" />
+          <text x="330" y="84" text-anchor="middle" fill="#06B6D4" class="font-mono text-[9.5px] font-semibold">Viewport Camera (tx, ty, scale k)</text>
+          <circle cx="318" cy="118" r="5.5" fill="#10B981" />
+          <circle cx="348" cy="126" r="5.5" fill="#6366F1" />
+        </svg>
+      )
+    }
+  </div>
+
+  <figcaption class="mt-3.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+    {CAPTIONS[strategyId]}
+  </figcaption>
+</figure>

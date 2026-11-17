@@ -1,0 +1,64 @@
+---
+strategyId: "semantic-tag-split-zoom"
+order: 18
+signature: "createSemanticZoomStrategy<TItem, TTagMeta, TClusterMeta>(options?: SemanticZoomStrategyOptions): SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>"
+updatedDate: "2026-11-16"
+readingMinutes: 6
+whenToUse:
+  - "Recommended 1:4 drill-down strategy for multi-tag corpora (requiresTags: true) such as software repositories, research papers, or knowledge bases."
+  - "Discovers emergent sub-topics inside a zoomed triangle, promotes vertex-exclusive tags first, and guarantees 6 pairwise-distinct sub-vertex labels."
+optionsTable:
+  - name: "clusterZoomMode"
+    type: "'incident-star' | 'spotlight' | 'none'"
+    defaultValue: "'incident-star'"
+    description: "Focuses a topic badge's lattice-conformal 1-ring incident star with simplex-distance item dimming ('incident-star'), opens an opt-in 3-sector spotlight ('spotlight'), or disables cluster drill-down ('none')."
+  - name: "stopWhenFullScale"
+    type: "boolean"
+    defaultValue: "true"
+    description: "Terminates subdivision automatically once every covered item reaches fullScaleThreshold (0.995)."
+  - name: "fullScaleThreshold"
+    type: "number"
+    defaultValue: "0.995"
+    description: "Scale ratio in (0, 1] above which items count as full-scale leaf nodes."
+  - name: "barycentricFallback"
+    type: "boolean"
+    defaultValue: "true"
+    description: "Falls back cleanly to geometric barycentric or 3-sector leaf partitioning when covered items share identical tag signatures."
+  - name: "leafTriangleFocus"
+    type: "boolean"
+    defaultValue: "true"
+    description: "Keeps non-subdividable leaf triangles focusable as a single un-subdivided triangle ('triangle-focus') via their free face while content nodes stay directly clickable."
+---
+
+## Emergent 3→6 Sub-Topic Discovery & Collision-Free Labeling
+
+While **Barycentric 1:4 Drill-Down** subdivides purely from parent barycentric coordinates, **Semantic 3→6 Tag Drill-Down** inspects all secondary and tertiary tags carried by items inside the focused triangle—keeping parent corners anchored when already balanced, or re-partitioning the triangle's discriminative tags across all `6` sub-vertices (`[V₀, V₁, V₂, M₀₁, M₁₂, M₂₀]`) via deterministic farthest-signature seeding and hill-climbing balance optimization.
+
+To keep every zoomed `1:4` frame immediately legible even in overlapping multi-tag ecosystems:
+
+1. **Sibling-Vertex Exclusivity First**: Assigned tags on each sub-vertex are ranked by *exclusivity across the 6 sibling vertices* (`vertexTagFreq === 1` first) and intra-triangle specificity, while filtering out tags that merely repeat an outer corner's `parentContextLabel`. Exclusive sub-topics (such as `#graph` or `#threejs`) are never buried behind shared carrier tags (`#javascript`, `#visualization`).
+2. **Honest Midpoint Bridges on Sparse Subsets**: When a triangle contains fewer discriminative tags than sub-vertices, tags are never duplicated onto empty midpoints; post-optimization duplicate buckets are cleared so pure transition midpoints display explicit `A ↔ B` bridge relations.
+3. **Canonical 6-Vertex Uniqueness & Zero Corner Stutter**: Outer corners whose sub-tags do not refine their parent topic remain clean single-line primary capsules (preventing `JAVASCRIPT / JavaScript` redundancy), while a joint canonical pass guarantees all `6` sub-vertices carry pairwise-distinct labels—even up to symmetric order swaps (`A · B` vs. `B · A` and `A ↔ B` vs. `B ↔ A`).
+4. **Uniform Cluster/Subcluster Stars & Single-Triangle Leaf Focus**: Every primary cluster and `1:4` subcluster badge opens a lattice-conformal 1-ring `'incident-star'` with simplex-distance item dimming (`opacity = 0.32 + 0.68 · w̃₀`), while leaf triangles (`leafTriangleFocus: true`) keep their items directly clickable and remain focusable as single un-subdivided `'triangle-focus'` frames via their free triangle background.
+
+## Usage Example
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createSoftSimplexTagClusteringStrategy,
+  createCollisionDrivenLayoutStrategy,
+  createSemanticZoomStrategy,
+} from '@simplex-viz/react';
+
+<SimplexTopicGraph
+  items={taggedArticles}
+  resolveTagMeta={(tag) => tagTaxonomy[tag]}
+  clusteringStrategy={createSoftSimplexTagClusteringStrategy()}
+  layoutStrategy={createCollisionDrivenLayoutStrategy()}
+  zoomStrategy={createSemanticZoomStrategy({
+    clusterZoomMode: 'incident-star',
+  })}
+  showZoomBreadcrumbs
+/>;
+```

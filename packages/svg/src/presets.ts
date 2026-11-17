@@ -151,14 +151,12 @@ export function createPresetVisualResolver<
         const count = cluster.members.length;
         let compactSuffix = '';
         if (isIntermediate) {
-          if (cluster.coreTags.length > 0) {
-            compactSuffix = `#${cluster.coreTags[0]!.tag.slice(0, 10)}`;
-          } else if (
-            cluster.mixWeights &&
-            cluster.mixWeights.length === 2 &&
-            Math.abs(cluster.mixWeights[0]!.weight - 0.5) > 0.03
-          ) {
-            compactSuffix = `${Math.round(cluster.mixWeights[0]!.weight * 100)}%`;
+          if (cluster.subclusterLabel) {
+            compactSuffix = cluster.subclusterLabel.slice(0, 24);
+          } else if (cluster.coreTags.length > 0) {
+            compactSuffix = `#${cluster.coreTags[0]!.tag.slice(0, 12)}`;
+          } else {
+            compactSuffix = (cluster.defaultLabel || cluster.code).slice(0, 22);
           }
         }
         return {
@@ -170,6 +168,7 @@ export function createPresetVisualResolver<
           colorHex: cluster.colorHex,
           theme,
           variant: isIntermediate ? 'intermediate' : 'primary',
+          parentContextLabel: isIntermediate ? cluster.parentContextLabel : undefined,
           accentColors,
         };
       }
@@ -181,6 +180,7 @@ export function createPresetVisualResolver<
         radius: 22,
         theme,
         variant: isIntermediate ? 'intermediate' : 'primary',
+        parentContextLabel: isIntermediate ? cluster.parentContextLabel : undefined,
         accentColors,
       };
     },
@@ -196,9 +196,9 @@ export function createPresetVisualResolver<
         return `geom:${t}:${visual.shape}:${visual.radius}:${visual.fillHex}`;
       }
       if ('metaLine' in visual) {
-        return `badge:${t}:${visual.variant ?? 'primary'}:${visual.code}:${visual.title}:${visual.metaLine}:${visual.colorHex}`;
+        return `badge:${t}:${visual.variant ?? 'primary'}:${visual.parentContextLabel ?? ''}:${visual.code}:${visual.title}:${visual.metaLine}:${visual.colorHex}`;
       }
-      return `anchor:${t}:${visual.variant ?? 'primary'}:${visual.code}:${visual.memberCount}:${visual.colorHex}`;
+      return `anchor:${t}:${visual.variant ?? 'primary'}:${visual.parentContextLabel ?? ''}:${visual.code}:${visual.memberCount}:${visual.colorHex}`;
     },
   };
 }

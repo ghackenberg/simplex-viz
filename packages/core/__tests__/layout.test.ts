@@ -17,6 +17,7 @@ import {
   measureLayoutOverlaps,
   solveCollisionDrivenLayout,
   solveComposedLayout,
+  solveLocalAdaptiveLayout,
   solveTwoPhaseLayout,
 } from '../src/layout';
 import { buildSimplexMesh } from '../src/mesh';
@@ -441,5 +442,132 @@ describe('SAT & Two-Phase Overlap-Free Layout Solver', () => {
       (it) => !isPointInTriangle(it.x, it.y, va, vb, vc, 1e-4),
     );
     expect(outsideSingleTri.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('disperses co-located pockets in solveLocalAdaptiveLayout so moderate groups stay at 1.0x and dense hubs never trigger global shrink collateral', () => {
+    const width = 960;
+    const height = 600;
+    const mesh = buildSimplexMesh(width, height, 16, { maxClusters: 6 });
+
+    const clusterInputs = mesh.vertices.map((v, i) => ({
+      id: `cluster-${i}`,
+      targetX: v.x,
+      targetY: v.y,
+      hull: rectToConvexPolygon(128, 38, 8),
+    }));
+
+    const triDense = mesh.triangles[0]!;
+    const [da, db, dc] = triDense.vertices;
+    const vda = mesh.vertices[da]!;
+    const vdb = mesh.vertices[db]!;
+    const vdc = mesh.vertices[dc]!;
+    const denseAnchorX = vda.x * 0.78 + vdb.x * 0.11 + vdc.x * 0.11;
+    const denseAnchorY = vda.y * 0.78 + vdb.y * 0.11 + vdc.y * 0.11;
+
+    const triModerate = mesh.triangles[mesh.triangles.length - 1]!;
+    const [ma, mb, mc] = triModerate.vertices;
+    const vma = mesh.vertices[ma]!;
+    const vmb = mesh.vertices[mb]!;
+    const vmc = mesh.vertices[mc]!;
+    const modCx = (vma.x + vmb.x + vmc.x) / 3;
+    const modCy = (vma.y + vmb.y + vmc.y) / 3;
+
+    const items = [
+      ...Array.from({ length: 32 }, (_, i) => ({
+        id: `dense-${i}`,
+        anchorX: denseAnchorX,
+        anchorY: denseAnchorY,
+        hull: rectToConvexPolygon(46, 22, 4),
+        unitVertexIndices: [da, db, dc] as readonly number[],
+      })),
+      ...Array.from({ length: 4 }, (_, i) => ({
+        id: `moderate-${i}`,
+        anchorX: modCx,
+        anchorY: modCy,
+        hull: rectToConvexPolygon(42, 20, 4),
+        unitVertexIndices: [ma, mb, mc] as readonly number[],
+      })),
+    ];
+
+    const solved = solveLocalAdaptiveLayout({
+      clusters: clusterInputs,
+      items,
+      mesh,
+      viewportWidth: width,
+      viewportHeight: height,
+      viewportMargin: 8,
+      crowdRadiusPx: 76,
+      minLocalScale: 0.35,
+    });
+
+    expect(solved.overlapCount).toBe(0);
+    expect(solved.maxPenetrationPx).toBeLessThanOrEqual(1e-4);
+
+    for (const it of solved.items.filter((x) => x.id.startsWith('moderate-'))) {
+      expect(it.scale).toBeCloseTo(1.0, 5);
+    }
+
+    const denseScales = solved.items
+      .filter((x) => x.id.startsWith('dense-'))
+      .map((x) => x.scale);
+    expect(Math.min(...denseScales)).toBeLessThan(0.9);
+  });
+
+  it('achieves larger global uniform scale in solveTwoPhaseLayout by fanning edge-anchored pockets into open covering triangles', () => {
+    const width = 960;
+    const height = 600;
+    const mesh = buildSimplexMesh(width, height, 16, { maxClusters: 6 });
+
+    const clusterInputs = mesh.vertices.map((v, i) => ({
+      id: `cluster-${i}`,
+      targetX: v.x,
+      targetY: v.y,
+      hull: rectToConvexPolygon(128, 38, 8),
+    }));
+
+    const tri0 = mesh.triangles[0]!;
+    const [a0, b0, c0] = tri0.vertices;
+    const va0 = mesh.vertices[a0]!;
+    const vb0 = mesh.vertices[b0]!;
+    const vc0 = mesh.vertices[c0]!;
+    const cornerAnchorX = va0.x * 0.84 + vb0.x * 0.08 + vc0.x * 0.08;
+    const cornerAnchorY = va0.y * 0.84 + vb0.y * 0.08 + vc0.y * 0.08;
+
+    const capsuleItems = Array.from({ length: 16 }, (_, i) => ({
+      id: `vowel-${i}`,
+      anchorX: cornerAnchorX,
+      anchorY: cornerAnchorY,
+      hull: rectToConvexPolygon(50, 22, 6),
+      unitVertexIndices: [a0, b0, c0] as readonly number[],
+    }));
+
+    const upgradedUniform = solveTwoPhaseLayout({
+      clusters: clusterInputs,
+      items: capsuleItems,
+      mesh,
+      viewportWidth: width,
+      viewportHeight: height,
+      viewportMargin: 8,
+    });
+
+    const rigidLegacyUniform = solveComposedLayout({
+      clusters: clusterInputs,
+      items: capsuleItems,
+      mesh,
+      viewportWidth: width,
+      viewportHeight: height,
+      viewportMargin: 8,
+      seeder: createPhyllotaxisSeeder(),
+      relaxer: createBarycentricPbdRelaxer(),
+      scaleController: createUniformScaleController(),
+      defaultRelaxationIterations: 38,
+    });
+
+    expect(upgradedUniform.overlapCount).toBe(0);
+    expect(upgradedUniform.maxPenetrationPx).toBeLessThanOrEqual(1e-4);
+
+    const distinctScales = new Set(upgradedUniform.items.map((it) => it.scale.toFixed(6)));
+    expect(distinctScales.size).toBe(1);
+    expect(upgradedUniform.contentScale).toBeGreaterThan(rigidLegacyUniform.contentScale);
   });
 });

@@ -1,40 +1,141 @@
-import type { ClusterDerivationContext } from '@simplex-viz/core';
+import {
+  disambiguatePeerClusterTitle,
+  resolveDiscriminativeClusterLabel,
+  type ClusterDerivationContext,
+  type SubspaceZoomFeature,
+} from '@simplex-viz/core';
 import {
   buildInitialKnowledgeCatalog,
-  createDynamicEntry,
   deriveDemoClusterMeta,
   resolveDemoTagMeta,
   type KnowledgeEntry,
   type TagTaxonomyInfo,
 } from './knowledgeCatalog';
+import githubReposJson from './open/github-vis-repos.json';
+import palmerPenguinsJson from './open/palmer-penguins.json';
+import uciVowelsJson from './open/uci-vowels.json';
+import uciZooJson from './open/uci-zoo.json';
+import vegaMoviesJson from './open/vega-movies.json';
 
-export type DemoDatasetId = 'knowledge' | 'media' | 'voice' | 'body-shape';
+export const DEMO_DATASET_IDS = [
+  'knowledge',
+  'github-repos',
+  'media',
+  'voice',
+  'zoo-species',
+  'body-shape',
+] as const;
+
+export type DemoDatasetId = (typeof DEMO_DATASET_IDS)[number];
+
+export interface OpenDatasetSourceInfo {
+  readonly datasetId: DemoDatasetId;
+  readonly sourceName: string;
+  readonly sourceShort: string;
+  readonly sourceUrl: string;
+  readonly license: string;
+  readonly attribution: string;
+}
+
+export const OPEN_DATASET_SOURCES: Record<DemoDatasetId, OpenDatasetSourceInfo> = {
+  knowledge: {
+    datasetId: 'knowledge',
+    sourceName: 'arXiv.org Open-Access Archive',
+    sourceShort: 'arXiv.org',
+    sourceUrl: 'https://info.arxiv.org/help/api/index.html',
+    license: 'CC0 1.0 (Metadata)',
+    attribution: 'Cornell University arXiv e-Print Archive (CS & Geometry)',
+  },
+  'github-repos': {
+    datasetId: 'github-repos',
+    sourceName: 'GitHub Public Repository Index',
+    sourceShort: 'GitHub API',
+    sourceUrl: 'https://docs.github.com/en/rest/search/search',
+    license: 'Public Metadata',
+    attribution: 'Open-Source Visualization, WebGL & Graph Libraries on GitHub',
+  },
+  media: {
+    datasetId: 'media',
+    sourceName: 'Vega Datasets — Cinema Catalog (movies.json)',
+    sourceShort: 'Vega Datasets',
+    sourceUrl: 'https://github.com/vega/vega-datasets/blob/main/data/movies.json',
+    license: 'BSD-3-Clause',
+    attribution: 'UW Interactive Data Lab / Vega Project',
+  },
+  voice: {
+    datasetId: 'voice',
+    sourceName: 'UCI ML Repository — Deterding Spoken Vowel Context',
+    sourceShort: 'UCI ML Repo',
+    sourceUrl: 'https://archive.ics.uci.edu/dataset/108/connectionist+bench+vowel+recognition+deterding+data',
+    license: 'CC BY 4.0',
+    attribution: 'David Deterding, Mahesan Niranjan & Tony Robinson (Cambridge)',
+  },
+  'zoo-species': {
+    datasetId: 'zoo-species',
+    sourceName: 'UCI ML Repository — Zoo Animal Morphology',
+    sourceShort: 'UCI ML Repo',
+    sourceUrl: 'https://archive.ics.uci.edu/dataset/111/zoo',
+    license: 'CC BY 4.0',
+    attribution: 'Richard S. Forsyth (101 Vertebrate & Invertebrate Species)',
+  },
+  'body-shape': {
+    datasetId: 'body-shape',
+    sourceName: 'Palmer Station Antarctica LTER (penguins.json)',
+    sourceShort: 'Palmer LTER',
+    sourceUrl: 'https://allisonhorst.github.io/palmerpenguins/',
+    license: 'CC0 1.0',
+    attribution: 'Dr. Kristen Gorman & Palmer Station Antarctica LTER',
+  },
+};
+
+export interface CommonsMediaCredit {
+  readonly localPath: string;
+  readonly commonsFileUrl: string;
+  readonly wikipediaUrl: string;
+  readonly fileTitle: string;
+  readonly author: string;
+  readonly licenseShort: string;
+  readonly licenseUrl: string;
+}
 
 export interface VisualMediaItem {
   readonly id: string;
   readonly title: string;
+  readonly shortTitle: string;
   readonly mediaKind: 'image' | 'video';
   readonly durationSec?: number;
   readonly aspectRatio: '16:9' | '4:3' | '1:1';
   readonly resolutionLabel: string;
   readonly motif: 'horizon' | 'architecture' | 'macro' | 'portrait' | 'kinetic' | 'abstract';
   readonly palette: readonly [string, string];
-  /** 8D semantic scene embedding: [architecture, nature, portrait, motion, macro, geometry, night, light] */
+  readonly genre: string;
+  readonly releaseYear: number;
+  readonly mpaa: string;
+  readonly runtimeMin: number;
+  readonly imdbRating: number;
+  readonly rottenTomatoes: number;
+  readonly budgetMusd: number;
+  readonly worldwideGrossMusd: number;
+  /** 4D Audience & Critical Reception Vector: [imdbNorm, rtNorm, votesLog, criticAudienceBalance] */
   readonly semanticEmbedding: readonly number[];
-  /** 6D visual style & temporal dynamics embedding: [warmth, contrast, tempo, saturation, minimalism, depth] */
+  /** 4D Production & Box-Office Scale Vector: [budgetLog, grossLog, runtimeNorm, roiNorm] */
   readonly styleEmbedding: readonly number[];
+  readonly mediaCredit: CommonsMediaCredit;
 }
 
 export interface VoiceSampleItem {
   readonly id: string;
   readonly title: string;
   readonly speakerProfile: string;
+  readonly speakerName: string;
+  readonly speakerSex: string;
+  readonly exampleWord: string;
   readonly language: string;
   readonly pitchHz: number;
   readonly durationSec: number;
-  /** 10D acoustic voice-signature embedding: [f0Low, f0High, formantOpen, breathiness, resonance, cadence, crispness, warmth, vibrato, projection] */
+  /** Real 10D LPC log-area formant vector from Deterding UCI Vowel dataset */
   readonly voiceEmbedding: readonly number[];
-  /** 14 normalized harmonic envelope bars in [0.15, 1.0] for SVG waveform rendering. */
+  /** 10 normalized LPC envelope bars in [0.18, 0.98] for SVG capsule rendering */
   readonly waveform: readonly number[];
 }
 
@@ -44,7 +145,14 @@ export interface BodyShapeItem {
   readonly archetype: string;
   readonly posture: 'upright' | 'dynamic' | 'athletic' | 'compact' | 'tall';
   readonly heightCm: number;
-  /** 8D biomechanical & anthropometric latent vector: [stature, shoulderW, waistTaper, hipRatio, limbReach, torsoMass, lean, agility] */
+  readonly species: string;
+  readonly island: string;
+  readonly sex: string;
+  readonly bodyMassG: number;
+  readonly flipperLengthMm: number;
+  readonly billLengthMm: number;
+  readonly billDepthMm: number;
+  /** Real 6D standardized morphometric vector from Palmer Penguins */
   readonly shapeEmbedding: readonly number[];
   readonly proportions: {
     readonly shoulderW: number;
@@ -56,29 +164,54 @@ export interface BodyShapeItem {
   };
 }
 
+export interface ZooSpeciesItem {
+  readonly id: string;
+  readonly speciesName: string;
+  readonly title: string;
+  readonly taxonomicGroup: string;
+  readonly legs: number;
+  readonly aquatic: boolean;
+  readonly airborne: boolean;
+  readonly predator: boolean;
+  /** 16 normalized biological traits from UCI Zoo */
+  readonly traits: readonly number[];
+  readonly mediaCredit?: CommonsMediaCredit;
+}
+
 export type DemoEntity =
   | {
       readonly kind: 'knowledge';
       readonly id: string;
       readonly title: string;
+      readonly subtitleMeta: string;
       readonly entry: KnowledgeEntry;
     }
   | {
       readonly kind: 'media';
       readonly id: string;
       readonly title: string;
+      readonly subtitleMeta: string;
       readonly media: VisualMediaItem;
     }
   | {
       readonly kind: 'voice';
       readonly id: string;
       readonly title: string;
+      readonly subtitleMeta: string;
       readonly voice: VoiceSampleItem;
+    }
+  | {
+      readonly kind: 'zoo-species';
+      readonly id: string;
+      readonly title: string;
+      readonly subtitleMeta: string;
+      readonly zoo: ZooSpeciesItem;
     }
   | {
       readonly kind: 'body-shape';
       readonly id: string;
       readonly title: string;
+      readonly subtitleMeta: string;
       readonly body: BodyShapeItem;
     };
 
@@ -93,744 +226,350 @@ export interface DemoClusterSummary {
   readonly dominantType: string;
   readonly isIntermediate?: boolean;
   readonly shortBridgeTag?: string;
+  readonly parentContextLabel?: string;
 }
 
-export const DATASET_DESCRIPTIONS: Record<
-  DemoDatasetId,
-  {
-    readonly label: string;
-    readonly shortLabel: string;
-    readonly clusteringModeLabel: string;
-  }
-> = {
-  knowledge: {
-    label: 'Knowledge Articles (Tags)',
-    shortLabel: 'Knowledge · Tags',
-    clusteringModeLabel: 'Tag Co-Occurrence',
-  },
-  media: {
-    label: 'Images & Videos (Dual Embeddings)',
-    shortLabel: 'Media · Multi-Modal',
-    clusteringModeLabel: '2-Modal Vector + Similarity',
-  },
-  voice: {
-    label: 'Voice Samples (Audio Signatures)',
-    shortLabel: 'Voice · Speaker Vectors',
-    clusteringModeLabel: '10D Acoustic Embedding',
-  },
-  'body-shape': {
-    label: 'Body Shapes (Latent Vectors)',
-    shortLabel: 'Body · Latent Geometry',
-    clusteringModeLabel: '8D Parametric Shape Vector',
-  },
+const GENRE_MOTIF: Record<string, { motif: VisualMediaItem['motif']; palette: readonly [string, string] }> = {
+  Action: { motif: 'kinetic', palette: ['#f97316', '#1e293b'] },
+  Adventure: { motif: 'horizon', palette: ['#10b981', '#0f172a'] },
+  Drama: { motif: 'portrait', palette: ['#f472b6', '#311042'] },
+  Comedy: { motif: 'portrait', palette: ['#fbbf24', '#1f2937'] },
+  'Thriller/Suspense': { motif: 'architecture', palette: ['#38bdf8', '#0f172a'] },
+  Horror: { motif: 'macro', palette: ['#f43f5e', '#18181b'] },
+  'Romantic Comedy': { motif: 'portrait', palette: ['#ec4899', '#1e1b4b'] },
+  Musical: { motif: 'abstract', palette: ['#c084fc', '#2e1065'] },
+  Western: { motif: 'horizon', palette: ['#f59e0b', '#451a03'] },
+  'Black Comedy': { motif: 'abstract', palette: ['#2dd4bf', '#042f2e'] },
 };
 
-function makeSeededRand(seed: number): () => number {
-  let state = (seed >>> 0) || 1;
-  return () => {
-    state = (state * 1664525 + 1013904223) >>> 0;
-    return state / 0xffffffff;
-  };
-}
+const SHORT_GENRE_MAP: Record<string, string> = {
+  'Thriller/Suspense': 'Thriller',
+  'Romantic Comedy': 'Rom-Com',
+  'Black Comedy': 'Dark Comedy',
+};
 
-function jitterVec(base: readonly number[], seed: number, spread = 0.08): readonly number[] {
-  const rand = makeSeededRand(seed);
-  return base.map((v) =>
-    Number(Math.max(0.02, Math.min(1.0, v + (rand() - 0.5) * 2 * spread)).toFixed(3)),
-  );
-}
-
-const MEDIA_SEEDS: readonly Omit<VisualMediaItem, 'id'>[] = [
+const MEDIA_PRIMARY_FEATURES: readonly SubspaceZoomFeature<DemoEntity>[] = [
   {
-    title: 'Brutalist Concrete Atrium',
-    mediaKind: 'image',
-    aspectRatio: '4:3',
-    resolutionLabel: '4K RAW',
-    motif: 'architecture',
-    palette: ['#38bdf8', '#0f172a'],
-    semanticEmbedding: [0.95, 0.08, 0.05, 0.10, 0.18, 0.92, 0.25, 0.72],
-    styleEmbedding: [0.22, 0.88, 0.12, 0.20, 0.90, 0.78],
+    id: 'gross',
+    label: 'Worldwide Gross',
+    weight: 1.2,
+    getValue: (e) =>
+      e.kind === 'media'
+        ? Math.log10(Math.max(0.5, e.media.worldwideGrossMusd))
+        : null,
+    highLabel: 'Box-Office Hits',
+    lowLabel: 'Modest Gross',
   },
   {
-    title: 'Glass Facade Dusk Reflections',
-    mediaKind: 'image',
-    aspectRatio: '16:9',
-    resolutionLabel: '5K RAW',
-    motif: 'architecture',
-    palette: ['#0ea5e9', '#1e1b4b'],
-    semanticEmbedding: [0.90, 0.14, 0.06, 0.22, 0.12, 0.86, 0.68, 0.55],
-    styleEmbedding: [0.35, 0.82, 0.20, 0.45, 0.75, 0.85],
+    id: 'budget',
+    label: 'Production Budget',
+    weight: 1.2,
+    getValue: (e) =>
+      e.kind === 'media'
+        ? Math.log10(Math.max(0.1, e.media.budgetMusd))
+        : null,
+    highLabel: 'Big-Budget Epics',
+    lowLabel: 'Low-Budget Cult',
   },
   {
-    title: 'Spiral Staircase Isometric',
-    mediaKind: 'image',
-    aspectRatio: '1:1',
-    resolutionLabel: '3K PNG',
-    motif: 'abstract',
-    palette: ['#22d3ee', '#1e293b'],
-    semanticEmbedding: [0.82, 0.05, 0.02, 0.18, 0.35, 0.98, 0.30, 0.65],
-    styleEmbedding: [0.28, 0.85, 0.26, 0.32, 0.88, 0.70],
+    id: 'critics',
+    label: 'Critics Score',
+    weight: 1.15,
+    getValue: (e) => (e.kind === 'media' ? e.media.rottenTomatoes : null),
+    highLabel: 'Critic Classics',
+    lowLabel: 'Crowd-Pleasers',
   },
   {
-    title: 'Alpine Ridge First Light',
-    mediaKind: 'image',
-    aspectRatio: '16:9',
-    resolutionLabel: '6K RAW',
-    motif: 'horizon',
-    palette: ['#34d399', '#064e3b'],
-    semanticEmbedding: [0.10, 0.96, 0.04, 0.16, 0.15, 0.22, 0.12, 0.92],
-    styleEmbedding: [0.68, 0.55, 0.18, 0.64, 0.52, 0.94],
+    id: 'imdb',
+    label: 'Audience Rating',
+    weight: 1.1,
+    getValue: (e) => (e.kind === 'media' ? e.media.imdbRating : null),
+    highLabel: 'Acclaimed Canon',
+    lowLabel: 'Genre Curiosities',
   },
   {
-    title: 'Coastal Tide Drone Sweep',
-    mediaKind: 'video',
-    durationSec: 28,
-    aspectRatio: '16:9',
-    resolutionLabel: '4K60',
-    motif: 'horizon',
-    palette: ['#10b981', '#0c4a6e'],
-    semanticEmbedding: [0.12, 0.92, 0.05, 0.76, 0.12, 0.26, 0.15, 0.82],
-    styleEmbedding: [0.54, 0.60, 0.74, 0.72, 0.42, 0.90],
+    id: 'roi',
+    label: 'Box-Office ROI',
+    weight: 1.1,
+    getValue: (e) =>
+      e.kind === 'media'
+        ? Math.log10(
+            Math.max(
+              0.2,
+              e.media.worldwideGrossMusd / Math.max(0.1, e.media.budgetMusd),
+            ),
+          )
+        : null,
+    highLabel: 'Sleeper Hits',
+    lowLabel: 'Roadshow Prestige',
   },
   {
-    title: 'Misty Cedar Canopy',
-    mediaKind: 'image',
-    aspectRatio: '4:3',
-    resolutionLabel: '4K RAW',
-    motif: 'horizon',
-    palette: ['#4ade80', '#14532d'],
-    semanticEmbedding: [0.06, 0.95, 0.05, 0.14, 0.28, 0.16, 0.38, 0.50],
-    styleEmbedding: [0.46, 0.44, 0.15, 0.58, 0.64, 0.86],
+    id: 'runtime',
+    label: 'Runtime',
+    weight: 1.08,
+    getValue: (e) => (e.kind === 'media' ? e.media.runtimeMin : null),
+    highLabel: 'Epic Runtime',
+    lowLabel: 'Compact Classics',
   },
   {
-    title: 'Studio Chiaroscuro Portrait',
-    mediaKind: 'image',
-    aspectRatio: '4:3',
-    resolutionLabel: '4K RAW',
-    motif: 'portrait',
-    palette: ['#f472b6', '#500724'],
-    semanticEmbedding: [0.12, 0.08, 0.96, 0.14, 0.22, 0.18, 0.78, 0.45],
-    styleEmbedding: [0.78, 0.92, 0.10, 0.48, 0.72, 0.68],
+    id: 'era',
+    label: 'Release Era',
+    weight: 1.0,
+    getValue: (e) => (e.kind === 'media' ? e.media.releaseYear : null),
+    highLabel: 'New Hollywood',
+    lowLabel: 'Golden Age',
   },
   {
-    title: 'Backlit Musician Close-Up',
-    mediaKind: 'video',
-    durationSec: 19,
-    aspectRatio: '16:9',
-    resolutionLabel: '4K30',
-    motif: 'portrait',
-    palette: ['#fb7185', '#4c0519'],
-    semanticEmbedding: [0.16, 0.06, 0.90, 0.62, 0.26, 0.20, 0.74, 0.58],
-    styleEmbedding: [0.84, 0.86, 0.66, 0.62, 0.45, 0.64],
-  },
-  {
-    title: 'Raindrop Leaf Macro 100mm',
-    mediaKind: 'image',
-    aspectRatio: '1:1',
-    resolutionLabel: '4K RAW',
-    motif: 'macro',
-    palette: ['#a3e635', '#1a2e05'],
-    semanticEmbedding: [0.04, 0.74, 0.02, 0.12, 0.96, 0.42, 0.18, 0.78],
-    styleEmbedding: [0.48, 0.66, 0.14, 0.80, 0.68, 0.40],
-  },
-  {
-    title: 'Quartz Crystal Refraction',
-    mediaKind: 'image',
-    aspectRatio: '1:1',
-    resolutionLabel: '5K PNG',
-    motif: 'macro',
-    palette: ['#c084fc', '#2e1065'],
-    semanticEmbedding: [0.28, 0.16, 0.02, 0.20, 0.94, 0.86, 0.42, 0.88],
-    styleEmbedding: [0.38, 0.84, 0.22, 0.78, 0.76, 0.52],
-  },
-  {
-    title: 'Neon Subway Time-Lapse',
-    mediaKind: 'video',
-    durationSec: 14,
-    aspectRatio: '16:9',
-    resolutionLabel: '4K60',
-    motif: 'kinetic',
-    palette: ['#f59e0b', '#311042'],
-    semanticEmbedding: [0.68, 0.05, 0.28, 0.96, 0.10, 0.56, 0.92, 0.62],
-    styleEmbedding: [0.74, 0.90, 0.96, 0.94, 0.22, 0.76],
-  },
-  {
-    title: 'Skatepark Whip-Pan Sequence',
-    mediaKind: 'video',
-    durationSec: 22,
-    aspectRatio: '16:9',
-    resolutionLabel: '4K120',
-    motif: 'kinetic',
-    palette: ['#fb923c', '#431407'],
-    semanticEmbedding: [0.44, 0.24, 0.54, 0.94, 0.08, 0.38, 0.18, 0.84],
-    styleEmbedding: [0.82, 0.76, 0.98, 0.82, 0.26, 0.62],
-  },
-  {
-    title: 'Bioluminescent Reef Slow-Mo',
-    mediaKind: 'video',
-    durationSec: 36,
-    aspectRatio: '16:9',
-    resolutionLabel: '4K60',
-    motif: 'abstract',
-    palette: ['#2dd4bf', '#042f2e'],
-    semanticEmbedding: [0.06, 0.68, 0.04, 0.74, 0.62, 0.46, 0.88, 0.70],
-    styleEmbedding: [0.24, 0.86, 0.62, 0.96, 0.34, 0.72],
-  },
-  {
-    title: 'Tokyo Lantern Rain Walk',
-    mediaKind: 'video',
-    durationSec: 41,
-    aspectRatio: '16:9',
-    resolutionLabel: '4K30',
-    motif: 'kinetic',
-    palette: ['#f43f5e', '#172554'],
-    semanticEmbedding: [0.62, 0.10, 0.48, 0.78, 0.18, 0.40, 0.95, 0.52],
-    styleEmbedding: [0.80, 0.88, 0.76, 0.88, 0.28, 0.80],
-  },
-  {
-    title: 'Monolith Desert Noon Shadow',
-    mediaKind: 'image',
-    aspectRatio: '4:3',
-    resolutionLabel: '6K RAW',
-    motif: 'architecture',
-    palette: ['#fbbf24', '#451a03'],
-    semanticEmbedding: [0.72, 0.64, 0.04, 0.08, 0.12, 0.84, 0.08, 0.96],
-    styleEmbedding: [0.90, 0.84, 0.08, 0.56, 0.86, 0.92],
-  },
-  {
-    title: 'Stage Dancer Motion Trails',
-    mediaKind: 'video',
-    durationSec: 17,
-    aspectRatio: '16:9',
-    resolutionLabel: '4K60',
-    motif: 'portrait',
-    palette: ['#e879f9', '#3b0764'],
-    semanticEmbedding: [0.18, 0.04, 0.78, 0.90, 0.14, 0.36, 0.86, 0.64],
-    styleEmbedding: [0.70, 0.90, 0.90, 0.88, 0.32, 0.58],
-  },
-  {
-    title: 'Circuit Wafer Gold Traces',
-    mediaKind: 'image',
-    aspectRatio: '1:1',
-    resolutionLabel: '5K RAW',
-    motif: 'macro',
-    palette: ['#facc15', '#1c1917'],
-    semanticEmbedding: [0.46, 0.02, 0.02, 0.10, 0.92, 0.96, 0.34, 0.74],
-    styleEmbedding: [0.66, 0.88, 0.16, 0.72, 0.82, 0.34],
-  },
-  {
-    title: 'Observatory Dome Starlapse',
-    mediaKind: 'video',
-    durationSec: 45,
-    aspectRatio: '16:9',
-    resolutionLabel: '6K24',
-    motif: 'horizon',
-    palette: ['#60a5fa', '#090d16'],
-    semanticEmbedding: [0.64, 0.72, 0.02, 0.58, 0.10, 0.78, 0.98, 0.44],
-    styleEmbedding: [0.18, 0.92, 0.52, 0.66, 0.68, 0.96],
-  },
-  {
-    title: 'Ink Diffusion in Glycerin',
-    mediaKind: 'video',
-    durationSec: 24,
-    aspectRatio: '1:1',
-    resolutionLabel: '4K60',
-    motif: 'abstract',
-    palette: ['#818cf8', '#1e1b4b'],
-    semanticEmbedding: [0.10, 0.22, 0.04, 0.82, 0.80, 0.52, 0.48, 0.62],
-    styleEmbedding: [0.36, 0.78, 0.72, 0.92, 0.56, 0.48],
-  },
-  {
-    title: 'Botanical Greenhouse Glass',
-    mediaKind: 'image',
-    aspectRatio: '4:3',
-    resolutionLabel: '4K RAW',
-    motif: 'architecture',
-    palette: ['#22c55e', '#052e16'],
-    semanticEmbedding: [0.76, 0.82, 0.04, 0.12, 0.34, 0.74, 0.14, 0.86],
-    styleEmbedding: [0.56, 0.58, 0.14, 0.68, 0.58, 0.82],
-  },
-  {
-    title: 'Biker Canyon Switchbacks',
-    mediaKind: 'video',
-    durationSec: 32,
-    aspectRatio: '16:9',
-    resolutionLabel: '4K60',
-    motif: 'kinetic',
-    palette: ['#f97316', '#27272a'],
-    semanticEmbedding: [0.22, 0.78, 0.24, 0.92, 0.08, 0.44, 0.12, 0.88],
-    styleEmbedding: [0.80, 0.78, 0.94, 0.78, 0.30, 0.88],
-  },
-  {
-    title: 'Editorial Twins Outdoor',
-    mediaKind: 'image',
-    aspectRatio: '4:3',
-    resolutionLabel: '4K RAW',
-    motif: 'portrait',
-    palette: ['#ec4899', '#1f2937'],
-    semanticEmbedding: [0.22, 0.48, 0.92, 0.18, 0.16, 0.24, 0.16, 0.84],
-    styleEmbedding: [0.74, 0.62, 0.20, 0.64, 0.54, 0.74],
-  },
-  {
-    title: 'Kinetic Prism Caustics',
-    mediaKind: 'video',
-    durationSec: 12,
-    aspectRatio: '1:1',
-    resolutionLabel: '4K60',
-    motif: 'abstract',
-    palette: ['#06b6d4', '#312e81'],
-    semanticEmbedding: [0.32, 0.08, 0.02, 0.80, 0.72, 0.90, 0.66, 0.86],
-    styleEmbedding: [0.42, 0.92, 0.84, 0.94, 0.62, 0.50],
-  },
-  {
-    title: 'Fjord Kayak Dawn Aerial',
-    mediaKind: 'video',
-    durationSec: 38,
-    aspectRatio: '16:9',
-    resolutionLabel: '5K30',
-    motif: 'horizon',
-    palette: ['#38bdf8', '#0f766e'],
-    semanticEmbedding: [0.10, 0.94, 0.20, 0.68, 0.10, 0.28, 0.22, 0.78],
-    styleEmbedding: [0.44, 0.64, 0.58, 0.68, 0.58, 0.96],
+    id: 'genre',
+    label: 'Genre',
+    weight: 0.95,
+    getValue: (e) =>
+      e.kind === 'media'
+        ? (SHORT_GENRE_MAP[e.media.genre] ?? e.media.genre)
+        : null,
   },
 ];
 
-function makeWaveform(seed: number, energy: number, smoothness: number): readonly number[] {
-  const rand = makeSeededRand(seed);
-  const bars: number[] = [];
-  let prev = 0.5;
-  for (let i = 0; i < 14; i++) {
-    const env = Math.sin(((i + 0.5) / 14) * Math.PI);
-    const raw = (0.25 + rand() * 0.75) * (0.55 + energy * 0.45) * (0.45 + 0.65 * env);
-    const val = prev * smoothness + raw * (1 - smoothness);
-    prev = val;
-    bars.push(Number(Math.max(0.16, Math.min(1.0, val)).toFixed(2)));
-  }
-  return bars;
-}
-
-const VOICE_SEEDS: readonly Omit<VoiceSampleItem, 'id' | 'waveform'>[] = [
+const PENGUIN_PRIMARY_FEATURES: readonly SubspaceZoomFeature<DemoEntity>[] = [
   {
-    title: 'Warm Baritone Narration',
-    speakerProfile: 'Deep Studio Baritone',
-    language: 'EN-US',
-    pitchHz: 108,
-    durationSec: 18,
-    voiceEmbedding: [0.95, 0.08, 0.62, 0.22, 0.92, 0.34, 0.68, 0.94, 0.18, 0.82],
+    id: 'species',
+    label: 'Species',
+    weight: 1.45,
+    getValue: (e) =>
+      e.kind === 'body-shape'
+        ? e.body.species === 'Adelie'
+          ? 'Adélie'
+          : e.body.species
+        : null,
   },
   {
-    title: 'Documentary Bass Voiceover',
-    speakerProfile: 'Low Resonant Bass',
-    language: 'EN-UK',
-    pitchHz: 94,
-    durationSec: 26,
-    voiceEmbedding: [0.98, 0.04, 0.58, 0.18, 0.96, 0.28, 0.72, 0.90, 0.12, 0.88],
+    id: 'sex',
+    label: 'Sex',
+    weight: 1.15,
+    getValue: (e) =>
+      e.kind === 'body-shape' && (e.body.sex === 'Male' || e.body.sex === 'Female')
+        ? e.body.sex
+        : null,
   },
   {
-    title: 'Late-Night Radio Host',
-    speakerProfile: 'Velvet Close-Mic Baritone',
-    language: 'DE-DE',
-    pitchHz: 118,
-    durationSec: 21,
-    voiceEmbedding: [0.86, 0.14, 0.68, 0.46, 0.84, 0.40, 0.60, 0.96, 0.20, 0.66],
+    id: 'mass',
+    label: 'Body Mass',
+    weight: 1.12,
+    getValue: (e) => (e.kind === 'body-shape' ? e.body.bodyMassG : null),
+    highLabel: 'Heavy',
+    lowLabel: 'Compact',
   },
   {
-    title: 'Bright Soprano Dialogue',
-    speakerProfile: 'Crisp High Soprano',
-    language: 'EN-US',
-    pitchHz: 256,
-    durationSec: 12,
-    voiceEmbedding: [0.10, 0.95, 0.84, 0.28, 0.42, 0.68, 0.90, 0.48, 0.56, 0.76],
+    id: 'island',
+    label: 'Island',
+    weight: 1.08,
+    getValue: (e) => (e.kind === 'body-shape' ? e.body.island : null),
   },
   {
-    title: 'Expressive Opera Mezzosoprano',
-    speakerProfile: 'Lyrical Vibrato Vocal',
-    language: 'IT-IT',
-    pitchHz: 234,
-    durationSec: 16,
-    voiceEmbedding: [0.18, 0.86, 0.90, 0.20, 0.78, 0.46, 0.78, 0.72, 0.96, 0.94],
+    id: 'billLength',
+    label: 'Culmen Length',
+    weight: 1.0,
+    getValue: (e) => (e.kind === 'body-shape' ? e.body.billLengthMm : null),
+    highLabel: 'Long Bill',
+    lowLabel: 'Short Bill',
   },
   {
-    title: 'Airy Whisper ASMR Read',
-    speakerProfile: 'Soft Breathy Alto',
-    language: 'JP-JP',
-    pitchHz: 196,
-    durationSec: 30,
-    voiceEmbedding: [0.28, 0.58, 0.44, 0.96, 0.24, 0.22, 0.40, 0.78, 0.10, 0.16],
+    id: 'billDepth',
+    label: 'Culmen Depth',
+    weight: 1.0,
+    getValue: (e) => (e.kind === 'body-shape' ? e.body.billDepthMm : null),
+    highLabel: 'Deep Bill',
+    lowLabel: 'Slender Bill',
   },
   {
-    title: 'Calm Meditation Guide',
-    speakerProfile: 'Warm Breathy Tenor',
-    language: 'EN-AU',
-    pitchHz: 146,
-    durationSec: 34,
-    voiceEmbedding: [0.56, 0.34, 0.52, 0.82, 0.58, 0.18, 0.48, 0.90, 0.14, 0.32],
-  },
-  {
-    title: 'Rapid Sports Play-by-Play',
-    speakerProfile: 'High-Tempo Broadcaster',
-    language: 'ES-ES',
-    pitchHz: 174,
-    durationSec: 11,
-    voiceEmbedding: [0.42, 0.54, 0.76, 0.14, 0.66, 0.98, 0.94, 0.44, 0.22, 0.96],
-  },
-  {
-    title: 'Crisp News Anchor Read',
-    speakerProfile: 'Articulate Mid-Alto',
-    language: 'DE-DE',
-    pitchHz: 184,
-    durationSec: 15,
-    voiceEmbedding: [0.34, 0.64, 0.78, 0.16, 0.62, 0.74, 0.96, 0.54, 0.16, 0.84],
-  },
-  {
-    title: 'Keynote Tech Presenter',
-    speakerProfile: 'Punchy Mid-Tenor',
-    language: 'EN-US',
-    pitchHz: 152,
-    durationSec: 19,
-    voiceEmbedding: [0.48, 0.48, 0.74, 0.18, 0.70, 0.80, 0.90, 0.62, 0.18, 0.88],
-  },
-  {
-    title: 'Indie Acoustic Singer',
-    speakerProfile: 'Breathy Falsetto Blend',
-    language: 'FR-FR',
-    pitchHz: 222,
-    durationSec: 22,
-    voiceEmbedding: [0.22, 0.78, 0.68, 0.74, 0.50, 0.38, 0.56, 0.82, 0.76, 0.52],
-  },
-  {
-    title: 'Classical Tenor Aria',
-    speakerProfile: 'Projecting Tenor Vibrato',
-    language: 'IT-IT',
-    pitchHz: 178,
-    durationSec: 20,
-    voiceEmbedding: [0.44, 0.66, 0.88, 0.12, 0.90, 0.42, 0.80, 0.76, 0.94, 0.96],
-  },
-  {
-    title: 'Conversational Podcast Co-Host',
-    speakerProfile: 'Natural Mid-Alto',
-    language: 'EN-CA',
-    pitchHz: 198,
-    durationSec: 24,
-    voiceEmbedding: [0.26, 0.68, 0.66, 0.42, 0.54, 0.64, 0.76, 0.74, 0.18, 0.58],
-  },
-  {
-    title: 'E-Learning Tutorial Voice',
-    speakerProfile: 'Clear Neutral Baritone',
-    language: 'DE-DE',
-    pitchHz: 132,
-    durationSec: 28,
-    voiceEmbedding: [0.68, 0.28, 0.64, 0.24, 0.72, 0.52, 0.88, 0.78, 0.12, 0.70],
-  },
-  {
-    title: 'Animated Character Sprite',
-    speakerProfile: 'Bright Energetic High',
-    language: 'EN-US',
-    pitchHz: 282,
-    durationSec: 9,
-    voiceEmbedding: [0.06, 0.98, 0.86, 0.22, 0.38, 0.92, 0.88, 0.40, 0.44, 0.82],
-  },
-  {
-    title: 'Storybook Elderly Sage',
-    speakerProfile: 'Gravelly Warm Bass',
-    language: 'EN-UK',
-    pitchHz: 102,
-    durationSec: 25,
-    voiceEmbedding: [0.92, 0.10, 0.50, 0.48, 0.86, 0.24, 0.52, 0.92, 0.36, 0.62],
-  },
-  {
-    title: 'Auctioneer Speed Call',
-    speakerProfile: 'Staccato Rapid Tenor',
-    language: 'EN-US',
-    pitchHz: 164,
-    durationSec: 10,
-    voiceEmbedding: [0.46, 0.48, 0.72, 0.10, 0.58, 0.99, 0.98, 0.34, 0.12, 0.90],
-  },
-  {
-    title: 'Jazz Lounge Alto Vocal',
-    speakerProfile: 'Smoky Warm Alto',
-    language: 'FR-FR',
-    pitchHz: 188,
-    durationSec: 23,
-    voiceEmbedding: [0.36, 0.58, 0.64, 0.66, 0.72, 0.32, 0.54, 0.92, 0.74, 0.60],
-  },
-  {
-    title: 'Cockpit ATC Telemetry',
-    speakerProfile: 'Compressed Crisp Mid',
-    language: 'EN-US',
-    pitchHz: 158,
-    durationSec: 8,
-    voiceEmbedding: [0.50, 0.42, 0.60, 0.10, 0.48, 0.84, 0.96, 0.28, 0.08, 0.86],
-  },
-  {
-    title: 'Lullaby Humming Alto',
-    speakerProfile: 'Gentle Soft Soprano',
-    language: 'SE-SE',
-    pitchHz: 214,
-    durationSec: 29,
-    voiceEmbedding: [0.22, 0.76, 0.46, 0.86, 0.46, 0.18, 0.44, 0.88, 0.52, 0.30],
+    id: 'flipper',
+    label: 'Flipper Span',
+    weight: 1.0,
+    getValue: (e) => (e.kind === 'body-shape' ? e.body.flipperLengthMm : null),
+    highLabel: 'Long Flipper',
+    lowLabel: 'Short Flipper',
   },
 ];
 
-const BODY_SEEDS: readonly Omit<BodyShapeItem, 'id'>[] = [
-  {
-    title: 'Marathon Runner Silhouette',
-    archetype: 'Endurance Ectomorph',
-    posture: 'tall',
-    heightCm: 181,
-    shapeEmbedding: [0.84, 0.36, 0.74, 0.30, 0.92, 0.28, 0.34, 0.90],
-    proportions: { shoulderW: 0.62, waistW: 0.42, hipW: 0.48, torsoH: 0.82, legH: 0.98, leanDeg: 4 },
-  },
-  {
-    title: 'Basketball Wing Frame',
-    archetype: 'Tall Lean Reach',
-    posture: 'tall',
-    heightCm: 198,
-    shapeEmbedding: [0.98, 0.64, 0.70, 0.38, 0.98, 0.44, 0.28, 0.88],
-    proportions: { shoulderW: 0.78, waistW: 0.48, hipW: 0.52, torsoH: 0.88, legH: 1.04, leanDeg: 2 },
-  },
-  {
-    title: 'Swimmer V-Taper Build',
-    archetype: 'Broad-Shoulder Athletic',
-    posture: 'athletic',
-    heightCm: 186,
-    shapeEmbedding: [0.82, 0.96, 0.94, 0.42, 0.88, 0.68, 0.22, 0.86],
-    proportions: { shoulderW: 0.98, waistW: 0.48, hipW: 0.54, torsoH: 0.86, legH: 0.88, leanDeg: 0 },
-  },
-  {
-    title: 'Gymnast Ring Specialist',
-    archetype: 'Compact Upper-Body Power',
-    posture: 'athletic',
-    heightCm: 165,
-    shapeEmbedding: [0.34, 0.94, 0.88, 0.40, 0.44, 0.78, 0.26, 0.94],
-    proportions: { shoulderW: 0.96, waistW: 0.50, hipW: 0.52, torsoH: 0.74, legH: 0.70, leanDeg: -2 },
-  },
-  {
-    title: 'Olympic Weightlifter Stance',
-    archetype: 'Dense Power Mesomorph',
-    posture: 'compact',
-    heightCm: 171,
-    shapeEmbedding: [0.44, 0.90, 0.34, 0.82, 0.42, 0.96, 0.32, 0.68],
-    proportions: { shoulderW: 0.94, waistW: 0.76, hipW: 0.82, torsoH: 0.76, legH: 0.72, leanDeg: 5 },
-  },
-  {
-    title: 'Shot Put Rotational Frame',
-    archetype: 'Heavy Mass Power',
-    posture: 'compact',
-    heightCm: 184,
-    shapeEmbedding: [0.76, 0.88, 0.22, 0.90, 0.64, 0.98, 0.40, 0.52],
-    proportions: { shoulderW: 0.94, waistW: 0.84, hipW: 0.86, torsoH: 0.86, legH: 0.82, leanDeg: 8 },
-  },
-  {
-    title: 'Ballet Principal Line',
-    archetype: 'Poised Balanced Slender',
-    posture: 'upright',
-    heightCm: 172,
-    shapeEmbedding: [0.64, 0.44, 0.86, 0.46, 0.84, 0.24, 0.06, 0.94],
-    proportions: { shoulderW: 0.64, waistW: 0.38, hipW: 0.56, torsoH: 0.76, legH: 0.92, leanDeg: -3 },
-  },
-  {
-    title: 'High-Fashion Runway Posture',
-    archetype: 'Elongated Upright Column',
-    posture: 'tall',
-    heightCm: 180,
-    shapeEmbedding: [0.88, 0.48, 0.78, 0.44, 0.90, 0.22, 0.10, 0.74],
-    proportions: { shoulderW: 0.66, waistW: 0.40, hipW: 0.54, torsoH: 0.80, legH: 0.96, leanDeg: -2 },
-  },
-  {
-    title: 'Sprinter Drive-Phase Lean',
-    archetype: 'Explosive Asymmetric Mesh',
-    posture: 'dynamic',
-    heightCm: 178,
-    shapeEmbedding: [0.68, 0.78, 0.82, 0.52, 0.76, 0.62, 0.94, 0.98],
-    proportions: { shoulderW: 0.84, waistW: 0.48, hipW: 0.58, torsoH: 0.80, legH: 0.86, leanDeg: 18 },
-  },
-  {
-    title: 'Parkour Vault Mid-Stride',
-    archetype: 'Agile Forward Tilt',
-    posture: 'dynamic',
-    heightCm: 174,
-    shapeEmbedding: [0.58, 0.68, 0.78, 0.46, 0.72, 0.52, 0.90, 0.96],
-    proportions: { shoulderW: 0.76, waistW: 0.48, hipW: 0.54, torsoH: 0.76, legH: 0.84, leanDeg: 15 },
-  },
-  {
-    title: 'Sumo Low-Center Stance',
-    archetype: 'Wide Grounded Center',
-    posture: 'compact',
-    heightCm: 179,
-    shapeEmbedding: [0.64, 0.82, 0.14, 0.96, 0.52, 0.98, 0.54, 0.42],
-    proportions: { shoulderW: 0.90, waistW: 0.92, hipW: 0.94, torsoH: 0.84, legH: 0.76, leanDeg: 10 },
-  },
-  {
-    title: 'Hourglass Studio Neutral',
-    archetype: 'Balanced Hip-Shoulder Curve',
-    posture: 'upright',
-    heightCm: 168,
-    shapeEmbedding: [0.46, 0.64, 0.92, 0.82, 0.56, 0.46, 0.12, 0.72],
-    proportions: { shoulderW: 0.74, waistW: 0.44, hipW: 0.78, torsoH: 0.74, legH: 0.80, leanDeg: 0 },
-  },
-  {
-    title: 'Pear-Ratio Walker',
-    archetype: 'Lower-Dominant Neutral',
-    posture: 'upright',
-    heightCm: 166,
-    shapeEmbedding: [0.42, 0.44, 0.72, 0.90, 0.54, 0.50, 0.16, 0.66],
-    proportions: { shoulderW: 0.60, waistW: 0.48, hipW: 0.84, torsoH: 0.72, legH: 0.78, leanDeg: 2 },
-  },
-  {
-    title: 'Rock Climber Lean Reach',
-    archetype: 'High Arm-Span Ratio',
-    posture: 'dynamic',
-    heightCm: 173,
-    shapeEmbedding: [0.58, 0.80, 0.88, 0.36, 0.92, 0.42, 0.62, 0.94],
-    proportions: { shoulderW: 0.84, waistW: 0.42, hipW: 0.48, torsoH: 0.78, legH: 0.82, leanDeg: 11 },
-  },
-  {
-    title: 'Track Cyclist Aero Tuck',
-    archetype: 'Quad-Power Forward Angle',
-    posture: 'dynamic',
-    heightCm: 176,
-    shapeEmbedding: [0.62, 0.66, 0.64, 0.72, 0.66, 0.64, 0.96, 0.84],
-    proportions: { shoulderW: 0.74, waistW: 0.52, hipW: 0.72, torsoH: 0.78, legH: 0.84, leanDeg: 22 },
-  },
-  {
-    title: 'Martial Arts Ready Stance',
-    archetype: 'Centered Mesomorph',
-    posture: 'athletic',
-    heightCm: 177,
-    shapeEmbedding: [0.64, 0.82, 0.80, 0.58, 0.74, 0.66, 0.42, 0.92],
-    proportions: { shoulderW: 0.86, waistW: 0.52, hipW: 0.60, torsoH: 0.80, legH: 0.82, leanDeg: 6 },
-  },
-  {
-    title: 'Rowing Ergometer Build',
-    archetype: 'Long-Lever Athletic',
-    posture: 'tall',
-    heightCm: 192,
-    shapeEmbedding: [0.94, 0.86, 0.78, 0.54, 0.94, 0.68, 0.30, 0.82],
-    proportions: { shoulderW: 0.88, waistW: 0.54, hipW: 0.62, torsoH: 0.88, legH: 0.96, leanDeg: 4 },
-  },
-  {
-    title: 'Desk Ergonomics Neutral',
-    archetype: 'Average Urban Reference',
-    posture: 'upright',
-    heightCm: 174,
-    shapeEmbedding: [0.58, 0.60, 0.52, 0.58, 0.58, 0.56, 0.24, 0.54],
-    proportions: { shoulderW: 0.72, waistW: 0.58, hipW: 0.64, torsoH: 0.78, legH: 0.80, leanDeg: 3 },
-  },
-];
+const CATALOG_CACHE = new Map<DemoDatasetId, readonly DemoEntity[]>();
 
 export function buildDemoCatalog(dataset: DemoDatasetId): readonly DemoEntity[] {
+  const cached = CATALOG_CACHE.get(dataset);
+  if (cached) return cached;
+
+  let result: readonly DemoEntity[];
+
   if (dataset === 'knowledge') {
-    return buildInitialKnowledgeCatalog().map((entry) => ({
+    result = buildInitialKnowledgeCatalog().map((entry) => ({
       kind: 'knowledge' as const,
       id: entry.slug,
       title: entry.headline,
+      subtitleMeta: `arXiv:${entry.arxivId ?? ''} · ${entry.primaryAuthor ?? 'Author'} (${entry.publishedYear})`,
       entry,
     }));
-  }
-
-  if (dataset === 'media') {
-    return MEDIA_SEEDS.map((m, idx) => ({
-      kind: 'media' as const,
-      id: `media-${idx + 1}`,
-      title: m.title,
-      media: { id: `media-${idx + 1}`, ...m },
+  } else if (dataset === 'github-repos') {
+    result = githubReposJson.map((repo) => {
+      const starsCompact =
+        repo.stars >= 10000
+          ? `${Math.round(repo.stars / 1000)}k`
+          : repo.stars >= 1000
+            ? `${(repo.stars / 1000).toFixed(1)}k`
+            : `${repo.stars}`;
+      const starsK = `${starsCompact} ★`;
+      const cleanDesc = repo.description
+        .replace(/:[a-z0-9_+-]+:/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const entry: KnowledgeEntry = {
+        slug: repo.id,
+        headline: repo.fullName,
+        hashtags: repo.topics,
+        contentType: 'project',
+        readingMinutes: Math.max(4, Math.min(28, Math.round(Math.log2(Math.max(2, repo.stars))))),
+        publishedYear: 2026,
+        primaryAuthor: `${starsK} · ${repo.language}`,
+        repoName: repo.name,
+        repoStarsLabel: starsCompact,
+        repoStars: repo.stars,
+        repoLanguage: repo.language,
+        repoDescription: cleanDesc,
+        repoUrl: repo.url,
+      };
+      return {
+        kind: 'knowledge' as const,
+        id: repo.id,
+        title: repo.fullName,
+        subtitleMeta: `${starsK} · ${repo.language} · ${repo.topics.join(', ')}`,
+        entry,
+      };
+    });
+  } else if (dataset === 'media') {
+    result = vegaMoviesJson.map((m) => {
+      const styleMeta = GENRE_MOTIF[m.genre] ?? {
+        motif: 'architecture' as const,
+        palette: ['#06b6d4', '#0f172a'] as const,
+      };
+      const aspectRatio: VisualMediaItem['aspectRatio'] =
+        m.runtimeMin >= 135 ? '16:9' : m.runtimeMin >= 105 ? '4:3' : '1:1';
+      const item: VisualMediaItem = {
+        id: m.id,
+        title: `${m.title} (${m.releaseYear})`,
+        shortTitle: m.shortTitle,
+        mediaKind: m.budgetMusd >= 12 ? 'video' : 'image',
+        durationSec: m.runtimeMin,
+        aspectRatio,
+        resolutionLabel: `IMDb ${m.imdbRating.toFixed(1)} · RT ${m.rottenTomatoes}%`,
+        motif: styleMeta.motif,
+        palette: styleMeta.palette,
+        genre: m.genre,
+        releaseYear: m.releaseYear,
+        mpaa: m.mpaa,
+        runtimeMin: m.runtimeMin,
+        imdbRating: m.imdbRating,
+        rottenTomatoes: m.rottenTomatoes,
+        budgetMusd: m.budgetMusd,
+        worldwideGrossMusd: m.worldwideGrossMusd,
+        semanticEmbedding: m.receptionVector,
+        styleEmbedding: m.productionVector,
+        mediaCredit: m.mediaCredit,
+      };
+      return {
+        kind: 'media' as const,
+        id: m.id,
+        title: item.title,
+        subtitleMeta: `${m.genre} · IMDb ${m.imdbRating} · RT ${m.rottenTomatoes}% · $${m.worldwideGrossMusd}M gross`,
+        media: item,
+      };
+    });
+  } else if (dataset === 'voice') {
+    result = uciVowelsJson.map((v) => {
+      const estF0 =
+        v.speakerSex === 'Female'
+          ? Math.round(195 + (v.lpcVector[0] ?? 0.5) * 65)
+          : Math.round(105 + (v.lpcVector[0] ?? 0.5) * 55);
+      const item: VoiceSampleItem = {
+        id: v.id,
+        title: v.title,
+        speakerProfile: `${v.speakerName} (${v.speakerSex})`,
+        speakerName: v.speakerName,
+        speakerSex: v.speakerSex,
+        exampleWord: v.exampleWord,
+        language: v.ipaSymbol,
+        pitchHz: estF0,
+        durationSec: 12,
+        voiceEmbedding: v.lpcVector,
+        waveform: v.envelopeBars,
+      };
+      return {
+        kind: 'voice' as const,
+        id: v.id,
+        title: v.title,
+        subtitleMeta: `Vowel ${v.ipaSymbol} ("${v.exampleWord}") · Speaker ${v.speakerName} (${v.speakerSex})`,
+        voice: item,
+      };
+    });
+  } else if (dataset === 'zoo-species') {
+    result = uciZooJson.map((z) => ({
+      kind: 'zoo-species' as const,
+      id: z.id,
+      title: z.title,
+      subtitleMeta: `${z.taxonomicGroup} · ${z.legs} legs${z.aquatic ? ' · aquatic' : ''}${z.airborne ? ' · airborne' : ''}${z.predator ? ' · predator' : ''}`,
+      zoo: z,
     }));
+  } else {
+    result = palmerPenguinsJson.map((p) => {
+      const mv = p.morphVector;
+      const posture: BodyShapeItem['posture'] =
+        p.species === 'Gentoo'
+          ? 'tall'
+          : p.species === 'Chinstrap'
+            ? 'dynamic'
+            : 'compact';
+      const formattedSex =
+        p.sex === 'MALE' ? 'Male' : p.sex === 'FEMALE' ? 'Female' : p.sex;
+      const item: BodyShapeItem = {
+        id: p.id,
+        title: p.title,
+        archetype: `${p.species} · ${p.island}`,
+        posture,
+        heightCm: Math.round(p.flipperLengthMm / 10),
+        species: p.species,
+        island: p.island,
+        sex: formattedSex,
+        bodyMassG: p.bodyMassG,
+        flipperLengthMm: p.flipperLengthMm,
+        billLengthMm: p.billLengthMm,
+        billDepthMm: p.billDepthMm,
+        shapeEmbedding: mv,
+        proportions: {
+          shoulderW: Number((0.58 + (mv[2] ?? 0.5) * 0.38).toFixed(2)),
+          waistW: Number((0.46 + (mv[3] ?? 0.5) * 0.42).toFixed(2)),
+          hipW: Number((0.5 + (mv[3] ?? 0.5) * 0.38).toFixed(2)),
+          torsoH: Number((0.72 + (mv[0] ?? 0.5) * 0.22).toFixed(2)),
+          legH: Number((0.7 + (mv[2] ?? 0.5) * 0.28).toFixed(2)),
+          leanDeg: p.species === 'Chinstrap' ? 8 : p.species === 'Gentoo' ? 2 : -2,
+        },
+      };
+      return {
+        kind: 'body-shape' as const,
+        id: p.id,
+        title: p.title,
+        subtitleMeta: `${p.species} · ${p.island} · Bill ${p.billLengthMm}×${p.billDepthMm}mm · ${p.bodyMassG}g`,
+        body: item,
+      };
+    });
   }
 
-  if (dataset === 'voice') {
-    return VOICE_SEEDS.map((v, idx) => ({
-      kind: 'voice' as const,
-      id: `voice-${idx + 1}`,
-      title: v.title,
-      voice: {
-        id: `voice-${idx + 1}`,
-        ...v,
-        waveform: makeWaveform(900 + idx * 31, v.voiceEmbedding[5]!, 0.35),
-      },
-    }));
-  }
-
-  return BODY_SEEDS.map((b, idx) => ({
-    kind: 'body-shape' as const,
-    id: `body-${idx + 1}`,
-    title: b.title,
-    body: { id: `body-${idx + 1}`, ...b },
-  }));
+  CATALOG_CACHE.set(dataset, result);
+  return result;
 }
 
-export function createDynamicDemoEntity(
-  dataset: DemoDatasetId,
-  seq: number,
-): DemoEntity {
-  if (dataset === 'knowledge') {
-    const entry = createDynamicEntry(seq);
-    return {
-      kind: 'knowledge',
-      id: entry.slug,
-      title: entry.headline,
-      entry,
-    };
-  }
+export function getDatasetItemCount(dataset: DemoDatasetId): number {
+  return buildDemoCatalog(dataset).length;
+}
 
-  if (dataset === 'media') {
-    const base = MEDIA_SEEDS[seq % MEDIA_SEEDS.length]!;
-    const id = `media-dyn-${seq}`;
-    const variantTitle = `${base.title} #${seq}`;
-    return {
-      kind: 'media',
-      id,
-      title: variantTitle,
-      media: {
-        ...base,
-        id,
-        title: variantTitle,
-        semanticEmbedding: jitterVec(base.semanticEmbedding, seq * 17 + 3, 0.09),
-        styleEmbedding: jitterVec(base.styleEmbedding, seq * 29 + 7, 0.09),
-      },
-    };
-  }
-
-  if (dataset === 'voice') {
-    const base = VOICE_SEEDS[seq % VOICE_SEEDS.length]!;
-    const id = `voice-dyn-${seq}`;
-    const variantTitle = `${base.title} · Take ${seq}`;
-    return {
-      kind: 'voice',
-      id,
-      title: variantTitle,
-      voice: {
-        ...base,
-        id,
-        title: variantTitle,
-        pitchHz: Math.max(80, Math.round(base.pitchHz + ((seq % 7) - 3) * 4)),
-        voiceEmbedding: jitterVec(base.voiceEmbedding, seq * 41 + 5, 0.08),
-        waveform: makeWaveform(seq * 53 + 11, base.voiceEmbedding[5]!, 0.32),
-      },
-    };
-  }
-
-  const base = BODY_SEEDS[seq % BODY_SEEDS.length]!;
-  const id = `body-dyn-${seq}`;
-  const variantTitle = `${base.title} #${seq}`;
-  const factor = 0.94 + (seq % 5) * 0.03;
-  return {
-    kind: 'body-shape',
-    id,
-    title: variantTitle,
-    body: {
-      ...base,
-      id,
-      title: variantTitle,
-      heightCm: Math.round(base.heightCm * factor),
-      shapeEmbedding: jitterVec(base.shapeEmbedding, seq * 61 + 13, 0.08),
-      proportions: {
-        ...base.proportions,
-        shoulderW: Number((base.proportions.shoulderW * factor).toFixed(2)),
-        hipW: Number((base.proportions.hipW * (2 - factor)).toFixed(2)),
-      },
-    },
-  };
+export function getDatasetSourceInfo(dataset: DemoDatasetId): OpenDatasetSourceInfo {
+  return OPEN_DATASET_SOURCES[dataset];
 }
 
 export function deriveDemoEntityClusterMeta(
@@ -839,25 +578,27 @@ export function deriveDemoEntityClusterMeta(
   if (ctx.role === 'intermediate') {
     const memberCount = ctx.members.length;
     const exclusiveCount = ctx.members.filter((m) => m.isExclusiveVertexMember).length;
-    let shortBridgeTag = '';
-    if (ctx.coreTags.length > 0) {
-      shortBridgeTag = `#${ctx.coreTags[0]!.tag.slice(0, 10)}`;
-    } else if (
-      ctx.mixWeights &&
-      ctx.mixWeights.length === 2 &&
-      Math.abs(ctx.mixWeights[0]!.weight - 0.5) > 0.03
-    ) {
-      shortBridgeTag = `${Math.round(ctx.mixWeights[0]!.weight * 100)}%`;
+    let shortBridgeTag = ctx.subclusterLabel ?? '';
+    if (!shortBridgeTag && ctx.coreTags.length > 0) {
+      const topBridge = ctx.coreTags[0]!;
+      shortBridgeTag = topBridge.meta?.displayTitle ?? topBridge.tag;
     }
+    if (!shortBridgeTag) {
+      shortBridgeTag = ctx.defaultLabel || ctx.code;
+    }
+    const parentContextLabel = ctx.parentContextLabel;
     return {
-      title: ctx.defaultLabel,
-      subtitle: `${memberCount} ${memberCount === 1 ? 'item' : 'items'} · Bridge`,
+      title: shortBridgeTag,
+      subtitle: parentContextLabel
+        ? `${parentContextLabel} · ${memberCount} ${memberCount === 1 ? 'item' : 'items'}`
+        : `${memberCount} ${memberCount === 1 ? 'item' : 'items'} · Sub-Cluster`,
       memberCount,
       exclusiveCount,
-      metricBadge: shortBridgeTag || 'bridge',
+      metricBadge: shortBridgeTag,
       dominantType: 'bridge',
       isIntermediate: true,
       shortBridgeTag,
+      parentContextLabel,
     };
   }
 
@@ -876,14 +617,38 @@ export function deriveDemoEntityClusterMeta(
           item: m.item.entry,
         })),
       representativeItems: undefined,
+      allItems: undefined,
+      peerClusters: undefined,
     };
     const meta = deriveDemoClusterMeta(knowledgeProxy);
+    const uniqueTitle = disambiguatePeerClusterTitle(
+      ctx,
+      (peer) => {
+        const sorted = [...peer.coreTags].sort((a, b) => {
+          const wa = (a.meta?.priorityWeight ?? 1) * a.frequency;
+          const wb = (b.meta?.priorityWeight ?? 1) * b.frequency;
+          return wb - wa;
+        });
+        const top = sorted[0];
+        return top ? (top.meta?.displayTitle ?? top.tag) : peer.defaultLabel;
+      },
+      (peer) => {
+        if (peer.coreTags.length >= 2) {
+          const second = peer.coreTags[1]!;
+          return second.meta?.displayTitle ?? second.tag;
+        }
+        const firstEntry = peer.members.find((m) => m.item.kind === 'knowledge')?.item;
+        return firstEntry && firstEntry.kind === 'knowledge'
+          ? firstEntry.entry.repoLanguage
+          : undefined;
+      },
+    );
     return {
-      title: meta.title,
-      subtitle: `${meta.memberCount} items · ${ctx.coreTags.length} tags · avg ${meta.avgReadingMinutes.toFixed(0)}m`,
+      title: uniqueTitle,
+      subtitle: `${meta.memberCount} items · ${ctx.coreTags.length} tags`,
       memberCount: meta.memberCount,
       exclusiveCount: meta.exclusiveCount,
-      metricBadge: `${meta.dominantType} · ${meta.avgReadingMinutes.toFixed(0)}m`,
+      metricBadge: `${meta.memberCount} items`,
       avgReadingMinutes: meta.avgReadingMinutes,
       dominantType: meta.dominantType,
     };
@@ -892,38 +657,137 @@ export function deriveDemoEntityClusterMeta(
   const memberCount = ctx.members.length;
   const exclusiveCount = ctx.members.filter((m) => m.isExclusiveVertexMember).length;
   const cohesion = ctx.cohesion;
-  const repTitle =
-    ctx.representativeItems?.[0]?.item.title ?? ctx.defaultLabel;
+  let repTitle = ctx.representativeItems?.[0]?.item.title ?? ctx.defaultLabel;
 
   let dominantType = 'vector';
   if (firstKind === 'media') {
-    let imgCount = 0;
-    let vidCount = 0;
+    let avgImdb = 0;
     for (const m of ctx.members) {
       if (m.item.kind === 'media') {
-        if (m.item.media.mediaKind === 'image') imgCount += 1;
-        else vidCount += 1;
+        avgImdb += m.item.media.imdbRating;
       }
     }
-    dominantType = vidCount > imgCount ? 'video' : 'image';
+    avgImdb = memberCount > 0 ? avgImdb / memberCount : 0;
+    repTitle = resolveDiscriminativeClusterLabel(ctx, {
+      features: MEDIA_PRIMARY_FEATURES,
+      getItemLabel: (e) => (e.kind === 'media' ? e.media.shortTitle : e.title),
+    });
+    dominantType = `IMDb ${avgImdb.toFixed(1)}`;
   } else if (firstKind === 'voice') {
-    const avgHz =
-      memberCount > 0
-        ? ctx.members.reduce(
-            (acc, m) => acc + (m.item.kind === 'voice' ? m.item.voice.pitchHz : 0),
-            0,
-          ) / memberCount
-        : 0;
-    dominantType = `${Math.round(avgHz)} Hz`;
+    const computeVoiceTitle = (
+      members: ReadonlyArray<{ readonly item: DemoEntity; readonly normalizedWeight?: number }>,
+    ): string => {
+      const ipaWeights = new Map<string, number>();
+      for (const m of members) {
+        if (m.item.kind === 'voice') {
+          const w = Math.pow(m.normalizedWeight ?? 1, 1.5);
+          const key = `${m.item.voice.language}`;
+          ipaWeights.set(key, (ipaWeights.get(key) ?? 0) + w);
+        }
+      }
+      return [...ipaWeights.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 2)
+        .map(([k]) => k)
+        .join(' · ');
+    };
+    repTitle = disambiguatePeerClusterTitle(
+      ctx,
+      (peer) => computeVoiceTitle(peer.members) || peer.defaultLabel,
+      (peer) => {
+        let femaleW = 0;
+        let totalW = 0;
+        for (const m of peer.members) {
+          if (m.item.kind === 'voice') {
+            const w = Math.pow(m.normalizedWeight ?? 1, 1.5);
+            totalW += w;
+            if (m.item.voice.speakerSex === 'Female') femaleW += w;
+          }
+        }
+        if (totalW <= 0) return undefined;
+        return femaleW / totalW >= 0.55 ? 'Female' : 'Male';
+      },
+    );
+    dominantType = '10D LPC';
+  } else if (firstKind === 'zoo-species') {
+    const computeZooTitle = (
+      members: ReadonlyArray<{ readonly item: DemoEntity; readonly normalizedWeight?: number }>,
+    ): { title: string; topGroup: string; qualifier?: string } => {
+      const groupCounts = new Map<string, number>();
+      let aquaticW = 0;
+      let airborneW = 0;
+      let predatorW = 0;
+      let catsizeW = 0;
+      let domesticW = 0;
+      let totalW = 0;
+      for (const m of members) {
+        if (m.item.kind === 'zoo-species') {
+          const w = Math.pow(m.normalizedWeight ?? 1, 1.5);
+          totalW += w;
+          groupCounts.set(
+            m.item.zoo.taxonomicGroup,
+            (groupCounts.get(m.item.zoo.taxonomicGroup) ?? 0) + w,
+          );
+          if (m.item.zoo.aquatic) aquaticW += w;
+          if (m.item.zoo.airborne) airborneW += w;
+          if (m.item.zoo.predator) predatorW += w;
+          if ((m.item.zoo.traits[15] ?? 0) > 0.5) catsizeW += w;
+          if ((m.item.zoo.traits[14] ?? 0) > 0.5) domesticW += w;
+        }
+      }
+      const topGroup =
+        [...groupCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Fauna';
+      const denom = Math.max(1e-6, totalW);
+      let title = topGroup;
+      if (topGroup === 'Mammal') {
+        if (aquaticW / denom >= 0.45) title = 'Marine Mammals';
+        else if (airborneW / denom >= 0.35) title = 'Bats';
+        else if (predatorW / denom >= 0.65) title = 'Carnivores';
+        else title = 'Mammals';
+      } else if (topGroup === 'Bird') {
+        title = aquaticW / denom >= 0.45 ? 'Waterfowl' : 'Birds';
+      } else if (topGroup === 'Fish') {
+        title = 'Fish';
+      } else if (topGroup === 'Reptile') {
+        title = 'Reptiles';
+      } else if (topGroup === 'Amphibian') {
+        title = 'Amphibians';
+      } else if (topGroup === 'Bug / Insect') {
+        title = 'Insects';
+      } else if (topGroup === 'Invertebrate') {
+        title = aquaticW / denom >= 0.5 ? 'Marine Fauna' : 'Invertebrates';
+      }
+      const qualifier =
+        domesticW / denom >= 0.35
+          ? 'Domestic'
+          : predatorW / denom >= 0.5
+            ? 'Predators'
+            : catsizeW / denom >= 0.55
+              ? 'Large'
+              : 'Small';
+      return { title, topGroup, qualifier };
+    };
+
+    const own = computeZooTitle(ctx.members);
+    dominantType = own.topGroup;
+    repTitle = disambiguatePeerClusterTitle(
+      ctx,
+      (peer) => computeZooTitle(peer.members).title,
+      (peer) => computeZooTitle(peer.members).qualifier,
+    );
   } else if (firstKind === 'body-shape') {
-    const avgCm =
-      memberCount > 0
-        ? ctx.members.reduce(
-            (acc, m) => acc + (m.item.kind === 'body-shape' ? m.item.body.heightCm : 0),
-            0,
-          ) / memberCount
-        : 0;
-    dominantType = `${Math.round(avgCm)} cm`;
+    let avgMass = 0;
+    for (const m of ctx.members) {
+      if (m.item.kind === 'body-shape') {
+        avgMass += m.item.body.bodyMassG;
+      }
+    }
+    avgMass = memberCount > 0 ? avgMass / memberCount : 0;
+    repTitle = resolveDiscriminativeClusterLabel(ctx, {
+      features: PENGUIN_PRIMARY_FEATURES,
+      getItemLabel: (e) => e.title,
+    });
+    dominantType = `${(avgMass / 1000).toFixed(1)} kg`;
   }
 
   const cohText =
@@ -931,7 +795,7 @@ export function deriveDemoEntityClusterMeta(
 
   return {
     title: repTitle,
-    subtitle: `${memberCount} items · ${cohText} · ${dominantType}`,
+    subtitle: `${memberCount} items · ${dominantType}`,
     memberCount,
     exclusiveCount,
     cohesion,
@@ -941,9 +805,25 @@ export function deriveDemoEntityClusterMeta(
 }
 
 /**
- * Custom multimodal similarity kernel used when `media` dataset is switched to
- * `createSimilarityClusteringStrategy`.
+ * Gower-style biological trait similarity kernel S(a, b) in [0, 1] for UCI Zoo species.
  */
+export function computeZooTraitSimilarity(a: DemoEntity, b: DemoEntity): number {
+  if (a.kind !== 'zoo-species' || b.kind !== 'zoo-species') return 0;
+  const ta = a.zoo.traits;
+  const tb = b.zoo.traits;
+  let score = 0;
+  let weightSum = 0;
+  for (let i = 0; i < ta.length; i++) {
+    const va = ta[i] ?? 0;
+    const vb = tb[i] ?? 0;
+    // Give slightly higher weight to structural vertebrate/milk/feathers/aquatic/airborne traits
+    const w = i <= 5 || i === 8 || i === 11 ? 1.35 : 1.0;
+    score += w * (1 - Math.abs(va - vb));
+    weightSum += w;
+  }
+  return weightSum > 0 ? Math.max(0, Math.min(1, score / weightSum)) : 0;
+}
+
 export function computeMediaPairwiseSimilarity(
   a: DemoEntity,
   b: DemoEntity,
@@ -968,11 +848,7 @@ export function computeMediaPairwiseSimilarity(
   const totalW = Math.max(1e-6, semanticWeight + styleWeight);
   const simSem = cosine(a.media.semanticEmbedding, b.media.semanticEmbedding);
   const simStyle = cosine(a.media.styleEmbedding, b.media.styleEmbedding);
-  const kindBonus = a.media.mediaKind === b.media.mediaKind ? 0.04 : 0;
-  return Math.max(
-    0,
-    Math.min(1, (simSem * semanticWeight + simStyle * styleWeight) / totalW + kindBonus),
-  );
+  return Math.max(0, Math.min(1, (simSem * semanticWeight + simStyle * styleWeight) / totalW));
 }
 
 export { resolveDemoTagMeta };

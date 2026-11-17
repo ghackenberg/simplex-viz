@@ -1,0 +1,44 @@
+---
+strategyId: "collision-local-layout"
+order: 12
+signature: "createCollisionDrivenLayoutStrategy(options?: CollisionDrivenLayoutOptions): SimplexLayoutStrategy"
+updatedDate: "2026-11-15"
+readingMinutes: 5
+whenToUse:
+  - "Recommended layout strategy whenever conformal 1:4 drill-down zoom is enabled."
+  - "Keeps sparse outer clusters at full 1.0x leaf scale and shrinks only locally colliding dense pockets."
+  - "Guarantees covering-triangle containment and 0.0 px convex SAT overlap."
+optionsTable:
+  - name: "minLocalScale"
+    type: "number"
+    defaultValue: "0.28"
+    description: "Lower bound on per-item local scale inside ultra-dense pockets."
+  - name: "shrinkFactor"
+    type: "number"
+    defaultValue: "0.85"
+    description: "Multiplicative step applied only to actively colliding node pairs per pass."
+  - name: "warmStart"
+    type: "boolean"
+    defaultValue: "true"
+    description: "Reuses settled coordinates across updates for smooth transitions."
+---
+
+## Local Pocket Shrinking + 1:4 Drill-Down Synergy
+
+In real-world corpora, one interdisciplinary triangle may hold 25 items while neighboring triangles hold 3. Instead of shrinking the entire atlas to fit the busiest triangle, **Collision-Local Pocket Layout** composes `createMeshInwardFanSeeder()`, `createSpaceFillingPbdRelaxer()`, and `createCollisionLocalScaleController()`: sparse regions stay at crisp `1.0x` scale, while dense pockets pack cleanly and automatically mark their parent triangle as `isDrillable: true` for `1:4` conformal zoom!
+
+## Usage Example
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createCollisionDrivenLayoutStrategy,
+  createBarycentricZoomStrategy,
+} from '@simplex-viz/react';
+
+<SimplexTopicGraph
+  items={items}
+  layoutStrategy={createCollisionDrivenLayoutStrategy({ minLocalScale: 0.3 })}
+  zoomStrategy={createBarycentricZoomStrategy()}
+/>;
+```

@@ -1,0 +1,38 @@
+---
+title: "SimplexViz 0.6: Conformal 1:4 Drill-Down & Composable Collision Layouts"
+description: "Introducing orientation-preserving 1:4 triangle subdivision, internal mesh previews, collision-driven local pocket scaling, and representation-agnostic Soft-Simplex clustering."
+publishedDate: "2026-11-15"
+author: "Dr. Georg Hackenberg"
+authorRole: "Creator of SimplexViz"
+category: "Release"
+readingMinutes: 6
+featured: true
+---
+
+import StrategyDiagram from '../../components/diagrams/StrategyDiagram.astro';
+
+SimplexViz **0.6.0** expands the engine from a 4-stage static-mesh solver into a **5-stage hierarchical exploration stack** across `@simplex-viz/core`, `@simplex-viz/svg`, and `@simplex-viz/react`.
+
+## Conformal `1:4` Subdivision Without Orientation Flip
+
+When drilling into a crowded triangle on a 60° simplex lattice, naive re-triangulation rotates or warps the parent's three anchor clusters—breaking the user's spatial mental map.
+
+In `0.6.0`, `createSubspaceZoomStrategy`, `createSemanticZoomStrategy`, and `createBarycentricZoomStrategy` subdivide any focused equilateral triangle (`▲` or `▼`) along its three edge midpoints into **three corner sub-triangles that preserve the exact parent orientation** plus **one inverted central bridge triangle**:
+
+<StrategyDiagram
+  kind="zoom"
+  caption="Conformal 1:4 triangle subdivision and 1-ring incident cluster stars in SimplexViz 0.6.0."
+/>
+
+## Visual Affordance & Spatial Orientation Discipline
+
+Hierarchical drill-down introduces subtle interaction questions: *How do users recognize which triangles can be drilled? How do they maintain spatial orientation once parent corner badges split into finer sub-clusters?*
+
+- **3-Tier Sub-Cluster Orientation**: Refined outer corners display two-line chamfered plaques pairing their `parentContextLabel` with the local sub-facet, pure transition midpoints display explicit `A ↔ B` bridge labels, and the breadcrumb bar renders color-coded `ZoomBreadcrumbSegment` swatches matching the parent triangle's three corners.
+- **Direct Internal Triangulation Preview**: Any triangle with `isDrillable: true` renders its 3 internal `1:4` midpoint edges directly using the active `SvgEdgeView`, making subdivision depth immediately legible without cluttering the perimeter.
+- **Content Pass-Through & Single-Triangle Leaf Focus**: On `1:4`-subdividable triangles, content nodes pass pointer clicks straight through to the parent triangle (`isPassThrough: true`). Once a triangle reaches full `1.0x` leaf scale (`stopWhenFullScale: true`), pass-through turns off so every item can be inspected directly, while clicking the free triangle face focuses that single un-subdivided triangle (`'triangle-focus'`, `leafTriangleFocus: true`) across the viewport.
+- **Uniform 1-Ring Cluster Stars & Neighborhood Context**: Every cluster and subcluster badge focuses its lattice-conformal 1-ring star of incident triangles with continuous barycentric simplex-distance dimming (`opacity = 0.32 + 0.68 · w̃₀`). Surrounding triangles project around the focused view at dimmed opacity without distracting item hover states, and clicking any adjacent dimmed neighbor switches laterally across both `1:4` and leaf frames.
+
+## Composable `Seeder × Relaxer × ScaleController` Layouts
+
+Stage 4 now factors cleanly into `LayoutSeeder`, `PositionRelaxer`, and `ScaleController`. Built-in presets—from **Collision-Local Pocket Layout** to **Density-Adaptive Layout** and **Uniform PBD Layout**—pair `createMeshInwardFanSeeder()` and `createSpaceFillingPbdRelaxer()` so congested anchors fan naturally into open covering-triangle interiors while maintaining `overlapCount === 0`.

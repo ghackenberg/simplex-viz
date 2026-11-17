@@ -18,11 +18,9 @@ import {
   type SimplexAnchorRuleKind,
 } from './clustering';
 import {
-  createBarycentricPbdRelaxer,
   createCollisionLocalScaleController,
   createDensityPriorScaleController,
   createMeshInwardFanSeeder,
-  createPhyllotaxisSeeder,
   createSpaceFillingPbdRelaxer,
   createUniformScaleController,
   solveComposedLayout,
@@ -34,7 +32,11 @@ import {
   type ScaleController,
   type TwoPhaseLayoutResult,
 } from './layout';
-import { buildSimplexLattice, buildSimplexMesh } from './mesh';
+import {
+  buildSimplexLattice,
+  buildSimplexMesh,
+  resolveDefaultInnerPadding,
+} from './mesh';
 import {
   assignGreedyEdgeContrastColors,
   assignMeshClusterColors,
@@ -51,10 +53,13 @@ import type {
   IdentifiedItem,
   LayoutSolverOptions,
   MeshOptions,
+  PeerClusterContext,
   Point2D,
   SimplexMesh,
   TagDescriptor,
 } from './types';
+import { assignDiscriminativeClusterLabels } from './discriminativeLabels';
+import type { SubspaceZoomFeature } from './zoom';
 
 /**
  * Reason why the engine or snapshot solver invoked a strategy recomputation.
@@ -507,16 +512,21 @@ export function createAdaptiveHexMeshStrategy<TItem = DefaultTaggedItem>(
   return {
     name: 'adaptive-hex-mesh',
     buildMesh(ctx) {
+      const mergedOptions: MeshOptions = { ...defaults, ...ctx.meshOptions };
+      const maxClusters = mergedOptions.maxClusters ?? 14;
       const requestedK =
         ctx.targetClusterCount ??
         (ctx.uniqueTagCount > 0
           ? ctx.uniqueTagCount
-          : Math.min(12, Math.max(3, Math.round(Math.sqrt(Math.max(1, ctx.itemCount))))));
+          : Math.min(
+              maxClusters,
+              Math.max(3, Math.round(Math.sqrt(Math.max(1, ctx.itemCount)))),
+            ));
       return buildSimplexMesh(
         ctx.viewportWidth,
         ctx.viewportHeight,
         Math.max(3, requestedK),
-        { ...defaults, ...ctx.meshOptions },
+        mergedOptions,
       );
     },
   };
@@ -524,37 +534,59 @@ export function createAdaptiveHexMeshStrategy<TItem = DefaultTaggedItem>(
 
 /**
  * Fixed-dimension `(cols × rows)` 60° equilateral lattice strategy scaled symmetrically
- * to fit the viewport. Useful when maintaining deterministic cluster vertex counts across resizes.
+ * to fit the viewport. When `orientation` is omitted or `'auto'`, automatically aligns
+ * the lattice major axis with the viewport aspect ratio to maximize usable area.
  */
 export function createFixedLatticeMeshStrategy<TItem = DefaultTaggedItem>(config: {
   readonly cols: number;
   readonly rows: number;
-  readonly orientation?: 'horizontal' | 'vertical';
+  readonly orientation?: 'horizontal' | 'vertical' | 'auto';
   readonly wideFirst?: boolean;
   readonly innerPadding?: number;
   readonly sideLength?: number;
 }): SimplexMeshStrategy<TItem> {
   const cols = Math.max(2, Math.round(config.cols));
   const rows = Math.max(2, Math.round(config.rows));
-  const orientation = config.orientation ?? 'horizontal';
+  const configuredOrientation = config.orientation ?? 'auto';
   const wideFirst = config.wideFirst ?? true;
 
   return {
     name: `fixed-lattice-${cols}x${rows}`,
     buildMesh(ctx) {
-      const innerPadding = config.innerPadding ?? ctx.meshOptions.innerPadding ?? 48;
+      const innerPadding =
+        config.innerPadding ??
+        ctx.meshOptions.innerPadding ??
+        resolveDefaultInnerPadding(ctx.viewportWidth, ctx.viewportHeight);
       const usableW = Math.max(80, ctx.viewportWidth - 2 * innerPadding);
       const usableH = Math.max(80, ctx.viewportHeight - 2 * innerPadding);
       const sqrt3Over2 = Math.sqrt(3) / 2;
       const spanAlongCols = Math.max(0.5, cols - 1);
       const spanAlongRows = Math.max(0.5, (rows - 1) * sqrt3Over2);
+      const orientation: 'horizontal' | 'vertical' =
+        configuredOrientation === 'horizontal' || configuredOrientation === 'vertical'
+          ? configuredOrientation
+          : (() => {
+              const viewAspect = usableW / usableH;
+              const aspectH = spanAlongCols / spanAlongRows;
+              const aspectV = spanAlongRows / spanAlongCols;
+              const matchH =
+                Math.min(aspectH, viewAspect) / Math.max(aspectH, viewAspect);
+              const matchV =
+                Math.min(aspectV, viewAspect) / Math.max(aspectV, viewAspect);
+              return matchH >= matchV ? 'horizontal' : 'vertical';
+            })();
       const rawW = orientation === 'horizontal' ? spanAlongCols : spanAlongRows;
       const rawH = orientation === 'horizontal' ? spanAlongRows : spanAlongCols;
       const explicitSide = config.sideLength ?? ctx.meshOptions.sideLength;
+      const maxSide =
+        ctx.meshOptions.maxSideLength !== undefined &&
+        Number.isFinite(ctx.meshOptions.maxSideLength)
+          ? Math.max(40, ctx.meshOptions.maxSideLength)
+          : Number.POSITIVE_INFINITY;
       const sideLength =
         explicitSide !== undefined && Number.isFinite(explicitSide)
           ? Math.max(40, explicitSide)
-          : Math.max(40, Math.min(usableW / rawW, usableH / rawH));
+          : Math.max(40, Math.min(usableW / rawW, usableH / rawH, maxSide));
       const worldWidth = Math.max(
         ctx.viewportWidth,
         Math.ceil(rawW * sideLength + 2 * innerPadding),
@@ -1349,6 +1381,8 @@ export interface EmbeddingClusteringOptions<TItem> {
     representativeMembers: readonly ClusterMemberRef<TItem>[],
     clusterIndex: number,
   ) => string;
+  /** Optional interpretable features used to assign base-rate-aware, collision-free `defaultLabel`s across sibling clusters. */
+  readonly features?: readonly SubspaceZoomFeature<TItem>[];
   /** Maximum representative members retained per cluster. Default: `3`. */
   readonly representativeCount?: number;
   /** Sharpening exponent for similarity-to-weight mapping in `explaining-away`. Default: `6`. */
@@ -1990,6 +2024,17 @@ export function createEmbeddingClusteringStrategy<
       });
     }
 
+    if (options.features && options.features.length > 0 && !options.deriveLabel) {
+      const discLabels = assignDiscriminativeClusterLabels(
+        clusters,
+        { features: options.features },
+        ctx.items.map((it) => it.item),
+      );
+      for (let v = 0; v < clusters.length; v++) {
+        clusters[v] = { ...clusters[v]!, defaultLabel: discLabels[v] ?? clusters[v]!.defaultLabel };
+      }
+    }
+
     return {
       clusters,
       items: itemAnchors,
@@ -2414,6 +2459,17 @@ export function createSoftSimplexEmbeddingClusteringStrategy<
       });
     }
 
+    if (options.features && options.features.length > 0 && !options.deriveLabel) {
+      const discLabels = assignDiscriminativeClusterLabels(
+        clusters,
+        { features: options.features },
+        ctx.items.map((it) => it.item),
+      );
+      for (let v = 0; v < clusters.length; v++) {
+        clusters[v] = { ...clusters[v]!, defaultLabel: discLabels[v] ?? clusters[v]!.defaultLabel };
+      }
+    }
+
     return {
       clusters,
       items: itemAnchors,
@@ -2445,6 +2501,8 @@ export interface SimilarityClusteringOptions<TItem> {
     representativeMembers: readonly ClusterMemberRef<TItem>[],
     clusterIndex: number,
   ) => string;
+  /** Optional interpretable features used to assign base-rate-aware, collision-free `defaultLabel`s across sibling clusters. */
+  readonly features?: readonly SubspaceZoomFeature<TItem>[];
   /** Number of representative items retained per cluster. Default: `3`. */
   readonly representativeCount?: number;
 }
@@ -2715,6 +2773,17 @@ export function createSimilarityClusteringStrategy<
       });
     }
 
+    if (options.features && options.features.length > 0 && !options.deriveLabel) {
+      const discLabels = assignDiscriminativeClusterLabels(
+        clusters,
+        { features: options.features },
+        ctx.items.map((it) => it.item),
+      );
+      for (let v = 0; v < clusters.length; v++) {
+        clusters[v] = { ...clusters[v]!, defaultLabel: discLabels[v] ?? clusters[v]!.defaultLabel };
+      }
+    }
+
     return {
       clusters,
       items: itemAnchors,
@@ -2918,40 +2987,52 @@ export function createComposedLayoutStrategy(
 }
 
 /**
- * Default deterministic phyllotaxis tie-breaking + uniform global scale binary search
- * + PBD convex relaxation + hard-separation polish (`0.0 px` overlap).
+ * Default space-filling uniform layout strategy: fans co-located items into open covering
+ * mesh triangles, binary-searches a single global scale factor `\alpha` to preserve exact
+ * relative size ratios across all nodes, and polishes with hard SAT separation (`0.0 px` overlap).
  */
 export function createPbdUniformLayoutStrategy(): SimplexLayoutStrategy {
   return createComposedLayoutStrategy({
     name: 'pbd-uniform',
-    seeder: createPhyllotaxisSeeder(),
-    relaxer: createBarycentricPbdRelaxer(),
+    seeder: createMeshInwardFanSeeder(),
+    relaxer: createSpaceFillingPbdRelaxer({
+      springFactor: 0.72,
+      springZeroTailRatio: 0.35,
+      dispersionGapPx: 18,
+      dispersionStrength: 0.35,
+    }),
     scaleController: createUniformScaleController(),
     warmStart: false,
-    defaultRelaxationIterations: 38,
+    defaultRelaxationIterations: 42,
   });
 }
 
 /**
- * Warm-started PBD layout strategy: reuses existing items' settled coordinates as initial
- * positions during updates to minimize visual jumping when items are added/removed or strategies change,
- * while strictly guaranteeing `0.0 px` overlap.
+ * Warm-started space-filling uniform PBD layout strategy: reuses existing items' settled
+ * coordinates as initial positions during updates to minimize visual jumping when items are
+ * added/removed or strategies change, while strictly guaranteeing `0.0 px` overlap.
  */
 export function createWarmStartPbdLayoutStrategy(): SimplexLayoutStrategy {
   return createComposedLayoutStrategy({
     name: 'pbd-warm-start',
-    seeder: createPhyllotaxisSeeder(),
-    relaxer: createBarycentricPbdRelaxer(),
+    seeder: createMeshInwardFanSeeder(),
+    relaxer: createSpaceFillingPbdRelaxer({
+      springFactor: 0.72,
+      springZeroTailRatio: 0.35,
+      dispersionGapPx: 18,
+      dispersionStrength: 0.35,
+    }),
     scaleController: createUniformScaleController(),
     warmStart: true,
-    defaultRelaxationIterations: 38,
+    defaultRelaxationIterations: 42,
   });
 }
 
 /**
- * Local density-adaptive scaling layout strategy: shrinks only content nodes in locally
- * crowded anchor hotspots so sparser regions preserve full `1.0` scale legibility,
- * while enforcing `0.0 px` overlap across all hulls and viewport edges.
+ * Local density-adaptive scaling layout strategy: disperses items across open covering-triangle
+ * interiors first, evaluates a smooth radial crowd kernel on the dispersed neighborhood so dense
+ * hubs taper gradually while sparse regions keep full `1.0` scale, and polishes locally to
+ * enforce `0.0 px` overlap across all hulls and viewport edges.
  */
 export function createLocalAdaptiveLayoutStrategy(options?: {
   readonly crowdRadiusPx?: number;
@@ -2960,14 +3041,19 @@ export function createLocalAdaptiveLayoutStrategy(options?: {
 }): SimplexLayoutStrategy {
   return createComposedLayoutStrategy({
     name: 'local-adaptive',
-    seeder: createPhyllotaxisSeeder(),
-    relaxer: createBarycentricPbdRelaxer(),
+    seeder: createMeshInwardFanSeeder(),
+    relaxer: createSpaceFillingPbdRelaxer({
+      springFactor: 0.7,
+      springZeroTailRatio: 0.35,
+      dispersionGapPx: 18,
+      dispersionStrength: 0.35,
+    }),
     scaleController: createDensityPriorScaleController({
       crowdRadiusPx: options?.crowdRadiusPx,
       minLocalScale: options?.minLocalScale,
     }),
-    warmStart: Boolean(options?.warmStart),
-    defaultRelaxationIterations: 42,
+    warmStart: options?.warmStart ?? true,
+    defaultRelaxationIterations: 44,
   });
 }
 
@@ -3066,6 +3152,18 @@ export function finalizeClusteringWithColors<TItem, TTagMeta, TClusterMeta>(para
     oklab: hexToOklab('#38bdf8'),
   };
 
+  const allItems: readonly TItem[] = clusteringOutput.items.map((it) => it.item);
+  const peerClusters: readonly PeerClusterContext<TItem, TTagMeta>[] =
+    clusteringOutput.clusters.map((base) => ({
+      clusterIndex: base.clusterIndex,
+      clusterUid: base.clusterUid,
+      code: base.code,
+      defaultLabel: base.defaultLabel,
+      coreTags: base.coreTags,
+      members: base.members,
+      representativeItems: base.representativeItems,
+    }));
+
   const clusters: ClusterDescriptor<TItem, TTagMeta, TClusterMeta | undefined>[] =
     clusteringOutput.clusters.map((base, idx) => {
       const color = assignedColors[idx] ?? fallbackColor;
@@ -3073,6 +3171,8 @@ export function finalizeClusteringWithColors<TItem, TTagMeta, TClusterMeta>(para
         ...base,
         colorHex: color.hex,
         oklab: color.oklab,
+        allItems,
+        peerClusters,
       };
       const meta = deriveClusterMeta ? deriveClusterMeta(derivationCtx) : undefined;
       return {

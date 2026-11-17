@@ -612,10 +612,19 @@ export class SimplexSvgController<
     if (ev.triangle.isContext) {
       return `Neighbor (${corners})\n${count} ${count === 1 ? 'item' : 'items'}${ev.triangle.neighborId ? '\nClick to switch to neighbor' : ''}`;
     }
-    const isDrillable =
-      this.engine.getZoomStrategy().mode === 'drill-down' &&
-      this.engine.getZoomState().drillableTriangleIndices.includes(ev.triangle.index);
-    return `Triangle #${ev.triangle.index + 1} (${corners})\n${count} ${count === 1 ? 'item' : 'items'}${isDrillable ? '\nClick to zoom in' : ''}`;
+    const zMode = this.engine.getZoomStrategy().mode;
+    const zState = this.engine.getZoomState();
+    const actionHint =
+      zMode === 'drill-down'
+        ? zState.activeFrameKind === 'triangle-focus' && zState.canDrillUp
+          ? '\nClick to zoom out'
+          : zState.drillableTriangleIndices.includes(ev.triangle.index)
+            ? '\nClick to zoom in'
+            : zState.focusableTriangleIndices.includes(ev.triangle.index)
+              ? '\nClick to focus triangle'
+              : ''
+        : '';
+    return `Triangle #${ev.triangle.index + 1} (${corners})\n${count} ${count === 1 ? 'item' : 'items'}${actionHint}`;
   }
 
   private applyTooltipThemeStyles(el: HTMLDivElement): void {
@@ -1014,7 +1023,7 @@ export class SimplexSvgController<
       if (hit.triangle.neighborId) {
         return this.drillToNeighbor(hit.triangle.neighborId);
       }
-      if (!hit.triangle.isContext) {
+      if (!hit.triangle.isContext && zState.activeFrameKind !== 'triangle-focus') {
         return this.drillDownTriangle(hit.triangle.index);
       }
       return false;
@@ -1025,10 +1034,14 @@ export class SimplexSvgController<
       }
       return this.drillDownCluster(hit.cluster.clusterUid);
     }
+    const candidateTriIndices =
+      zState.drillableTriangleIndices.length > 0
+        ? zState.drillableTriangleIndices
+        : zState.focusableTriangleIndices;
     if (hit.kind === 'content') {
       const mesh = this.engine.getMesh();
       if (mesh) {
-        for (const triIdx of zState.drillableTriangleIndices) {
+        for (const triIdx of candidateTriIndices) {
           const tri = mesh.triangles[triIdx];
           if (!tri) continue;
           const p0 = mesh.vertices[tri.vertices[0]]!;
@@ -1044,13 +1057,13 @@ export class SimplexSvgController<
         return this.drillDownCluster(primaryCluster.clusterUid);
       }
     }
-    // Background fallback: drill into the closest drillable triangle
-    if (zState.drillableTriangleIndices.length > 0) {
+    // Background fallback: drill into the closest drillable or focusable triangle
+    if (candidateTriIndices.length > 0) {
       const mesh = this.engine.getMesh();
       if (mesh) {
-        let bestIdx = zState.drillableTriangleIndices[0]!;
+        let bestIdx = candidateTriIndices[0]!;
         let bestDist = Infinity;
-        for (const triIdx of zState.drillableTriangleIndices) {
+        for (const triIdx of candidateTriIndices) {
           const tri = mesh.triangles[triIdx];
           if (!tri) continue;
           const p0 = mesh.vertices[tri.vertices[0]]!;
@@ -1102,9 +1115,13 @@ export class SimplexSvgController<
         el.style.zIndex = '16';
         el.style.display = 'flex';
         el.style.alignItems = 'center';
-        el.style.gap = '4px';
-        el.style.padding = '4px 8px';
-        el.style.borderRadius = '6px';
+        el.style.gap = '3px';
+        el.style.maxWidth = 'calc(100% - 24px)';
+        el.style.overflowX = 'auto';
+        el.style.whiteSpace = 'nowrap';
+        el.style.padding = '4px 9px';
+        el.style.borderRadius = '8px';
+        el.style.backdropFilter = 'blur(8px)';
         el.style.fontFamily =
           'Plus Jakarta Sans, ui-sans-serif, system-ui, sans-serif';
         el.style.fontSize = '11px';
@@ -1113,11 +1130,14 @@ export class SimplexSvgController<
       }
       this.breadcrumbOverlayEl.style.display = 'flex';
       this.breadcrumbOverlayEl.style.background = isLight
-        ? 'rgba(255, 255, 255, 0.94)'
-        : 'rgba(11, 15, 23, 0.92)';
+        ? 'rgba(255, 255, 255, 0.95)'
+        : 'rgba(11, 15, 23, 0.93)';
       this.breadcrumbOverlayEl.style.border = isLight
         ? '1px solid rgba(203, 213, 225, 0.95)'
-        : '1px solid rgba(51, 65, 85, 0.9)';
+        : '1px solid rgba(51, 65, 85, 0.92)';
+      this.breadcrumbOverlayEl.style.boxShadow = isLight
+        ? '0 4px 14px rgba(15, 23, 42, 0.08)'
+        : '0 4px 16px rgba(0, 0, 0, 0.36)';
       this.breadcrumbOverlayEl.style.color = isLight ? '#0f172a' : '#e2e8f0';
 
       while (this.breadcrumbOverlayEl.firstChild) {
@@ -1127,25 +1147,68 @@ export class SimplexSvgController<
       state.breadcrumbs.forEach((crumb, idx) => {
         if (idx > 0) {
           const sep = doc.createElement('span');
-          sep.textContent = '/';
-          sep.style.opacity = '0.45';
+          sep.textContent = '›';
+          sep.style.opacity = '0.48';
+          sep.style.fontSize = '12px';
+          sep.style.padding = '0 1px';
           this.breadcrumbOverlayEl!.appendChild(sep);
         }
+        const isCurrent = idx === state.depth;
         const btn = doc.createElement('button');
         btn.type = 'button';
-        btn.textContent = crumb.shortLabel;
-        btn.style.cursor = idx === state.depth ? 'default' : 'pointer';
-        btn.style.fontWeight = idx === state.depth ? '600' : '500';
-        btn.style.color =
-          idx === state.depth
-            ? isLight
-              ? '#0e7490'
-              : '#22d3ee'
-            : 'inherit';
-        btn.style.background = 'transparent';
+        btn.title = crumb.label;
+        btn.style.display = 'inline-flex';
+        btn.style.alignItems = 'center';
+        btn.style.gap = '4px';
+        btn.style.cursor = isCurrent ? 'default' : 'pointer';
+        btn.style.fontWeight = isCurrent ? '700' : '500';
+        btn.style.color = isCurrent
+          ? isLight
+            ? '#0f172a'
+            : '#f8fafc'
+          : isLight
+            ? '#475569'
+            : '#94a3b8';
+        btn.style.background = isCurrent
+          ? isLight
+            ? 'rgba(241, 245, 249, 0.95)'
+            : 'rgba(30, 41, 59, 0.72)'
+          : 'transparent';
         btn.style.border = 'none';
-        btn.style.padding = '2px 5px';
-        if (idx < state.depth) {
+        btn.style.borderRadius = '5px';
+        btn.style.padding = '2px 6px';
+
+        const segs = crumb.segments;
+        if (idx > 0 && segs && segs.length > 0) {
+          segs.forEach((seg, sIdx) => {
+            if (sIdx > 0) {
+              const dotSep = doc.createElement('span');
+              dotSep.textContent = '·';
+              dotSep.style.opacity = '0.5';
+              btn.appendChild(dotSep);
+            }
+            if (seg.colorHex) {
+              const pip = doc.createElement('span');
+              pip.style.display = 'inline-block';
+              pip.style.width = '6px';
+              pip.style.height = '6px';
+              pip.style.borderRadius = '9999px';
+              pip.style.background = seg.colorHex;
+              pip.style.boxShadow = isLight
+                ? '0 0 0 1px rgba(15, 23, 42, 0.16)'
+                : '0 0 0 1px rgba(255, 255, 255, 0.35)';
+              pip.style.flexShrink = '0';
+              btn.appendChild(pip);
+            }
+            const lbl = doc.createElement('span');
+            lbl.textContent = seg.label;
+            btn.appendChild(lbl);
+          });
+        } else {
+          btn.textContent = crumb.shortLabel;
+        }
+
+        if (!isCurrent) {
           btn.addEventListener('click', (ev) => {
             ev.stopPropagation();
             this.drillToDepth(crumb.depth);
@@ -1280,22 +1343,33 @@ export class SimplexSvgController<
       if (hit.kind === 'triangle') {
         if (hit.triangle.neighborId) {
           this.svgEl.style.cursor = 'pointer';
+        } else if (
+          zState.activeFrameKind === 'triangle-focus' &&
+          zState.canDrillUp
+        ) {
+          this.svgEl.style.cursor = 'zoom-out';
         } else {
-          this.svgEl.style.cursor = zState.drillableTriangleIndices.includes(
-            hit.triangle.index,
-          )
-            ? 'zoom-in'
-            : 'default';
+          this.svgEl.style.cursor =
+            zState.drillableTriangleIndices.includes(hit.triangle.index) ||
+            zState.focusableTriangleIndices.includes(hit.triangle.index)
+              ? 'zoom-in'
+              : 'default';
         }
       } else if (hit.kind === 'cluster') {
         if (hit.neighborId) {
           this.svgEl.style.cursor = 'pointer';
+        } else if (
+          zState.activeFrameKind === 'cluster-star' &&
+          hit.cluster.clusterIndex === 0 &&
+          zState.canDrillUp
+        ) {
+          this.svgEl.style.cursor = 'zoom-out';
         } else {
           this.svgEl.style.cursor = zState.drillableClusterUids.includes(
             hit.cluster.clusterUid,
           )
             ? 'zoom-in'
-            : 'pointer';
+            : 'default';
         }
       } else if (hit.kind === 'content') {
         this.svgEl.style.cursor = 'pointer';

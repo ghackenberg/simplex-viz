@@ -1,4 +1,5 @@
 export * from './types';
+export * from './colorContrast';
 export * from './hullMeasure';
 export * from './presets';
 export * from './SvgRendererAdapter';
@@ -47,9 +48,13 @@ export {
   createFixedScaleController,
   createBarycentricZoomStrategy,
   createSemanticZoomStrategy,
+  createSubspaceZoomStrategy,
   createFreeCameraZoomStrategy,
   buildSubdividedTriangleMesh,
   buildIncidentStarMesh,
+  assignDiscriminativeClusterLabels,
+  resolveDiscriminativeClusterLabel,
+  disambiguatePeerClusterTitle,
   type AssignedColor,
   type BarycentricClusterZoomMode,
   type BarycentricPbdRelaxerOptions,
@@ -75,6 +80,8 @@ export {
   type ConvexGeometry,
   type DefaultTaggedItem,
   type DensityPriorScaleControllerOptions,
+  type DiscriminativeClusterInput,
+  type DiscriminativeClusterLabelOptions,
   type EmbeddingClusteringOptions,
   type EmbeddingSource,
   type EmbeddingVector,
@@ -95,6 +102,7 @@ export {
   type MeshOptions,
   type MeshTriangleRenderState,
   type NodeRenderState,
+  type PeerClusterContext,
   type PhyllotaxisSeederOptions,
   type PipelineUpdateReason,
   type PositionRelaxationInput,
@@ -128,10 +136,14 @@ export {
   type SoftSimplexTagClusteringOptions,
   type SpaceFillingPbdRelaxerOptions,
   type StrategyItemIdentityConfig,
+  type SubspaceZoomContext,
+  type SubspaceZoomFeature,
+  type SubspaceZoomStrategyOptions,
   type TriangleHoverEvent,
   type UniformScaleControllerOptions,
   type VisualResolver,
   type ZoomBreadcrumb,
+  type ZoomBreadcrumbSegment,
   type ZoomClusterDrillContext,
   type ZoomContextCluster,
   type ZoomContextEdge,

@@ -1,0 +1,44 @@
+---
+strategyId: "theme-adaptive-oklab"
+order: 10
+signature: "createThemeAdaptiveOklabColorStrategy<TItem, TTagMeta>(options?: ThemeAdaptiveColorOptions): SimplexColorStrategy<TItem, TTagMeta>"
+updatedDate: "2026-11-15"
+readingMinutes: 4
+whenToUse:
+  - "Recommended for dual-theme ('light' and 'dark') web applications."
+  - "Automatically deepens perceptual lightness on light backgrounds for crisp WCAG contrast while keeping luminous hues in dark mode."
+optionsTable:
+  - name: "darkLightness"
+    type: "number"
+    defaultValue: "0.74"
+    description: "Perceptual OKLab lightness L used when theme === 'dark'."
+  - name: "lightLightness"
+    type: "number"
+    defaultValue: "0.56"
+    description: "Perceptual OKLab lightness L used when theme === 'light'."
+  - name: "chroma"
+    type: "number"
+    defaultValue: "0.145"
+    description: "Target perceptual chroma shared across both themes."
+---
+
+## Seamless Light &amp; Dark Theme Parity
+
+Colors optimized for dark backgrounds (`L ≈ 0.74`) wash out against white surfaces, while colors darkened for white surfaces look murky on `#07090E`. **Theme-Adaptive OKLab** inspects the active `theme` (`'light' | 'dark'`) passed to `<SimplexTopicGraph />` or `SimplexSvgController`, shifting OKLab lightness `L` while preserving hue angle `h = atan2(b, a)` so every cluster keeps its recognizable identity across theme switches.
+
+## Usage Example
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createThemeAdaptiveOklabColorStrategy,
+} from '@simplex-viz/react';
+
+const adaptiveColors = createThemeAdaptiveOklabColorStrategy();
+
+<SimplexTopicGraph
+  items={items}
+  theme={isDark ? 'dark' : 'light'}
+  colorStrategy={adaptiveColors}
+/>;
+```

@@ -39,7 +39,7 @@ Classical force-directed layouts and raw UMAP/t-SNE scatters often turn multi-di
    - **Pairwise Similarity Matrices (`requiresTags: false`)**: `createSimilarityClusteringStrategy({ getSimilarity })` partitions any untagged domain model using PAM k-Medoids, QAP mesh embedding, and simplex projection.
 3. **Color Strategy (`SimplexColorStrategy`)**: Defaults to `createOklabContrastColorStrategy()` (perceptual OKLab edge-contrast coloring + chroma-preserving barycentric mixing), or swaps to `createThemeAdaptiveOklabColorStrategy()` or `createPaletteColorStrategy(hexColors)`.
 4. **Layout & Collision Strategy (`SimplexLayoutStrategy`)**: Defaults to `createPbdUniformLayoutStrategy()`, or swaps to `createWarmStartPbdLayoutStrategy()`, `createLocalAdaptiveLayoutStrategy()`, `createCollisionDrivenLayoutStrategy()`, or any custom **`LayoutSeeder` × `PositionRelaxer` × `ScaleController`** trio via `createComposedLayoutStrategy()`—strictly guaranteeing **`0.0 px` overlap** and triangle containment.
-5. **Zoom & Drill-Down Strategy (`SimplexZoomStrategy`)**: Defaults to `createFreeCameraZoomStrategy()` (wheel zoom-to-cursor, 2-finger touch pinch, and drag-to-pan), or swaps to hierarchical **`1:4` drill-down** via `createBarycentricZoomStrategy()` (conformal `1:4` equilateral subdivision preserving exact `▲/▼/▶/◀` triangle orientation, *Adaptive Contrast Stretch*, `1`-ring cluster star & spotlight zoom, internal `1:4` subdivision mesh preview on drillable triangles, content pass-through until leaf level, hover-equivalent region highlight, dimmed clickable neighborhood context with automatic multi-level zoom-out on leaf neighbors, and discrete 2-finger pinch) or `createSemanticZoomStrategy()` (`6`-vertex tag re-partitioning).
+5. **Zoom & Drill-Down Strategy (`SimplexZoomStrategy`)**: Defaults to `createFreeCameraZoomStrategy()` (wheel zoom-to-cursor, 2-finger touch pinch, and drag-to-pan), or swaps to hierarchical **`1:4` drill-down** via `createBarycentricZoomStrategy()`, `createSemanticZoomStrategy()` (`6`-vertex tag re-partitioning), or `createSubspaceZoomStrategy()` (`6`-vertex representation-agnostic subspace refinement)—featuring conformal `1:4` equilateral subdivision, single-triangle leaf focus (`'triangle-focus'`, `leafTriangleFocus: true`) with directly clickable content items, uniform `1`-ring `'incident-star'` cluster/subcluster stars with barycentric simplex-distance dimming, internal `1:4` subdivision mesh previews, dimmed clickable neighborhood context, and discrete 2-finger pinch.
 
 ## Architecture (Strict 3-Package Separation)
 
@@ -113,10 +113,10 @@ Every setting has a deterministic zero-config default out of the box—you only 
 | `theme` | `'dark'` | Dark canvas styling for presets, tooltips, breadcrumbs, and theme-adaptive colors (`'light'` supported). |
 | `triangleView` | `OklabTintTriangleSvgView` | Subtle OKLab-blended triangle fills with hover/focus perimeter highlights. |
 | `edgeView` | `DashedMeshEdgeSvgView` | Dashed 60° lattice edges (also used 1:1 for internal `1:4` drillable triangle previews). |
-| `meshStrategy` | `createAdaptiveHexMeshStrategy()` | Adaptive 60° equilateral lattice (`innerPadding: 48`, `minSideLength: 140`, `maxSideLength: 280`, `maxClusters: 12`). |
+| `meshStrategy` | `createAdaptiveHexMeshStrategy()` | Aspect-aligned 60° equilateral lattice (adaptive `innerPadding: 32–48`, `minSideLength: 130`, `maxClusters: 14`, full-canvas scaling). |
 | `clusteringStrategy` | `createJaccardAnnealingClusteringStrategy()` | Jaccard tag partitioning + QAP Simulated Annealing + `'planar-hitting-set'` + `'explaining-away'`. |
 | `colorStrategy` | `createOklabContrastColorStrategy()` | Perceptual OKLab edge-contrast vertex colors + barycentric OKLab item mixing. |
-| `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Phyllotaxis seeding + uniform scale search + PBD SAT separation (`clusterGapPx: 14`, `itemGapPx: 5`, `minContentScale: 0.2`, `0.0 px` overlap). |
+| `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Mesh-inward fan seeding + space-filling PBD dispersion + global uniform scale search (`clusterGapPx: 14`, `itemGapPx: 5`, `minContentScale: 0.2`, `0.0 px` overlap). |
 | `zoomStrategy` | `createFreeCameraZoomStrategy()` | Continuous cursor wheel zoom (`onWheel: 'zoom-to-cursor'`), 2-finger touch pinch, and drag-to-pan. |
 | `showZoomBreadcrumbs` | `true` | Automatically displays clickable navigation breadcrumbs whenever drilled into a sub-level (`depth > 0`). |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Clicking a cluster or triangle isolates its neighborhood in `free-camera` mode (clicking background clears). |
@@ -331,13 +331,19 @@ import {
   SimplexTopicGraph,
   createBarycentricZoomStrategy,
   createSemanticZoomStrategy,
+  createSubspaceZoomStrategy,
 } from '@simplex-viz/react';
 
-// Geometric 1:4 barycentric drill-down (works for tags, embeddings, and similarity):
+// Geometric 1:4 barycentric drill-down (with leafTriangleFocus: true by default):
 const barycentricZoom = createBarycentricZoomStrategy({
   clusterZoomMode: 'incident-star', // 'incident-star' | 'spotlight' | 'none'
   adaptiveContrastStretch: true,
   stopWhenFullScale: true,
+});
+
+// Or representation-agnostic 6-vertex subspace refinement across embeddings, similarity & tags:
+const subspaceZoom = createSubspaceZoomStrategy({
+  clusterZoomMode: 'incident-star',
 });
 
 // Or tag-aware 6-vertex semantic re-partitioning on drill-down:

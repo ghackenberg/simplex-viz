@@ -1,0 +1,41 @@
+---
+strategyId: "free-camera-zoom"
+order: 19
+signature: "createFreeCameraZoomStrategy<TItem, TTagMeta, TClusterMeta>(options?: FreeCameraZoomOptions): SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>"
+updatedDate: "2026-11-15"
+readingMinutes: 3
+whenToUse:
+  - "Built-in default navigation mode for continuous pan-and-zoom map exploration."
+  - "Use when you want smooth cursor-centered wheel zoom and drag-to-pan without discrete sub-mesh re-solving."
+optionsTable:
+  - name: "minZoom"
+    type: "number"
+    defaultValue: "0.35"
+    description: "Minimum continuous camera magnification factor."
+  - name: "maxZoom"
+    type: "number"
+    defaultValue: "6.0"
+    description: "Maximum continuous camera magnification factor."
+---
+
+## Continuous Affine Camera Navigation
+
+**Continuous Free Camera** sets `mode: 'free-camera'`, enabling smooth cursor-centered mouse-wheel zoom (`onWheel: 'zoom-to-cursor'`), click-and-drag panning, two-finger touch pinch-zoom, and single-click cluster/triangle spotlight highlighting without subdividing triangles into child frames.
+
+## Usage Example
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createFreeCameraZoomStrategy,
+} from '@simplex-viz/react';
+
+<SimplexTopicGraph
+  items={items}
+  zoomStrategy={createFreeCameraZoomStrategy({
+    minZoom: 0.5,
+    maxZoom: 5.0,
+  })}
+  onWheel="zoom-to-cursor"
+/>;
+```

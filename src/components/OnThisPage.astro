@@ -1,0 +1,225 @@
+---
+export interface TocHeading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  headings: ReadonlyArray<TocHeading>;
+  framed?: boolean;
+}
+
+const { headings, framed = true } = Astro.props;
+---
+
+{
+  headings.length > 0 && (
+    <nav
+      aria-label="On this page"
+      data-toc-nav
+      class:list={[
+        'text-xs',
+        framed
+          ? 'rounded-xl border border-slate-200/90 bg-white p-5 dark:border-slate-800/90 dark:bg-[#0B0F17]'
+          : 'space-y-2.5',
+      ]}
+    >
+      <p
+        class:list={[
+          'font-semibold text-slate-900 dark:text-slate-100',
+          framed ? 'mb-3' : '',
+        ]}
+      >
+        On this page
+      </p>
+      <ul class="space-y-1.5 border-l border-slate-200 dark:border-slate-800">
+        {headings.map((h, idx) => {
+          const isInitialActive = idx === 0;
+          return (
+            <li>
+              <a
+                href={`#${h.slug}`}
+                data-toc-link={h.slug}
+                data-active={isInitialActive ? 'true' : 'false'}
+                aria-current={isInitialActive ? 'location' : undefined}
+                class:list={[
+                  '-ml-px block border-l py-0.5 leading-snug transition-colors',
+                  h.depth === 3 ? 'pl-5' : 'pl-3',
+                  'border-transparent text-slate-500 hover:border-slate-400 hover:text-slate-950 dark:text-slate-400 dark:hover:border-slate-500 dark:hover:text-white',
+                  'data-[active=true]:border-cyan-600 data-[active=true]:font-semibold data-[active=true]:text-cyan-700 dark:data-[active=true]:border-cyan-400 dark:data-[active=true]:text-cyan-300',
+                ]}
+              >
+                {h.text}
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  )
+}
+
+<script is:inline>
+  (function () {
+    function setupTocNav(nav) {
+      if (nav.getAttribute('data-toc-ready') === 'true') return;
+      nav.setAttribute('data-toc-ready', 'true');
+
+      var linkNodes = Array.prototype.slice.call(
+        nav.querySelectorAll('a[data-toc-link]'),
+      );
+      if (!linkNodes.length) return;
+
+      var items = [];
+      for (var i = 0; i < linkNodes.length; i++) {
+        var link = linkNodes[i];
+        var slug = link.getAttribute('data-toc-link');
+        if (!slug) continue;
+        var target = document.getElementById(slug);
+        if (target) {
+          items.push({ slug: slug, link: link, target: target });
+        }
+      }
+      if (!items.length) return;
+
+      var currentActiveSlug = '';
+      var clickLockedSlug = '';
+      var clickLockUntil = 0;
+      var ticking = false;
+
+      function applyActive(slug) {
+        if (!slug || slug === currentActiveSlug) return;
+        currentActiveSlug = slug;
+
+        for (var j = 0; j < linkNodes.length; j++) {
+          var a = linkNodes[j];
+          var isMatch = a.getAttribute('data-toc-link') === slug;
+          a.setAttribute('data-active', isMatch ? 'true' : 'false');
+          if (isMatch) {
+            a.setAttribute('aria-current', 'location');
+          } else {
+            a.removeAttribute('aria-current');
+          }
+        }
+      }
+
+      function computeActiveSlug() {
+        var now = Date.now();
+        if (clickLockedSlug && now < clickLockUntil) {
+          return clickLockedSlug;
+        }
+        clickLockedSlug = '';
+
+        var offset = 132;
+        var activeSlug = items[0].slug;
+
+        for (var k = 0; k < items.length; k++) {
+          var rect = items[k].target.getBoundingClientRect();
+          if (rect.top <= offset) {
+            activeSlug = items[k].slug;
+          } else {
+            break;
+          }
+        }
+
+        var docEl = document.documentElement;
+        var scrollBottom = Math.ceil(window.innerHeight + window.scrollY);
+        var atPageBottom =
+          window.scrollY > 24 && scrollBottom >= docEl.scrollHeight - 8;
+
+        if (atPageBottom) {
+          for (var m = items.length - 1; m >= 0; m--) {
+            var bottomRect = items[m].target.getBoundingClientRect();
+            if (bottomRect.top < window.innerHeight * 0.82) {
+              activeSlug = items[m].slug;
+              break;
+            }
+          }
+        }
+
+        return activeSlug;
+      }
+
+      function sync() {
+        ticking = false;
+        applyActive(computeActiveSlug());
+      }
+
+      function requestSync() {
+        if (!ticking) {
+          ticking = true;
+          window.requestAnimationFrame(sync);
+        }
+      }
+
+      function clearClickLock() {
+        if (clickLockedSlug) {
+          clickLockedSlug = '';
+          clickLockUntil = 0;
+          requestSync();
+        }
+      }
+
+      nav.addEventListener('click', function (ev) {
+        var anchor =
+          ev.target && ev.target.closest
+            ? ev.target.closest('a[data-toc-link]')
+            : null;
+        if (!anchor) return;
+        var clickedSlug = anchor.getAttribute('data-toc-link');
+        if (!clickedSlug) return;
+        clickLockedSlug = clickedSlug;
+        clickLockUntil = Date.now() + 750;
+        applyActive(clickedSlug);
+      });
+
+      window.addEventListener('scroll', requestSync, { passive: true });
+      window.addEventListener('resize', requestSync, { passive: true });
+      window.addEventListener('wheel', clearClickLock, { passive: true });
+      window.addEventListener('touchmove', clearClickLock, { passive: true });
+      window.addEventListener('hashchange', function () {
+        var rawHash = window.location.hash ? window.location.hash.slice(1) : '';
+        if (!rawHash) return;
+        var decoded = decodeURIComponent(rawHash);
+        for (var idx = 0; idx < items.length; idx++) {
+          if (items[idx].slug === decoded) {
+            clickLockedSlug = decoded;
+            clickLockUntil = Date.now() + 750;
+            applyActive(decoded);
+            break;
+          }
+        }
+      });
+
+      var initialHash = window.location.hash ? window.location.hash.slice(1) : '';
+      if (initialHash) {
+        var decodedInit = decodeURIComponent(initialHash);
+        for (var hIdx = 0; hIdx < items.length; hIdx++) {
+          if (items[hIdx].slug === decodedInit) {
+            clickLockedSlug = decodedInit;
+            clickLockUntil = Date.now() + 600;
+            applyActive(decodedInit);
+            return;
+          }
+        }
+      }
+
+      sync();
+    }
+
+    function initAllTocNavs() {
+      var navs = document.querySelectorAll('[data-toc-nav]');
+      for (var i = 0; i < navs.length; i++) {
+        setupTocNav(navs[i]);
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initAllTocNavs);
+    } else {
+      initAllTocNavs();
+    }
+    document.addEventListener('astro:page-load', initAllTocNavs);
+  })();
+</script>

@@ -69,10 +69,10 @@ export function QuickTopicMap() {
 | `preset` | `'geometric'` | Renders `GeometricShapeSvgView` + `BadgeClusterSvgView` (`'glyphs'` & `'badges'` also built in). |
 | `theme` | `'dark'` | Dark styling for presets, React tooltip overlay, and breadcrumbs (`'light'` supported). |
 | `triangleView` / `edgeView` | `OklabTintTriangleSvgView` / `DashedMeshEdgeSvgView` | Default triangulation face & edge views (edge view also renders internal `1:4` drillable previews). |
-| `meshStrategy` | `createAdaptiveHexMeshStrategy()` | Adaptive 60° equilateral lattice (`innerPadding: 48`, `minSideLength: 140`, `maxSideLength: 280`, `maxClusters: 12`). |
+| `meshStrategy` | `createAdaptiveHexMeshStrategy()` | Aspect-aligned 60° equilateral lattice (adaptive `innerPadding: 32–48`, `minSideLength: 130`, `maxClusters: 14`). |
 | `clusteringStrategy` | `createJaccardAnnealingClusteringStrategy()` | Tag clustering with `'planar-hitting-set'` and `'explaining-away'`. |
 | `colorStrategy` | `createOklabContrastColorStrategy()` | Perceptual OKLab edge-contrast colors + barycentric mixing. |
-| `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Phyllotaxis seeding + uniform scale search + PBD SAT solver (`0.0 px` overlap). |
+| `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Mesh-inward fan seeding + space-filling PBD dispersion + global uniform scale search (`0.0 px` overlap). |
 | `zoomStrategy` | `createFreeCameraZoomStrategy()` | Continuous cursor wheel zoom (`onWheel="zoom-to-cursor"`), 2-finger pinch, and drag-to-pan. |
 | `showZoomBreadcrumbs` | `true` | Displays clickable top breadcrumbs whenever drilled into a sub-level (`depth > 0`). |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode when `focused*` and `onLeftClick` are omitted. |
@@ -245,7 +245,7 @@ export function VoiceSignatureMap({ clips }: { clips: readonly VoiceClip[] }) {
 
 ### Step 5 — Enable Conformal `1:4` Hierarchical Zoom / Drill-Down (`zoomStrategy`)
 
-Pass `createBarycentricZoomStrategy` (or `createSemanticZoomStrategy` for tag re-partitioning) to enable hierarchical `1:4` triangle & cluster drill-down. Drillable triangles automatically display their internal `1:4` subdivision lines in the active `edgeView` style, forward clicks through content nodes until leaf level, dim clickable neighborhood context, block accidental scroll-wheel camera zoom, and display navigation breadcrumbs:
+Pass `createBarycentricZoomStrategy`, `createSemanticZoomStrategy`, or `createSubspaceZoomStrategy` to enable hierarchical `1:4` triangle & cluster drill-down. Subdividable triangles display their internal `1:4` subdivision lines in the active `edgeView` style and forward clicks through content nodes, while non-subdividable leaf triangles remain focusable via their free background (`'triangle-focus'`) with directly clickable content nodes:
 
 ```tsx
 import { useMemo } from 'react';
@@ -366,7 +366,7 @@ export function FastControlledGraph({
 | `clusteringStrategy` | `createJaccardAnnealingClusteringStrategy()` | Pluggable `SimplexClusteringStrategy<TItem, TTagMeta>` (Jaccard, Soft-Simplex Tags/Embeddings, Embeddings, Similarity, Incremental, or custom). |
 | `colorStrategy` | `createOklabContrastColorStrategy()` | Pluggable `SimplexColorStrategy<TItem, TTagMeta>`. |
 | `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Pluggable `SimplexLayoutStrategy` (`pbd-uniform`, `pbd-warm-start`, `local-adaptive`, `collision-driven`, `createComposedLayoutStrategy`, or custom). |
-| `zoomStrategy` | `createFreeCameraZoomStrategy()` | Pluggable `SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>` (`createFreeCameraZoomStrategy`, `createBarycentricZoomStrategy`, `createSemanticZoomStrategy`, or custom). |
+| `zoomStrategy` | `createFreeCameraZoomStrategy()` | Pluggable `SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>` (`createFreeCameraZoomStrategy`, `createBarycentricZoomStrategy`, `createSemanticZoomStrategy`, `createSubspaceZoomStrategy`, or custom). |
 | `showZoomBreadcrumbs` | `true` | Renders clickable top breadcrumb navigation in drill-down mode when `depth > 0`. |
 | `sizeMultiplier` | `1.0` | Uniform node size multiplier (`0.35` – `3.0`). |
 | `showHulls` | `false` | Renders convex bounding hull wireframes over nodes. |
@@ -384,7 +384,7 @@ export function FastControlledGraph({
 | `onWheel` | `'zoom-to-cursor'` | `'zoom-to-cursor' \| 'pan-vertical' \| 'none' \| ((event, camera) => void)` (automatically inactive in `drill-down` mode). |
 | `onMetricsChange` | — | `(metrics: LayoutMetrics) => void` |
 | `onClustersChange` | — | `(clusters: readonly ClusterDescriptor[]) => void` |
-| `onZoomStateChange` | — | `(state: SimplexZoomState) => void` — Emits `depth`, `breadcrumbs`, `drillableTriangleIndices`, `drillableClusterUids`, `isLeafReached`. |
+| `onZoomStateChange` | — | `(state: SimplexZoomState) => void` — Emits `depth`, `activeFrameKind`, `breadcrumbs`, `drillableTriangleIndices`, `focusableTriangleIndices`, `drillableClusterUids`, `isLeafReached`. |
 | `onFpsUpdate` | — | `(fps: number) => void` |
 | `controllerRef` | — | Ref populated with the underlying `SimplexSvgController` instance. |
 

@@ -1,0 +1,55 @@
+---
+strategyId: "adaptive-hex-mesh"
+order: 1
+signature: "createAdaptiveHexMeshStrategy<TItem>(overrideOptions?: MeshOptions): SimplexMeshStrategy<TItem>"
+updatedDate: "2026-11-15"
+readingMinutes: 4
+whenToUse:
+  - "Default choice for responsive browser atlases and varying collection sizes."
+  - "Automatically adapts lattice orientation (horizontal vs. vertical) and row parity to viewport aspect ratio."
+  - "Pairs with any tag, embedding, or similarity clustering strategy."
+optionsTable:
+  - name: "innerPadding"
+    type: "number | undefined"
+    defaultValue: "32–48 (adaptive)"
+    description: "Safe margin in pixels around the outer simplex lattice vertices; adapts smoothly on compact screens when omitted."
+  - name: "minSideLength"
+    type: "number"
+    defaultValue: "130"
+    description: "Lower bound on equilateral triangle edge length (px) before stepping down K on small viewports."
+  - name: "maxSideLength"
+    type: "number | undefined"
+    defaultValue: "undefined"
+    description: "Optional upper cap on equilateral triangle edge length (px); when omitted, triangles scale freely to fill the canvas."
+  - name: "sideLength"
+    type: "number | undefined"
+    defaultValue: "undefined"
+    description: "Optional exact equilateral edge length override in world pixels."
+  - name: "maxClusters"
+    type: "number"
+    defaultValue: "14"
+    description: "Maximum vertex budget K allocated by the adaptive lattice."
+---
+
+## How Adaptive Hex Lattice Works
+
+**Adaptive Hex Lattice** evaluates candidate staggered hexagonal grids `(rows, cols, orientation, wideFirst)` for the active cluster budget `K` (informed by `clusteringStrategy.estimateClusterCount` or tag diversity, clamped to `[3, maxClusters]`).
+
+Every face in the generated mesh is an exact **60° equilateral triangle** with height `h = s · √3 / 2`. Evaluating both horizontal and vertical primary axes—and whether even or odd rows carry the extra vertex (`wideFirst`)—maximizes usable canvas area and aspect-ratio alignment across widescreen, square, and portrait mobile viewports without distorting barycentric angles.
+
+## Usage Example
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createAdaptiveHexMeshStrategy,
+} from '@simplex-viz/react';
+
+const meshStrategy = createAdaptiveHexMeshStrategy({
+  innerPadding: 56,
+  minSideLength: 160,
+  maxClusters: 10,
+});
+
+<SimplexTopicGraph items={items} meshStrategy={meshStrategy} />;
+```

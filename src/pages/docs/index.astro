@@ -1,0 +1,132 @@
+---
+import { getCollection } from 'astro:content';
+import DocsShellLayout from '../../layouts/DocsShellLayout.astro';
+import { ALL_STRATEGY_IDS, getStrategySpec } from '../../site/strategies';
+import { SITE_META, withBase } from '../../site/url';
+
+const docs = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order);
+const api = (await getCollection('api')).sort((a, b) => a.data.order - b.data.order);
+---
+
+<DocsShellLayout
+  title="Documentation, Strategies & API"
+  description={`Developer guides, dedicated reference pages for all ${ALL_STRATEGY_IDS.length} built-in SimplexViz strategies across 5 pipeline stages, and package-level TypeScript API contracts.`}
+  kicker="Developer Documentation"
+  metaLine={`v${SITE_META.version} · ${ALL_STRATEGY_IDS.length} Built-In Strategies · 3 npm Packages`}
+  activeSlug="index"
+  activeGroup="overview"
+>
+  <div class="not-prose space-y-12">
+    <section>
+      <div class="flex items-baseline justify-between gap-4">
+        <h2 class="text-lg font-semibold text-slate-950 dark:text-white">
+          Guides &amp; Stage Overviews
+        </h2>
+        <a
+          href={withBase('/docs/strategies')}
+          class="text-xs font-semibold text-cyan-700 hover:underline dark:text-cyan-300 whitespace-nowrap"
+        >
+          View all {ALL_STRATEGY_IDS.length} strategy sub-pages →
+        </a>
+      </div>
+
+      <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+        {
+          docs.map((entry) => (
+            <a
+              href={withBase(`/docs/${entry.id}`)}
+              class="group flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-5 hover:border-cyan-500/70 dark:border-slate-800/90 dark:bg-[#0B0F17] dark:hover:border-cyan-400/60 transition-colors"
+            >
+              <div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+                  {entry.data.section} · {entry.data.readingMinutes} min read
+                </p>
+                <h3 class="mt-1.5 text-base font-semibold text-slate-950 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors [text-wrap:balance]">
+                  {entry.data.title}
+                </h3>
+                <p class="mt-1.5 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                  {entry.data.description}
+                </p>
+              </div>
+              <p class="mt-4 text-xs font-semibold text-cyan-700 dark:text-cyan-300">
+                Read guide →
+              </p>
+            </a>
+          ))
+        }
+      </div>
+    </section>
+
+    <section>
+      <div class="flex items-baseline justify-between gap-4">
+        <h2 class="text-lg font-semibold text-slate-950 dark:text-white">
+          Built-In Strategy Catalog ({ALL_STRATEGY_IDS.length} Sub-Pages)
+        </h2>
+        <a
+          href={withBase('/docs/strategies')}
+          class="text-xs font-semibold text-cyan-700 hover:underline dark:text-cyan-300 whitespace-nowrap"
+        >
+          Full strategy catalog →
+        </a>
+      </div>
+
+      <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {
+          ALL_STRATEGY_IDS.map((id) => {
+            const spec = getStrategySpec(id);
+            return (
+              <a
+                href={withBase(spec.strategyDocPath)}
+                class="group rounded-xl border border-slate-200/90 bg-white p-4 hover:border-cyan-500/70 dark:border-slate-800/90 dark:bg-[#0B0F17] dark:hover:border-cyan-400/60 transition-colors"
+              >
+                <p class="font-mono text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                  Stage 0{spec.stage}{spec.isDefault ? ' · Default' : ''}
+                </p>
+                <h3 class="mt-1 text-sm font-semibold text-slate-950 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors">
+                  {spec.name}
+                </h3>
+                <p class="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400 line-clamp-2">
+                  {spec.summary}
+                </p>
+              </a>
+            );
+          })
+        }
+      </div>
+    </section>
+
+    <section>
+      <div class="flex items-baseline justify-between gap-4">
+        <h2 class="text-lg font-semibold text-slate-950 dark:text-white">
+          Package API Reference
+        </h2>
+        <a
+          href={withBase('/docs/api')}
+          class="text-xs font-semibold text-cyan-700 hover:underline dark:text-cyan-300 whitespace-nowrap"
+        >
+          API overview →
+        </a>
+      </div>
+      <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+        {
+          api.map((pkg) => (
+            <a
+              href={withBase(`/docs/api/${pkg.id}`)}
+              class="group rounded-xl border border-slate-200/90 bg-white p-5 hover:border-cyan-500/70 dark:border-slate-800/90 dark:bg-[#0B0F17] dark:hover:border-cyan-400/60 transition-colors"
+            >
+              <p class="font-mono text-sm font-semibold text-slate-950 group-hover:text-cyan-700 dark:text-cyan-300">
+                {pkg.data.packageName}
+              </p>
+              <p class="mt-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+                v{pkg.data.version} · {pkg.data.layerLabel}
+              </p>
+              <p class="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                {pkg.data.description}
+              </p>
+            </a>
+          ))
+        }
+      </div>
+    </section>
+  </div>
+</DocsShellLayout>

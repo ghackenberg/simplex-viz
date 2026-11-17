@@ -1,0 +1,54 @@
+---
+strategyId: "soft-simplex-tags"
+order: 3
+signature: "createSoftSimplexTagClusteringStrategy<TItem, TTagMeta>(options?: SoftSimplexTagOptions<TItem>): SimplexClusteringStrategy<TItem, TTagMeta>"
+updatedDate: "2026-11-15"
+readingMinutes: 5
+whenToUse:
+  - "Recommended primary strategy for multi-tag articles, repositories, papers, and catalog items."
+  - "Spreads multi-topic items smoothly across covering triangle interiors instead of stacking them on exact midpoints."
+  - "Leaves single-topic items unconstrained in a 360° outer halo around their vertex."
+optionsTable:
+  - name: "getTags"
+    type: "(item: TItem) => readonly string[]"
+    defaultValue: "item.tags"
+    description: "Strategy-scoped tag extractor (optional if getTags is passed on SimplexTopicGraph)."
+  - name: "triangleSpread"
+    type: "number"
+    defaultValue: "0.45"
+    description: "Controls continuous interior spread inside 3-cluster covering triangles (0 = discrete, 1 = broad)."
+  - name: "sharedTagRule"
+    type: "SharedTagRule<TItem>"
+    defaultValue: "'planar-hitting-set'"
+    description: "Promotes cross-cluster bridge tags onto planar mesh edges."
+  - name: "anchorRule"
+    type: "SimplexAnchorRule<TItem>"
+    defaultValue: "'explaining-away'"
+    description: "Prunes redundant secondary cluster matches once an item's tags are explained."
+  - name: "loadBalanceStrength"
+    type: "number"
+    defaultValue: "0.35"
+    description: "Regularizes cluster sizes so high-frequency tags do not monopolize one vertex."
+---
+
+## Continuous Interior Spreading + Unconstrained Halos
+
+Discrete tag assignment snaps 2-cluster items onto exact edge midpoints and 3-cluster items onto exact triangle centroids. **Soft-Simplex Tag Clustering** blends tag specificity across the best covering planar triangle `τ = (c₁, c₂, c₃)` controlled by `triangleSpread`, utilizing the 2D triangle area naturally while keeping 1-cluster items (`unitVertexIndices.length === 1`) completely free to fan around their anchor in 360°.
+
+## Usage Example
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createSoftSimplexTagClusteringStrategy,
+} from '@simplex-viz/react';
+
+const tagClustering = createSoftSimplexTagClusteringStrategy<Article>({
+  getTags: (article) => article.hashtags,
+  triangleSpread: 0.45,
+  sharedTagRule: 'planar-hitting-set',
+  anchorRule: 'explaining-away',
+});
+
+<SimplexTopicGraph items={articles} clusteringStrategy={tagClustering} />;
+```

@@ -9,12 +9,14 @@ import {
 import {
   createComposedLayoutStrategy,
   createFixedLatticeMeshStrategy,
+  createSimilarityClusteringStrategy,
 } from '../src/strategies';
 import {
   buildSubdividedTriangleMesh,
   createBarycentricZoomStrategy,
   createFreeCameraZoomStrategy,
   createSemanticZoomStrategy,
+  createSubspaceZoomStrategy,
 } from '../src/zoom';
 import type {
   DefaultTaggedItem,
@@ -366,7 +368,7 @@ describe('Pluggable SimplexZoomStrategy', () => {
     const spotHr = createHeadlessRenderer();
     const spotEngine = new SimplexGraphEngine({
       items: monoItems,
-      visualResolver: createResolver(28, 24),
+      visualResolver: createResolver(36, 24),
       renderer: spotHr.adapter,
       viewportWidth: 520,
       viewportHeight: 400,
@@ -1140,8 +1142,16 @@ describe('Pluggable SimplexZoomStrategy', () => {
     });
 
     for (const strategyFactory of [
-      () => createBarycentricZoomStrategy({ clusterZoomMode: 'none' }),
-      () => createSemanticZoomStrategy({ clusterZoomMode: 'none' }),
+      () =>
+        createBarycentricZoomStrategy({
+          clusterZoomMode: 'none',
+          leafTriangleFocus: false,
+        }),
+      () =>
+        createSemanticZoomStrategy({
+          clusterZoomMode: 'none',
+          leafTriangleFocus: false,
+        }),
     ]) {
       const hr = createHeadlessRenderer();
       const engine = new SimplexGraphEngine({
@@ -1368,8 +1378,8 @@ describe('Pluggable SimplexZoomStrategy', () => {
       viewportHeight: 460,
       meshStrategy,
       zoomStrategy: createBarycentricZoomStrategy({
-        subdivision: '1:4',
         clusterZoomMode: 'none',
+        leafTriangleFocus: false,
       }),
       layoutOptions: { seed: 77 },
     });
@@ -1623,8 +1633,652 @@ describe('Pluggable SimplexZoomStrategy', () => {
 
     engine.destroy();
   });
+
+  it('createSubspaceZoomStrategy projects out locally constant traits, assigns distinct subclusterLabels, and terminates cleanly', () => {
+    interface ZooMockItem {
+      readonly id: string;
+      readonly name: string;
+      readonly milk: boolean;
+      readonly backbone: boolean;
+      readonly predator: boolean;
+      readonly aquatic: boolean;
+      readonly catsize: boolean;
+      readonly legs: number;
+    }
+
+    const zooSubset: readonly ZooMockItem[] = [
+      // Dense mammalian group (milk=true, backbone=true constant across all 24!)
+      ...Array.from({ length: 24 }, (_, i) => ({
+        id: `mammal-${i}`,
+        name: `Mammal ${i + 1}`,
+        milk: true,
+        backbone: true,
+        predator: i % 2 === 0,
+        aquatic: i % 3 === 0,
+        catsize: i >= 10,
+        legs: i % 3 === 0 ? 0 : i % 5 === 0 ? 2 : 4,
+      })),
+      // Non-mammalian species to form additional root clusters
+      ...Array.from({ length: 8 }, (_, i) => ({
+        id: `bird-${i}`,
+        name: `Bird ${i + 1}`,
+        milk: false,
+        backbone: true,
+        predator: i % 2 === 0,
+        aquatic: i % 2 === 1,
+        catsize: false,
+        legs: 2,
+      })),
+      ...Array.from({ length: 8 }, (_, i) => ({
+        id: `invert-${i}`,
+        name: `Invertebrate ${i + 1}`,
+        milk: false,
+        backbone: false,
+        predator: true,
+        aquatic: i % 2 === 0,
+        catsize: false,
+        legs: 6,
+      })),
+    ];
+
+    let lastClusters: readonly NodeRenderState<{ readonly r: number }>[] = [];
+    let lastItems: readonly NodeRenderState<{ readonly r: number }>[] = [];
+    const adapter: SimplexRendererAdapter<{ readonly r: number }, { readonly r: number }> = {
+      measureContentHull: (v) => ({ kind: 'circle', radius: v.r }),
+      measureClusterHull: (v) => ({ kind: 'circle', radius: v.r }),
+      renderFrame: (frame) => {
+        lastItems = frame.items;
+        lastClusters = frame.clusters;
+      },
+      destroy: () => {},
+    };
+
+    const gowerSim = (a: ZooMockItem, b: ZooMockItem): number => {
+      let s = 0;
+      s += a.milk === b.milk ? 1.5 : 0;
+      s += a.backbone === b.backbone ? 1.5 : 0;
+      s += a.predator === b.predator ? 1 : 0;
+      s += a.aquatic === b.aquatic ? 1 : 0;
+      s += a.catsize === b.catsize ? 1 : 0;
+      s += 1 - Math.abs(a.legs - b.legs) / 8;
+      return s / 7;
+    };
+
+    const subspaceZoom = createSubspaceZoomStrategy<ZooMockItem>({
+      features: [
+        { id: 'milk', label: 'Milk', getValue: (z) => z.milk, highLabel: 'Mammalian' },
+        { id: 'backbone', label: 'Backbone', getValue: (z) => z.backbone, highLabel: 'Vertebrate' },
+        { id: 'predator', label: 'Predator', getValue: (z) => z.predator, highLabel: 'Predators', lowLabel: 'Non-Predator' },
+        { id: 'aquatic', label: 'Aquatic', getValue: (z) => z.aquatic, highLabel: 'Aquatic', lowLabel: 'Terrestrial' },
+        { id: 'catsize', label: 'Catsize', getValue: (z) => z.catsize, highLabel: 'Large Size', lowLabel: 'Small Size' },
+        { id: 'legs', label: 'Legs', getValue: (z) => (z.legs === 0 ? 'Legless' : `${z.legs} Legs`) },
+      ],
+      getSimilarity: gowerSim,
+      clusterZoomMode: 'spotlight',
+    });
+
+    const engine = new SimplexGraphEngine({
+      items: zooSubset,
+      getId: (z) => z.id,
+      visualResolver: {
+        resolveContentVisual: () => ({ r: 28 }),
+        resolveClusterVisual: () => ({ r: 22 }),
+        getVisualCacheKey: () => 'sub-test',
+      },
+      renderer: adapter,
+      viewportWidth: 580,
+      viewportHeight: 420,
+      clusteringStrategy: createSimilarityClusteringStrategy({
+        clusterCount: 5,
+        getSimilarity: gowerSim,
+      }),
+      zoomStrategy: subspaceZoom,
+    });
+    for (let i = 0; i < 45; i++) engine.step(20);
+
+    expect(engine.getZoomState().strategyName).toBe('subspace-recluster');
+    const rootDrillTris = engine.getZoomState().drillableTriangleIndices;
+    expect(rootDrillTris.length).toBeGreaterThan(0);
+
+    // 1) Drill into a dense triangle -> 6 sub-clusters with distinct, non-constant subclusterLabels
+    expect(engine.drillDownTriangle(rootDrillTris[0]!)).toBe(true);
+    for (let i = 0; i < 45; i++) engine.step(20);
+
+    expect(engine.getMetrics().overlapCount).toBe(0);
+    const subClusters = engine.getClusters();
+    expect(subClusters.length).toBeGreaterThanOrEqual(3);
+    const labels = subClusters.map((c) => c.subclusterLabel ?? '');
+    expect(labels.every((l) => l.length > 0)).toBe(true);
+    expect(new Set(labels).size).toBe(subClusters.length);
+
+    // If all active items inside the zoomed triangle are mammals, constant 'Mammalian' must have σ_local = 0 and NOT appear!
+    const activeIds = new Set(lastItems.filter((it) => !it.isContext).map((it) => it.id));
+    if ([...activeIds].every((id) => id.startsWith('mammal-'))) {
+      expect(labels).not.toContain('Mammalian');
+      expect(labels).not.toContain('Vertebrate');
+    }
+
+    // 2) Return to root and drill into a mammal cluster in 'spotlight' mode -> 3-way subspace spotlight (not 'Sector A/B/C')
+    expect(engine.drillToRoot()).toBe(true);
+    for (let i = 0; i < 45; i++) engine.step(20);
+    const drillClusters = engine.getZoomState().drillableClusterUids;
+    expect(drillClusters.length).toBeGreaterThan(0);
+    expect(engine.drillDownCluster(drillClusters[0]!)).toBe(true);
+    for (let i = 0; i < 45; i++) engine.step(20);
+
+    expect(engine.getZoomState().activeFrameKind).toBe('cluster-spotlight');
+    expect(engine.getClusters().length).toBe(3);
+    expect(engine.getMetrics().overlapCount).toBe(0);
+    const spotLabels = engine.getClusters().map((c) => c.subclusterLabel ?? '');
+    expect(spotLabels.every((l) => l.length > 0 && !l.startsWith('Sector '))).toBe(true);
+    expect(new Set(spotLabels).size).toBe(3);
+    expect(lastClusters.filter((c) => !c.isContext).length).toBe(3);
+
+    engine.destroy();
+
+    // 3) Zero-config introspection on tagged items also terminates cleanly with 0 overlaps
+    const zeroCfgHr = createHeadlessRenderer();
+    const zeroCfgEngine = new SimplexGraphEngine({
+      items: RICH_ITEMS,
+      visualResolver: createResolver(28, 22),
+      renderer: zeroCfgHr.adapter,
+      viewportWidth: 580,
+      viewportHeight: 420,
+      zoomStrategy: createSubspaceZoomStrategy(),
+    });
+    stepToSettle(zeroCfgEngine);
+    let steps = 0;
+    while (zeroCfgEngine.getZoomState().drillableTriangleIndices.length > 0 && steps < 10) {
+      const nextTri = zeroCfgEngine.getZoomState().drillableTriangleIndices[0]!;
+      expect(zeroCfgEngine.drillDownTriangle(nextTri)).toBe(true);
+      stepToSettle(zeroCfgEngine);
+      expect(zeroCfgEngine.getMetrics().overlapCount).toBe(0);
+      steps += 1;
+    }
+    expect(steps).toBeGreaterThan(0);
+    expect(steps).toBeLessThanOrEqual(8);
+    expect(zeroCfgEngine.getZoomState().isLeafReached).toBe(true);
+    zeroCfgEngine.destroy();
+  });
+
+  it('guarantees non-empty 3-tier subclusterLabels, preserves parentContextLabel on outer corners, and emits color-coded breadcrumb segments', () => {
+    // 1) Barycentric zoom: midpoints must carry explicit bridge relation labels (never empty), and breadcrumbs carry 3 colored topic segments
+    const baryHr = createHeadlessRenderer();
+    const baryEngine = new SimplexGraphEngine({
+      items: RICH_ITEMS,
+      visualResolver: createResolver(28, 22),
+      renderer: baryHr.adapter,
+      viewportWidth: 580,
+      viewportHeight: 420,
+      zoomStrategy: createBarycentricZoomStrategy(),
+    });
+    stepToSettle(baryEngine);
+    const bTri = baryEngine.getZoomState().drillableTriangleIndices[0]!;
+    expect(baryEngine.drillDownTriangle(bTri)).toBe(true);
+    stepToSettle(baryEngine);
+
+    const baryClusters = baryEngine.getClusters();
+    for (const midIdx of [3, 4, 5]) {
+      const mid = baryClusters[midIdx]!;
+      expect(mid.role).toBe('intermediate');
+      expect((mid.subclusterLabel ?? '').trim().length).toBeGreaterThan(0);
+    }
+    const baryCrumb = baryEngine.getZoomState().breadcrumbs.at(-1)!;
+    expect(baryCrumb.segments?.length).toBe(3);
+    expect(baryCrumb.segments?.every((s) => s.label.length > 0 && Boolean(s.colorHex))).toBe(
+      true,
+    );
+    baryEngine.destroy();
+
+    // 2) Subspace zoom: outer 3 corners preserve parentContextLabel while 3 edge midpoints stay single-line
+    const subHr = createHeadlessRenderer();
+    const subEngine = new SimplexGraphEngine({
+      items: RICH_ITEMS,
+      visualResolver: createResolver(28, 22),
+      renderer: subHr.adapter,
+      viewportWidth: 580,
+      viewportHeight: 420,
+      zoomStrategy: createSubspaceZoomStrategy(),
+    });
+    stepToSettle(subEngine);
+    const sTri = subEngine.getZoomState().drillableTriangleIndices[0]!;
+    expect(subEngine.drillDownTriangle(sTri)).toBe(true);
+    stepToSettle(subEngine);
+
+    const subClusters = subEngine.getClusters();
+    if (subClusters.length === 6) {
+      for (const cornerIdx of [0, 1, 2]) {
+        expect((subClusters[cornerIdx]!.parentContextLabel ?? '').length).toBeGreaterThan(0);
+        expect((subClusters[cornerIdx]!.subclusterLabel ?? '').length).toBeGreaterThan(0);
+      }
+      for (const midIdx of [3, 4, 5]) {
+        expect(subClusters[midIdx]!.parentContextLabel).toBeUndefined();
+        expect((subClusters[midIdx]!.subclusterLabel ?? '').length).toBeGreaterThan(0);
+      }
+    }
+    subEngine.destroy();
+  });
+
+  it('promotes vertex-exclusive sub-tags, avoids duplicate 6-vertex labels, and prevents parent/child corner stutter in semantic zoom', () => {
+    const tagDisplayTitles: Record<string, string> = {
+      javascript: 'JavaScript',
+      visualization: 'Visualization',
+      'data-visualization': 'Data Vis',
+      graph: 'Graphs',
+      threejs: 'Three.js',
+      typescript: 'TypeScript',
+      d3: 'D3.js',
+      canvas: 'Canvas',
+      svg: 'SVG',
+      webgl: 'WebGL',
+      wasm: 'WebAssembly',
+    };
+
+    // Mirrors the GitHub visualization ecosystem: overlapping 3-tag signatures sharing
+    // carrier tags ('javascript', 'visualization') plus exclusive sub-tags ('graph', 'threejs')
+    // alongside a sparse 3-tag neighbor region ('webgl', 'wasm', 'javascript').
+    const ecosystemItems: DefaultTaggedItem[] = [
+      ...Array.from({ length: 4 }, (_, i) => ({
+        id: `js-vis-graph-${i}`,
+        tags: ['javascript', 'visualization', 'graph'],
+      })),
+      ...Array.from({ length: 4 }, (_, i) => ({
+        id: `js-vis-three-${i}`,
+        tags: ['javascript', 'visualization', 'threejs'],
+      })),
+      ...Array.from({ length: 3 }, (_, i) => ({
+        id: `dv-ts-${i}`,
+        tags: ['data-visualization', 'typescript', 'd3'],
+      })),
+      ...Array.from({ length: 3 }, (_, i) => ({
+        id: `dv-canvas-${i}`,
+        tags: ['data-visualization', 'javascript', 'canvas', 'svg'],
+      })),
+      ...Array.from({ length: 3 }, (_, i) => ({
+        id: `js-d3-${i}`,
+        tags: ['javascript', 'visualization', 'd3'],
+      })),
+      ...Array.from({ length: 6 }, (_, i) => ({
+        id: `wasm-webgl-${i}`,
+        tags:
+          i % 2 === 0
+            ? ['wasm', 'webgl', 'visualization']
+            : ['wasm', 'webgl', 'javascript'],
+      })),
+    ];
+
+    let renderedClusters: readonly NodeRenderState<{ readonly r: number }>[] = [];
+    const engine = new SimplexGraphEngine<
+      DefaultTaggedItem,
+      { readonly r: number },
+      { readonly r: number },
+      { readonly displayTitle: string },
+      { readonly title: string }
+    >({
+      items: ecosystemItems,
+      resolveTagMeta: (tag) => ({
+        displayTitle: tagDisplayTitles[tag] ?? `#${tag}`,
+      }),
+      deriveClusterMeta: (ctx) => {
+        if (ctx.role === 'intermediate') {
+          return { title: ctx.subclusterLabel ?? ctx.defaultLabel };
+        }
+        const top = ctx.coreTags[0];
+        return {
+          title: top ? (top.meta?.displayTitle ?? top.tag) : ctx.defaultLabel,
+        };
+      },
+      visualResolver: {
+        resolveContentVisual: () => ({ r: 36 }),
+        resolveClusterVisual: () => ({ r: 22 }),
+        getVisualCacheKey: () => 'eco-r36:c22',
+      },
+      renderer: {
+        measureContentHull: (v) => ({ kind: 'circle', radius: v.r }),
+        measureClusterHull: (v) => ({ kind: 'circle', radius: v.r }),
+        renderFrame: (f) => {
+          renderedClusters = f.clusters;
+        },
+        destroy: () => {},
+      },
+      viewportWidth: 640,
+      viewportHeight: 460,
+      layoutOptions: { seed: 42 },
+      zoomStrategy: createSemanticZoomStrategy(),
+    });
+
+    for (let i = 0; i < 45; i++) engine.step(20);
+    expect(renderedClusters.length).toBeGreaterThan(0);
+
+    const canonicalizeLabel = (label: string): string => {
+      const cleaned = label.trim().replace(/^#+/, '').toLowerCase();
+      if (cleaned.includes('↔')) {
+        return cleaned
+          .split('↔')
+          .map((p) => p.trim())
+          .sort()
+          .join(' ↔ ');
+      }
+      if (cleaned.includes(' · ')) {
+        return cleaned
+          .split(' · ')
+          .map((p) => p.trim())
+          .sort()
+          .join(' · ');
+      }
+      return cleaned;
+    };
+
+    const drillable = [...engine.getZoomState().drillableTriangleIndices];
+    expect(drillable.length).toBeGreaterThan(0);
+
+    let sawGraphAndThree = false;
+    for (const triIdx of drillable) {
+      engine.drillToRoot();
+      for (let i = 0; i < 45; i++) engine.step(20);
+
+      expect(engine.drillDownTriangle(triIdx)).toBe(true);
+      for (let i = 0; i < 45; i++) engine.step(20);
+
+      const zoomedClusters = engine.getClusters();
+      if (zoomedClusters.length === 6) {
+        const displayLabels = zoomedClusters.map((c) => {
+          const raw =
+            c.role === 'intermediate'
+              ? (c.subclusterLabel ?? c.meta.title)
+              : c.meta.title;
+          return raw.trim().toLowerCase();
+        });
+        const canonicalLabels = displayLabels.map(canonicalizeLabel);
+
+        // All 6 sub-vertices in every 1:4 zoomed triangle MUST have pairwise distinct display labels
+        // (even up to symmetric order swaps like A ↔ B vs B ↔ A or A · B vs B · A)
+        expect(new Set(displayLabels).size).toBe(6);
+        expect(new Set(canonicalLabels).size).toBe(6);
+
+        // No outer corner may stutter its own parentContextLabel as its sole subclusterLabel (e.g. JAVASCRIPT / JavaScript)
+        for (const cornerIdx of [0, 1, 2]) {
+          const corner = zoomedClusters[cornerIdx]!;
+          if (corner.parentContextLabel && corner.subclusterLabel) {
+            expect(corner.subclusterLabel.trim().toLowerCase()).not.toBe(
+              corner.parentContextLabel.trim().toLowerCase(),
+            );
+          }
+        }
+
+        const assignedCoreTagSet = new Set<string>();
+        for (const c of zoomedClusters) {
+          for (const td of c.coreTags) assignedCoreTagSet.add(td.tag);
+        }
+        if (assignedCoreTagSet.has('graph') && assignedCoreTagSet.has('threejs')) {
+          sawGraphAndThree = true;
+          expect(displayLabels.some((l) => l.includes('graphs'))).toBe(true);
+          expect(displayLabels.some((l) => l.includes('three.js'))).toBe(true);
+        }
+      }
+    }
+    expect(sawGraphAndThree).toBe(true);
+
+    engine.destroy();
+  });
+
+  it('keeps incident-star cluster drill-down strictly lattice-conformal (no off-grid spotlight fallback) and dims incident items by barycentric simplex distance', () => {
+    const dataset: DefaultTaggedItem[] = [];
+    for (let i = 0; i < 8; i++) {
+      dataset.push({ id: `pure-a-${i}`, tags: ['vis'] });
+    }
+    for (let i = 0; i < 6; i++) {
+      dataset.push({ id: `bridge-ab-${i}`, tags: ['vis', 'charts'] });
+    }
+    for (let i = 0; i < 6; i++) {
+      dataset.push({ id: `pure-b-${i}`, tags: ['charts'] });
+    }
+    for (let i = 0; i < 6; i++) {
+      dataset.push({ id: `bridge-bc-${i}`, tags: ['charts', 'maps'] });
+    }
+    for (let i = 0; i < 6; i++) {
+      dataset.push({ id: `pure-c-${i}`, tags: ['maps'] });
+    }
+    for (let i = 0; i < 6; i++) {
+      dataset.push({ id: `outer-d-${i}`, tags: ['webgl', 'shaders'] });
+    }
+
+    const hr = createHeadlessRenderer();
+    const engine = new SimplexGraphEngine({
+      items: dataset,
+      visualResolver: createResolver(36, 22),
+      renderer: hr.adapter,
+      viewportWidth: 680,
+      viewportHeight: 500,
+      zoomStrategy: createSemanticZoomStrategy({
+        clusterZoomMode: 'incident-star',
+      }),
+    });
+    stepToSettle(engine);
+
+    const visCluster =
+      engine.getClusters().find((c) => c.coreTags.some((t) => t.tag === 'vis')) ??
+      engine.getClusters()[0]!;
+    expect(engine.getZoomState().drillableClusterUids).toContain(visCluster.clusterUid);
+
+    // 1) First click drills into lattice-conformal 'cluster-star'
+    expect(engine.drillDownCluster(visCluster.clusterUid)).toBe(true);
+    stepToSettle(engine);
+    expect(engine.getZoomState().activeFrameKind).toBe('cluster-star');
+    expect(engine.getZoomState().depth).toBe(1);
+
+    // 2) Active items inside the incident triangles are dimmed by simplex distance d = 1 - w_0
+    const starCenter = engine.getClusters()[0]!;
+    expect(starCenter.clusterIndex).toBe(0);
+    expect(engine.getZoomState().drillableClusterUids).not.toContain(
+      starCenter.clusterUid,
+    );
+    const activeRenderedById = new Map(
+      hr
+        .getLastItems()
+        .filter((it) => !it.isContext)
+        .map((it) => [it.id, it]),
+    );
+    const centerMemberWeights = new Map(
+      starCenter.members.map((m) => [m.itemId, m.normalizedWeight]),
+    );
+
+    let sawPureCenter = false;
+    let sawHybrid = false;
+    let sawOuterRim = false;
+    for (const [id, node] of activeRenderedById) {
+      const w0 = centerMemberWeights.get(id) ?? 0;
+      const expectedOpacity = 0.32 + 0.68 * w0;
+      expect(node.opacity).toBeCloseTo(expectedOpacity, 3);
+      if (w0 >= 0.999) sawPureCenter = true;
+      else if (w0 > 0.01 && w0 < 0.99) sawHybrid = true;
+      else if (w0 === 0) sawOuterRim = true;
+    }
+    expect(sawPureCenter).toBe(true);
+    expect(sawHybrid).toBe(true);
+    expect(sawOuterRim).toBe(true);
+
+    // 3) Clicking a rim cluster inside cluster-star switches laterally at depth === 1 (never growing an infinite stack)
+    const rimCluster = engine.getClusters()[1]!;
+    expect(engine.getZoomState().drillableClusterUids).toContain(
+      rimCluster.clusterUid,
+    );
+    expect(engine.drillDownCluster(rimCluster.clusterUid)).toBe(true);
+    stepToSettle(engine);
+    expect(engine.getZoomState().activeFrameKind).toBe('cluster-star');
+    expect(engine.getZoomState().depth).toBe(1);
+    expect(engine.getClusters()[0]!.code).toBe(rimCluster.code);
+
+    // 4) Clicking the already-focused center cluster toggles back up (`drillUp`) without spawning 'cluster-spotlight'
+    const switchedCenter = engine.getClusters()[0]!;
+    expect(engine.drillDownCluster(switchedCenter.clusterUid)).toBe(true);
+    stepToSettle(engine);
+    expect(engine.getZoomState().depth).toBe(0);
+    expect(engine.getZoomState().activeFrameKind).toBe('root');
+    for (const node of hr.getLastItems().filter((it) => !it.isContext)) {
+      expect(node.opacity).toBeCloseTo(1, 3);
+    }
+
+    // 5) Inside a zoomed 1:4 triangle (even at 1.0x leaf scale or on sparse/0-item corners), ALL 6 subclusters are uniformly clickable
+    const drillTris = engine.getZoomState().drillableTriangleIndices;
+    expect(drillTris.length).toBeGreaterThan(0);
+    expect(engine.drillDownTriangle(drillTris[0]!)).toBe(true);
+    stepToSettle(engine);
+    expect(engine.getZoomState().activeFrameKind).toBe('triangle');
+    expect(engine.getZoomState().depth).toBe(1);
+    expect(engine.getClusters().length).toBe(6);
+    expect(engine.getZoomState().drillableClusterUids.length).toBe(6);
+
+    for (let subIdx = 0; subIdx < 6; subIdx++) {
+      const subCluster = engine.getClusters()[subIdx]!;
+      expect(engine.drillDownCluster(subCluster.clusterUid)).toBe(true);
+      stepToSettle(engine);
+      expect(engine.getZoomState().activeFrameKind).toBe('cluster-star');
+      expect(engine.getZoomState().depth).toBe(2);
+      // Toggle back up to the 1:4 triangle by clicking the focused subcluster center
+      const subStarCenter = engine.getClusters()[0]!;
+      expect(engine.drillDownCluster(subStarCenter.clusterUid)).toBe(true);
+      stepToSettle(engine);
+      expect(engine.getZoomState().activeFrameKind).toBe('triangle');
+      expect(engine.getZoomState().depth).toBe(1);
+    }
+
+    engine.destroy();
+  });
+
+  it('focuses non-subdividable leaf triangles as single un-subdivided triangles while keeping content nodes directly clickable', () => {
+    const items: DefaultTaggedItem[] = [
+      // Dense 3-cluster interior + edge items in one triangle -> downscaled & 1:4 drillable
+      ...Array.from({ length: 18 }, (_, i) => ({
+        id: `dense-ab-${i}`,
+        tags: i % 2 === 0 ? ['alpha', 'beta', 'gamma'] : ['alpha', 'beta'],
+      })),
+      // Isolated full-scale items in a disjoint leaf triangle [omega, psi, chi]
+      { id: 'leaf-item-omega', tags: ['omega', 'psi', 'chi'] },
+      { id: 'leaf-item-psi', tags: ['psi'] },
+      { id: 'leaf-item-chi', tags: ['chi'] },
+    ];
+
+    const localScaleLayout = createComposedLayoutStrategy({
+      seeder: createMeshInwardFanSeeder(),
+      relaxer: createBarycentricPbdRelaxer(),
+      scaleController: createCollisionLocalScaleController({
+        minLocalScale: 0.3,
+        shrinkFactor: 0.85,
+        refinementPasses: 6,
+      }),
+    });
+
+    const hr = createHeadlessRenderer();
+    const engine = new SimplexGraphEngine({
+      items,
+      visualResolver: createResolver(32, 20),
+      renderer: hr.adapter,
+      viewportWidth: 640,
+      viewportHeight: 460,
+      meshStrategy: createFixedLatticeMeshStrategy({
+        cols: 3,
+        rows: 3,
+      }),
+      layoutStrategy: localScaleLayout,
+      zoomStrategy: createBarycentricZoomStrategy(),
+      layoutOptions: { seed: 55 },
+    });
+    stepToSettle(engine);
+
+    const rootState = engine.getZoomState();
+    const totalRootTris = engine.getMesh()!.triangles.length;
+    expect(totalRootTris).toBeGreaterThan(2);
+    expect(rootState.drillableTriangleIndices.length).toBeGreaterThanOrEqual(1);
+    expect(rootState.focusableTriangleIndices.length).toBeGreaterThanOrEqual(1);
+    expect(
+      rootState.drillableTriangleIndices.length +
+        rootState.focusableTriangleIndices.length,
+    ).toBe(totalRootTris);
+
+    // Content nodes inside leaf/focusable triangles must NOT be pass-through so users can click them directly!
+    const rootItems = hr.getLastItems().filter((it) => !it.isContext);
+    const leafSparseNode = rootItems.find((it) => it.id === 'leaf-item-omega');
+    expect(leafSparseNode).toBeDefined();
+    expect(leafSparseNode!.isPassThrough).toBeUndefined();
+    const hitLeafItem = engine.hitTest(leafSparseNode!.x, leafSparseNode!.y);
+    expect(hitLeafItem.kind).toBe('content');
+
+    // Clicking a leaf triangle focuses that single un-subdivided triangle (3 clusters, 1 active face, dimmed neighbors)
+    const leafTriIdx = rootState.focusableTriangleIndices[0]!;
+    expect(engine.drillDownTriangle(leafTriIdx)).toBe(true);
+    stepToSettle(engine);
+
+    const focusedState = engine.getZoomState();
+    expect(focusedState.depth).toBe(1);
+    expect(focusedState.activeFrameKind).toBe('triangle-focus');
+    expect(focusedState.drillableTriangleIndices).toEqual([]);
+    expect(focusedState.focusableTriangleIndices).toEqual([]);
+    expect(engine.getClusters().length).toBe(3);
+    expect(focusedState.drillableClusterUids.length).toBe(3);
+
+    const activeFocusTris = hr.getLastTriangles().filter((t) => !t.isContext);
+    const ctxFocusTris = hr.getLastTriangles().filter((t) => t.isContext);
+    expect(activeFocusTris.length).toBe(1);
+    expect(ctxFocusTris.length).toBeGreaterThan(0);
+    expect(engine.getMetrics().overlapCount).toBe(0);
+
+    // Clicking a dimmed neighbor triangle from inside `triangle-focus` switches laterally at depth === 1!
+    const neighborCtxTri = ctxFocusTris.find((t) => Boolean(t.neighborId));
+    expect(neighborCtxTri?.neighborId).toBeDefined();
+    expect(engine.drillToNeighbor(neighborCtxTri!.neighborId!)).toBe(true);
+    stepToSettle(engine);
+    expect(engine.getZoomState().depth).toBe(1);
+    expect(engine.drillToRoot()).toBe(true);
+    stepToSettle(engine);
+    expect(engine.drillDownTriangle(leafTriIdx)).toBe(true);
+    stepToSettle(engine);
+
+    // All content nodes inside the focused leaf triangle remain directly clickable
+    for (const activeItem of hr.getLastItems().filter((it) => !it.isContext)) {
+      expect(activeItem.isPassThrough).toBeUndefined();
+    }
+
+    // Clicking the free face of the already-focused single triangle toggles back out (`drillUp`)
+    expect(engine.drillDownTriangle(0)).toBe(true);
+    stepToSettle(engine);
+    expect(engine.getZoomState().depth).toBe(0);
+    expect(engine.getZoomState().activeFrameKind).toBe('root');
+
+    // Focus the leaf triangle again, then click one of its 3 corner clusters -> switches laterally at depth 1 to `cluster-star`!
+    expect(engine.drillDownTriangle(leafTriIdx)).toBe(true);
+    stepToSettle(engine);
+    const cornerCluster = engine.getClusters()[0]!;
+    expect(engine.drillDownCluster(cornerCluster.clusterUid)).toBe(true);
+    stepToSettle(engine);
+    expect(engine.getZoomState().depth).toBe(1);
+    expect(engine.getZoomState().activeFrameKind).toBe('cluster-star');
+    expect(engine.getClusters()[0]!.code).toBe(cornerCluster.code);
+
+    // Return to root, drill 1:4 into a dense triangle, and verify any leaf sub-triangle inside the 1:4 frame is also focusable!
+    expect(engine.drillToRoot()).toBe(true);
+    stepToSettle(engine);
+    const denseTriIdx = engine.getZoomState().drillableTriangleIndices[0]!;
+    expect(engine.drillDownTriangle(denseTriIdx)).toBe(true);
+    stepToSettle(engine);
+    expect(engine.getZoomState().activeFrameKind).toBe('triangle');
+    const subFocusable = engine.getZoomState().focusableTriangleIndices;
+    if (subFocusable.length > 0) {
+      expect(engine.drillDownTriangle(subFocusable[0]!)).toBe(true);
+      stepToSettle(engine);
+      expect(engine.getZoomState().depth).toBe(2);
+      expect(engine.getZoomState().activeFrameKind).toBe('triangle-focus');
+      expect(engine.getClusters().length).toBe(3);
+      // Clicking its 3 corners (even intermediate midpoint subclusters!) highlights all 3 corners cleanly
+      expect(
+        hr
+          .getLastClusters()
+          .filter((c) => !c.isContext)
+          .every((c) => c.interaction.isHighlighted),
+      ).toBe(true);
+    }
+
+    engine.destroy();
+  });
 });
-
-
-
 

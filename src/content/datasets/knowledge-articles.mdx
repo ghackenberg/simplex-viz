@@ -1,0 +1,65 @@
+---
+title: "arXiv Computer Science & Geometry Papers"
+datasetId: "knowledge"
+domainLabel: "Academic Literature"
+representationLabel: "Multi-Category Tag Hypergraph"
+requiresTags: true
+dimensionsSummary: "arXiv CS & Math subject categories (cs.CG, cs.GR, cs.HC, cs.LG, cs.CV, math.MG)"
+meshStrategy: "adaptive-hex-mesh"
+clusteringStrategy: "soft-simplex-tags"
+colorStrategy: "theme-adaptive-oklab"
+layoutStrategy: "collision-local-layout"
+zoomStrategy: "semantic-tag-split-zoom"
+nodeView: "domain"
+description: "Projects open-access arXiv papers across computational geometry, computer graphics, HCI, vision, and machine learning onto a 60° topic lattice with 3→6 semantic sub-tag drill-down."
+publishedDate: "2026-11-15"
+readingMinutes: 5
+order: 1
+---
+
+## Dataset Provenance & Multi-Category Structure
+
+This example loads real publication metadata harvested from the **Cornell University arXiv.org Open-Access API** (`CC0 1.0` public-domain metadata) spanning cross-disciplinary Computer Science and Mathematics papers (`cs.CG`, `cs.GR`, `cs.HC`, `cs.LG`, `cs.CV`, `cs.RO`, `cs.AI`, and `math.MG`).
+
+Academic preprints frequently bridge two or three primary research communities—for example *Neural Radiance Fields* combining Computer Graphics (`#gr`), Computer Vision (`#cv`), and Machine Learning (`#lg`). Force-directed co-authorship or tag graphs quickly tangle into unreadable hairballs when every interdisciplinary paper connects to three or four hubs.
+
+## Why This 5-Stage Pipeline Is Optimal Here
+
+1. **Adaptive Hex Lattice (`createAdaptiveHexMeshStrategy`)**: Maximizes equilateral side length `s` for the current viewport aspect ratio so multi-category triangles have generous interior area.
+2. **Soft-Simplex Tag Clustering (`createSoftSimplexTagClusteringStrategy`)**: Partitions subject categories into vertex topics via load-balanced QAP annealing and spreads 2- and 3-topic preprints smoothly across covering triangle interiors (`triangleSpread: 0.45`), while keeping single-category papers unconstrained in a `360°` vertex halo.
+3. **Theme-Adaptive OKLab (`createThemeAdaptiveOklabColorStrategy`)**: Maintains WCAG-compliant contrast across both crisp light paper mode and dark obsidian mode while mixing interdisciplinary bridge colors in perceptual OKLab space.
+4. **Collision-Local Pocket Layout (`createCollisionDrivenLayoutStrategy`)**: Leaves sparse outer categories at full `1.0x` leaf scale and shrinks only dense interdisciplinary pockets so drillable regions stand out immediately.
+5. **Semantic 3→6 Tag Drill-Down (`createSemanticZoomStrategy`)**: Clicking any subdivided interdisciplinary triangle promotes vertex-exclusive secondary arXiv categories (`stat.ML`, `math.MG`, `cs.IR`, `cs.DC`) ahead of shared parent categories, pairing refined outer corners with two-line `parentContextLabel` headers while guaranteeing `6` pairwise-distinct sub-vertex badges.
+
+## Reproduction Snippet
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createAdaptiveHexMeshStrategy,
+  createSoftSimplexTagClusteringStrategy,
+  createThemeAdaptiveOklabColorStrategy,
+  createCollisionDrivenLayoutStrategy,
+  createSemanticZoomStrategy,
+} from '@simplex-viz/react';
+
+<SimplexTopicGraph
+  items={arxivPapers}
+  getId={(paper) => paper.slug}
+  getTags={(paper) => paper.hashtags}
+  resolveTagMeta={(tag) => arxivTaxonomy[tag]}
+  meshStrategy={createAdaptiveHexMeshStrategy()}
+  clusteringStrategy={createSoftSimplexTagClusteringStrategy({
+    triangleSpread: 0.45,
+    sharedTagRule: 'planar-hitting-set',
+    anchorRule: 'explaining-away',
+  })}
+  colorStrategy={createThemeAdaptiveOklabColorStrategy()}
+  layoutStrategy={createCollisionDrivenLayoutStrategy()}
+  zoomStrategy={createSemanticZoomStrategy({
+    clusterZoomMode: 'incident-star',
+  })}
+  showZoomBreadcrumbs
+  tooltip
+/>;
+```

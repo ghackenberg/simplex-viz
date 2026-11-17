@@ -1,0 +1,73 @@
+---
+title: "03. Perceptual OKLab Color Strategies"
+shortTitle: "03. OKLab Color Science"
+description: "Why SimplexViz assigns cluster hues via perceptual OKLab graph-coloring optimization and mixes multi-cluster items without muddy sRGB midpoints."
+section: "Core Strategies"
+order: 4
+stageNumber: 3
+readingMinutes: 5
+updatedDate: "2026-11-15"
+summaryPoints:
+  - "Adjacent mesh vertices maximize minimum perceptual distance ΔE_OK via greedy seeding plus pairwise swap refinement."
+  - "Barycentric item colors interpolate in Björn Ottosson's OKLab space with chroma preservation so bridge items stay vivid and legible."
+  - "Hungarian cluster matching preserves assigned vertex colors across live item additions, removals, and resizes."
+relatedApiSlug: "core"
+---
+
+import StrategyDiagram from '../../components/diagrams/StrategyDiagram.astro';
+import StrategyDecisionList from '../../components/docs/StrategyDecisionList.astro';
+
+Stage 3 (`SimplexColorStrategy`) assigns a canonical hex color to each vertex cluster and computes `mixedColorHex` for every content item from its barycentric simplex weights `(w₁, …, w_m)`.
+
+<StrategyDiagram
+  kind="color"
+  caption="Left: Pairwise edge swaps on the 60° mesh maximize minimum perceptual ΔE_OK between neighboring clusters. Right: Interpolating in OKLab preserves uniform lightness and chroma compared to desaturated sRGB averaging."
+/>
+
+## Why sRGB Fails on Triangulated Meshes
+
+Linearly averaging sRGB hex values along a mesh edge—for instance between Cyan (`#06B6D4`) and Amber (`#F59E0B`)—collapses perceptual lightness and chroma near `w = (0.5, 0.5)`, turning bridge items into dull grey-brown dots that look visually *inactive* rather than *interdisciplinary*.
+
+SimplexViz converts cluster colors into **OKLab** `(L, a, b)`, computes the weighted barycentric sum, gently restores perceptual chroma `C = √(a² + b²)` toward the weighted mean chroma of the contributing clusters, and clamps cleanly into the sRGB gamut.
+
+## Strategy Decision Matrix
+
+<StrategyDecisionList
+  rows={[
+    {
+      strategyId: 'oklab-edge-contrast',
+      callExample: 'createOklabContrastColorStrategy(options?)',
+      modalityOrProfile: 'Fixed perceptual lightness (L ≈ 0.72)',
+      description:
+        'Generates high-chroma perceptual hues and optimizes 1-hop mesh edge swaps to maximize minimum ΔE_OK between neighboring cluster vertices.',
+    },
+    {
+      strategyId: 'theme-adaptive-oklab',
+      callExample: 'createThemeAdaptiveOklabColorStrategy(options?)',
+      modalityOrProfile: 'Light/Dark polarity aware',
+      description:
+        'Shifts target perceptual lightness and chroma automatically when theme toggles (L ≈ 0.56 on light surfaces for WCAG contrast; L ≈ 0.74 on dark surfaces).',
+    },
+    {
+      strategyId: 'custom-brand-palette',
+      callExample: 'createPaletteColorStrategy(hexColors, options?)',
+      modalityOrProfile: 'Design-system hex palette',
+      description:
+        'Assigns your exact hex colors onto the mesh using edge-contrast optimization (default) or sequential order while interpolating bridge items in OKLab.',
+    },
+  ]}
+/>
+
+## Custom Brand Palette Example
+
+```ts
+import { createPaletteColorStrategy } from '@simplex-viz/core';
+
+const corporatePalette = createPaletteColorStrategy(
+  ['#0891b2', '#d97706', '#c026d3', '#059669', '#2563eb', '#e11d48'],
+  {
+    mode: 'edge-contrast',
+    preserveMatchedColors: true,
+  },
+);
+```

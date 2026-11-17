@@ -1,0 +1,81 @@
+---
+title: "01. Mesh Triangulation Strategies"
+shortTitle: "01. Mesh Triangulation"
+description: "How SimplexViz constructs toothed 60-degree equilateral triangle lattices, selects orientation and parity, and pins fixed grids."
+section: "Core Strategies"
+order: 2
+stageNumber: 1
+readingMinutes: 6
+updatedDate: "2026-11-15"
+summaryPoints:
+  - "Every triangle in SimplexViz is a true 60-degree equilateral simplex (height h = s * sqrt(3) / 2), ensuring isotropic barycentric distances."
+  - "createAdaptiveHexMeshStrategy chooses horizontal vs. vertical orientation and row parity automatically from viewport aspect ratio."
+  - "createFixedLatticeMeshStrategy locks an exact (cols × rows) vertex count K across resizes."
+relatedApiSlug: "core"
+---
+
+import StrategyDiagram from '../../components/diagrams/StrategyDiagram.astro';
+import StrategyDecisionList from '../../components/docs/StrategyDecisionList.astro';
+
+Stage 1 (`SimplexMeshStrategy`) establishes the **planar 2-complex** of vertices, edges, and equilateral triangles before any items or clusters are placed. Because every face is an exact **60° equilateral triangle**, barycentric weights `(w_A, w_B, w_C)` translate linearly into Euclidean proximity without aspect-ratio distortion.
+
+<StrategyDiagram
+  kind="mesh"
+  caption="Left: Adaptive Hex Mesh evaluates horizontal and vertical orientations plus staggered row parity (wideFirst) to maximize equilateral edge length s inside (W × H). Right: Fixed Lattice Mesh pins exact (row, col) grid topology."
+/>
+
+## Strategy Decision Matrix
+
+<StrategyDecisionList
+  rows={[
+    {
+      strategyId: 'adaptive-hex-mesh',
+      callExample: 'createAdaptiveHexMeshStrategy(defaults?)',
+      modalityOrProfile: 'Dynamic K (3 ≤ K ≤ maxClusters)',
+      description:
+        'Re-evaluates orientation (horizontal vs. vertical) and wideFirst staggered parity on viewport resize to maximize equilateral side length s and area efficiency.',
+    },
+    {
+      strategyId: 'fixed-grid-mesh',
+      callExample: 'createFixedLatticeMeshStrategy({ cols, rows, ... })',
+      modalityOrProfile: 'Exact K = cols × rows',
+      description:
+        'Scales equilateral side length s uniformly to fit (W, H) (unless sideLength is pinned) while keeping vertex grid topology strictly invariant.',
+    },
+  ]}
+/>
+
+## Geometric Mechanics of the Adaptive Hex Lattice
+
+Given viewport dimensions `(W, H)` and `MeshOptions` (`innerPadding`, `minSideLength`, `maxSideLength`, `maxClusters`), `buildSimplexMesh`:
+
+1. Computes the target cluster budget `K ∈ [3, maxClusters]` (`maxClusters = 14` by default) from corpus richness or explicit `clusterCount`, and resolves an adaptive outer margin (`32 px` on compact mobile screens up to `48 px` on desktop) when `innerPadding` is omitted.
+2. Enumerates candidate staggered hexagonal grids `(rows, cols, orientation, wideFirst)` where alternating rows offset by `s / 2` along the primary axis and step by `h = s · √3 / 2` along the perpendicular axis.
+3. Scores viable candidates (`s ≥ minSideLength`, `130 px` by default) by **viewport area efficiency**, **aspect-ratio alignment** (automatically rotating into landscape on wide monitors and portrait on mobile screens), and **cluster richness**, applying `maxSideLength` purely as an optional upper cap when specified.
+
+## Explicit Triangle Side Length Override
+
+Both built-in mesh strategies honor `sideLength` when you want deterministic world-space spacing regardless of monitor size:
+
+```ts
+import {
+  createAdaptiveHexMeshStrategy,
+  createFixedLatticeMeshStrategy,
+} from '@simplex-viz/core';
+
+// Adaptive topology with exact 210 px equilateral edges:
+const adaptive = createAdaptiveHexMeshStrategy({
+  innerPadding: 48,
+  sideLength: 210,
+  maxClusters: 10,
+});
+
+// Fixed 4×3 lattice (K = 12 vertices) with 195 px edges:
+const fixed = createFixedLatticeMeshStrategy({
+  cols: 4,
+  rows: 3,
+  orientation: 'horizontal',
+  wideFirst: true,
+  sideLength: 195,
+});
+```

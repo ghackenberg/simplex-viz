@@ -1,0 +1,67 @@
+---
+strategyId: "soft-simplex-embeddings"
+order: 6
+signature: "createSoftSimplexEmbeddingClusteringStrategy<TItem, TTagMeta>(options: SoftSimplexEmbeddingClusteringOptions<TItem>): SimplexClusteringStrategy<TItem, TTagMeta>"
+updatedDate: "2026-11-16"
+readingMinutes: 5
+whenToUse:
+  - "Recommended primary strategy for untagged dense embeddings (text, audio, vision, or latent vectors)."
+  - "Supports weighted multi-modal vector fusion and automatic base-rate-aware discriminative cluster naming via optional features."
+  - "Sets requiresTags: false so getTags is completely optional."
+optionsTable:
+  - name: "getEmbedding"
+    type: "(item: TItem) => readonly number[] | readonly EmbeddingSource<TItem>[]"
+    defaultValue: "required"
+    description: "Single vector extractor or weighted array of multi-modal vector extractors."
+  - name: "features"
+    type: "readonly SubspaceZoomFeature<TItem>[] | undefined"
+    defaultValue: "undefined"
+    description: "Optional numeric, boolean, or categorical domain facets scored against corpus base rates to assign pairwise-distinct defaultLabels across all K clusters."
+  - name: "clusterCount"
+    type: "number | undefined"
+    defaultValue: "auto (round(√N))"
+    description: "Target number of vertex archetypes K requested from the mesh strategy."
+  - name: "metric"
+    type: "'cosine' | 'euclidean'"
+    defaultValue: "'cosine'"
+    description: "Distance geometry used for k-Means++ seeding, centroid updates, and projection."
+  - name: "triangleSpread"
+    type: "number"
+    defaultValue: "0.45"
+    description: "Controls continuous interior spread across planar triangles."
+  - name: "deriveLabel"
+    type: "(reps, index) => string"
+    defaultValue: "discriminative feature or top exemplar"
+    description: "Optional explicit custom naming callback overriding features / exemplar defaults."
+---
+
+## Multi-Modal Vector Fusion &amp; Contrastive Cluster Naming
+
+**Soft-Simplex Embedding Projection** L2-normalizes and weights one or more embedding modalities into a unified feature vector, runs load-balanced Spherical/Euclidean k-Means++, embeds the learned centroid affinity matrix onto the 60° mesh via QAP annealing, and projects items continuously onto their optimal planar triangle `τ = (c₁, c₂, c₃)`.
+
+When `features` are supplied, SimplexViz scores each cluster against corpus-wide base rates—suppressing ubiquitous majority categories (such as a 77% `"Drama"` baseline in cinema catalogs) while automatically disambiguating sibling clusters that split a shared taxonomic group via intra-group secondary traits (for example *Adélie · Male* vs. *Adélie · Female*).
+
+## Usage Example
+
+```tsx
+import {
+  SimplexTopicGraph,
+  createSoftSimplexEmbeddingClusteringStrategy,
+} from '@simplex-viz/react';
+
+const mediaClustering = createSoftSimplexEmbeddingClusteringStrategy<MediaAsset>({
+  getEmbedding: [
+    { name: 'Scene', getVector: (m) => m.sceneVec, weight: 0.65 },
+    { name: 'Style', getVector: (m) => m.styleVec, weight: 0.35 },
+  ],
+  features: [
+    { label: 'Budget', getValue: (m) => Math.log10(m.budgetMusd), highLabel: 'Big-Budget Epics', lowLabel: 'Low-Budget Cult' },
+    { label: 'Runtime', getValue: (m) => m.runtimeMin, highLabel: 'Epic Runtime', lowLabel: 'Compact Classics' },
+  ],
+  clusterCount: 7,
+  metric: 'cosine',
+  triangleSpread: 0.45,
+});
+
+<SimplexTopicGraph items={assets} clusteringStrategy={mediaClustering} />;
+```
