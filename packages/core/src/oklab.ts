@@ -1,4 +1,4 @@
-import type { MeshEdge } from './types';
+import type { MeshEdge } from './types.js';
 
 export type OklabTuple = readonly [number, number, number];
 

@@ -5,8 +5,8 @@ import type {
   Point2D,
   SimplexColorTheme,
 } from '@simplex-viz/core';
-import { SVG_NS } from '../hullMeasure';
-import type { SvgEdgeView, SvgTriangleView } from '../types';
+import { SVG_NS } from '../hullMeasure.js';
+import type { SvgEdgeView, SvgTriangleView } from '../types.js';
 
 function clearGroup(groupEl: SVGGElement): void {
   while (groupEl.firstChild) {

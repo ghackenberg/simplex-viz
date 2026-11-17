@@ -4,23 +4,23 @@ import type {
   DefaultTaggedItem,
   VisualResolver,
 } from '@simplex-viz/core';
-import type { SvgNodeView } from './types';
+import type { SvgNodeView } from './types.js';
 import {
   BadgeClusterSvgView,
   type BadgeClusterVisual,
-} from './views/BadgeClusterSvgView';
+} from './views/BadgeClusterSvgView.js';
 import {
   ClusterAnchorSvgView,
   type ClusterAnchorVisual,
-} from './views/ClusterAnchorSvgView';
+} from './views/ClusterAnchorSvgView.js';
 import {
   GeometricShapeSvgView,
   type GeometricShapeVisual,
-} from './views/GeometricShapeSvgView';
+} from './views/GeometricShapeSvgView.js';
 import {
   MultiSectorGlyphSvgView,
   type MultiSectorGlyphVisual,
-} from './views/MultiSectorGlyphSvgView';
+} from './views/MultiSectorGlyphSvgView.js';
 
 /**
  * Built-in visual presets for zero-config usage of `@simplex-viz/svg` and `@simplex-viz/react`.

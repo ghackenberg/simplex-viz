@@ -5,14 +5,14 @@ import {
   isPointInTriangle,
   scaleConvexGeometry,
   UniformSpatialHashGrid,
-} from './geometry';
+} from './geometry.js';
 import type {
   BoundingBox2D,
   ConvexGeometry,
   LayoutSolverOptions,
   Point2D,
   SimplexMesh,
-} from './types';
+} from './types.js';
 
 export interface LayoutClusterInput {
   readonly id: string;

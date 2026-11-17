@@ -4,8 +4,8 @@ import type {
   SimplexColorTheme,
   SimplexLayoutStrategy,
   SimplexMeshStrategy,
-} from './strategies';
-import type { SimplexZoomState, SimplexZoomStrategy } from './zoom';
+} from './strategies.js';
+import type { SimplexZoomState, SimplexZoomStrategy } from './zoom.js';
 
 /**
  * Default shape of a tagged item when no custom `getId` or `getTags` accessor is provided.

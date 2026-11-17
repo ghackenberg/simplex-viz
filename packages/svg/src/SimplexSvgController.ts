@@ -22,7 +22,7 @@ import {
   type TriangleHoverEvent,
   type VisualResolver,
 } from '@simplex-viz/core';
-import { SVG_NS } from './hullMeasure';
+import { SVG_NS } from './hullMeasure.js';
 import {
   createPresetViews,
   createPresetVisualResolver,
@@ -31,9 +31,9 @@ import {
   type DefaultContentPresetVisual,
   type SimplexTheme,
   type SimplexVisualPreset,
-} from './presets';
-import { SvgRendererAdapter, type SvgRendererOptions } from './SvgRendererAdapter';
-import type { SvgEdgeView, SvgNodeView, SvgTriangleView } from './types';
+} from './presets.js';
+import { SvgRendererAdapter, type SvgRendererOptions } from './SvgRendererAdapter.js';
+import type { SvgEdgeView, SvgNodeView, SvgTriangleView } from './types.js';
 
 export type SimplexTooltipFormatter<
   TItem = DefaultTaggedItem,

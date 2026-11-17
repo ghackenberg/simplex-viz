@@ -37,11 +37,11 @@ jobs:
       - name: Typecheck all packages and demo
         run: pnpm typecheck
 
-      - name: Run tests with coverage
-        run: pnpm test:coverage
-
       - name: Build npm packages and validate exports
         run: pnpm build:packages && pnpm validate:packages
+
+      - name: Run tests with coverage
+        run: pnpm test:coverage
 
       - name: Build demo application
         run: pnpm build:demo

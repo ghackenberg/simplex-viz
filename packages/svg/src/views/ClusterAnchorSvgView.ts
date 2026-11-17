@@ -1,7 +1,7 @@
 import type { ConvexGeometry, NodeRenderState } from '@simplex-viz/core';
-import { resolveClusterSurfaceColors } from '../colorContrast';
-import { SVG_NS } from '../hullMeasure';
-import type { SvgNodeView } from '../types';
+import { resolveClusterSurfaceColors } from '../colorContrast.js';
+import { SVG_NS } from '../hullMeasure.js';
+import type { SvgNodeView } from '../types.js';
 
 /**
  * Pure visual descriptor for `ClusterAnchorSvgView`.

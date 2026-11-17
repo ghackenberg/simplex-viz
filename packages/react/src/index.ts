@@ -1,6 +1,6 @@
-export * from './ReactJsxSvgView';
-export * from './useSimplexGraphController';
-export * from './SimplexTopicGraph';
+export * from './ReactJsxSvgView.js';
+export * from './useSimplexGraphController.js';
+export * from './SimplexTopicGraph.js';
 
 // Convenient re-exports from @simplex-viz/svg and @simplex-viz/core for single-import React usage
 export {

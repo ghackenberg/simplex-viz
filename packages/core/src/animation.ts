@@ -1,5 +1,5 @@
-import { interpolateConvexGeometry } from './geometry';
-import type { ConvexGeometry } from './types';
+import { interpolateConvexGeometry } from './geometry.js';
+import type { ConvexGeometry } from './types.js';
 
 /**
  * Scalar spring state preserving position and velocity for C1-continuous interruption.

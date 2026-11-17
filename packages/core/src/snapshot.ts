@@ -2,8 +2,8 @@ import {
   defaultNormalizeTag,
   extractIdentifiedItems,
   extractNormalizedItems,
-} from './clustering';
-import { hexToOklab, mixOklabColors } from './oklab';
+} from './clustering.js';
+import { hexToOklab, mixOklabColors } from './oklab.js';
 import {
   createAdaptiveHexMeshStrategy,
   createJaccardAnnealingClusteringStrategy,
@@ -15,7 +15,7 @@ import {
   type SimplexColorTheme,
   type SimplexLayoutStrategy,
   type SimplexMeshStrategy,
-} from './strategies';
+} from './strategies.js';
 import type {
   ClusterDerivationContext,
   ClusterDescriptor,
@@ -30,7 +30,7 @@ import type {
   MeshTriangleRenderState,
   SimplexMesh,
   StrategyItemIdentityConfig,
-} from './types';
+} from './types.js';
 
 function defaultGetId<TItem>(item: TItem): string {
   if (typeof item === 'object' && item !== null && 'id' in item) {

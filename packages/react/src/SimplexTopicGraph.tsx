@@ -46,7 +46,7 @@ import {
 import {
   ReactJsxSvgView,
   type ContentDomainRecord,
-} from './ReactJsxSvgView';
+} from './ReactJsxSvgView.js';
 
 /**
  * Union payload passed to a custom React `tooltip` formatter on `<SimplexTopicGraph />`.

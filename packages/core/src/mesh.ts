@@ -1,4 +1,4 @@
-import type { MeshEdge, MeshOptions, MeshTriangle, MeshVertex, SimplexMesh } from './types';
+import type { MeshEdge, MeshOptions, MeshTriangle, MeshVertex, SimplexMesh } from './types.js';
 
 const SQRT3_OVER_2 = Math.sqrt(3) / 2;
 

@@ -1,4 +1,4 @@
-import type { BoundingBox2D, ConvexGeometry, Point2D } from './types';
+import type { BoundingBox2D, ConvexGeometry, Point2D } from './types.js';
 
 function cross(o: Point2D, a: Point2D, b: Point2D): number {
   return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);

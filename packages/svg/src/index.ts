@@ -1,14 +1,14 @@
-export * from './types';
-export * from './colorContrast';
-export * from './hullMeasure';
-export * from './presets';
-export * from './SvgRendererAdapter';
-export * from './SimplexSvgController';
-export * from './views/GeometricShapeSvgView';
-export * from './views/MultiSectorGlyphSvgView';
-export * from './views/BadgeClusterSvgView';
-export * from './views/ClusterAnchorSvgView';
-export * from './views/MeshFaceEdgeViews';
+export * from './types.js';
+export * from './colorContrast.js';
+export * from './hullMeasure.js';
+export * from './presets.js';
+export * from './SvgRendererAdapter.js';
+export * from './SimplexSvgController.js';
+export * from './views/GeometricShapeSvgView.js';
+export * from './views/MultiSectorGlyphSvgView.js';
+export * from './views/BadgeClusterSvgView.js';
+export * from './views/ClusterAnchorSvgView.js';
+export * from './views/MeshFaceEdgeViews.js';
 
 // Convenient re-exports from @simplex-viz/core for single-import non-React apps
 export {
@@ -22,6 +22,7 @@ export {
   embedSimilarityMatrixOnMesh,
   createAdaptiveHexMeshStrategy,
   createFixedLatticeMeshStrategy,
+  resolveDefaultInnerPadding,
   createJaccardAnnealingClusteringStrategy,
   createSoftSimplexTagClusteringStrategy,
   createIncrementalAnchorClusteringStrategy,

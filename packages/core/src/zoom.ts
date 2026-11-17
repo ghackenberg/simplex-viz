@@ -1,8 +1,8 @@
-import { mixOklabColors, type OklabTuple } from './oklab';
+import { mixOklabColors, type OklabTuple } from './oklab.js';
 import type {
   AnalyzedTagCorpus,
   NormalizedContentItem,
-} from './clustering';
+} from './clustering.js';
 
 function defaultClusterCode(index: number): string {
   return `T${index + 1}`;
@@ -16,7 +16,7 @@ import type {
   Point2D,
   SimplexMesh,
   TagDescriptor,
-} from './types';
+} from './types.js';
 
 export type ZoomStrategyMode = 'free-camera' | 'drill-down';
 export type ZoomFrameKind =

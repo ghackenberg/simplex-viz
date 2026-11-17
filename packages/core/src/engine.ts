@@ -4,8 +4,8 @@ import {
   stepVisualTransition,
   type SpringScalar,
   type VisualTransitionState,
-} from './animation';
-import { SimplexCamera } from './camera';
+} from './animation.js';
+import { SimplexCamera } from './camera.js';
 import {
   defaultNormalizeTag,
   extractIdentifiedItems,
@@ -13,10 +13,10 @@ import {
   type ComputedItemPlacement,
   type NormalizedContentItem,
   type PreviousClusterSnapshot,
-} from './clustering';
-import { hitTestConvexGeometry, isPointInTriangle } from './geometry';
-import type { TwoPhaseLayoutResult } from './layout';
-import { hexToOklab, lerpOklabHex, mixOklabColors, type OklabTuple } from './oklab';
+} from './clustering.js';
+import { hitTestConvexGeometry, isPointInTriangle } from './geometry.js';
+import type { TwoPhaseLayoutResult } from './layout.js';
+import { hexToOklab, lerpOklabHex, mixOklabColors, type OklabTuple } from './oklab.js';
 import {
   createAdaptiveHexMeshStrategy,
   createJaccardAnnealingClusteringStrategy,
@@ -32,7 +32,7 @@ import {
   type SimplexColorTheme,
   type SimplexLayoutStrategy,
   type SimplexMeshStrategy,
-} from './strategies';
+} from './strategies.js';
 import type {
   CameraController,
   ClusterDerivationContext,
@@ -58,7 +58,7 @@ import type {
   SimplexMesh,
   SimplexRendererAdapter,
   VisualResolver,
-} from './types';
+} from './types.js';
 import {
   IDENTITY_ZOOM_AFFINE,
   applyZoomAffine,
@@ -72,7 +72,7 @@ import {
   type ZoomFrameSpec,
   type ZoomItemAnchorInput,
   type ZoomSharedHelpers,
-} from './zoom';
+} from './zoom.js';
 
 /**
  * Resting opacity floor inside a `cluster-star` frame at maximum simplex distance `d = 1`

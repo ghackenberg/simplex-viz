@@ -1,5 +1,5 @@
-import { assignMeshClusterColors, mixOklabColors, type OklabTuple } from './oklab';
-import { DeterministicRng } from './prng';
+import { assignMeshClusterColors, mixOklabColors, type OklabTuple } from './oklab.js';
+import { DeterministicRng } from './prng.js';
 import type {
   ClusterDerivationContext,
   ClusterDescriptor,
@@ -10,7 +10,7 @@ import type {
   Point2D,
   SimplexMesh,
   TagDescriptor,
-} from './types';
+} from './types.js';
 
 export interface NormalizedContentItem<TItem> {
   readonly item: TItem;

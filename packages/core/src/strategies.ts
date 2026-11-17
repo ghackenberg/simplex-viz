@@ -16,7 +16,7 @@ import {
   type RawItemUnitAssignment,
   type SharedTagRuleKind,
   type SimplexAnchorRuleKind,
-} from './clustering';
+} from './clustering.js';
 import {
   createCollisionLocalScaleController,
   createDensityPriorScaleController,
@@ -31,20 +31,20 @@ import {
   type PositionRelaxer,
   type ScaleController,
   type TwoPhaseLayoutResult,
-} from './layout';
+} from './layout.js';
 import {
   buildSimplexLattice,
   buildSimplexMesh,
   resolveDefaultInnerPadding,
-} from './mesh';
+} from './mesh.js';
 import {
   assignGreedyEdgeContrastColors,
   assignMeshClusterColors,
   hexToOklab,
   mixOklabColors,
   type OklabTuple,
-} from './oklab';
-import { DeterministicRng } from './prng';
+} from './oklab.js';
+import { DeterministicRng } from './prng.js';
 import type {
   ClusterDerivationContext,
   ClusterDescriptor,
@@ -57,9 +57,9 @@ import type {
   Point2D,
   SimplexMesh,
   TagDescriptor,
-} from './types';
-import { assignDiscriminativeClusterLabels } from './discriminativeLabels';
-import type { SubspaceZoomFeature } from './zoom';
+} from './types.js';
+import { assignDiscriminativeClusterLabels } from './discriminativeLabels.js';
+import type { SubspaceZoomFeature } from './zoom.js';
 
 /**
  * Reason why the engine or snapshot solver invoked a strategy recomputation.

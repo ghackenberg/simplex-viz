@@ -1,4 +1,4 @@
-import type { CameraController, CameraState, Point2D } from './types';
+import type { CameraController, CameraState, Point2D } from './types.js';
 
 /**
  * 2D affine camera managing zoom, pan, and screen/world coordinate transforms.

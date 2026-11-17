@@ -1,5 +1,5 @@
-import type { ClusterDerivationContext, PeerClusterContext } from './types';
-import type { SubspaceZoomFeature } from './zoom';
+import type { ClusterDerivationContext, PeerClusterContext } from './types.js';
+import type { SubspaceZoomFeature } from './zoom.js';
 
 /**
  * Input cluster descriptor accepted by `assignDiscriminativeClusterLabels`.

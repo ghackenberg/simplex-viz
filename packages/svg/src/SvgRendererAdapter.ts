@@ -13,12 +13,12 @@ import {
   type SimplexColorTheme,
   type SimplexRendererAdapter,
 } from '@simplex-viz/core';
-import { measureVisualWithSvgView, SVG_NS } from './hullMeasure';
-import type { SvgEdgeView, SvgNodeView, SvgTriangleView } from './types';
+import { measureVisualWithSvgView, SVG_NS } from './hullMeasure.js';
+import type { SvgEdgeView, SvgNodeView, SvgTriangleView } from './types.js';
 import {
   DashedMeshEdgeSvgView,
   OklabTintTriangleSvgView,
-} from './views/MeshFaceEdgeViews';
+} from './views/MeshFaceEdgeViews.js';
 
 export interface SvgRendererOptions<
   TContentVisual,

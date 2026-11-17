@@ -1,6 +1,6 @@
 import type { ConvexGeometry, NodeRenderState } from '@simplex-viz/core';
-import { SVG_NS } from '../hullMeasure';
-import type { SvgNodeView } from '../types';
+import { SVG_NS } from '../hullMeasure.js';
+import type { SvgNodeView } from '../types.js';
 
 export interface TopicSectorSlice {
   readonly colorHex: string;

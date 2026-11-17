@@ -3,7 +3,7 @@ import {
   type ConvexGeometry,
   type NodeRenderState,
 } from '@simplex-viz/core';
-import type { SvgNodeView } from './types';
+import type { SvgNodeView } from './types.js';
 
 export const SVG_NS = 'http://www.w3.org/2000/svg';
 
