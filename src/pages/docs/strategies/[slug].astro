@@ -51,8 +51,14 @@ const jsonLd = {
 <DocsShellLayout
   title={spec.name}
   description={spec.summary}
-  kicker={`Stage 0${spec.stage} Strategy`}
+  kicker={`Stage 0${spec.stage}`}
   metaLine={metaParts.join(' · ')}
+  breadcrumbs={[
+    { label: 'Docs', href: '/docs' },
+    { label: 'Strategies', href: '/docs/strategies' },
+    { label: `Stage 0${spec.stage}`, href: `/docs/${spec.docSlug}` },
+    { label: spec.name },
+  ]}
   headings={[
     { depth: 2, slug: 'visual-mechanism', text: 'Visual Mechanism' },
     { depth: 2, slug: 'factory-signature', text: 'Factory Signature' },

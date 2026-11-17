@@ -46,7 +46,11 @@ const jsonLd = {
   title={entry.data.title}
   description={entry.data.description}
   kicker={entry.data.section}
-  metaLine={`${entry.data.readingMinutes} min read · Updated ${entry.data.updatedDate}`}
+  metaLine={`${entry.data.section} · ${entry.data.readingMinutes} min read · Updated ${entry.data.updatedDate}`}
+  breadcrumbs={[
+    { label: 'Docs', href: '/docs' },
+    { label: entry.data.shortTitle },
+  ]}
   headings={headings}
   activeSlug={entry.id}
   activeGroup="docs"

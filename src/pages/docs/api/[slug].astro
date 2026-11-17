@@ -30,6 +30,11 @@ const jsonLd = {
   description={entry.data.description}
   kicker="API Reference"
   metaLine={`${entry.data.packageName} v${entry.data.version} · ${entry.data.layerLabel}`}
+  breadcrumbs={[
+    { label: 'Docs', href: '/docs' },
+    { label: 'API Reference', href: '/docs/api' },
+    { label: entry.data.packageName },
+  ]}
   headings={[
     { depth: 2, slug: 'primary-exports', text: 'Primary Exports' },
     ...headings,

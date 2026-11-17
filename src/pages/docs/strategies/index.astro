@@ -15,8 +15,12 @@ const stageGroups = [
 <DocsShellLayout
   title="Built-In Strategy Catalog"
   description={`Complete reference index of all ${ALL_STRATEGY_IDS.length} canonical SimplexViz strategies across the 5 pluggable pipeline stages—each with its own dedicated configuration and algorithm page.`}
-  kicker="Core Strategies"
+  kicker="Strategies"
   metaLine={`5 Pipeline Stages · ${ALL_STRATEGY_IDS.length} Named Strategies`}
+  breadcrumbs={[
+    { label: 'Docs', href: '/docs' },
+    { label: 'Strategies' },
+  ]}
   activeSlug="index"
   activeGroup="strategies"
 >

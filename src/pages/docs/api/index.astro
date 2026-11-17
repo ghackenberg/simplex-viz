@@ -13,6 +13,10 @@ const apiPackages = (await getCollection('api')).sort(
   description="Package-by-package API documentation for @simplex-viz/core, @simplex-viz/svg, and @simplex-viz/react."
   kicker="API Reference"
   metaLine={`v${SITE_META.version} · 3 Monorepo Packages`}
+  breadcrumbs={[
+    { label: 'Docs', href: '/docs' },
+    { label: 'API Reference' },
+  ]}
   activeSlug="index"
   activeGroup="api"
 >
