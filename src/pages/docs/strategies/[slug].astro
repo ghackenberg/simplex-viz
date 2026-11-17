@@ -130,9 +130,9 @@ const jsonLd = {
           {siblings.map((sib) => (
             <a
               href={withBase(sib.strategyDocPath)}
-              class="rounded-lg border border-slate-200/80 bg-slate-50/70 p-3.5 hover:border-cyan-500/70 dark:border-slate-800 dark:bg-[#07090E] dark:hover:border-cyan-400/60 transition-colors"
+              class="group rounded-lg border border-slate-200/80 bg-slate-50/70 p-3.5 transition-colors hover:border-cyan-500/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:border-slate-800 dark:bg-[#07090E] dark:hover:border-cyan-400/60"
             >
-              <span class="block text-xs font-semibold text-slate-900 dark:text-white">
+              <span class="block text-xs font-semibold text-slate-900 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors">
                 {sib.name}
               </span>
               <span class="mt-0.5 block font-mono text-[11px] text-slate-500 dark:text-slate-400">
@@ -153,12 +153,12 @@ const jsonLd = {
       prevSpec ? (
         <a
           href={withBase(prevSpec.strategyDocPath)}
-          class="rounded-lg border border-slate-200/90 bg-white p-4 hover:border-cyan-500/70 dark:border-slate-800/90 dark:bg-[#0B0F17] dark:hover:border-cyan-400/60 transition-colors"
+          class="group rounded-lg border border-slate-200/90 bg-white p-4 transition-colors hover:border-cyan-500/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:border-slate-800/90 dark:bg-[#0B0F17] dark:hover:border-cyan-400/60"
         >
           <span class="block text-xs text-slate-500 dark:text-slate-400">
             Previous Strategy (Stage 0{prevSpec.stage})
           </span>
-          <span class="mt-1 block text-sm font-semibold text-slate-950 dark:text-white">
+          <span class="mt-1 block text-sm font-semibold text-slate-950 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors">
             ← {prevSpec.name}
           </span>
         </a>
@@ -171,12 +171,12 @@ const jsonLd = {
       nextSpec && (
         <a
           href={withBase(nextSpec.strategyDocPath)}
-          class="rounded-lg border border-slate-200/90 bg-white p-4 text-right hover:border-cyan-500/70 dark:border-slate-800/90 dark:bg-[#0B0F17] dark:hover:border-cyan-400/60 transition-colors"
+          class="group rounded-lg border border-slate-200/90 bg-white p-4 text-right transition-colors hover:border-cyan-500/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:border-slate-800/90 dark:bg-[#0B0F17] dark:hover:border-cyan-400/60"
         >
           <span class="block text-xs text-slate-500 dark:text-slate-400">
             Next Strategy (Stage 0{nextSpec.stage})
           </span>
-          <span class="mt-1 block text-sm font-semibold text-slate-950 dark:text-white">
+          <span class="mt-1 block text-sm font-semibold text-slate-950 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors">
             {nextSpec.name} →
           </span>
         </a>
