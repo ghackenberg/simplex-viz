@@ -1,0 +1,58 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { withBase } from '../site/url';
+
+interface Props {
+  post: CollectionEntry<'notes'>;
+  headingTag?: 'h2' | 'h3';
+  clampDescription?: boolean;
+  surface?: 'card' | 'inset';
+}
+
+const {
+  post,
+  headingTag = 'h2',
+  clampDescription = false,
+  surface = 'card',
+} = Astro.props;
+
+const Heading = headingTag;
+const surfaceClasses =
+  surface === 'inset'
+    ? 'bg-slate-50/60 dark:bg-[#07090E]'
+    : 'bg-white dark:bg-[#0B0F17]';
+---
+
+<a
+  href={withBase(`/notes/${post.id}`)}
+  class:list={[
+    'group flex flex-col justify-between rounded-xl border border-slate-200/90 p-5 sm:p-6 transition-colors hover:border-cyan-500/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:border-slate-800/90 dark:hover:border-cyan-400/60',
+    surfaceClasses,
+  ]}
+>
+  <div>
+    <p class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+      {post.data.publishedDate} · {post.data.readingMinutes} min read
+    </p>
+    <Heading class="mt-2 text-lg font-semibold leading-snug text-slate-950 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors [text-wrap:balance]">
+      {post.data.title}
+    </Heading>
+    <p
+      class:list={[
+        'mt-2.5 text-xs sm:text-[13px] leading-relaxed text-slate-600 dark:text-slate-300',
+        clampDescription && 'line-clamp-3',
+      ]}
+    >
+      {post.data.description}
+    </p>
+  </div>
+
+  <div class="mt-5 flex items-center justify-between gap-2 border-t border-slate-200/70 pt-3.5 text-xs dark:border-slate-800/80">
+    <span class="inline-flex items-center font-semibold text-cyan-700 group-hover:underline dark:text-cyan-300 whitespace-nowrap shrink-0">
+      Read note →
+    </span>
+    <span class="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+      {post.data.author}
+    </span>
+  </div>
+</a>

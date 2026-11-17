@@ -1,11 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
-import {
-  getDatasetItemCount,
-  getDatasetSourceInfo,
-} from '../../demo/data/multimodalCatalog';
+import ExamplePreviewCard from '../../components/ExamplePreviewCard.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getStrategySpec } from '../../site/strategies';
 import { withBase } from '../../site/url';
 
 const datasets = (await getCollection('datasets')).sort(
@@ -39,72 +35,7 @@ const datasets = (await getCollection('datasets')).sort(
     </div>
 
     <div class="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {
-        datasets.map((ds) => {
-          const itemCount = getDatasetItemCount(ds.data.datasetId);
-          const source = getDatasetSourceInfo(ds.data.datasetId);
-          const pipeline = [
-            { stage: '01 Mesh', spec: getStrategySpec(ds.data.meshStrategy) },
-            { stage: '02 Cluster', spec: getStrategySpec(ds.data.clusteringStrategy) },
-            { stage: '03 Color', spec: getStrategySpec(ds.data.colorStrategy) },
-            { stage: '04 Layout', spec: getStrategySpec(ds.data.layoutStrategy) },
-            { stage: '05 Zoom', spec: getStrategySpec(ds.data.zoomStrategy) },
-          ];
-          return (
-            <article class="group relative flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-5 sm:p-6 transition-colors hover:border-cyan-500/70 has-[.sv-card-overlay-link:focus-visible]:ring-2 has-[.sv-card-overlay-link:focus-visible]:ring-cyan-500/70 dark:border-slate-800/90 dark:bg-[#0B0F17] dark:hover:border-cyan-400/60">
-              <div>
-                <p class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                  {ds.data.domainLabel} · {itemCount} items · {source.sourceShort}
-                </p>
-
-                <h2 class="mt-2 text-lg font-semibold leading-snug text-slate-950 dark:text-white [text-wrap:balance]">
-                  <a
-                    href={withBase(`/examples/${ds.id}`)}
-                    class="sv-card-overlay-link focus:outline-none after:absolute after:inset-0 after:z-0 after:rounded-xl group-hover:text-cyan-700 dark:group-hover:text-cyan-300 transition-colors"
-                  >
-                    {ds.data.title}
-                  </a>
-                </h2>
-
-                <p class="mt-1.5 font-mono text-[11px] text-cyan-700 dark:text-cyan-400">
-                  {ds.data.representationLabel} · {source.license}
-                </p>
-
-                <p class="mt-2.5 text-xs sm:text-[13px] leading-relaxed text-slate-600 dark:text-slate-300">
-                  {ds.data.description}
-                </p>
-
-                <dl class="mt-5 space-y-1.5 border-t border-slate-200/70 pt-3.5 text-xs dark:border-slate-800/80">
-                  {pipeline.map(({ stage, spec }) => (
-                    <div class="flex items-baseline justify-between gap-3">
-                      <dt class="font-mono text-[11px] text-slate-500 dark:text-slate-400 shrink-0">
-                        {stage}
-                      </dt>
-                      <dd class="font-medium text-right text-slate-900 dark:text-slate-100 truncate">
-                        <a
-                          href={withBase(spec.strategyDocPath)}
-                          class="relative z-10 rounded-sm hover:text-cyan-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:hover:text-cyan-300 transition-colors"
-                        >
-                          {spec.name}
-                        </a>
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-
-              <div class="mt-5 border-t border-slate-200/70 pt-3.5 flex items-center justify-between gap-2 text-xs dark:border-slate-800/80">
-                <span class="inline-flex items-center font-semibold text-cyan-700 group-hover:underline dark:text-cyan-300 whitespace-nowrap">
-                  Open Example →
-                </span>
-                <span class="font-mono text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
-                  {ds.data.readingMinutes} min read
-                </span>
-              </div>
-            </article>
-          );
-        })
-      }
+      {datasets.map((ds) => <ExamplePreviewCard dataset={ds} variant="detailed" />)}
     </div>
   </div>
 </BaseLayout>

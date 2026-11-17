@@ -1,0 +1,136 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import {
+  getDatasetItemCount,
+  getDatasetSourceInfo,
+} from '../demo/data/multimodalCatalog';
+import { getStrategySpec } from '../site/strategies';
+import { withBase } from '../site/url';
+
+interface Props {
+  dataset: CollectionEntry<'datasets'>;
+  variant?: 'compact' | 'detailed';
+  headingTag?: 'h2' | 'h3';
+  surface?: 'card' | 'inset';
+}
+
+const {
+  dataset,
+  variant = 'detailed',
+  headingTag = variant === 'compact' ? 'h3' : 'h2',
+  surface = variant === 'compact' ? 'inset' : 'card',
+} = Astro.props;
+
+const Heading = headingTag;
+const itemCount = getDatasetItemCount(dataset.data.datasetId);
+const source = getDatasetSourceInfo(dataset.data.datasetId);
+const exampleHref = withBase(`/examples/${dataset.id}`);
+
+const clusteringSpec = getStrategySpec(dataset.data.clusteringStrategy);
+const zoomSpec = getStrategySpec(dataset.data.zoomStrategy);
+
+const pipeline = [
+  { stage: '01 Mesh', spec: getStrategySpec(dataset.data.meshStrategy) },
+  { stage: '02 Cluster', spec: clusteringSpec },
+  { stage: '03 Color', spec: getStrategySpec(dataset.data.colorStrategy) },
+  { stage: '04 Layout', spec: getStrategySpec(dataset.data.layoutStrategy) },
+  { stage: '05 Zoom', spec: zoomSpec },
+];
+
+const surfaceClasses =
+  surface === 'inset'
+    ? 'bg-slate-50/60 dark:bg-[#07090E]'
+    : 'bg-white dark:bg-[#0B0F17]';
+---
+
+{
+  variant === 'compact' ? (
+    <a
+      href={exampleHref}
+      class:list={[
+        'group flex flex-col justify-between rounded-xl border border-slate-200/90 p-5 sm:p-6 transition-colors hover:border-cyan-500/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:border-slate-800/90 dark:hover:border-cyan-400/60',
+        surfaceClasses,
+      ]}
+    >
+      <div>
+        <p class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+          {dataset.data.domainLabel} · {itemCount} items · {source.sourceShort}
+        </p>
+
+        <Heading class="mt-2 text-lg font-semibold leading-snug text-slate-950 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors [text-wrap:balance]">
+          {dataset.data.title}
+        </Heading>
+
+        <p class="mt-2.5 text-xs sm:text-[13px] leading-relaxed text-slate-600 dark:text-slate-300 line-clamp-3">
+          {dataset.data.description}
+        </p>
+      </div>
+
+      <div class="mt-5 flex items-center justify-between gap-2 border-t border-slate-200/70 pt-3.5 text-xs dark:border-slate-800/80">
+        <span class="inline-flex items-center font-semibold text-cyan-700 group-hover:underline dark:text-cyan-300 whitespace-nowrap shrink-0">
+          Open Example →
+        </span>
+        <span class="font-mono text-[11px] text-slate-400 dark:text-slate-500 truncate">
+          {clusteringSpec.shortName} · {zoomSpec.shortName}
+        </span>
+      </div>
+    </a>
+  ) : (
+    <article
+      class:list={[
+        'group relative flex flex-col justify-between rounded-xl border border-slate-200/90 p-5 sm:p-6 transition-colors hover:border-cyan-500/70 has-[.sv-card-overlay-link:focus-visible]:ring-2 has-[.sv-card-overlay-link:focus-visible]:ring-cyan-500/70 dark:border-slate-800/90 dark:hover:border-cyan-400/60',
+        surfaceClasses,
+      ]}
+    >
+      <div>
+        <p class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+          {dataset.data.domainLabel} · {itemCount} items · {source.sourceShort}
+        </p>
+
+        <Heading class="mt-2 text-lg font-semibold leading-snug text-slate-950 dark:text-white [text-wrap:balance]">
+          <a
+            href={exampleHref}
+            class="sv-card-overlay-link focus:outline-none after:absolute after:inset-0 after:z-0 after:rounded-xl group-hover:text-cyan-700 dark:group-hover:text-cyan-300 transition-colors"
+          >
+            {dataset.data.title}
+          </a>
+        </Heading>
+
+        <p class="mt-1.5 font-mono text-[11px] text-cyan-700 dark:text-cyan-400">
+          {dataset.data.representationLabel} · {source.license}
+        </p>
+
+        <p class="mt-2.5 text-xs sm:text-[13px] leading-relaxed text-slate-600 dark:text-slate-300">
+          {dataset.data.description}
+        </p>
+
+        <dl class="mt-5 space-y-1.5 border-t border-slate-200/70 pt-3.5 text-xs dark:border-slate-800/80">
+          {pipeline.map(({ stage, spec }) => (
+            <div class="flex items-baseline justify-between gap-3">
+              <dt class="font-mono text-[11px] text-slate-500 dark:text-slate-400 shrink-0">
+                {stage}
+              </dt>
+              <dd class="font-medium text-right text-slate-900 dark:text-slate-100 truncate">
+                <a
+                  href={withBase(spec.strategyDocPath)}
+                  class="relative z-10 rounded-sm hover:text-cyan-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:hover:text-cyan-300 transition-colors"
+                >
+                  {spec.name}
+                </a>
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      <div class="mt-5 flex items-center justify-between gap-2 border-t border-slate-200/70 pt-3.5 text-xs dark:border-slate-800/80">
+        <span class="inline-flex items-center font-semibold text-cyan-700 group-hover:underline dark:text-cyan-300 whitespace-nowrap shrink-0">
+          Open Example →
+        </span>
+        <span class="font-mono text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
+          {dataset.data.readingMinutes} min read
+        </span>
+      </div>
+    </article>
+  )
+}

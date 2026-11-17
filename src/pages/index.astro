@@ -1,11 +1,9 @@
 ---
 import { getCollection } from 'astro:content';
+import ExamplePreviewCard from '../components/ExamplePreviewCard.astro';
 import { HeroAtlasIsland } from '../components/islands/HeroAtlasIsland';
+import NotePreviewCard from '../components/NotePreviewCard.astro';
 import { buildCommonsThumbManifest } from '../demo/commonsThumbs.server';
-import {
-  getDatasetItemCount,
-  getDatasetSourceInfo,
-} from '../demo/data/multimodalCatalog';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { ALL_STRATEGY_IDS, getStrategySpec } from '../site/strategies';
 import { SITE_META, withBase } from '../site/url';
@@ -282,41 +280,16 @@ const pipelineStages = [
         </div>
       </div>
 
-      <div class="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+      <div class="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {
-          datasets.map((ds) => {
-            const itemCount = getDatasetItemCount(ds.data.datasetId);
-            const source = getDatasetSourceInfo(ds.data.datasetId);
-            const clusteringSpec = getStrategySpec(ds.data.clusteringStrategy);
-            const zoomSpec = getStrategySpec(ds.data.zoomStrategy);
-            return (
-              <a
-                href={withBase(`/examples/${ds.id}`)}
-                class="group flex flex-col justify-between rounded-xl border border-slate-200/90 bg-slate-50/60 p-5 sm:p-6 hover:border-cyan-500/70 dark:border-slate-800/90 dark:bg-[#07090E] dark:hover:border-cyan-400/60 transition-colors"
-              >
-                <div>
-                  <p class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                    {ds.data.domainLabel} · {itemCount} items · {source.sourceShort}
-                  </p>
-                  <h3 class="mt-2 text-lg font-semibold leading-snug text-slate-950 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors [text-wrap:balance]">
-                    {ds.data.title}
-                  </h3>
-                  <p class="mt-2 text-xs sm:text-[13px] leading-relaxed text-slate-600 dark:text-slate-300 line-clamp-3">
-                    {ds.data.description}
-                  </p>
-                </div>
-
-                <div class="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/80 pt-3.5 text-xs dark:border-slate-800/80">
-                  <span class="text-slate-600 dark:text-slate-300 truncate">
-                    {clusteringSpec.shortName} · {zoomSpec.shortName}
-                  </span>
-                  <span class="font-semibold text-cyan-700 group-hover:underline dark:text-cyan-300 whitespace-nowrap shrink-0">
-                    Open →
-                  </span>
-                </div>
-              </a>
-            );
-          })
+          datasets.map((ds) => (
+            <ExamplePreviewCard
+              dataset={ds}
+              variant="compact"
+              headingTag="h3"
+              surface="inset"
+            />
+          ))
         }
       </div>
     </div>
@@ -343,28 +316,9 @@ const pipelineStages = [
           </a>
         </div>
 
-        <div class="mt-10 grid grid-cols-1 gap-5 md:grid-cols-3">
+        <div class="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {latestNotes.map((note) => (
-            <a
-              href={withBase(`/notes/${note.id}`)}
-              class="group flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-6 hover:border-cyan-500/70 dark:border-slate-800/90 dark:bg-[#0B0F17] dark:hover:border-cyan-400/60 transition-colors"
-            >
-              <div>
-                <p class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                  {note.data.publishedDate} · {note.data.readingMinutes} min read
-                </p>
-                <h3 class="mt-2 text-base sm:text-lg font-semibold text-slate-950 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors [text-wrap:balance]">
-                  {note.data.title}
-                </h3>
-                <p class="mt-2 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300 line-clamp-3">
-                  {note.data.description}
-                </p>
-              </div>
-
-              <p class="mt-5 text-xs font-semibold text-cyan-700 group-hover:underline dark:text-cyan-300">
-                Read note →
-              </p>
-            </a>
+            <NotePreviewCard post={note} headingTag="h3" clampDescription />
           ))}
         </div>
       </section>
