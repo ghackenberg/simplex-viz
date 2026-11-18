@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="ex-voice-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B111E"/>
+      <stop offset="65%" stop-color="#07090E"/>
+      <stop offset="100%" stop-color="#05070C"/>
+    </linearGradient>
+    <radialGradient id="ex-voice-glow" cx="50%" cy="50%" r="58%">
+      <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.17"/>
+      <stop offset="55%" stop-color="#10B981" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#07090E" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#ex-voice-bg)"/>
+  <rect width="800" height="450" fill="url(#ex-voice-glow)"/>
+
+  <!-- Fixed 3x2 Lattice Reference Lines -->
+  <g stroke="#1E293B" stroke-width="1.5" fill="none">
+    <polygon points="140,86 400,86 270,364"/>
+    <polygon points="400,86 270,364 530,364"/>
+    <polygon points="400,86 660,86 530,364"/>
+  </g>
+
+  <!-- Node 1: /i:/ High Front Corner Vowel Capsule -->
+  <g transform="translate(262, 128)">
+    <rect x="-148" y="-36" width="296" height="72" rx="12" fill="#0B101B" stroke="#22D3EE" stroke-width="2.6"/>
+    <rect x="-64" y="-28" width="204" height="56" rx="7" fill="#060A12"/>
+    <text x="-108" y="9" text-anchor="middle" font-family="Plus Jakarta Sans, Noto Sans, sans-serif" font-size="25" font-weight="700" fill="#F8FAFC">i:</text>
+    <line x1="-70" y1="-26" x2="-70" y2="26" stroke="#1E293B" stroke-width="2"/>
+    <!-- LPC Formant Envelope Bars -->
+    <rect x="-50" y="-10" width="9" height="20" rx="3" fill="#06B6D4"/>
+    <rect x="-34" y="-20" width="9" height="40" rx="3" fill="#22D3EE"/>
+    <rect x="-18" y="-14" width="9" height="28" rx="3" fill="#06B6D4"/>
+    <rect x="-2" y="-24" width="9" height="48" rx="3" fill="#38BDF8"/>
+    <rect x="14" y="-15" width="9" height="30" rx="3" fill="#06B6D4"/>
+    <rect x="30" y="-9" width="9" height="18" rx="3" fill="#22D3EE"/>
+    <rect x="46" y="-6" width="9" height="12" rx="3" fill="#06B6D4"/>
+    <text x="128" y="6" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="16" font-weight="600" fill="#CBD5E1">228Hz</text>
+  </g>
+
+  <!-- Node 2: /a:/ Open Front/Central Corner Vowel Capsule (Center Hero) -->
+  <g transform="translate(400, 225)">
+    <rect x="-166" y="-44" width="332" height="88" rx="15" fill="none" stroke="#34D399" stroke-opacity="0.38" stroke-width="2.2"/>
+    <rect x="-156" y="-36" width="312" height="72" rx="12" fill="#0B101B" stroke="#34D399" stroke-width="2.8"/>
+    <rect x="-70" y="-28" width="218" height="56" rx="7" fill="#060A12"/>
+    <text x="-114" y="9" text-anchor="middle" font-family="Plus Jakarta Sans, Noto Sans, sans-serif" font-size="25" font-weight="700" fill="#F8FAFC">a:</text>
+    <line x1="-76" y1="-26" x2="-76" y2="26" stroke="#1E293B" stroke-width="2"/>
+    <!-- LPC Formant Envelope Bars -->
+    <rect x="-56" y="-12" width="9" height="24" rx="3" fill="#10B981"/>
+    <rect x="-40" y="-23" width="9" height="46" rx="3" fill="#34D399"/>
+    <rect x="-24" y="-17" width="9" height="34" rx="3" fill="#10B981"/>
+    <rect x="-8" y="-8" width="9" height="16" rx="3" fill="#6EE7B7"/>
+    <rect x="8" y="-21" width="9" height="42" rx="3" fill="#10B981"/>
+    <rect x="24" y="-14" width="9" height="28" rx="3" fill="#34D399"/>
+    <rect x="40" y="-7" width="9" height="14" rx="3" fill="#10B981"/>
+    <text x="136" y="6" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="16" font-weight="600" fill="#CBD5E1">184Hz</text>
+  </g>
+
+  <!-- Node 3: /u:/ High Back Corner Vowel Capsule (Bottom-Right) -->
+  <g transform="translate(538, 322)">
+    <rect x="-148" y="-36" width="296" height="72" rx="12" fill="#0B101B" stroke="#FBBF24" stroke-width="2.6"/>
+    <rect x="-64" y="-28" width="204" height="56" rx="7" fill="#060A12"/>
+    <text x="-108" y="9" text-anchor="middle" font-family="Plus Jakarta Sans, Noto Sans, sans-serif" font-size="25" font-weight="700" fill="#F8FAFC">u:</text>
+    <line x1="-70" y1="-26" x2="-70" y2="26" stroke="#1E293B" stroke-width="2"/>
+    <!-- LPC Formant Envelope Bars -->
+    <rect x="-50" y="-6" width="9" height="12" rx="3" fill="#F59E0B"/>
+    <rect x="-34" y="-16" width="9" height="32" rx="3" fill="#FBBF24"/>
+    <rect x="-18" y="-24" width="9" height="48" rx="3" fill="#F59E0B"/>
+    <rect x="-2" y="-19" width="9" height="38" rx="3" fill="#FDE68A"/>
+    <rect x="14" y="-10" width="9" height="20" rx="3" fill="#F59E0B"/>
+    <rect x="30" y="-21" width="9" height="42" rx="3" fill="#FBBF24"/>
+    <rect x="46" y="-8" width="9" height="16" rx="3" fill="#F59E0B"/>
+    <text x="128" y="6" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="16" font-weight="600" fill="#CBD5E1">132Hz</text>
+  </g>
+</svg>

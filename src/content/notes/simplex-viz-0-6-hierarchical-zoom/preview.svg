@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="sv-06-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B111E"/>
+      <stop offset="65%" stop-color="#07090E"/>
+      <stop offset="100%" stop-color="#05070C"/>
+    </linearGradient>
+    <radialGradient id="sv-06-glow" cx="50%" cy="48%" r="58%">
+      <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.18"/>
+      <stop offset="60%" stop-color="#D946EF" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#07090E" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#sv-06-bg)"/>
+  <rect width="800" height="450" fill="url(#sv-06-glow)"/>
+
+  <!-- Outer Conformal 1:4 Triangle -->
+  <polygon points="400,66 218,382 582,382" fill="#06B6D4" fill-opacity="0.08" stroke="#475569" stroke-width="2.2"/>
+
+  <!-- Center Inverted 1:4 Cell -->
+  <polygon points="309,224 491,224 400,382" fill="#06B6D4" fill-opacity="0.18" stroke="#22D3EE" stroke-width="2.6"/>
+  <line x1="400" y1="66" x2="309" y2="224" stroke="#06B6D4" stroke-width="2"/>
+  <line x1="400" y1="66" x2="491" y2="224" stroke="#06B6D4" stroke-width="2"/>
+
+  <!-- Level 2 Nested Subdivision -->
+  <polygon points="354.5,224 445.5,224 400,303" fill="#D946EF" fill-opacity="0.22" stroke="#E879F9" stroke-width="2"/>
+
+  <!-- 1-Ring Orientation Stars -->
+  <circle cx="400" cy="252" r="10" fill="#22D3EE" stroke="#07090E" stroke-width="2"/>
+  <circle cx="309" cy="224" r="10" fill="#F8FAFC" stroke="#06B6D4" stroke-width="2.4"/>
+  <circle cx="491" cy="224" r="10" fill="#F8FAFC" stroke="#06B6D4" stroke-width="2.4"/>
+  <circle cx="400" cy="382" r="10" fill="#F8FAFC" stroke="#06B6D4" stroke-width="2.4"/>
+
+  <!-- Corner Anchors -->
+  <circle cx="400" cy="66" r="14" fill="#06B6D4" stroke="#07090E" stroke-width="2.5"/>
+  <circle cx="218" cy="382" r="14" fill="#F59E0B" stroke="#07090E" stroke-width="2.5"/>
+  <circle cx="582" cy="382" r="14" fill="#D946EF" stroke="#07090E" stroke-width="2.5"/>
+
+  <!-- Minimal Geometric Ratio Callout -->
+  <rect x="606" y="196" width="112" height="56" rx="10" fill="#0B0F17" stroke="#1E293B" stroke-width="1.5"/>
+  <text x="662" y="230" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="18" font-weight="700" fill="#22D3EE">1 : 4</text>
+</svg>

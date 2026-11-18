@@ -1,0 +1,44 @@
+---
+title: "Adaptive 60° Triangulation & Space-Filling PBD: Eliminating Collateral Shrink"
+description: How aspect-aligned lattice sizing, inward-fan seeding, and local pocket scaling eliminate global collateral shrink while preserving 0.0 px convex overlap.
+publishedDate: "2026-11-17"
+author: Dr. Georg Hackenberg
+authorRole: Creator of SimplexViz
+category: Geometry
+featured: false
+summaryPoints:
+  - Adaptive 60° triangulation aligns orientation and edge lengths to container aspect ratios instead of locking portrait or widescreen canvases into fixed grids.
+  - Mesh-inward fan seeding and space-filling PBD relaxation expand crowded anchor pockets into open triangle interiors before scaling runs.
+  - Local density and collision-driven scale controllers keep sparse regions at 1.0x scale while keeping overlap strictly at 0.0 px.
+---
+
+import StrategyDiagram from '../../../components/diagrams/StrategyDiagram.astro';
+
+When dozens of items attach to one topic anchor while adjacent triangles sit nearly empty, naive uniform scaling shrinks the **entire** graph down just to resolve one crowded pocket. Even well-separated nodes on the opposite side of the canvas become unreadable—a failure mode we call *collateral shrink*.
+
+## Fitting the 60° Lattice to Real Viewports
+
+Before placing a single item, Stage 1 (`createAdaptiveHexMeshStrategy` and `buildSimplexMesh`) evaluates the container's `(width, height)` aspect ratio:
+
+- **Orientation Selection**: Landscape and ultrawide canvases favor `horizontal` triangle rows; tall mobile viewports automatically rotate to `vertical` columns with optimal `wideFirst` parity.
+- **Adaptive Padding (`resolveDefaultInnerPadding`)**: Margins scale smoothly between `32 px` and `48 px` with viewport size, letting equilateral triangle edges grow past `minSideLength: 130` to fill the available frame rather than clustering in the center.
+
+<StrategyDiagram
+  kind="mesh"
+  caption="Adaptive 60° hex triangulation sizing edges to the viewport aspect ratio compared against a fixed cols × rows lattice."
+/>
+
+## Fanning Pockets Into Open Triangle Interiors
+
+Instead of shrinking every node immediately upon collision, Stage 4 separates spatial relaxation from scale selection using composable **`LayoutSeeder × PositionRelaxer × ScaleController`** pipelines:
+
+1. **Inward-Fan Seeding (`createMeshInwardFanSeeder`)**: Co-located anchors along shared edges or vertices are fanned deliberately toward the open interior of their covering simplex triangles rather than stacking on a single point.
+2. **Space-Filling PBD (`createSpaceFillingPbdRelaxer`)**: Iterative Position-Based Dynamics + SAT projection disperses dense clusters outward within triangle boundaries (`covering-triangle containment`), leaving well-spaced single-cluster halos unconstrained.
+3. **Localized Scale Control**: After dispersion settles, `createDensityPriorScaleController` (`createLocalAdaptiveLayoutStrategy`) computes smooth radial crowd gradients (`crowdRadiusPx: 76`, `minLocalScale: 0.35`), or `createCollisionLocalScaleController` (`createCollisionDrivenLayoutStrategy`) shrinks only pockets still experiencing local hull contact—leaving sparse items at a crisp `1.0x`.
+
+<StrategyDiagram
+  kind="layout"
+  caption="Comparing global uniform scaling (α_content) against collision-local pocket scaling where unaffected nodes stay at 1.0x."
+/>
+
+Whether you pick `createPbdUniformLayoutStrategy` for strict cross-corpus size comparability or `createLocalAdaptiveLayoutStrategy` for maximum legibility in skewed real-world distributions, every solved frame preserves `overlapCount === 0` and strict triangle containment.

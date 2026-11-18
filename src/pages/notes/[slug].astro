@@ -4,6 +4,7 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import KeyTakeaways from '../../components/KeyTakeaways.astro';
 import PageMeta from '../../components/PageMeta.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getNotePreviewSvg } from '../../site/notePreviews';
 import { getNoteReadingMinutes } from '../../site/readingTime';
 import { SITE_META, withBase } from '../../site/url';
 
@@ -11,24 +12,34 @@ export async function getStaticPaths() {
   const posts = (await getCollection('notes')).sort((a, b) =>
     b.data.publishedDate.localeCompare(a.data.publishedDate),
   );
-  return posts.map((post, idx) => ({
-    params: { slug: post.id },
-    props: {
-      post,
-      prevPost: idx < posts.length - 1 ? posts[idx + 1] : null,
-      nextPost: idx > 0 ? posts[idx - 1] : null,
-    },
-  }));
+  return posts.map((post, idx) => {
+    getNotePreviewSvg(post.id);
+    return {
+      params: { slug: post.id },
+      props: {
+        post,
+        prevPost: idx < posts.length - 1 ? posts[idx + 1] : null,
+        nextPost: idx > 0 ? posts[idx - 1] : null,
+      },
+    };
+  });
 }
 
 const { post, prevPost, nextPost } = Astro.props;
 const { Content } = await render(post);
+
+const notePreviewPath = `/notes/${post.id}.png`;
+const notePreviewUrl = new URL(
+  withBase(notePreviewPath),
+  SITE_META.canonicalOrigin,
+).toString();
 
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'TechArticle',
   headline: post.data.title,
   description: post.data.description,
+  image: notePreviewUrl,
   datePublished: post.data.publishedDate,
   author: {
     '@type': 'Person',
@@ -46,6 +57,8 @@ const jsonLd = {
   title={post.data.title}
   description={post.data.description}
   ogType="article"
+  ogImage={notePreviewPath}
+  ogImageAlt={`${post.data.title} — SimplexViz Engineering Note`}
   publishedTime={post.data.publishedDate}
   jsonLd={jsonLd}
 >

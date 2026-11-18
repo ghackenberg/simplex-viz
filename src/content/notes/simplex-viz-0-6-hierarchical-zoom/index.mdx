@@ -5,14 +5,14 @@ publishedDate: "2026-11-15"
 author: Dr. Georg Hackenberg
 authorRole: Creator of SimplexViz
 category: Release
-featured: true
+featured: false
 summaryPoints:
   - Conformal 1:4 triangle subdivision splits crowded cells along edge midpoints without flipping parent anchor orientations.
   - Internal midpoint previews, content pass-through, and 1-ring incident cluster stars preserve spatial orientation during drill-down.
   - Composable Seeder × Relaxer × ScaleController layouts maintain exact 0.0 px convex SAT separation across every zoom frame.
 ---
 
-import StrategyDiagram from '../../components/diagrams/StrategyDiagram.astro';
+import StrategyDiagram from '../../../components/diagrams/StrategyDiagram.astro';
 
 SimplexViz **0.6.0** expands the engine from a 4-stage static-mesh solver into a **5-stage hierarchical exploration stack** across `@simplex-viz/core`, `@simplex-viz/svg`, and `@simplex-viz/react`.
 

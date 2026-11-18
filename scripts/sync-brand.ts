@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
@@ -40,7 +40,7 @@ interface SceneSvgTarget {
 
 interface FileDiff {
   readonly filePath: string;
-  readonly reason: 'missing' | 'outdated';
+  readonly reason: 'missing' | 'outdated' | 'orphaned';
 }
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -462,6 +462,338 @@ function renderPng(
   return resvg.render().asPng();
 }
 
+type NoteCategory = 'Release' | 'Geometry' | 'Architecture';
+
+interface BundleMeta {
+  readonly slug: string;
+  readonly section: 'notes' | 'examples';
+  readonly badgeLabel: string;
+  readonly stageCardHeader: string;
+  readonly stageCardFooterTitle: string;
+  readonly stageCardFooterUrl: string;
+  readonly title: string;
+  readonly description: string;
+  readonly footerLeft: string;
+  readonly footerMiddle: string;
+  readonly theme: CategoryVisualTheme;
+}
+
+interface CategoryVisualTheme {
+  readonly label: string;
+  readonly accent: string;
+  readonly bright: string;
+  readonly ring: string;
+}
+
+const CATEGORY_THEMES: Readonly<Record<NoteCategory, CategoryVisualTheme>> = {
+  Release: {
+    label: 'RELEASE NOTE',
+    accent: BRAND_COLORS.cyan.core,
+    bright: BRAND_COLORS.cyan.brightEdge,
+    ring: BRAND_COLORS.cyan.ring,
+  },
+  Geometry: {
+    label: 'GEOMETRY',
+    accent: BRAND_COLORS.amber.core,
+    bright: BRAND_COLORS.amber.brightEdge,
+    ring: BRAND_COLORS.amber.ring,
+  },
+  Architecture: {
+    label: 'ARCHITECTURE',
+    accent: BRAND_COLORS.magenta.core,
+    bright: BRAND_COLORS.magenta.brightEdge,
+    ring: BRAND_COLORS.magenta.ring,
+  },
+};
+
+function getExampleTheme(fields: ReadonlyMap<string, string>): CategoryVisualTheme {
+  const requiresTags = fields.get('requiresTags') === 'true';
+  const colorStrategy = fields.get('colorStrategy') ?? '';
+  if (requiresTags) {
+    return {
+      label: (fields.get('domainLabel') ?? 'INTERACTIVE EXAMPLE').toUpperCase(),
+      accent: BRAND_COLORS.cyan.core,
+      bright: BRAND_COLORS.cyan.brightEdge,
+      ring: BRAND_COLORS.cyan.ring,
+    };
+  }
+  if (colorStrategy === 'oklab-edge-contrast' || colorStrategy === 'custom-brand-palette') {
+    return {
+      label: (fields.get('domainLabel') ?? 'INTERACTIVE EXAMPLE').toUpperCase(),
+      accent: BRAND_COLORS.amber.core,
+      bright: BRAND_COLORS.amber.brightEdge,
+      ring: BRAND_COLORS.amber.ring,
+    };
+  }
+  return {
+    label: (fields.get('domainLabel') ?? 'INTERACTIVE EXAMPLE').toUpperCase(),
+    accent: BRAND_COLORS.magenta.core,
+    bright: BRAND_COLORS.magenta.brightEdge,
+    ring: BRAND_COLORS.magenta.ring,
+  };
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function stripYamlQuotes(raw: string): string {
+  const trimmed = raw.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).replace(/\\"/g, '"').replace(/\\'/g, "'");
+  }
+  return trimmed;
+}
+
+function normalizeNoteCategory(raw: string): NoteCategory {
+  if (raw === 'Release' || raw === 'Geometry' || raw === 'Architecture') {
+    return raw;
+  }
+  return 'Architecture';
+}
+
+function parseYamlFields(label: string, mdxSource: string): Map<string, string> {
+  const fmMatch = /^---\r?\n([\s\S]*?)\r?\n---/.exec(mdxSource);
+  if (!fmMatch) {
+    throw new Error(`Missing YAML frontmatter in ${label}`);
+  }
+
+  const fields = new Map<string, string>();
+  const lines = (fmMatch[1] ?? '').split(/\r?\n/);
+  for (const line of lines) {
+    const kvMatch = /^([A-Za-z][A-Za-z0-9_]*):\s*(.+)$/.exec(line);
+    if (kvMatch) {
+      const key = kvMatch[1];
+      const rawValue = kvMatch[2];
+      if (key && rawValue !== undefined && !rawValue.startsWith('[')) {
+        fields.set(key, stripYamlQuotes(rawValue));
+      }
+    }
+  }
+  return fields;
+}
+
+function parseNoteFrontmatter(slug: string, mdxSource: string): BundleMeta {
+  const fields = parseYamlFields(`note "${slug}"`, mdxSource);
+  const category = normalizeNoteCategory(fields.get('category') ?? 'Architecture');
+  const theme = CATEGORY_THEMES[category];
+  return {
+    slug,
+    section: 'notes',
+    badgeLabel: theme.label,
+    stageCardHeader: `${category.toUpperCase()} · PREVIEW`,
+    stageCardFooterTitle: 'SIMPLEXVIZ ENGINEERING NOTES',
+    stageCardFooterUrl: 'hackenberg.tech/simplex-viz/notes',
+    title: fields.get('title') ?? slug,
+    description: fields.get('description') ?? '',
+    footerLeft: fields.get('publishedDate') ?? '2026-11-18',
+    footerMiddle: fields.get('author') ?? 'Dr. Georg Hackenberg',
+    theme,
+  };
+}
+
+function parseExampleFrontmatter(slug: string, mdxSource: string): BundleMeta {
+  const fields = parseYamlFields(`example "${slug}"`, mdxSource);
+  const theme = getExampleTheme(fields);
+  const requiresTags = fields.get('requiresTags') === 'true';
+  return {
+    slug,
+    section: 'examples',
+    badgeLabel: theme.label,
+    stageCardHeader: `${requiresTags ? 'TAGGED' : 'VECTOR / KERNEL'} · PREVIEW`,
+    stageCardFooterTitle: 'SIMPLEXVIZ INTERACTIVE EXAMPLES',
+    stageCardFooterUrl: 'hackenberg.tech/simplex-viz/examples',
+    title: fields.get('title') ?? slug,
+    description: fields.get('description') ?? '',
+    footerLeft: fields.get('representationLabel') ?? '60° Simplex Atlas',
+    footerMiddle: requiresTags ? 'Tagged Dataset' : 'Tag-Free Vectors',
+    theme,
+  };
+}
+
+function wrapTextLines(
+  text: string,
+  maxCharsPerLine: number,
+  maxLines: number,
+): readonly string[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) {
+    return [];
+  }
+
+  const lines: string[] = [];
+  let current = '';
+
+  for (let i = 0; i < words.length; i += 1) {
+    const word = words[i] ?? '';
+    const candidate = current.length === 0 ? word : `${current} ${word}`;
+
+    if (candidate.length <= maxCharsPerLine || current.length === 0) {
+      current = candidate;
+    } else {
+      if (lines.length + 1 >= maxLines) {
+        const clipped =
+          current.length > maxCharsPerLine - 1
+            ? `${current.slice(0, maxCharsPerLine - 2).trimEnd()}…`
+            : `${current}…`;
+        lines.push(clipped);
+        return lines;
+      }
+      lines.push(current);
+      current = word;
+    }
+  }
+
+  if (current.length > 0) {
+    if (lines.length >= maxLines) {
+      const prev = lines[lines.length - 1] ?? '';
+      lines[lines.length - 1] = prev.endsWith('…') ? prev : `${prev}…`;
+    } else {
+      lines.push(current);
+    }
+  }
+
+  return lines;
+}
+
+function extractSvgFragment(
+  svgSource: string,
+  sourceLabel: string,
+): { readonly viewBox: string; readonly innerXml: string } {
+  const stripped = svgSource.replace(/<\?xml[\s\S]*?\?>\s*/i, '').trim();
+  const openMatch = /^<svg\b([^>]*)>/i.exec(stripped);
+  const closeIdx = stripped.lastIndexOf('</svg>');
+  if (!openMatch || closeIdx === -1) {
+    throw new Error(
+      `Invalid preview.svg in ${sourceLabel}: expected a root <svg>...</svg> element.`,
+    );
+  }
+
+  const attrs = openMatch[1] ?? '';
+  const vbMatch = /\bviewBox=(?:"([^"]+)"|'([^']+)')/i.exec(attrs);
+  const viewBox = vbMatch?.[1] ?? vbMatch?.[2] ?? '0 0 800 450';
+  const innerXml = stripped.slice(openMatch[0].length, closeIdx).trim();
+  return { viewBox, innerXml };
+}
+
+function renderSocialPreviewSvg(
+  meta: BundleMeta,
+  contentRelDir: string,
+  previewSvgSource: string,
+): string {
+  const theme = meta.theme;
+  const markDefs = indentLines(getMarkGradientLines(false), '    ');
+  const markNodes = indentLines(getMarkGeometryLines(), '        ');
+  const fragment = extractSvgFragment(
+    previewSvgSource,
+    `${contentRelDir}/${meta.slug}/preview.svg`,
+  );
+
+  const titleLines = wrapTextLines(meta.title, 27, 4);
+  const titleFontSize = titleLines.length >= 4 ? 31 : 33;
+  const titleLineHeight = titleLines.length >= 4 ? 39 : 42;
+  const titleStartY = 148;
+  const titleTspans = titleLines
+    .map(
+      (line, index) =>
+        `<text x="0" y="${titleStartY + index * titleLineHeight}" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="${titleFontSize}" font-weight="700" letter-spacing="-0.6" fill="#F8FAFC">${escapeXml(line)}</text>`,
+    )
+    .join('\n    ');
+
+  const descLines = wrapTextLines(meta.description, 49, 4);
+  const descStartY = titleStartY + (titleLines.length - 1) * titleLineHeight + 44;
+  const descTspans = descLines
+    .map(
+      (line, index) =>
+        `<text x="0" y="${descStartY + index * 26}" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="17" font-weight="400" fill="#94A3B8">${escapeXml(line)}</text>`,
+    )
+    .join('\n    ');
+
+  const badgeWidth = Math.max(120, Math.round(meta.badgeLabel.length * 8.6 + 46));
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bundleOgBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B111E"/>
+      <stop offset="60%" stop-color="#07090E"/>
+      <stop offset="100%" stop-color="#05070C"/>
+    </linearGradient>
+    <radialGradient id="bundleOgGlow" cx="76%" cy="48%" r="52%">
+      <stop offset="0%" stop-color="${theme.accent}" stop-opacity="0.20"/>
+      <stop offset="55%" stop-color="${BRAND_COLORS.cyan.core}" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#07090E" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="bundleStageClip">
+      <rect x="0" y="0" width="466" height="400" rx="16"/>
+    </clipPath>
+${markDefs}
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bundleOgBg)"/>
+  <rect width="1200" height="630" fill="url(#bundleOgGlow)"/>
+
+  <!-- Left Editorial Info Column -->
+  <g transform="translate(56, 56)">
+    <!-- Compact Brand Header -->
+    <g transform="translate(0, 0)">
+      <g transform="scale(0.088)">
+${markNodes}
+      </g>
+      <text x="58" y="30" font-family="Plus Jakarta Sans, Noto Sans, sans-serif" font-size="24" font-weight="700" letter-spacing="-0.4">
+        <tspan fill="#F8FAFC">Simplex</tspan><tspan fill="${BRAND_COLORS.cyan.core}">Viz</tspan><tspan fill="#64748B" font-weight="400"> / </tspan><tspan fill="#CBD5E1" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="19" font-weight="600">${escapeXml(meta.section)}</tspan>
+      </text>
+    </g>
+
+    <!-- Category / Domain Badge -->
+    <rect x="0" y="70" width="${badgeWidth}" height="30" rx="6" fill="${theme.accent}" fill-opacity="0.14" stroke="${theme.accent}" stroke-opacity="0.65" stroke-width="1.2"/>
+    <circle cx="16" cy="85" r="4.2" fill="${theme.accent}"/>
+    <text x="30" y="89.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="12" font-weight="700" letter-spacing="0.8" fill="${theme.bright}">${escapeXml(meta.badgeLabel)}</text>
+
+    <!-- Title -->
+    ${titleTspans}
+
+    <!-- Description -->
+    ${descTspans}
+
+    <!-- Footer Metadata -->
+    <line x1="0" y1="472" x2="584" y2="472" stroke="#1E293B" stroke-width="1.2"/>
+    <text x="0" y="502" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="13.5" fill="#94A3B8">
+      <tspan fill="${theme.bright}" font-weight="600">${escapeXml(meta.footerLeft)}</tspan><tspan fill="#475569">  ·  </tspan><tspan fill="#CBD5E1">${escapeXml(meta.footerMiddle)}</tspan><tspan fill="#475569">  ·  </tspan><tspan fill="#64748B">hackenberg.tech</tspan>
+    </text>
+  </g>
+
+  <!-- Right Geometric Preview Card (embeds colocated preview.svg 16:9) -->
+  <g transform="translate(678, 115)">
+    <rect x="0" y="0" width="466" height="400" rx="16" fill="#090D16" stroke="#1E293B" stroke-width="2"/>
+    <g clip-path="url(#bundleStageClip)">
+      <rect x="0" y="0" width="466" height="40" fill="#0B0F17"/>
+      <line x1="0" y1="40" x2="466" y2="40" stroke="#1E293B" stroke-width="1.2"/>
+      <circle cx="20" cy="20" r="4.5" fill="${theme.accent}"/>
+      <text x="34" y="24" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11.5" font-weight="600" fill="#CBD5E1">${escapeXml(meta.stageCardHeader)}</text>
+      <text x="448" y="24" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11" fill="#64748B">60° SIMPLEX</text>
+
+      <svg x="0" y="40" width="466" height="262.125" viewBox="${escapeXml(fragment.viewBox)}" preserveAspectRatio="xMidYMid meet">
+        ${fragment.innerXml}
+      </svg>
+
+      <line x1="0" y1="302.125" x2="466" y2="302.125" stroke="#1E293B" stroke-width="1.2"/>
+      <rect x="0" y="302.125" width="466" height="98" fill="#0B0F17"/>
+      <text x="22" y="338" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11.5" font-weight="600" fill="#64748B">${escapeXml(meta.stageCardFooterTitle)}</text>
+      <text x="22" y="366" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13" font-weight="600" fill="${theme.bright}">${escapeXml(meta.stageCardFooterUrl)}</text>
+    </g>
+  </g>
+</svg>
+`;
+}
+
 const BANNER_LOGOS: readonly BannerLogoSpec[] = [
   {
     svgPath: 'docs/assets/logo-simplex-viz.svg',
@@ -557,6 +889,14 @@ async function readOptionalBinary(absPath: string): Promise<Buffer | null> {
   }
 }
 
+async function readOptionalDir(absPath: string): Promise<readonly string[]> {
+  try {
+    return await readdir(absPath);
+  } catch {
+    return [];
+  }
+}
+
 async function readOptionalText(absPath: string): Promise<string | null> {
   try {
     return await readFile(absPath, 'utf8');
@@ -583,6 +923,7 @@ async function syncBinaryOutput(
     return false;
   }
 
+  await mkdir(path.dirname(absPath), { recursive: true });
   await writeFile(absPath, expected);
   return true;
 }
@@ -614,6 +955,7 @@ async function main(): Promise<void> {
   const checkOnly = args.includes('--check');
   const diffs: FileDiff[] = [];
   let updatedCount = 0;
+  let removedCount = 0;
 
   const markDefsLines = getMarkGradientLines(false);
   const markNodeLines = getMarkGeometryLines();
@@ -706,6 +1048,93 @@ async function main(): Promise<void> {
         updatedCount += 1;
       }
     }
+
+    // 7 & 8. Validate mandatory bundle directories (<slug>/index.mdx + <slug>/preview.svg),
+    // generate 1200x630 Social OG PNGs, and prune orphaned assets for both notes and examples.
+    const bundlePipelines: ReadonlyArray<{
+      readonly label: string;
+      readonly contentRelDir: string;
+      readonly publicRelDir: string;
+      readonly parseMeta: (slug: string, mdxSource: string) => BundleMeta;
+    }> = [
+      {
+        label: 'note',
+        contentRelDir: 'src/content/notes',
+        publicRelDir: 'public/notes',
+        parseMeta: parseNoteFrontmatter,
+      },
+      {
+        label: 'example',
+        contentRelDir: 'src/content/datasets',
+        publicRelDir: 'public/examples',
+        parseMeta: parseExampleFrontmatter,
+      },
+    ];
+
+    for (const pipeline of bundlePipelines) {
+      const contentDir = path.join(ROOT_DIR, pipeline.contentRelDir);
+      const entries = (await readdir(contentDir, { withFileTypes: true })).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      );
+      const expectedAssets = new Set<string>();
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) {
+          throw new Error(
+            `Invalid entry "${pipeline.contentRelDir}/${entry.name}": every ${pipeline.label} must live in its own directory with index.mdx and preview.svg.`,
+          );
+        }
+
+        const slug = entry.name;
+        const mdxSource = await readOptionalText(path.join(contentDir, slug, 'index.mdx'));
+        if (mdxSource === null) {
+          throw new Error(
+            `${pipeline.label === 'note' ? 'Note' : 'Example'} directory "${pipeline.contentRelDir}/${slug}" is missing mandatory index.mdx.`,
+          );
+        }
+
+        const previewSvgSource = await readOptionalText(
+          path.join(contentDir, slug, 'preview.svg'),
+        );
+        if (previewSvgSource === null || !previewSvgSource.includes('<svg')) {
+          throw new Error(
+            `${pipeline.label === 'note' ? 'Note' : 'Example'} directory "${pipeline.contentRelDir}/${slug}" is missing mandatory preview.svg.`,
+          );
+        }
+
+        const meta = pipeline.parseMeta(slug, mdxSource);
+        const ogFileName = `${slug}.png`;
+        expectedAssets.add(ogFileName);
+        const ogSvg = renderSocialPreviewSvg(meta, pipeline.contentRelDir, previewSvgSource);
+        const ogPngBuffer = renderPng(ogSvg, 1200, fontFiles);
+        if (
+          await syncBinaryOutput(
+            `${pipeline.publicRelDir}/${ogFileName}`,
+            ogPngBuffer,
+            checkOnly,
+            diffs,
+          )
+        ) {
+          updatedCount += 1;
+        }
+      }
+
+      const publicOutDir = path.join(ROOT_DIR, pipeline.publicRelDir);
+      const existingPublicFiles = (await readOptionalDir(publicOutDir)).slice().sort();
+      for (const existingName of existingPublicFiles) {
+        if (!expectedAssets.has(existingName)) {
+          if (checkOnly) {
+            diffs.push({
+              filePath: `${pipeline.publicRelDir}/${existingName}`,
+              reason: 'orphaned',
+            });
+          } else {
+            await rm(path.join(publicOutDir, existingName), { recursive: true, force: true });
+            removedCount += 1;
+          }
+        }
+      }
+    }
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -724,7 +1153,9 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log(`Brand sync complete (${updatedCount} file(s) updated).`);
+  console.log(
+    `Brand sync complete (${updatedCount} file(s) updated, ${removedCount} orphaned file(s) removed).`,
+  );
 }
 
 await main();

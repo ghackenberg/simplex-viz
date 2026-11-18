@@ -93,7 +93,7 @@ const api = defineCollection({
  * so displayed counts can never drift out of sync with actual data arrays.
  */
 const datasets = defineCollection({
-  loader: glob({ pattern: '**/*.mdx', base: './src/content/datasets' }),
+  loader: glob({ pattern: '*/index.mdx', base: './src/content/datasets' }),
   schema: z.object({
     title: z.string(),
     datasetId: z.enum(DEMO_DATASET_IDS),
@@ -117,7 +117,7 @@ const datasets = defineCollection({
  * 5. Engineering & Release Notes (`/notes/[slug]`)
  */
 const notes = defineCollection({
-  loader: glob({ pattern: '**/*.mdx', base: './src/content/notes' }),
+  loader: glob({ pattern: '*/index.mdx', base: './src/content/notes' }),
   schema: z.object({
     title: z.string(),
     description: z.string(),

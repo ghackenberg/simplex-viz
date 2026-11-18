@@ -12,6 +12,7 @@ import {
   type DemoEntity,
 } from '../../demo/data/multimodalCatalog';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getDatasetPreviewSvg } from '../../site/datasetPreviews';
 import { EXAMPLE_CODE_SNIPPETS } from '../../site/exampleSnippets';
 import { SITE_META, withBase } from '../../site/url';
 
@@ -19,10 +20,13 @@ export async function getStaticPaths() {
   const entries = (await getCollection('datasets')).sort(
     (a, b) => a.data.order - b.data.order,
   );
-  return entries.map((entry) => ({
-    params: { slug: entry.id },
-    props: { entry },
-  }));
+  return entries.map((entry) => {
+    getDatasetPreviewSvg(entry.id);
+    return {
+      params: { slug: entry.id },
+      props: { entry },
+    };
+  });
 }
 
 const { entry } = Astro.props;
@@ -112,11 +116,18 @@ const datasetJson = JSON.stringify(
   return `[${inner.replace(/\s+/g, ' ').trim()}]`;
 });
 
+const examplePreviewPath = `/examples/${entry.id}.png`;
+const examplePreviewUrl = new URL(
+  withBase(examplePreviewPath),
+  SITE_META.canonicalOrigin,
+).toString();
+
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Dataset',
   name: entry.data.title,
   description: entry.data.description,
+  image: examplePreviewUrl,
   license: sourceInfo.license,
   isBasedOn: sourceInfo.sourceUrl,
   creator: {
@@ -134,6 +145,8 @@ const jsonLd = {
 <BaseLayout
   title={entry.data.title}
   description={entry.data.description}
+  ogImage={examplePreviewPath}
+  ogImageAlt={`${entry.data.title} — SimplexViz Interactive Example`}
   jsonLd={jsonLd}
 >
   <div class="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-14">

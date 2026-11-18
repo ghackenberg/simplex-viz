@@ -1,0 +1,45 @@
+---
+title: "SimplexViz 0.7: Subspace Zoom, Discriminative Labels & ESM NodeNext"
+description: Releasing v0.7.0 with representation-agnostic local subspace refinement, single-triangle leaf focus, WCAG-AA contrast calibration, and verified NodeNext .d.ts module resolution.
+publishedDate: "2026-11-18"
+author: Dr. Georg Hackenberg
+authorRole: Creator of SimplexViz
+category: Release
+featured: true
+summaryPoints:
+  - Fixed ESM Node16/NodeNext .d.ts module resolution across all three packages with build-time enforcement and automated tsc verification.
+  - Added createSubspaceZoomStrategy, discriminative cluster labeling helpers, and single-triangle leaf focus ('triangle-focus') with directly clickable items.
+  - Upgraded aspect-aligned triangulation (resolveDefaultInnerPadding), space-filling PBD layouts, and WCAG-AA cluster surface contrast calibration.
+---
+
+import StrategyDiagram from '../../../components/diagrams/StrategyDiagram.astro';
+
+SimplexViz **0.7.0** is now published on npm across `@simplex-viz/core`, `@simplex-viz/svg`, and `@simplex-viz/react`. This release combines a critical TypeScript packaging fix for strict ESM consumers with representation-agnostic subspace zoom, discriminative cluster labeling, and cleaner full-canvas layouts.
+
+## Fixing ESM `Node16` / `NodeNext` `.d.ts` Resolution ([#2](https://github.com/ghackenberg/simplex-viz/issues/2))
+
+TypeScript projects configured with `"moduleResolution": "node16"` or `"nodenext"` require explicit `.js` file extensions on relative imports and re-exports inside emitted declaration files. Previously, extensionless relative specifiers in bundled `.d.ts` files caused strict TypeScript consumers to degrade cross-package re-exports to `any`.
+
+In `0.7.0`, this is solved structurally and guarded against regression:
+
+- Every relative `import` and `export *` across `@simplex-viz/core`, `@simplex-viz/svg`, and `@simplex-viz/react` now uses explicit `.js` specifiers.
+- Each package's `tsconfig.build.json` enforces `"module": "NodeNext"` and `"moduleResolution": "NodeNext"` at build time.
+- A dedicated Vitest integration suite (`nodenextResolution.test.ts`) compiles realistic consumer programs against the built package declarations under `"moduleResolution": "nodenext"` with both `skipLibCheck: true` and `skipLibCheck: false`.
+
+## Local Subspace Refinement & Discriminative Labeling
+
+Drilling into a dense triangle often surfaces items that already share their parent cluster's dominant baseline traits. **`createSubspaceZoomStrategy`** projects out locally constant dimensions (`σ_local ≈ 0`) across embeddings, pairwise similarity kernels, and tags (`minItemsForRecluster: 6`, `blendFactor: 0.35`), partitioning the `6` sub-vertices strictly along traits that remain discriminative inside that cell.
+
+Pairings with **`assignDiscriminativeClusterLabels`**, **`resolveDiscriminativeClusterLabel`**, and **`disambiguatePeerClusterTitle`** ensure outer corner badges retain two-line `parentContextLabel` breadcrumbs while midpoint clusters highlight cross-cutting bridges without duplicate titles.
+
+<StrategyDiagram
+  kind="zoom"
+  caption="Conformal 1:4 subspace drill-down with discriminative 3-tier subcluster labels and 1-ring incident-star focus in SimplexViz 0.7.0."
+/>
+
+## Leaf Triangle Focus, Aspect-Aligned Meshes & Space-Filling PBD
+
+- **Single-Triangle Leaf Focus (`'triangle-focus'`)**: Once a triangle reaches full scale (`stopWhenFullScale: true`, `leafTriangleFocus: true`), clicking its open background focuses that single un-subdivided leaf triangle (`focusableTriangleIndices`), while covered content items remain directly clickable rather than passing pointers through.
+- **Uniform 1-Ring `'incident-star'` Drill-Down**: Both primary and intermediate cluster foci resolve to lattice-conformal 1-ring stars with continuous barycentric simplex-distance item dimming (`opacity = 0.32 + 0.68 · w̃₀`).
+- **Aspect-Aligned Triangulation & Space-Filling Presets**: `buildSimplexMesh` and `createAdaptiveHexMeshStrategy` align lattice orientation to viewport proportions with adaptive `innerPadding` (`resolveDefaultInnerPadding`), while `createPbdUniformLayoutStrategy`, `createWarmStartPbdLayoutStrategy`, and `createLocalAdaptiveLayoutStrategy` combine inward-fan seeding with space-filling PBD relaxation.
+- **WCAG-AA Surface Contrast**: `BadgeClusterSvgView` and `ClusterAnchorSvgView` calibrate cluster surface contrast automatically via perceptual `colorContrast` alongside cleaner single-node selection without automatic nearest-neighbor emphasis.

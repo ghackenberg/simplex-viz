@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="ex-arxiv-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B111E"/>
+      <stop offset="65%" stop-color="#07090E"/>
+      <stop offset="100%" stop-color="#05070C"/>
+    </linearGradient>
+    <radialGradient id="ex-arxiv-glow" cx="50%" cy="50%" r="58%">
+      <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.18"/>
+      <stop offset="55%" stop-color="#D946EF" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#07090E" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#ex-arxiv-bg)"/>
+  <rect width="800" height="450" fill="url(#ex-arxiv-glow)"/>
+
+  <!-- Subtle 60-degree Simplex Lattice Backdrop -->
+  <g stroke="#1E293B" stroke-width="1.5" fill="none" stroke-opacity="0.8">
+    <polygon points="400,48 136,396 664,396" fill="#06B6D4" fill-opacity="0.035"/>
+    <line x1="268" y1="222" x2="532" y2="222" stroke-dasharray="6 5"/>
+    <line x1="268" y1="222" x2="400" y2="396" stroke-dasharray="6 5"/>
+    <line x1="532" y1="222" x2="400" y2="396" stroke-dasharray="6 5"/>
+  </g>
+
+  <!-- Left Node: Computational Geometry Paper (cs.CG) -->
+  <g transform="translate(194, 242)">
+    <rect x="-76" y="-96" width="152" height="192" rx="12" fill="#0C1220" stroke="#F59E0B" stroke-width="2.4"/>
+    <!-- 2-Category Barycentric Color Bar -->
+    <rect x="-66" y="-86" width="88" height="14" rx="4" fill="#F59E0B"/>
+    <rect x="26" y="-86" width="40" height="14" rx="4" fill="#06B6D4"/>
+    <!-- Geometry Triangle Figure -->
+    <polygon points="0,-54 38,-2 0,-2 -38,-2" fill="#F59E0B" fill-opacity="0.18" stroke="#FBBF24" stroke-width="2.8" stroke-linejoin="round"/>
+    <line x1="0" y1="-54" x2="8" y2="-2" stroke="#FBBF24" stroke-width="2.2"/>
+    <!-- Manuscript Text Rules -->
+    <line x1="-54" y1="22" x2="54" y2="22" stroke="#475569" stroke-width="4" stroke-linecap="round"/>
+    <line x1="-54" y1="38" x2="38" y2="38" stroke="#475569" stroke-width="4" stroke-linecap="round"/>
+    <line x1="-54" y1="54" x2="46" y2="54" stroke="#334155" stroke-width="4" stroke-linecap="round"/>
+    <!-- Discipline Tag -->
+    <text x="0" y="80" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="18" font-weight="700" fill="#FDE68A">cs.CG</text>
+  </g>
+
+  <!-- Right Node: Computer Vision Paper (cs.CV) -->
+  <g transform="translate(606, 242)">
+    <rect x="-76" y="-96" width="152" height="192" rx="12" fill="#0C1220" stroke="#D946EF" stroke-width="2.4"/>
+    <!-- 2-Category Barycentric Color Bar -->
+    <rect x="-66" y="-86" width="92" height="14" rx="4" fill="#D946EF"/>
+    <rect x="30" y="-86" width="36" height="14" rx="4" fill="#06B6D4"/>
+    <!-- Vision Eye Figure -->
+    <path d="M -40 -26 Q 0 -60 40 -26 Q 0 8 -40 -26 Z" fill="#D946EF" fill-opacity="0.18" stroke="#E879F9" stroke-width="2.8"/>
+    <circle cx="0" cy="-26" r="12" fill="#E879F9"/>
+    <!-- Manuscript Text Rules -->
+    <line x1="-54" y1="22" x2="54" y2="22" stroke="#475569" stroke-width="4" stroke-linecap="round"/>
+    <line x1="-54" y1="38" x2="30" y2="38" stroke="#475569" stroke-width="4" stroke-linecap="round"/>
+    <line x1="-54" y1="54" x2="44" y2="54" stroke="#334155" stroke-width="4" stroke-linecap="round"/>
+    <!-- Discipline Tag -->
+    <text x="0" y="80" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="18" font-weight="700" fill="#F5D0FE">cs.CV</text>
+  </g>
+
+  <!-- Center Hero Node: Interdisciplinary Graphics Paper (cs.GR) -->
+  <g transform="translate(400, 214)">
+    <rect x="-92" y="-116" width="184" height="232" rx="16" fill="none" stroke="#22D3EE" stroke-opacity="0.4" stroke-width="2.4"/>
+    <rect x="-82" y="-106" width="164" height="212" rx="13" fill="#0C1220" stroke="#22D3EE" stroke-width="3"/>
+    <!-- 3-Category Barycentric Color Header Bar -->
+    <rect x="-71" y="-95" width="70" height="16" rx="4.5" fill="#06B6D4"/>
+    <rect x="3" y="-95" width="40" height="16" rx="4.5" fill="#D946EF"/>
+    <rect x="47" y="-95" width="24" height="16" rx="4.5" fill="#F59E0B"/>
+    <!-- Graphics Isometric Cube Figure -->
+    <polygon points="0,-62 40,-40 40,2 0,24 -40,2 -40,-40" fill="#06B6D4" fill-opacity="0.18" stroke="#22D3EE" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M -40 -40 L 0 -18 L 40 -40 M 0 -18 L 0 24" fill="none" stroke="#22D3EE" stroke-width="2.6"/>
+    <!-- Manuscript Text Rules -->
+    <line x1="-58" y1="44" x2="58" y2="44" stroke="#64748B" stroke-width="4.5" stroke-linecap="round"/>
+    <line x1="-58" y1="62" x2="36" y2="62" stroke="#475569" stroke-width="4.5" stroke-linecap="round"/>
+    <!-- Discipline Tag -->
+    <text x="0" y="90" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="20" font-weight="700" fill="#ECFEFF">cs.GR</text>
+  </g>
+</svg>

@@ -1,0 +1,31 @@
+---
+title: "Reusable Quality Gates & npm OIDC Trusted Publishing in a TS Monorepo"
+description: Structuring GitHub Actions workflows so lint, typecheck, brand verification, publint, and NodeNext tests gate both GitHub Pages deployments and npm releases without duplicate runs.
+publishedDate: "2026-11-14"
+author: Dr. Georg Hackenberg
+authorRole: Creator of SimplexViz
+category: Architecture
+featured: false
+summaryPoints:
+  - A central reusable _quality.yml workflow eliminates duplicate lint, typecheck, and test boilerplate across PRs, Pages deployments, and npm releases.
+  - Packaging validation runs publint plus an actual tsc NodeNext consumer check before any tarball reaches npmjs.org.
+  - Keeping a dedicated release.yml workflow filename preserves npm OIDC Trusted Publishing provenance while gating publication behind precheck and quality jobs.
+---
+
+In a multi-package workspace shipping `@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`, and an Astro 7 documentation site, naive workflow setups tend to drift in two directions: either workflows copy-paste the same `pnpm install` + `lint` + `test` blocks into three separate files, or deployment pipelines push artifacts without waiting for package tests to pass.
+
+## One Reusable `_quality.yml` Workflow via `workflow_call`
+
+SimplexViz separates **quality verification** from **delivery targets**:
+
+- **`_quality.yml` (Reusable Gate)**: Executes once per workflow invocation with read-only permissions (`contents: read`) and strict timeouts—running `pnpm install --frozen-lockfile`, ESLint module-boundary checks (`no DOM/React in core`), TypeScript typechecking across all packages/app/scripts, `pnpm sync:brand:check`, `pnpm build:packages`, `pnpm validate:packages` (`publint`), Vitest with coverage (including the `NodeNext` `.d.ts` integration test), and the Astro production build.
+- **`ci.yml`**: Triggers `_quality.yml` on pull requests and branch pushes.
+- **`deploy-pages.yml`**: Calls `_quality.yml` first, passing the static build only after every package invariant and brand check is green, then deploys to GitHub Pages with `pages: write` and `id-token: write`.
+
+## Precheck → Quality Gate → OIDC Trusted Publishing
+
+Because npm OIDC Trusted Publishing binds package provenance strictly to the repository and exact workflow filename (`release.yml`), releasing stays isolated in `release.yml` with three cleanly scoped stages:
+
+1. **`precheck`**: Verifies that `@simplex-viz/core`, `@simplex-viz/svg`, and `@simplex-viz/react` share one synchronized semantic version (enforced by Changesets `fixed` groups) and checks `npm view` before provisioning heavier runners—skipping cleanly if the version is already live on npmjs.org.
+2. **`quality`**: Invokes `./.github/workflows/_quality.yml` only when `should_publish == 'true'`, ensuring no untested package or broken `.d.ts` export can ever reach npm.
+3. **`publish`**: Upgrades the npm CLI for OIDC compatibility, builds and `publint`-validates tarballs with `NPM_CONFIG_PROVENANCE: true`, publishes in dependency order (`core` → `svg` → `react`) via `pnpm --filter ... publish`, and creates the matching GitHub Release with notes extracted directly from `CHANGELOG.md`.

@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="ex-cinema-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B111E"/>
+      <stop offset="65%" stop-color="#07090E"/>
+      <stop offset="100%" stop-color="#05070C"/>
+    </linearGradient>
+    <radialGradient id="ex-cinema-glow" cx="50%" cy="50%" r="58%">
+      <stop offset="0%" stop-color="#D946EF" stop-opacity="0.18"/>
+      <stop offset="55%" stop-color="#06B6D4" stop-opacity="0.07"/>
+      <stop offset="100%" stop-color="#07090E" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#ex-cinema-bg)"/>
+  <rect width="800" height="450" fill="url(#ex-cinema-glow)"/>
+
+  <!-- Subtle 60-degree Simplex Frame -->
+  <polygon points="400,46 118,396 682,396" fill="#D946EF" fill-opacity="0.035" stroke="#1E293B" stroke-width="1.5"/>
+
+  <!-- Left 2:3 Poster Node -->
+  <g transform="translate(198, 240)">
+    <rect x="-72" y="-102" width="144" height="204" rx="12" fill="#451A03" stroke="#F59E0B" stroke-width="2.4"/>
+    <polygon points="-70,-100 70,-100 -70,70" fill="#F59E0B" fill-opacity="0.28"/>
+    <!-- Modernist Architecture / Noir Skyline Motif -->
+    <polygon points="-44,44 0,-42 44,44" fill="#FDE68A" fill-opacity="0.22" stroke="#FBBF24" stroke-width="2.4"/>
+    <circle cx="0" cy="-42" r="14" fill="#FBBF24"/>
+    <!-- Bottom Marquee Scrim -->
+    <rect x="-70" y="56" width="140" height="44" fill="#050811" fill-opacity="0.9"/>
+    <text x="0" y="84" text-anchor="middle" font-family="Plus Jakarta Sans, Noto Sans, sans-serif" font-size="16" font-weight="700" fill="#F8FAFC">Metropolis</text>
+    <!-- Cluster Swatch Pip & Vector Gold Rating Star -->
+    <rect x="-60" y="-90" width="14" height="14" rx="3.5" fill="#F59E0B" stroke="#050811" stroke-width="2"/>
+    <polygon points="50,-92 52.8,-85.8 59.5,-85.2 54.4,-80.8 56,-74.2 50,-77.8 44,-74.2 45.6,-80.8 40.5,-85.2 47.2,-85.8" fill="#FBBF24" stroke="#050811" stroke-width="1.5"/>
+  </g>
+
+  <!-- Right 2:3 Poster Node -->
+  <g transform="translate(602, 240)">
+    <rect x="-72" y="-102" width="144" height="204" rx="12" fill="#2E1065" stroke="#D946EF" stroke-width="2.4"/>
+    <polygon points="-70,-100 70,-100 -70,70" fill="#D946EF" fill-opacity="0.30"/>
+    <!-- Geometric Orbit / Sci-Fi Motif -->
+    <circle cx="0" cy="-12" r="38" fill="none" stroke="#E879F9" stroke-width="2.4"/>
+    <ellipse cx="0" cy="-12" rx="52" ry="18" transform="rotate(-24 0 -12)" fill="none" stroke="#F5D0FE" stroke-width="2"/>
+    <circle cx="0" cy="-12" r="14" fill="#E879F9"/>
+    <!-- Bottom Marquee Scrim -->
+    <rect x="-70" y="56" width="140" height="44" fill="#050811" fill-opacity="0.9"/>
+    <text x="0" y="84" text-anchor="middle" font-family="Plus Jakarta Sans, Noto Sans, sans-serif" font-size="16" font-weight="700" fill="#F8FAFC">Solaris</text>
+    <!-- Cluster Swatch Pip & Vector Gold Rating Star -->
+    <rect x="-60" y="-90" width="14" height="14" rx="3.5" fill="#D946EF" stroke="#050811" stroke-width="2"/>
+    <polygon points="50,-92 52.8,-85.8 59.5,-85.2 54.4,-80.8 56,-74.2 50,-77.8 44,-74.2 45.6,-80.8 40.5,-85.2 47.2,-85.8" fill="#FBBF24" stroke="#050811" stroke-width="1.5"/>
+  </g>
+
+  <!-- Center Hero 2:3 Poster Node -->
+  <g transform="translate(400, 214)">
+    <rect x="-92" y="-128" width="184" height="256" rx="16" fill="none" stroke="#22D3EE" stroke-opacity="0.42" stroke-width="2.4"/>
+    <rect x="-82" y="-118" width="164" height="236" rx="12" fill="#082F49" stroke="#22D3EE" stroke-width="3"/>
+    <polygon points="-80,-116 80,-116 -80,82" fill="#06B6D4" fill-opacity="0.32"/>
+    <!-- Iconic Spiral Vertigo Focal Motif -->
+    <circle cx="0" cy="-18" r="52" fill="none" stroke="#22D3EE" stroke-width="2.6"/>
+    <circle cx="0" cy="-18" r="34" fill="none" stroke="#38BDF8" stroke-width="2.4"/>
+    <circle cx="0" cy="-18" r="16" fill="#22D3EE"/>
+    <!-- Bottom Marquee Scrim -->
+    <rect x="-80" y="68" width="160" height="48" fill="#050811" fill-opacity="0.92"/>
+    <text x="0" y="99" text-anchor="middle" font-family="Plus Jakarta Sans, Noto Sans, sans-serif" font-size="18.5" font-weight="700" fill="#F8FAFC">Vertigo</text>
+    <!-- Cluster Swatch Pip & Vector Gold Rating Star -->
+    <rect x="-68" y="-104" width="16" height="16" rx="4" fill="#06B6D4" stroke="#050811" stroke-width="2"/>
+    <polygon points="58,-106 61.2,-99 68.8,-98.2 63,-93.2 64.8,-85.8 58,-89.8 51.2,-85.8 53,-93.2 47.2,-98.2 54.8,-99" fill="#FBBF24" stroke="#050811" stroke-width="1.6"/>
+  </g>
+</svg>

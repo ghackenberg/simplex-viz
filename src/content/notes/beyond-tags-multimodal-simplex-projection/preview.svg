@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="sv-nnls-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B111E"/>
+      <stop offset="65%" stop-color="#07090E"/>
+      <stop offset="100%" stop-color="#05070C"/>
+    </linearGradient>
+    <radialGradient id="sv-nnls-glow" cx="50%" cy="48%" r="58%">
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.18"/>
+      <stop offset="60%" stop-color="#06B6D4" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#07090E" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#sv-nnls-bg)"/>
+  <rect width="800" height="450" fill="url(#sv-nnls-glow)"/>
+
+  <!-- Left Multi-Modal Vector Bars -->
+  <g transform="translate(88, 128)">
+    <rect x="0" y="0" width="154" height="24" rx="5" fill="#06B6D4" fill-opacity="0.85"/>
+    <rect x="0" y="42" width="96" height="24" rx="5" fill="#F59E0B" fill-opacity="0.85"/>
+    <rect x="0" y="84" width="132" height="24" rx="5" fill="#D946EF" fill-opacity="0.85"/>
+    <rect x="0" y="126" width="68" height="24" rx="5" fill="#38BDF8" fill-opacity="0.65"/>
+    <rect x="0" y="168" width="118" height="24" rx="5" fill="#A855F7" fill-opacity="0.65"/>
+  </g>
+
+  <!-- Projection Trajectory Arc -->
+  <path d="M266 196 C322 108 386 104 446 138" fill="none" stroke="#FBBF24" stroke-width="2.6" stroke-dasharray="6 4"/>
+  <polygon points="440,143 454,132 456,148" fill="#FBBF24"/>
+
+  <!-- Right Planar 60° Simplex with Barycentric Coordinates -->
+  <polygon points="545,86 385,364 705,364" fill="#F59E0B" fill-opacity="0.11" stroke="#475569" stroke-width="2.2"/>
+  <line x1="545" y1="86" x2="532" y2="258" stroke="#06B6D4" stroke-width="2" stroke-dasharray="5 3"/>
+  <line x1="385" y1="364" x2="532" y2="258" stroke="#F59E0B" stroke-width="2" stroke-dasharray="5 3"/>
+  <line x1="705" y1="364" x2="532" y2="258" stroke="#D946EF" stroke-width="2" stroke-dasharray="5 3"/>
+
+  <circle cx="532" cy="258" r="18" fill="#FBBF24" stroke="#F8FAFC" stroke-width="3"/>
+  <circle cx="545" cy="86" r="15" fill="#06B6D4" stroke="#07090E" stroke-width="2.4"/>
+  <circle cx="385" cy="364" r="15" fill="#F59E0B" stroke="#07090E" stroke-width="2.4"/>
+  <circle cx="705" cy="364" r="15" fill="#D946EF" stroke="#07090E" stroke-width="2.4"/>
+
+  <text x="532" y="334" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13.5" font-weight="600" fill="#CBD5E1">α + β + γ = 1.0</text>
+</svg>

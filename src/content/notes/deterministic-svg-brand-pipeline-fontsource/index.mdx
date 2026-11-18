@@ -1,0 +1,31 @@
+---
+title: "Deterministic SVG-to-PNG Brand Pipelines Without Repo Font Binaries"
+description: Replacing OS-dependent system font rendering in @resvg/resvg-js with npm-managed @fontsource WOFF2 fonts and runtime woff2-encoder decompression.
+publishedDate: "2026-11-16"
+author: Dr. Georg Hackenberg
+authorRole: Creator of SimplexViz
+category: Architecture
+featured: false
+summaryPoints:
+  - Disabling OS system fonts avoids cross-distro PNG drift between developer machines and Ubuntu CI runners.
+  - Decompressing @fontsource WOFF2 subsets into temporary TTF files via woff2-encoder keeps binary font weights out of Git with clean npm licensing.
+  - Explicit Unicode fallback chains and automated CI drift checks catch missing glyphs (like α, →, and •) before release.
+---
+
+Open-source TypeScript monorepos often display SVG logos, social previews, and schematic diagrams in npm `README.md` pages, OpenGraph metadata, and favicons. Because package registries like npmjs.org strip or sanitize rich inline SVG typography—and OpenGraph crawlers require raster PNGs—a script must render every SVG into pixel-identical PNGs.
+
+## Why `loadSystemFonts: true` Breaks in CI
+
+When `@resvg/resvg-js` renders SVG `<text>` nodes with `loadSystemFonts: true`, glyph metrics and kerning depend entirely on whichever fonts happen to be installed on the host operating system. A developer workstation running Debian with Noto Sans and JetBrains Mono produces subtly different text widths and PNG byte streams than an `ubuntu-latest` GitHub Actions runner—causing strict CI asset checks to fail even when zero source files changed.
+
+Checking raw `.ttf` files directly into the repository fixes determinism, but bloats Git history with binary assets and requires manually duplicating upstream font license files.
+
+## Pure npm `@fontsource` + Runtime WOFF2 Decompression
+
+SimplexViz eliminates both OS dependency and checked-in font binaries by reusing the exact same `@fontsource` packages that power the documentation site:
+
+1. **Zero Binary Bloat in Git**: `@fontsource/plus-jakarta-sans` and `@fontsource/ibm-plex-mono` live in `dependencies`, while `@fontsource/noto-sans` (Greek glyphs such as `α`) and `@fontsource/noto-sans-symbols` (directional arrows such as `→`) live in `devDependencies`.
+2. **Runtime WOFF2 → TTF Decompression**: Because `@resvg/resvg-js` requires uncompressed TrueType/OpenType streams for `fontFiles`, `scripts/sync-brand.ts` resolves the exact `.woff2` subsets via `createRequire`, decompresses them into an ephemeral `os.tmpdir()` folder using `woff2-encoder/decompress`, renders with `loadSystemFonts: false`, and removes the temporary directory in a `try … finally` block.
+3. **Unicode Subset Auditing**: Auditing non-ASCII codepoints across every SVG caught `U+25CF` (`●`), which `latin` and base `symbols` subsets omit (causing tofu boxes), allowing a clean swap to `•` (`U+2022`) natively shared across `Plus Jakarta Sans` and `IBM Plex Mono`.
+
+Running `pnpm sync:brand:check` inside CI guarantees every logo, OG card, favicon, and package preview SVG stays byte-for-byte synchronized across Linux, macOS, and Windows contributors.

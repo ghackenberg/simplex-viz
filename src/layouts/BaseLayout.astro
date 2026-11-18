@@ -16,6 +16,8 @@ interface Props {
   description?: string;
   canonicalPath?: string;
   ogType?: 'website' | 'article';
+  ogImage?: string;
+  ogImageAlt?: string;
   publishedTime?: string;
   jsonLd?: Record<string, unknown>;
   fullViewport?: boolean;
@@ -26,6 +28,8 @@ const {
   description = SITE_META.defaultDescription,
   canonicalPath = Astro.url.pathname,
   ogType = 'website',
+  ogImage = '/og-preview.png',
+  ogImageAlt = 'SimplexViz 60-degree simplex triangulation engine with OKLab colors and hierarchical 1:4 zoom',
   publishedTime,
   jsonLd,
   fullViewport = false,
@@ -35,7 +39,7 @@ const fullTitle =
   title === SITE_META.defaultTitle ? title : `${title} — ${SITE_META.name}`;
 const canonicalUrl = new URL(canonicalPath, SITE_META.canonicalOrigin).toString();
 const ogImageUrl = new URL(
-  withBase('/og-preview.png'),
+  withBase(ogImage),
   SITE_META.canonicalOrigin,
 ).toString();
 
@@ -69,16 +73,14 @@ const structuredData = jsonLd ?? {
     <meta property="og:image" content={ogImageUrl} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta
-      property="og:image:alt"
-      content="SimplexViz 60-degree simplex triangulation engine with OKLab colors and hierarchical 1:4 zoom"
-    />
+    <meta property="og:image:alt" content={ogImageAlt} />
     {publishedTime && <meta property="article:published_time" content={publishedTime} />}
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={fullTitle} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageUrl} />
+    <meta name="twitter:image:alt" content={ogImageAlt} />
 
     <link rel="icon" type="image/svg+xml" href={withBase('/favicon.svg')} />
     <link rel="icon" type="image/png" sizes="192x192" href={withBase('/icon-192.png')} />
