@@ -230,155 +230,6 @@ html.sv-fullscreen-lock body {
   padding-left: env(safe-area-inset-left, 0px);
 }
 
-/* Homepage 5-stage scroll-reactive pipeline showcase */
-.sv-pipeline-stage-layer {
-  opacity: 0;
-  transform: scale(0.975) translateY(8px);
-  transform-box: fill-box;
-  transform-origin: center;
-  transition:
-    opacity 380ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
-  pointer-events: none;
-}
-
-[data-pipeline-showcase][data-active-stage='1'] .sv-pipeline-stage-layer[data-stage='1'],
-[data-pipeline-showcase][data-active-stage='2'] .sv-pipeline-stage-layer[data-stage='2'],
-[data-pipeline-showcase][data-active-stage='3'] .sv-pipeline-stage-layer[data-stage='3'],
-[data-pipeline-showcase][data-active-stage='4'] .sv-pipeline-stage-layer[data-stage='4'],
-[data-pipeline-showcase][data-active-stage='5'] .sv-pipeline-stage-layer[data-stage='5'] {
-  opacity: 1;
-  transform: scale(1) translateY(0);
-}
-
-.sv-pipeline-draw {
-  stroke-dasharray: 640;
-  stroke-dashoffset: 640;
-  transition: stroke-dashoffset 720ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-[data-pipeline-showcase][data-inview='true'][data-active-stage='1'] .sv-pipeline-stage-layer[data-stage='1'] .sv-pipeline-draw,
-[data-pipeline-showcase][data-inview='true'][data-active-stage='2'] .sv-pipeline-stage-layer[data-stage='2'] .sv-pipeline-draw,
-[data-pipeline-showcase][data-inview='true'][data-active-stage='3'] .sv-pipeline-stage-layer[data-stage='3'] .sv-pipeline-draw,
-[data-pipeline-showcase][data-inview='true'][data-active-stage='4'] .sv-pipeline-stage-layer[data-stage='4'] .sv-pipeline-draw,
-[data-pipeline-showcase][data-inview='true'][data-active-stage='5'] .sv-pipeline-stage-layer[data-stage='5'] .sv-pipeline-draw {
-  stroke-dashoffset: 0;
-}
-
-.sv-pipeline-node-pop {
-  opacity: 0;
-  transform: scale(0.92) translateY(4px);
-  transform-box: fill-box;
-  transform-origin: center;
-  transition:
-    opacity 400ms cubic-bezier(0.22, 1, 0.36, 1) 70ms,
-    transform 480ms cubic-bezier(0.22, 1, 0.36, 1) 70ms;
-}
-
-.sv-pipeline-plaque-pop {
-  opacity: 0;
-  transform: translateY(8px);
-  transform-box: fill-box;
-  transform-origin: center;
-  transition:
-    opacity 360ms cubic-bezier(0.22, 1, 0.36, 1) 150ms,
-    transform 440ms cubic-bezier(0.22, 1, 0.36, 1) 150ms;
-}
-
-[data-pipeline-showcase][data-active-stage='1'] .sv-pipeline-stage-layer[data-stage='1'] .sv-pipeline-node-pop,
-[data-pipeline-showcase][data-active-stage='2'] .sv-pipeline-stage-layer[data-stage='2'] .sv-pipeline-node-pop,
-[data-pipeline-showcase][data-active-stage='3'] .sv-pipeline-stage-layer[data-stage='3'] .sv-pipeline-node-pop,
-[data-pipeline-showcase][data-active-stage='4'] .sv-pipeline-stage-layer[data-stage='4'] .sv-pipeline-node-pop,
-[data-pipeline-showcase][data-active-stage='5'] .sv-pipeline-stage-layer[data-stage='5'] .sv-pipeline-node-pop,
-[data-pipeline-showcase][data-active-stage='1'] .sv-pipeline-stage-layer[data-stage='1'] .sv-pipeline-plaque-pop,
-[data-pipeline-showcase][data-active-stage='2'] .sv-pipeline-stage-layer[data-stage='2'] .sv-pipeline-plaque-pop,
-[data-pipeline-showcase][data-active-stage='3'] .sv-pipeline-stage-layer[data-stage='3'] .sv-pipeline-plaque-pop,
-[data-pipeline-showcase][data-active-stage='4'] .sv-pipeline-stage-layer[data-stage='4'] .sv-pipeline-plaque-pop,
-[data-pipeline-showcase][data-active-stage='5'] .sv-pipeline-stage-layer[data-stage='5'] .sv-pipeline-plaque-pop {
-  opacity: 1;
-  transform: scale(1) translateY(0);
-}
-
-@keyframes sv-signal-flow {
-  to {
-    stroke-dashoffset: -40;
-  }
-}
-
-.sv-pipeline-flow {
-  animation: sv-signal-flow 2.2s linear infinite;
-}
-
-.sv-stage-copy {
-  grid-area: 1 / 1;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition:
-    opacity 240ms cubic-bezier(0.22, 1, 0.36, 1),
-    visibility 0s linear 240ms;
-}
-
-[data-pipeline-showcase][data-active-stage='1'] .sv-stage-copy[data-stage='1'],
-[data-pipeline-showcase][data-active-stage='2'] .sv-stage-copy[data-stage='2'],
-[data-pipeline-showcase][data-active-stage='3'] .sv-stage-copy[data-stage='3'],
-[data-pipeline-showcase][data-active-stage='4'] .sv-stage-copy[data-stage='4'],
-[data-pipeline-showcase][data-active-stage='5'] .sv-stage-copy[data-stage='5'] {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transition:
-    opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
-    visibility 0s linear 0s;
-}
-
-.sv-copy-item {
-  opacity: 0;
-  transform: translateY(10px);
-  transition:
-    opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-[data-pipeline-showcase][data-active-stage='1'] .sv-stage-copy[data-stage='1'] .sv-copy-item,
-[data-pipeline-showcase][data-active-stage='2'] .sv-stage-copy[data-stage='2'] .sv-copy-item,
-[data-pipeline-showcase][data-active-stage='3'] .sv-stage-copy[data-stage='3'] .sv-copy-item,
-[data-pipeline-showcase][data-active-stage='4'] .sv-stage-copy[data-stage='4'] .sv-copy-item,
-[data-pipeline-showcase][data-active-stage='5'] .sv-stage-copy[data-stage='5'] .sv-copy-item {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-[data-pipeline-showcase] .sv-copy-delay-1 {
-  transition-delay: 25ms;
-}
-
-[data-pipeline-showcase] .sv-copy-delay-2 {
-  transition-delay: 65ms;
-}
-
-[data-pipeline-showcase] .sv-copy-delay-3 {
-  transition-delay: 105ms;
-}
-
-[data-pipeline-showcase] .sv-copy-delay-4 {
-  transition-delay: 145ms;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sv-pipeline-stage-layer,
-  .sv-pipeline-draw,
-  .sv-pipeline-node-pop,
-  .sv-pipeline-plaque-pop,
-  .sv-stage-copy,
-  .sv-copy-item {
-    transition: none !important;
-  }
-
-  .sv-pipeline-flow {
-    animation: none !important;
-  }
-}
 
 /* Preview card studio backdrop controlled via CSS for both Light & Dark modes */
 .sv-preview-backdrop {
@@ -471,3 +322,22 @@ html:not(.dark) .sv-preview-svg .sv-stroke-amber {
 html:not(.dark) .sv-preview-svg .sv-stroke-fuchsia {
   stroke: #c026d3;
 }
+
+/* Soft left-to-right fade mask for subtle stage card background graphics */
+.sv-stage-bg-mask {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.14) 26%,
+    rgba(0, 0, 0, 0.78) 64%,
+    #000 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.14) 26%,
+    rgba(0, 0, 0, 0.78) 64%,
+    #000 100%
+  );
+}
+
