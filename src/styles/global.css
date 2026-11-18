@@ -229,3 +229,120 @@ html.sv-fullscreen-lock body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
 }
+
+/* Homepage 5-stage scroll-reactive pipeline showcase */
+.sv-pipeline-stage-layer {
+  opacity: 0;
+  transform: scale(0.96) translateY(8px);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    opacity 380ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 480ms cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+[data-pipeline-showcase][data-active-stage='1'] .sv-pipeline-stage-layer[data-stage='1'],
+[data-pipeline-showcase][data-active-stage='2'] .sv-pipeline-stage-layer[data-stage='2'],
+[data-pipeline-showcase][data-active-stage='3'] .sv-pipeline-stage-layer[data-stage='3'],
+[data-pipeline-showcase][data-active-stage='4'] .sv-pipeline-stage-layer[data-stage='4'],
+[data-pipeline-showcase][data-active-stage='5'] .sv-pipeline-stage-layer[data-stage='5'] {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.sv-pipeline-draw {
+  stroke-dasharray: 440;
+  stroke-dashoffset: 440;
+  transition: stroke-dashoffset 650ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-pipeline-showcase][data-inview='true'][data-active-stage='1'] .sv-pipeline-stage-layer[data-stage='1'] .sv-pipeline-draw,
+[data-pipeline-showcase][data-inview='true'][data-active-stage='2'] .sv-pipeline-stage-layer[data-stage='2'] .sv-pipeline-draw,
+[data-pipeline-showcase][data-inview='true'][data-active-stage='3'] .sv-pipeline-stage-layer[data-stage='3'] .sv-pipeline-draw,
+[data-pipeline-showcase][data-inview='true'][data-active-stage='4'] .sv-pipeline-stage-layer[data-stage='4'] .sv-pipeline-draw,
+[data-pipeline-showcase][data-inview='true'][data-active-stage='5'] .sv-pipeline-stage-layer[data-stage='5'] .sv-pipeline-draw {
+  stroke-dashoffset: 0;
+}
+
+.sv-pipeline-node-pop {
+  opacity: 0;
+  transform: scale(0.82);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    opacity 340ms cubic-bezier(0.16, 1, 0.3, 1) 60ms,
+    transform 440ms cubic-bezier(0.16, 1, 0.3, 1) 60ms;
+}
+
+[data-pipeline-showcase][data-active-stage='1'] .sv-pipeline-stage-layer[data-stage='1'] .sv-pipeline-node-pop,
+[data-pipeline-showcase][data-active-stage='2'] .sv-pipeline-stage-layer[data-stage='2'] .sv-pipeline-node-pop,
+[data-pipeline-showcase][data-active-stage='3'] .sv-pipeline-stage-layer[data-stage='3'] .sv-pipeline-node-pop,
+[data-pipeline-showcase][data-active-stage='4'] .sv-pipeline-stage-layer[data-stage='4'] .sv-pipeline-node-pop,
+[data-pipeline-showcase][data-active-stage='5'] .sv-pipeline-stage-layer[data-stage='5'] .sv-pipeline-node-pop {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.sv-pipeline-variant {
+  opacity: 0;
+  transition: opacity 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sv-pipeline-variant[data-variant-active='true'] {
+  opacity: 1;
+}
+
+@keyframes sv-signal-flow {
+  to {
+    stroke-dashoffset: -36;
+  }
+}
+
+.sv-pipeline-flow {
+  animation: sv-signal-flow 2.4s linear infinite;
+}
+
+.sv-stage-copy {
+  grid-area: 1 / 1;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition:
+    opacity 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 340ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0s linear 280ms;
+}
+
+[data-pipeline-showcase][data-active-stage='1'] .sv-stage-copy[data-stage='1'],
+[data-pipeline-showcase][data-active-stage='2'] .sv-stage-copy[data-stage='2'],
+[data-pipeline-showcase][data-active-stage='3'] .sv-stage-copy[data-stage='3'],
+[data-pipeline-showcase][data-active-stage='4'] .sv-stage-copy[data-stage='4'],
+[data-pipeline-showcase][data-active-stage='5'] .sv-stage-copy[data-stage='5'] {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+  transition:
+    opacity 320ms cubic-bezier(0.16, 1, 0.3, 1) 40ms,
+    transform 380ms cubic-bezier(0.16, 1, 0.3, 1) 40ms,
+    visibility 0s linear 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sv-pipeline-stage-layer,
+  .sv-pipeline-draw,
+  .sv-pipeline-node-pop,
+  .sv-pipeline-variant,
+  .sv-stage-copy {
+    transition: none !important;
+  }
+
+  .sv-pipeline-flow {
+    animation: none !important;
+  }
+}
+
+
+
