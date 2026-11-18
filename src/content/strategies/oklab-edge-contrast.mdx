@@ -1,25 +1,24 @@
 ---
-strategyId: "oklab-edge-contrast"
+strategyId: oklab-edge-contrast
 order: 9
 signature: "createOklabContrastColorStrategy<TItem, TTagMeta>(options?: OklabColorOptions): SimplexColorStrategy<TItem, TTagMeta>"
 updatedDate: "2026-11-15"
-readingMinutes: 4
 whenToUse:
-  - "Built-in default perceptual color strategy for dark canvases and headless snapshots."
-  - "Maximizes perceptual ΔE_OK separation across every 1-hop mesh edge so neighboring clusters never share confusable hues."
+  - Built-in default perceptual color strategy for dark canvases and headless snapshots.
+  - Maximizes perceptual ΔE_OK separation across every 1-hop mesh edge so neighboring clusters never share confusable hues.
 optionsTable:
-  - name: "lightness"
-    type: "number"
+  - name: lightness
+    type: number
     defaultValue: "0.72"
-    description: "Target perceptual OKLab lightness L ∈ [0, 1] for generated vertex hues."
-  - name: "chroma"
-    type: "number"
+    description: Target perceptual OKLab lightness L ∈ [0, 1] for generated vertex hues.
+  - name: chroma
+    type: number
     defaultValue: "0.145"
-    description: "Target perceptual OKLab chroma C before sRGB gamut clamping."
-  - name: "preserveMatchedColors"
-    type: "boolean"
+    description: Target perceptual OKLab chroma C before sRGB gamut clamping.
+  - name: preserveMatchedColors
+    type: boolean
     defaultValue: "true"
-    description: "Retains Hungarian-matched cluster colors across live updates."
+    description: Retains Hungarian-matched cluster colors across live updates.
 ---
 
 ## Graph-Coloring Contrast &amp; Chroma-Preserving Mixing

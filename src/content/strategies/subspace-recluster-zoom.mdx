@@ -1,42 +1,41 @@
 ---
-strategyId: "subspace-recluster-zoom"
+strategyId: subspace-recluster-zoom
 order: 16
 signature: "createSubspaceZoomStrategy<TItem, TTagMeta, TClusterMeta>(options?: SubspaceZoomStrategyOptions<TItem>): SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>"
 updatedDate: "2026-11-16"
-readingMinutes: 6
 whenToUse:
-  - "Recommended conformal 1:4 drill-down strategy for embeddings, similarity kernels, mixed-attribute records, and multi-modal catalogs."
-  - "Automatically zeroes out parent traits with no intra-cluster variance (σ_local = 0) so secondary domain facets, continuous axes, or residual embeddings separate items cleanly."
-  - "Works zero-config via automatic tag and object-field introspection, or with explicit domain SubspaceZoomFeature extractors for human-readable sub-cluster badges."
+  - Recommended conformal 1:4 drill-down strategy for embeddings, similarity kernels, mixed-attribute records, and multi-modal catalogs.
+  - Automatically zeroes out parent traits with no intra-cluster variance (σ_local = 0) so secondary domain facets, continuous axes, or residual embeddings separate items cleanly.
+  - Works zero-config via automatic tag and object-field introspection, or with explicit domain SubspaceZoomFeature extractors for human-readable sub-cluster badges.
 optionsTable:
-  - name: "features"
+  - name: features
     type: "readonly SubspaceZoomFeature<TItem>[] | ((ctx: SubspaceZoomContext<TItem>) => readonly SubspaceZoomFeature<TItem>[])"
-    defaultValue: "undefined (auto-introspect)"
-    description: "Optional boolean, categorical, or numeric domain facets evaluated locally on zoomed subsets to synthesize distinct sub-cluster labels."
-  - name: "getVector"
+    defaultValue: undefined (auto-introspect)
+    description: Optional boolean, categorical, or numeric domain facets evaluated locally on zoomed subsets to synthesize distinct sub-cluster labels.
+  - name: getVector
     type: "(item: TItem) => readonly number[]"
-    defaultValue: "undefined"
-    description: "Optional continuous embedding extractor locally mean-centered and standardized inside each zoomed subset."
-  - name: "getSimilarity"
+    defaultValue: undefined
+    description: Optional continuous embedding extractor locally mean-centered and standardized inside each zoomed subset.
+  - name: getSimilarity
     type: "(a: TItem, b: TItem) => number"
-    defaultValue: "undefined"
-    description: "Optional pairwise similarity kernel S(a, b) ∈ [0, 1] projected onto farthest-first local landmarks when explicit features are absent."
-  - name: "clusterZoomMode"
+    defaultValue: undefined
+    description: Optional pairwise similarity kernel S(a, b) ∈ [0, 1] projected onto farthest-first local landmarks when explicit features are absent.
+  - name: clusterZoomMode
     type: "'incident-star' | 'spotlight' | 'none'"
     defaultValue: "'incident-star'"
-    description: "Focuses a cluster's lattice-conformal 1-ring star with simplex-distance item dimming in 'incident-star' mode (further drill-down proceeds via incident 1:4 triangles), or splits immediately into a 3-way local subspace spotlight in 'spotlight' mode."
-  - name: "stopWhenFullScale"
-    type: "boolean"
+    description: Focuses a cluster's lattice-conformal 1-ring star with simplex-distance item dimming in 'incident-star' mode (further drill-down proceeds via incident 1:4 triangles), or splits immediately into a 3-way local subspace spotlight in 'spotlight' mode.
+  - name: stopWhenFullScale
+    type: boolean
     defaultValue: "true"
-    description: "Stops marking sub-triangles as 1:4 drillable once all covered items reach fullScaleThreshold (0.995)."
-  - name: "fullScaleThreshold"
-    type: "number"
+    description: Stops marking sub-triangles as 1:4 drillable once all covered items reach fullScaleThreshold (0.995).
+  - name: fullScaleThreshold
+    type: number
     defaultValue: "0.995"
-    description: "Scale ratio in (0, 1] at which content items count as full-size leaf nodes."
-  - name: "leafTriangleFocus"
-    type: "boolean"
+    description: Scale ratio in (0, 1] at which content items count as full-size leaf nodes.
+  - name: leafTriangleFocus
+    type: boolean
     defaultValue: "true"
-    description: "Keeps non-subdividable leaf triangles focusable as a single un-subdivided triangle ('triangle-focus') via their free face while content nodes remain directly clickable."
+    description: Keeps non-subdividable leaf triangles focusable as a single un-subdivided triangle ('triangle-focus') via their free face while content nodes remain directly clickable.
 ---
 
 ## Local Variance Projection & Exact `6!` Sub-Mesh QAP

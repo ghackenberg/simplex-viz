@@ -3,6 +3,7 @@ import { getCollection, render } from 'astro:content';
 import type { PageMetaItem } from '../../../components/PageMeta.astro';
 import StrategyMechanismFigure from '../../../components/diagrams/StrategyMechanismFigure.astro';
 import DocsShellLayout from '../../../layouts/DocsShellLayout.astro';
+import { getStrategyReadingMinutes } from '../../../site/readingTime';
 import { getStrategySpec } from '../../../site/strategies';
 import { SITE_META, withBase } from '../../../site/url';
 
@@ -33,7 +34,7 @@ const metaItems: PageMetaItem[] = [
   },
   {
     icon: 'clock',
-    label: `${entry.data.readingMinutes} min read`,
+    label: `${getStrategyReadingMinutes(entry)} min read`,
     mono: true,
   },
   ...(spec.requiresTags !== undefined

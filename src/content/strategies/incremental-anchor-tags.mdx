@@ -1,25 +1,24 @@
 ---
-strategyId: "incremental-anchor-tags"
+strategyId: incremental-anchor-tags
 order: 5
 signature: "createIncrementalAnchorClusteringStrategy<TItem, TTagMeta>(options?: IncrementalClusteringOptions<TItem>): SimplexClusteringStrategy<TItem, TTagMeta>"
 updatedDate: "2026-11-15"
-readingMinutes: 4
 whenToUse:
-  - "Ideal for live collaborative feeds, streaming search results, and incremental document ingestion."
-  - "Prevents existing topic vertices from swapping positions when new items and tags arrive."
+  - Ideal for live collaborative feeds, streaming search results, and incremental document ingestion.
+  - Prevents existing topic vertices from swapping positions when new items and tags arrive.
 optionsTable:
-  - name: "getTags"
+  - name: getTags
     type: "(item: TItem) => readonly string[]"
-    defaultValue: "item.tags"
-    description: "Extracts discrete topic tags per item."
-  - name: "sharedTagRule"
-    type: "SharedTagRule<TItem>"
+    defaultValue: item.tags
+    description: Extracts discrete topic tags per item.
+  - name: sharedTagRule
+    type: SharedTagRule<TItem>
     defaultValue: "'planar-hitting-set'"
-    description: "Updates planar bridge tag coverage incrementally as new co-occurrences appear."
-  - name: "anchorRule"
-    type: "SimplexAnchorRule<TItem>"
+    description: Updates planar bridge tag coverage incrementally as new co-occurrences appear.
+  - name: anchorRule
+    type: SimplexAnchorRule<TItem>
     defaultValue: "'explaining-away'"
-    description: "Computes barycentric simplex weights against the pinned vertex topics."
+    description: Computes barycentric simplex weights against the pinned vertex topics.
 ---
 
 ## Zero-Reshuffle Streaming Updates

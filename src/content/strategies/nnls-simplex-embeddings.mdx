@@ -1,37 +1,36 @@
 ---
-strategyId: "nnls-simplex-embeddings"
+strategyId: nnls-simplex-embeddings
 order: 7
 signature: "createEmbeddingClusteringStrategy<TItem, TTagMeta>(options: EmbeddingClusteringOptions<TItem>): SimplexClusteringStrategy<TItem, TTagMeta>"
 updatedDate: "2026-11-16"
-readingMinutes: 5
 whenToUse:
-  - "Use when you want exact geometric least-squares reconstruction weights onto planar mesh simplices."
-  - "Supports sparse vertex/edge/triangle anchoring ('simplex-projection', 'explaining-away', or 'top-1') and optional contrastive feature naming."
+  - Use when you want exact geometric least-squares reconstruction weights onto planar mesh simplices.
+  - Supports sparse vertex/edge/triangle anchoring ('simplex-projection', 'explaining-away', or 'top-1') and optional contrastive feature naming.
 optionsTable:
-  - name: "getEmbedding"
+  - name: getEmbedding
     type: "(item: TItem) => readonly number[] | readonly EmbeddingSource<TItem>[]"
-    defaultValue: "required"
-    description: "Single or weighted multi-modal vector extractor."
-  - name: "features"
-    type: "readonly SubspaceZoomFeature<TItem>[] | undefined"
-    defaultValue: "undefined"
-    description: "Optional domain features scored against corpus base rates to assign pairwise-distinct defaultLabels across all K clusters."
-  - name: "clusterCount"
-    type: "number | undefined"
-    defaultValue: "auto (round(√N))"
-    description: "Preferred number of k-Means++ centroids K."
-  - name: "metric"
+    defaultValue: required
+    description: Single or weighted multi-modal vector extractor.
+  - name: features
+    type: readonly SubspaceZoomFeature<TItem>[] | undefined
+    defaultValue: undefined
+    description: Optional domain features scored against corpus base rates to assign pairwise-distinct defaultLabels across all K clusters.
+  - name: clusterCount
+    type: number | undefined
+    defaultValue: auto (round(√N))
+    description: Preferred number of k-Means++ centroids K.
+  - name: metric
     type: "'cosine' | 'euclidean'"
     defaultValue: "'cosine'"
-    description: "Vector distance metric."
-  - name: "anchorRule"
+    description: Vector distance metric.
+  - name: anchorRule
     type: "'simplex-projection' | 'explaining-away' | 'top-1'"
     defaultValue: "'simplex-projection'"
-    description: "Selects closed-form NNLS projection onto vertices, edges, and triangles."
-  - name: "maxIterations"
-    type: "number"
+    description: Selects closed-form NNLS projection onto vertices, edges, and triangles.
+  - name: maxIterations
+    type: number
     defaultValue: "24"
-    description: "Maximum Spherical/Lloyd k-Means refinement passes."
+    description: Maximum Spherical/Lloyd k-Means refinement passes.
 ---
 
 ## Closed-Form Planar NNLS Projection

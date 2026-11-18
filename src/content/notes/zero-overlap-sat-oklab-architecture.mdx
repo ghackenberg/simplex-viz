@@ -1,16 +1,15 @@
 ---
 title: "Why Force-Directed Hairballs Fail: Guaranteed 0.0 px Overlap with SAT & OKLab"
-description: "Engineering notes on strict zero-dependency package boundaries, Separating Axis Theorem Minimum Translation Vectors, and perceptual OKLab color mixing."
+description: Engineering notes on strict zero-dependency package boundaries, Separating Axis Theorem Minimum Translation Vectors, and perceptual OKLab color mixing.
 publishedDate: "2026-11-02"
-author: "Dr. Georg Hackenberg"
-authorRole: "Creator of SimplexViz"
-category: "Architecture"
-readingMinutes: 5
+author: Dr. Georg Hackenberg
+authorRole: Creator of SimplexViz
+category: Architecture
 featured: false
 summaryPoints:
-  - "Every SVG and React JSX node is measured into an exact convex hull (ConvexCircle or ConvexPolygon) prior to relaxation."
-  - "Spatial-hash broad-phase pruning plus Separating Axis Theorem (SAT) Minimum Translation Vectors guarantee 0.0 px node overlap."
-  - "Graph-coloring OKLab edge contrast optimization keeps multi-cluster bridge items vivid on both light and dark canvases."
+  - Every SVG and React JSX node is measured into an exact convex hull (ConvexCircle or ConvexPolygon) prior to relaxation.
+  - Spatial-hash broad-phase pruning plus Separating Axis Theorem (SAT) Minimum Translation Vectors guarantee 0.0 px node overlap.
+  - Graph-coloring OKLab edge contrast optimization keeps multi-cluster bridge items vivid on both light and dark canvases.
 ---
 
 import StrategyDiagram from '../../components/diagrams/StrategyDiagram.astro';

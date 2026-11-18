@@ -1,25 +1,24 @@
 ---
-strategyId: "density-adaptive-layout"
+strategyId: density-adaptive-layout
 order: 15
 signature: "createLocalAdaptiveLayoutStrategy(options?: DensityAdaptiveLayoutOptions): SimplexLayoutStrategy"
 updatedDate: "2026-11-15"
-readingMinutes: 4
 whenToUse:
-  - "Use when you want smooth, continuous radial scale gradients from dense hubs out toward sparse fringes without shrinking isolated regions."
-  - "Spreads pockets across open covering triangles first, then evaluates crowd pressure inside crowdRadiusPx and polishes locally."
+  - Use when you want smooth, continuous radial scale gradients from dense hubs out toward sparse fringes without shrinking isolated regions.
+  - Spreads pockets across open covering triangles first, then evaluates crowd pressure inside crowdRadiusPx and polishes locally.
 optionsTable:
-  - name: "crowdRadiusPx"
-    type: "number"
+  - name: crowdRadiusPx
+    type: number
     defaultValue: "76"
-    description: "Post-dispersion neighborhood kernel radius in world pixels used to estimate crowd density."
-  - name: "minLocalScale"
-    type: "number"
+    description: Post-dispersion neighborhood kernel radius in world pixels used to estimate crowd density.
+  - name: minLocalScale
+    type: number
     defaultValue: "0.35"
-    description: "Target minimum scale factor assigned to items in high-density hubs."
-  - name: "warmStart"
-    type: "boolean"
+    description: Target minimum scale factor assigned to items in high-density hubs.
+  - name: warmStart
+    type: boolean
     defaultValue: "true"
-    description: "Retains settled coordinates for existing items across updates."
+    description: Retains settled coordinates for existing items across updates.
 ---
 
 ## Post-Dispersion Smooth Crowd-Density Scaling

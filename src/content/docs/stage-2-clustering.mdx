@@ -1,17 +1,16 @@
 ---
-title: "02. Clustering & Planar Simplex Projection"
-shortTitle: "02. Clustering & Projection"
-description: "Deep dive into Soft-Simplex interior spreading, Jaccard QAP annealing, multi-modal embeddings, NNLS barycentric projection, and PAM k-Medoids."
-section: "Core Strategies"
+title: 02. Clustering & Planar Simplex Projection
+shortTitle: 02. Clustering & Projection
+description: Deep dive into Soft-Simplex interior spreading, Jaccard QAP annealing, multi-modal embeddings, NNLS barycentric projection, and PAM k-Medoids.
+section: Core Strategies
 order: 4
 stageNumber: 2
-readingMinutes: 9
 updatedDate: "2026-11-15"
 summaryPoints:
   - "SimplexClusteringStrategy decouples data representation cleanly: tag strategies set requiresTags: true, while embedding and similarity strategies set requiresTags: false."
-  - "Quadratic Assignment Problem (QAP) simulated annealing places related clusters on adjacent mesh vertices so shared items land on planar edges and triangles."
-  - "Soft-Simplex strategies distribute multi-cluster items smoothly across triangle interiors while leaving single-cluster items free in a 360-degree halo."
-relatedApiSlug: "core"
+  - Quadratic Assignment Problem (QAP) simulated annealing places related clusters on adjacent mesh vertices so shared items land on planar edges and triangles.
+  - Soft-Simplex strategies distribute multi-cluster items smoothly across triangle interiors while leaving single-cluster items free in a 360-degree halo.
+relatedApiSlug: core
 ---
 
 import StrategyDiagram from '../../components/diagrams/StrategyDiagram.astro';

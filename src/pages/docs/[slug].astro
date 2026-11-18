@@ -1,6 +1,7 @@
 ---
 import { getCollection, render } from 'astro:content';
 import DocsShellLayout from '../../layouts/DocsShellLayout.astro';
+import { getDocReadingMinutes } from '../../site/readingTime';
 import { SITE_META } from '../../site/url';
 
 export async function getStaticPaths() {
@@ -40,7 +41,7 @@ const jsonLd = {
   kicker={entry.data.section}
   metaItems={[
     { icon: 'layers', label: entry.data.section },
-    { icon: 'clock', label: `${entry.data.readingMinutes} min read`, mono: true },
+    { icon: 'clock', label: `${getDocReadingMinutes(entry)} min read`, mono: true },
     { icon: 'calendar', label: `Updated ${entry.data.updatedDate}`, mono: true },
   ]}
   showCopyLink

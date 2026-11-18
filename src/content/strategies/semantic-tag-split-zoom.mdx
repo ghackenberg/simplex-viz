@@ -1,33 +1,32 @@
 ---
-strategyId: "semantic-tag-split-zoom"
+strategyId: semantic-tag-split-zoom
 order: 18
 signature: "createSemanticZoomStrategy<TItem, TTagMeta, TClusterMeta>(options?: SemanticZoomStrategyOptions): SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>"
 updatedDate: "2026-11-16"
-readingMinutes: 6
 whenToUse:
   - "Recommended 1:4 drill-down strategy for multi-tag corpora (requiresTags: true) such as software repositories, research papers, or knowledge bases."
-  - "Discovers emergent sub-topics inside a zoomed triangle, promotes vertex-exclusive tags first, and guarantees 6 pairwise-distinct sub-vertex labels."
+  - Discovers emergent sub-topics inside a zoomed triangle, promotes vertex-exclusive tags first, and guarantees 6 pairwise-distinct sub-vertex labels.
 optionsTable:
-  - name: "clusterZoomMode"
+  - name: clusterZoomMode
     type: "'incident-star' | 'spotlight' | 'none'"
     defaultValue: "'incident-star'"
-    description: "Focuses a topic badge's lattice-conformal 1-ring incident star with simplex-distance item dimming ('incident-star'), opens an opt-in 3-sector spotlight ('spotlight'), or disables cluster drill-down ('none')."
-  - name: "stopWhenFullScale"
-    type: "boolean"
+    description: Focuses a topic badge's lattice-conformal 1-ring incident star with simplex-distance item dimming ('incident-star'), opens an opt-in 3-sector spotlight ('spotlight'), or disables cluster drill-down ('none').
+  - name: stopWhenFullScale
+    type: boolean
     defaultValue: "true"
-    description: "Terminates subdivision automatically once every covered item reaches fullScaleThreshold (0.995)."
-  - name: "fullScaleThreshold"
-    type: "number"
+    description: Terminates subdivision automatically once every covered item reaches fullScaleThreshold (0.995).
+  - name: fullScaleThreshold
+    type: number
     defaultValue: "0.995"
-    description: "Scale ratio in (0, 1] above which items count as full-scale leaf nodes."
-  - name: "barycentricFallback"
-    type: "boolean"
+    description: Scale ratio in (0, 1] above which items count as full-scale leaf nodes.
+  - name: barycentricFallback
+    type: boolean
     defaultValue: "true"
-    description: "Falls back cleanly to geometric barycentric or 3-sector leaf partitioning when covered items share identical tag signatures."
-  - name: "leafTriangleFocus"
-    type: "boolean"
+    description: Falls back cleanly to geometric barycentric or 3-sector leaf partitioning when covered items share identical tag signatures.
+  - name: leafTriangleFocus
+    type: boolean
     defaultValue: "true"
-    description: "Keeps non-subdividable leaf triangles focusable as a single un-subdivided triangle ('triangle-focus') via their free face while content nodes stay directly clickable."
+    description: Keeps non-subdividable leaf triangles focusable as a single un-subdivided triangle ('triangle-focus') via their free face while content nodes stay directly clickable.
 ---
 
 ## Emergent 3→6 Sub-Topic Discovery & Collision-Free Labeling

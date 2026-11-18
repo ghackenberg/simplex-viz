@@ -1,25 +1,24 @@
 ---
-strategyId: "custom-brand-palette"
+strategyId: custom-brand-palette
 order: 11
 signature: "createPaletteColorStrategy<TItem, TTagMeta>(paletteHex: readonly string[], options?: PaletteColorOptions): SimplexColorStrategy<TItem, TTagMeta>"
 updatedDate: "2026-11-15"
-readingMinutes: 4
 whenToUse:
-  - "Use when clusters must match an organization's exact design-system hex tokens or categorical chart palette."
-  - "Still optimizes vertex assignment for edge contrast and blends bridge items in perceptual OKLab space."
+  - Use when clusters must match an organization's exact design-system hex tokens or categorical chart palette.
+  - Still optimizes vertex assignment for edge contrast and blends bridge items in perceptual OKLab space.
 optionsTable:
-  - name: "paletteHex"
-    type: "readonly string[]"
-    defaultValue: "required (≥ 1 hex)"
-    description: "Array of CSS hex colors (e.g. ['#0891b2', '#d97706', '#c026d3'])."
-  - name: "mode"
+  - name: paletteHex
+    type: readonly string[]
+    defaultValue: required (≥ 1 hex)
+    description: Array of CSS hex colors (e.g. ['#0891b2', '#d97706', '#c026d3']).
+  - name: mode
     type: "'edge-contrast' | 'sequential'"
     defaultValue: "'edge-contrast'"
-    description: "Optimizes palette placement across 1-hop edges or assigns sequentially by cluster index."
-  - name: "preserveMatchedColors"
-    type: "boolean"
+    description: Optimizes palette placement across 1-hop edges or assigns sequentially by cluster index.
+  - name: preserveMatchedColors
+    type: boolean
     defaultValue: "true"
-    description: "Preserves assigned brand swatches across live data mutations."
+    description: Preserves assigned brand swatches across live data mutations.
 ---
 
 ## Brand Tokens Meet Perceptual OKLab Blending

@@ -23,7 +23,6 @@ const docs = defineCollection({
     section: z.enum(['Getting Started', 'Core Strategies', 'Customization']),
     order: z.number().int().positive(),
     stageNumber: z.number().int().min(1).max(5).optional(),
-    readingMinutes: z.number().int().positive(),
     updatedDate: z.string(),
     summaryPoints: z.array(z.string()).min(2).max(5),
     relatedApiSlug: z.enum(['core', 'svg', 'react']).optional(),
@@ -40,7 +39,6 @@ const strategies = defineCollection({
     order: z.number().int().positive(),
     signature: z.string(),
     updatedDate: z.string(),
-    readingMinutes: z.number().int().positive(),
     whenToUse: z.array(z.string()).min(2).max(4),
     optionsTable: z.array(
       z.object({
@@ -110,7 +108,6 @@ const datasets = defineCollection({
     zoomStrategy: z.enum(ZOOM_STRATEGY_IDS),
     nodeView: z.enum(['domain', 'geometric', 'multisector', 'react-card']),
     publishedDate: z.string(),
-    readingMinutes: z.number().int().positive(),
     description: z.string(),
     order: z.number().int().positive(),
   }),
@@ -128,7 +125,6 @@ const notes = defineCollection({
     author: z.string(),
     authorRole: z.string(),
     category: z.enum(['Release', 'Geometry', 'Architecture']).optional(),
-    readingMinutes: z.number().int().positive(),
     featured: z.boolean().default(false),
     summaryPoints: z.array(z.string()).min(2).max(5),
   }),

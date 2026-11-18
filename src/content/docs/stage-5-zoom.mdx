@@ -1,17 +1,16 @@
 ---
-title: "05. Conformal 1:4 Zoom & Hierarchical Drill-Down"
-shortTitle: "05. Conformal 1:4 Zoom"
-description: "Mathematical and UX design of SimplexViz's conformal 1:4 triangle subdivision, Adaptive Contrast Stretch, 3→6 semantic tag splitting, and 1-ring cluster stars."
-section: "Core Strategies"
+title: 05. Conformal 1:4 Zoom & Hierarchical Drill-Down
+shortTitle: 05. Conformal 1:4 Zoom
+description: Mathematical and UX design of SimplexViz's conformal 1:4 triangle subdivision, Adaptive Contrast Stretch, 3→6 semantic tag splitting, and 1-ring cluster stars.
+section: Core Strategies
 order: 7
 stageNumber: 5
-readingMinutes: 8
 updatedDate: "2026-11-15"
 summaryPoints:
-  - "Conformal 1:4 subdivision splits any equilateral triangle along its 3 edge midpoints into 3 corner triangles matching parent orientation plus 1 inverted center triangle."
-  - "Drillable triangles render their internal 1:4 subdivision edges directly in the active mesh edge style and pass clicks through content nodes until leaf scale (1.0x) is reached."
-  - "Non-subdividable leaf triangles in multi-triangle meshes remain focusable via their free triangle face ('triangle-focus'), scaling that single un-subdivided triangle to fill the viewport while keeping content nodes directly clickable."
-relatedApiSlug: "core"
+  - Conformal 1:4 subdivision splits any equilateral triangle along its 3 edge midpoints into 3 corner triangles matching parent orientation plus 1 inverted center triangle.
+  - Drillable triangles render their internal 1:4 subdivision edges directly in the active mesh edge style and pass clicks through content nodes until leaf scale (1.0x) is reached.
+  - Non-subdividable leaf triangles in multi-triangle meshes remain focusable via their free triangle face ('triangle-focus'), scaling that single un-subdivided triangle to fill the viewport while keeping content nodes directly clickable.
+relatedApiSlug: core
 ---
 
 import StrategyDiagram from '../../components/diagrams/StrategyDiagram.astro';

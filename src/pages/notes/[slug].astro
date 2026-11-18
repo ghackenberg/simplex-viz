@@ -4,6 +4,7 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import KeyTakeaways from '../../components/KeyTakeaways.astro';
 import PageMeta from '../../components/PageMeta.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getNoteReadingMinutes } from '../../site/readingTime';
 import { SITE_META, withBase } from '../../site/url';
 
 export async function getStaticPaths() {
@@ -78,7 +79,7 @@ const jsonLd = {
             { icon: 'calendar', label: post.data.publishedDate, mono: true },
             {
               icon: 'clock',
-              label: `${post.data.readingMinutes} min read`,
+              label: `${getNoteReadingMinutes(post)} min read`,
               mono: true,
             },
           ]}

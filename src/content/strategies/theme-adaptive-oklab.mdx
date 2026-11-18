@@ -1,25 +1,24 @@
 ---
-strategyId: "theme-adaptive-oklab"
+strategyId: theme-adaptive-oklab
 order: 10
 signature: "createThemeAdaptiveOklabColorStrategy<TItem, TTagMeta>(options?: ThemeAdaptiveColorOptions): SimplexColorStrategy<TItem, TTagMeta>"
 updatedDate: "2026-11-15"
-readingMinutes: 4
 whenToUse:
-  - "Recommended for dual-theme ('light' and 'dark') web applications."
-  - "Automatically deepens perceptual lightness on light backgrounds for crisp WCAG contrast while keeping luminous hues in dark mode."
+  - Recommended for dual-theme ('light' and 'dark') web applications.
+  - Automatically deepens perceptual lightness on light backgrounds for crisp WCAG contrast while keeping luminous hues in dark mode.
 optionsTable:
-  - name: "darkLightness"
-    type: "number"
+  - name: darkLightness
+    type: number
     defaultValue: "0.74"
-    description: "Perceptual OKLab lightness L used when theme === 'dark'."
-  - name: "lightLightness"
-    type: "number"
+    description: Perceptual OKLab lightness L used when theme === 'dark'.
+  - name: lightLightness
+    type: number
     defaultValue: "0.56"
-    description: "Perceptual OKLab lightness L used when theme === 'light'."
-  - name: "chroma"
-    type: "number"
+    description: Perceptual OKLab lightness L used when theme === 'light'.
+  - name: chroma
+    type: number
     defaultValue: "0.145"
-    description: "Target perceptual chroma shared across both themes."
+    description: Target perceptual chroma shared across both themes.
 ---
 
 ## Seamless Light &amp; Dark Theme Parity

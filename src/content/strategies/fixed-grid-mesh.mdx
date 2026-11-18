@@ -1,37 +1,36 @@
 ---
-strategyId: "fixed-grid-mesh"
+strategyId: fixed-grid-mesh
 order: 2
 signature: "createFixedLatticeMeshStrategy<TItem>(config: FixedLatticeConfig): SimplexMeshStrategy<TItem>"
 updatedDate: "2026-11-15"
-readingMinutes: 4
 whenToUse:
-  - "Use when your visualization requires a constant, predictable vertex count K = cols × rows across all screen sizes."
-  - "Ideal for static SSR exports, side-by-side cohort comparisons, and fixed taxonomy boards."
+  - Use when your visualization requires a constant, predictable vertex count K = cols × rows across all screen sizes.
+  - Ideal for static SSR exports, side-by-side cohort comparisons, and fixed taxonomy boards.
 optionsTable:
-  - name: "cols"
-    type: "number"
-    defaultValue: "required (≥ 2)"
-    description: "Exact number of columns in the staggered equilateral grid."
-  - name: "rows"
-    type: "number"
-    defaultValue: "required (≥ 2)"
-    description: "Exact number of rows in the staggered equilateral grid."
-  - name: "orientation"
+  - name: cols
+    type: number
+    defaultValue: required (≥ 2)
+    description: Exact number of columns in the staggered equilateral grid.
+  - name: rows
+    type: number
+    defaultValue: required (≥ 2)
+    description: Exact number of rows in the staggered equilateral grid.
+  - name: orientation
     type: "'auto' | 'horizontal' | 'vertical'"
     defaultValue: "'auto'"
-    description: "Aligns the lattice major axis with the viewport aspect ratio when 'auto', or locks horizontal/vertical bases."
-  - name: "wideFirst"
-    type: "boolean"
+    description: Aligns the lattice major axis with the viewport aspect ratio when 'auto', or locks horizontal/vertical bases.
+  - name: wideFirst
+    type: boolean
     defaultValue: "true"
-    description: "Selects staggered parity of the first row/column."
-  - name: "innerPadding"
-    type: "number | undefined"
-    defaultValue: "32–48 (adaptive)"
-    description: "Outer viewport margin in pixels when fitting side length."
-  - name: "sideLength"
-    type: "number | undefined"
-    defaultValue: "undefined"
-    description: "Pins an exact world-space edge length instead of scaling to viewport."
+    description: Selects staggered parity of the first row/column.
+  - name: innerPadding
+    type: number | undefined
+    defaultValue: 32–48 (adaptive)
+    description: Outer viewport margin in pixels when fitting side length.
+  - name: sideLength
+    type: number | undefined
+    defaultValue: undefined
+    description: Pins an exact world-space edge length instead of scaling to viewport.
 ---
 
 ## Deterministic Fixed Topology

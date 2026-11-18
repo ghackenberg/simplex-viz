@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 import DocsShellLayout from '../../layouts/DocsShellLayout.astro';
+import { getDocReadingMinutes } from '../../site/readingTime';
 import { ALL_STRATEGY_IDS, getStrategySpec } from '../../site/strategies';
 import { SITE_META, withBase } from '../../site/url';
 
@@ -44,7 +45,7 @@ const api = (await getCollection('api')).sort((a, b) => a.data.order - b.data.or
             >
               <div>
                 <p class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                  {entry.data.section} · {entry.data.readingMinutes} min read
+                  {entry.data.section} · {getDocReadingMinutes(entry)} min read
                 </p>
                 <h3 class="mt-1.5 text-base font-semibold text-slate-950 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors [text-wrap:balance]">
                   {entry.data.title}

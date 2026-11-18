@@ -1,37 +1,36 @@
 ---
-strategyId: "barycentric-subdivision-zoom"
+strategyId: barycentric-subdivision-zoom
 order: 17
 signature: "createBarycentricZoomStrategy<TItem, TTagMeta, TClusterMeta>(options?: BarycentricZoomStrategyOptions): SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>"
 updatedDate: "2026-11-16"
-readingMinutes: 5
 whenToUse:
-  - "Use when you want purely geometric 1:4 coordinate magnification that preserves exact parent barycentric ratios without re-clustering."
-  - "Preserves exact equilateral ▲/▼/▶/◀ orientation with explicit A ↔ B midpoint bridge plaques and color-coded 3-segment breadcrumbs."
+  - Use when you want purely geometric 1:4 coordinate magnification that preserves exact parent barycentric ratios without re-clustering.
+  - Preserves exact equilateral ▲/▼/▶/◀ orientation with explicit A ↔ B midpoint bridge plaques and color-coded 3-segment breadcrumbs.
 optionsTable:
-  - name: "clusterZoomMode"
+  - name: clusterZoomMode
     type: "'incident-star' | 'spotlight' | 'none'"
     defaultValue: "'incident-star'"
-    description: "Focuses a cluster's lattice-conformal 1-ring incident star with simplex-distance item dimming ('incident-star'), splits immediately into an opt-in 3-sector spotlight ('spotlight'), or disables cluster drill-down ('none')."
-  - name: "adaptiveContrastStretch"
-    type: "boolean"
+    description: Focuses a cluster's lattice-conformal 1-ring incident star with simplex-distance item dimming ('incident-star'), splits immediately into an opt-in 3-sector spotlight ('spotlight'), or disables cluster drill-down ('none').
+  - name: adaptiveContrastStretch
+    type: boolean
     defaultValue: "true"
-    description: "Stretches tightly bunched barycentric distributions onto [0, 1] inside zoomed triangles so outliers separate in one step."
-  - name: "enableSectorFallback"
-    type: "boolean"
+    description: Stretches tightly bunched barycentric distributions onto [0, 1] inside zoomed triangles so outliers separate in one step.
+  - name: enableSectorFallback
+    type: boolean
     defaultValue: "true"
-    description: "Partitions stacked identical-coordinate items across a 3-sector leaf frame so dense stacks remain inspectable."
-  - name: "stopWhenFullScale"
-    type: "boolean"
+    description: Partitions stacked identical-coordinate items across a 3-sector leaf frame so dense stacks remain inspectable.
+  - name: stopWhenFullScale
+    type: boolean
     defaultValue: "true"
-    description: "Stops marking sub-triangles as drillable once all covered items reach fullScaleThreshold (0.995)."
-  - name: "fullScaleThreshold"
-    type: "number"
+    description: Stops marking sub-triangles as drillable once all covered items reach fullScaleThreshold (0.995).
+  - name: fullScaleThreshold
+    type: number
     defaultValue: "0.995"
-    description: "Scale ratio in (0, 1] at which content items count as full-size leaf nodes."
-  - name: "leafTriangleFocus"
-    type: "boolean"
+    description: Scale ratio in (0, 1] at which content items count as full-size leaf nodes.
+  - name: leafTriangleFocus
+    type: boolean
     defaultValue: "true"
-    description: "Keeps non-subdividable leaf triangles focusable as a single un-subdivided triangle ('triangle-focus') via their free face while content nodes remain directly clickable."
+    description: Keeps non-subdividable leaf triangles focusable as a single un-subdivided triangle ('triangle-focus') via their free face while content nodes remain directly clickable.
 ---
 
 ## Universal Conformal 1:4 Equilateral Subdivision

@@ -1,17 +1,16 @@
 ---
-title: "04. Composable Collision Layout (Seeder × Relaxer × ScaleController)"
-shortTitle: "04. Composable Layout"
-description: "How SimplexViz guarantees 0.0 px overlap across arbitrary convex shapes and JSX cards by composing Seeders, Position Relaxers, and Scale Controllers."
-section: "Core Strategies"
+title: 04. Composable Collision Layout (Seeder × Relaxer × ScaleController)
+shortTitle: 04. Composable Layout
+description: How SimplexViz guarantees 0.0 px overlap across arbitrary convex shapes and JSX cards by composing Seeders, Position Relaxers, and Scale Controllers.
+section: Core Strategies
 order: 6
 stageNumber: 4
-readingMinutes: 8
 updatedDate: "2026-11-15"
 summaryPoints:
   - "Every built-in layout strategy strictly enforces two hard invariants: covering-triangle containment and 0.0 px convex SAT overlap."
-  - "Layout pipelines decompose orthogonally into LayoutSeeder × PositionRelaxer × ScaleController."
-  - "Collision-Driven Local Scaling keeps sparse neighborhoods at full 1.0x size and shrinks only locally colliding pockets."
-relatedApiSlug: "core"
+  - Layout pipelines decompose orthogonally into LayoutSeeder × PositionRelaxer × ScaleController.
+  - Collision-Driven Local Scaling keeps sparse neighborhoods at full 1.0x size and shrinks only locally colliding pockets.
+relatedApiSlug: core
 ---
 
 import StrategyParameterComparison from '../../components/diagrams/StrategyParameterComparison.astro';

@@ -1,5 +1,6 @@
 ---
 import type { CollectionEntry } from 'astro:content';
+import { getNoteReadingMinutes } from '../site/readingTime';
 import { withBase } from '../site/url';
 
 interface Props {
@@ -32,7 +33,7 @@ const surfaceClasses =
 >
   <div>
     <p class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-      {post.data.publishedDate} · {post.data.readingMinutes} min read
+      {post.data.publishedDate} · {getNoteReadingMinutes(post)} min read
     </p>
     <Heading class="mt-2 text-lg font-semibold leading-snug text-slate-950 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors [text-wrap:balance]">
       {post.data.title}

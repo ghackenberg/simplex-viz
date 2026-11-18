@@ -1,16 +1,15 @@
 ---
-title: "Custom Views, Tooltips & Headless Snapshots"
-shortTitle: "Views & Headless SSR"
-description: "Customize content nodes, cluster anchors, triangle faces, mesh edges, and run SimplexViz headlessly in Node.js or Web Workers."
-section: "Customization"
+title: Custom Views, Tooltips & Headless Snapshots
+shortTitle: Views & Headless SSR
+description: Customize content nodes, cluster anchors, triangle faces, mesh edges, and run SimplexViz headlessly in Node.js or Web Workers.
+section: Customization
 order: 2
-readingMinutes: 6
 updatedDate: "2026-11-15"
 summaryPoints:
-  - "Measure arbitrary React JSX cards or custom SVG glyphs automatically via offscreen getBBox() convex hull extraction."
-  - "Swap SvgTriangleView and SvgEdgeView plugins independently—internal 1:4 drillable previews automatically inherit your SvgEdgeView."
-  - "Run solveSimplexSnapshot() synchronously in Node.js, Bun, Deno, or Web Workers with zero DOM dependencies."
-relatedApiSlug: "svg"
+  - Measure arbitrary React JSX cards or custom SVG glyphs automatically via offscreen getBBox() convex hull extraction.
+  - Swap SvgTriangleView and SvgEdgeView plugins independently—internal 1:4 drillable previews automatically inherit your SvgEdgeView.
+  - Run solveSimplexSnapshot() synchronously in Node.js, Bun, Deno, or Web Workers with zero DOM dependencies.
+relatedApiSlug: svg
 ---
 
 SimplexViz separates **mathematical solving** (`@simplex-viz/core`) from **scene rendering** (`@simplex-viz/svg` and `@simplex-viz/react`). Every visual layer can be customized without rewriting layout or collision code.

@@ -1,17 +1,16 @@
 ---
-title: "01. Mesh Triangulation Strategies"
-shortTitle: "01. Mesh Triangulation"
-description: "How SimplexViz constructs toothed 60-degree equilateral triangle lattices, selects orientation and parity, and pins fixed grids."
-section: "Core Strategies"
+title: 01. Mesh Triangulation Strategies
+shortTitle: 01. Mesh Triangulation
+description: How SimplexViz constructs toothed 60-degree equilateral triangle lattices, selects orientation and parity, and pins fixed grids.
+section: Core Strategies
 order: 3
 stageNumber: 1
-readingMinutes: 6
 updatedDate: "2026-11-15"
 summaryPoints:
-  - "Every triangle in SimplexViz is a true 60-degree equilateral simplex (height h = s * sqrt(3) / 2), ensuring isotropic barycentric distances."
-  - "createAdaptiveHexMeshStrategy chooses horizontal vs. vertical orientation and row parity automatically from viewport aspect ratio."
-  - "createFixedLatticeMeshStrategy locks an exact (cols × rows) vertex count K across resizes."
-relatedApiSlug: "core"
+  - Every triangle in SimplexViz is a true 60-degree equilateral simplex (height h = s * sqrt(3) / 2), ensuring isotropic barycentric distances.
+  - createAdaptiveHexMeshStrategy chooses horizontal vs. vertical orientation and row parity automatically from viewport aspect ratio.
+  - createFixedLatticeMeshStrategy locks an exact (cols × rows) vertex count K across resizes.
+relatedApiSlug: core
 ---
 
 import StrategyDiagram from '../../components/diagrams/StrategyDiagram.astro';

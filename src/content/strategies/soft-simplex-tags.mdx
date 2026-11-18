@@ -1,34 +1,33 @@
 ---
-strategyId: "soft-simplex-tags"
+strategyId: soft-simplex-tags
 order: 3
 signature: "createSoftSimplexTagClusteringStrategy<TItem, TTagMeta>(options?: SoftSimplexTagOptions<TItem>): SimplexClusteringStrategy<TItem, TTagMeta>"
 updatedDate: "2026-11-15"
-readingMinutes: 5
 whenToUse:
-  - "Recommended primary strategy for multi-tag articles, repositories, papers, and catalog items."
-  - "Spreads multi-topic items smoothly across covering triangle interiors instead of stacking them on exact midpoints."
-  - "Leaves single-topic items unconstrained in a 360° outer halo around their vertex."
+  - Recommended primary strategy for multi-tag articles, repositories, papers, and catalog items.
+  - Spreads multi-topic items smoothly across covering triangle interiors instead of stacking them on exact midpoints.
+  - Leaves single-topic items unconstrained in a 360° outer halo around their vertex.
 optionsTable:
-  - name: "getTags"
+  - name: getTags
     type: "(item: TItem) => readonly string[]"
-    defaultValue: "item.tags"
-    description: "Strategy-scoped tag extractor (optional if getTags is passed on SimplexTopicGraph)."
-  - name: "triangleSpread"
-    type: "number"
+    defaultValue: item.tags
+    description: Strategy-scoped tag extractor (optional if getTags is passed on SimplexTopicGraph).
+  - name: triangleSpread
+    type: number
     defaultValue: "0.45"
-    description: "Controls continuous interior spread inside 3-cluster covering triangles (0 = discrete, 1 = broad)."
-  - name: "sharedTagRule"
-    type: "SharedTagRule<TItem>"
+    description: Controls continuous interior spread inside 3-cluster covering triangles (0 = discrete, 1 = broad).
+  - name: sharedTagRule
+    type: SharedTagRule<TItem>
     defaultValue: "'planar-hitting-set'"
-    description: "Promotes cross-cluster bridge tags onto planar mesh edges."
-  - name: "anchorRule"
-    type: "SimplexAnchorRule<TItem>"
+    description: Promotes cross-cluster bridge tags onto planar mesh edges.
+  - name: anchorRule
+    type: SimplexAnchorRule<TItem>
     defaultValue: "'explaining-away'"
-    description: "Prunes redundant secondary cluster matches once an item's tags are explained."
-  - name: "loadBalanceStrength"
-    type: "number"
+    description: Prunes redundant secondary cluster matches once an item's tags are explained.
+  - name: loadBalanceStrength
+    type: number
     defaultValue: "0.35"
-    description: "Regularizes cluster sizes so high-frequency tags do not monopolize one vertex."
+    description: Regularizes cluster sizes so high-frequency tags do not monopolize one vertex.
 ---
 
 ## Continuous Interior Spreading + Unconstrained Halos
