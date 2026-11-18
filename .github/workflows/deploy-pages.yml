@@ -1,21 +1,30 @@
 name: Deploy Demo to GitHub Pages
 
 on:
-  # Temporarily manual-only while the website is being finalized (re-enable push on main when ready)
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
+  quality:
+    uses: ./.github/workflows/_quality.yml
+    permissions:
+      contents: read
+
   build:
+    needs: quality
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -48,11 +57,15 @@ jobs:
           path: ./dist
 
   deploy:
+    needs: build
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
