@@ -100,66 +100,66 @@
       <g transform="translate(359.8, 84.0)">
         <rect x="-83.2" y="-20.0" width="166.4" height="40.0" rx="8" fill="#E2E8F0" fill-opacity="0.95" stroke="#ff8083" stroke-width="1.7"/>
         <circle cx="-71.2" cy="-6" r="4" fill="#ff8083" stroke="#64748B" stroke-opacity="0.45" stroke-width="0.7"/>
-        <text x="-62.2" y="-2" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#0F172A">T1</text>
-        <text x="-41.2" y="-2" font-family="Noto Sans, sans-serif" font-size="10.5" font-weight="600" fill="#0F172A">Computational Geo…</text>
-        <text x="0" y="13" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#475569">21 items · avg 16m</text>
+        <text x="-62.2" y="-2" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10" font-weight="700" fill="#0F172A">T1</text>
+        <text x="-41.2" y="-2" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="10.5" font-weight="600" fill="#0F172A">Computational Geo…</text>
+        <text x="0" y="13" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#475569">21 items · avg 16m</text>
       </g>
 
       <g transform="translate(600.0, 84.0)">
         <circle r="27.0" fill="#0dcaad" fill-opacity="0.20" stroke="#0dcaad" stroke-width="1.6" stroke-dasharray="4 2.5"/>
         <circle r="22.0" fill="#0dcaad" fill-opacity="0.96" stroke="#475569" stroke-opacity="0.38" stroke-width="1.2"/>
-        <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T2</text>
-        <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">19n</text>
+        <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T2</text>
+        <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">19n</text>
       </g>
 
       <g transform="translate(840.2, 84.0)">
         <rect x="-83.2" y="-20.0" width="166.4" height="40.0" rx="8" fill="#E2E8F0" fill-opacity="0.95" stroke="#c079de" stroke-width="1.7"/>
         <circle cx="-71.2" cy="-6" r="4" fill="#c079de" stroke="#64748B" stroke-opacity="0.45" stroke-width="0.7"/>
-        <text x="-62.2" y="-2" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#0F172A">T3</text>
-        <text x="-41.2" y="-2" font-family="Noto Sans, sans-serif" font-size="10.5" font-weight="600" fill="#0F172A">Spring Animation …</text>
-        <text x="0" y="13" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#475569">13 items · avg 16m</text>
+        <text x="-62.2" y="-2" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10" font-weight="700" fill="#0F172A">T3</text>
+        <text x="-41.2" y="-2" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="10.5" font-weight="600" fill="#0F172A">Spring Animation …</text>
+        <text x="0" y="13" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#475569">13 items · avg 16m</text>
       </g>
 
       <g transform="translate(479.9, 292.0)">
         <circle r="27.0" fill="#ad8dfd" fill-opacity="0.20" stroke="#ad8dfd" stroke-width="1.6" stroke-dasharray="4 2.5"/>
         <circle r="22.0" fill="#ad8dfd" fill-opacity="0.96" stroke="#475569" stroke-opacity="0.38" stroke-width="1.2"/>
-        <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T4</text>
-        <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">19n</text>
+        <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T4</text>
+        <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">19n</text>
       </g>
 
       <g transform="translate(720.1, 292.0)">
         <rect x="-83.2" y="-20.0" width="166.4" height="40.0" rx="8" fill="#E2E8F0" fill-opacity="0.95" stroke="#e29e3c" stroke-width="1.7"/>
         <circle cx="-71.2" cy="-6" r="4" fill="#e29e3c" stroke="#64748B" stroke-opacity="0.45" stroke-width="0.7"/>
-        <text x="-62.2" y="-2" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#0F172A">T5</text>
-        <text x="-41.2" y="-2" font-family="Noto Sans, sans-serif" font-size="10.5" font-weight="600" fill="#0F172A">SVG Scene Graph &amp;…</text>
-        <text x="0" y="13" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#475569">18 items · avg 14m</text>
+        <text x="-62.2" y="-2" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10" font-weight="700" fill="#0F172A">T5</text>
+        <text x="-41.2" y="-2" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="10.5" font-weight="600" fill="#0F172A">SVG Scene Graph &amp;…</text>
+        <text x="0" y="13" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#475569">18 items · avg 14m</text>
       </g>
 
       <g transform="translate(359.8, 500.0)">
         <circle r="27.0" fill="#97bf3f" fill-opacity="0.20" stroke="#97bf3f" stroke-width="1.6" stroke-dasharray="4 2.5"/>
         <circle r="22.0" fill="#97bf3f" fill-opacity="0.96" stroke="#475569" stroke-opacity="0.38" stroke-width="1.2"/>
-        <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T6</text>
-        <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">13n</text>
+        <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T6</text>
+        <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">13n</text>
       </g>
 
       <g transform="translate(600.0, 500.0)">
         <rect x="-83.2" y="-20.0" width="166.4" height="40.0" rx="8" fill="#E2E8F0" fill-opacity="0.95" stroke="#00b4d2" stroke-width="1.7"/>
         <circle cx="-71.2" cy="-6" r="4" fill="#00b4d2" stroke="#64748B" stroke-opacity="0.45" stroke-width="0.7"/>
-        <text x="-62.2" y="-2" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#0F172A">T7</text>
-        <text x="-41.2" y="-2" font-family="Noto Sans, sans-serif" font-size="10.5" font-weight="600" fill="#0F172A">Color Science &amp; T…</text>
-        <text x="0" y="13" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#475569">10 items · avg 14m</text>
+        <text x="-62.2" y="-2" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10" font-weight="700" fill="#0F172A">T7</text>
+        <text x="-41.2" y="-2" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="10.5" font-weight="600" fill="#0F172A">Color Science &amp; T…</text>
+        <text x="0" y="13" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#475569">10 items · avg 14m</text>
       </g>
 
       <g transform="translate(840.2, 500.0)">
         <circle r="27.0" fill="#e27fb4" fill-opacity="0.20" stroke="#e27fb4" stroke-width="1.6" stroke-dasharray="4 2.5"/>
         <circle r="22.0" fill="#e27fb4" fill-opacity="0.96" stroke="#475569" stroke-opacity="0.38" stroke-width="1.2"/>
-        <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T8</text>
-        <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">5n</text>
+        <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T8</text>
+        <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">5n</text>
       </g>
 
   <!-- Built-in Plugin Legend Strip -->
   <rect x="24" y="594" width="1152" height="30" rx="6" fill="#64748B" fill-opacity="0.10" stroke="#64748B" stroke-opacity="0.34"/>
-  <text x="42" y="613" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#6B7F99">
+  <text x="42" y="613" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="600" fill="#6B7F99">
     Built-in SvgNodeView Plugins:   <tspan fill="#0891B2">GeometricShapeSvgView</tspan> (circle, diamond, hex, star)   ·   <tspan fill="#D97706">MultiSectorGlyphSvgView</tspan>   ·   <tspan fill="#D946EF">BadgeClusterSvgView</tspan> (getBBox)   ·   <tspan fill="#0891B2">ClusterAnchorSvgView</tspan>
   </text>
 </svg>

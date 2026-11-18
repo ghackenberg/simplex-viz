@@ -46,8 +46,8 @@
   <line x1="0" y1="600" x2="1200" y2="600" stroke="#64748B" stroke-opacity="0.16" stroke-width="1"/>
 
   <!-- Header Schematic Legend -->
-  <text x="28" y="34" font-family="JetBrains Mono, monospace" font-size="13" font-weight="700" fill="#0891B2">SIMPLEX MESH · TWO-STAGE CLUSTERING · SAT CONVEX HULL SOLVER</text>
-  <text x="1172" y="34" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="12" font-weight="600" fill="#64748B">K=8  |  s=207px (60°)  |  overlapCount=0  |  α=0.820</text>
+  <text x="28" y="34" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="13" font-weight="700" fill="#0891B2">SIMPLEX MESH · TWO-STAGE CLUSTERING · SAT CONVEX HULL SOLVER</text>
+  <text x="1172" y="34" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="12" font-weight="600" fill="#64748B">K=8  |  s=207px (60°)  |  overlapCount=0  |  α=0.820</text>
 
   <g transform="translate(0, 62)">
     <!-- Subtle triangle fill -->
@@ -245,73 +245,73 @@
       <g transform="translate(393.3, 82.0) scale(1.000)">
         <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#ff8083" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
         <circle cy="-10" r="24" fill="#ff8083" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T1</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V0 (0,0)</text>
+        <text y="-12" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T1</text>
+        <text y="1" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">V0 (0,0)</text>
         <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[typescript, ast]</text>
+        <text y="29" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">[typescript, ast]</text>
       </g>
 
       <g transform="translate(600.0, 82.0) scale(1.000)">
         <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#0dcaad" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
         <circle cy="-10" r="24" fill="#0dcaad" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T2</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V1 (0,1)</text>
+        <text y="-12" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T2</text>
+        <text y="1" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">V1 (0,1)</text>
         <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[rust, springs]</text>
+        <text y="29" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">[rust, springs]</text>
       </g>
 
       <g transform="translate(806.7, 82.0) scale(1.000)">
         <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#c079de" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
         <circle cy="-10" r="24" fill="#c079de" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T3</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V2 (0,2)</text>
+        <text y="-12" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T3</text>
+        <text y="1" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">V2 (0,2)</text>
         <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[svg, accessibility]</text>
+        <text y="29" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">[svg, accessibility]</text>
       </g>
 
       <g transform="translate(496.7, 261.0) scale(1.000)">
         <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#ad8dfd" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
         <circle cy="-10" r="24" fill="#ad8dfd" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T4</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V3 (1,0)</text>
+        <text y="-12" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T4</text>
+        <text y="1" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">V3 (1,0)</text>
         <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[sat, convex-hull]</text>
+        <text y="29" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">[sat, convex-hull]</text>
       </g>
 
       <g transform="translate(703.3, 261.0) scale(1.000)">
         <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#e29e3c" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
         <circle cy="-10" r="24" fill="#e29e3c" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T5</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V4 (1,1)</text>
+        <text y="-12" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T5</text>
+        <text y="1" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">V4 (1,1)</text>
         <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[geometry, react]</text>
+        <text y="29" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">[geometry, react]</text>
       </g>
 
       <g transform="translate(393.3, 440.0) scale(1.000)">
         <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#97bf3f" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
         <circle cy="-10" r="24" fill="#97bf3f" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T6</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V5 (2,0)</text>
+        <text y="-12" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T6</text>
+        <text y="1" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">V5 (2,0)</text>
         <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[consensus, crdt]</text>
+        <text y="29" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">[consensus, crdt]</text>
       </g>
 
       <g transform="translate(600.0, 440.0) scale(1.000)">
         <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#00b4d2" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
         <circle cy="-10" r="24" fill="#00b4d2" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T7</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V6 (2,1)</text>
+        <text y="-12" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T7</text>
+        <text y="1" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">V6 (2,1)</text>
         <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[triangulation, clu…]</text>
+        <text y="29" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">[triangulation, clu…]</text>
       </g>
 
       <g transform="translate(806.7, 440.0) scale(1.000)">
         <rect x="-70" y="-38" width="140" height="76" rx="12" fill="none" stroke="#e27fb4" stroke-opacity="0.48" stroke-width="1" stroke-dasharray="3 3"/>
         <circle cy="-10" r="24" fill="#e27fb4" fill-opacity="0.95" stroke="#475569" stroke-opacity="0.42" stroke-width="1.5"/>
-        <text y="-12" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T8</text>
-        <text y="1" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">V7 (2,2)</text>
+        <text y="-12" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11.5" font-weight="700" fill="#0F172A">T8</text>
+        <text y="1" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">V7 (2,2)</text>
         <rect x="-66" y="16" width="132" height="19" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72"/>
-        <text y="29" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">[oklab, color-scien…]</text>
+        <text y="29" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">[oklab, color-scien…]</text>
       </g>
 
     <!-- Foreground CAD dimension bracket + barycentric weight pills (always legible on top) -->
@@ -320,20 +320,20 @@
     <line x1="393.3" y1="28.0" x2="600.0" y2="28.0" stroke="#06B6D4" stroke-opacity="0.75" stroke-width="1.4"/>
     <g transform="translate(496.7, 28.0)">
       <rect x="-102" y="-10" width="204" height="20" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#06B6D4" stroke-width="1.3"/>
-      <text y="3.5" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" font-weight="600" fill="#0E7490">60° equilateral · s = 207 px</text>
+      <text y="3.5" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10.5" font-weight="600" fill="#0E7490">60° equilateral · s = 207 px</text>
     </g>
 
 
       <rect x="640.1" y="297.2" width="50" height="18" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#F59E0B" stroke-width="1.3"/>
-      <text x="665.1" y="309.7" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" font-weight="600" fill="#92400E">w=0.50</text>
+      <text x="665.1" y="309.7" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10" font-weight="600" fill="#92400E">w=0.50</text>
 
       <rect x="594.6" y="376.0" width="50" height="18" rx="4" fill="#E2E8F0" fill-opacity="0.95" stroke="#F59E0B" stroke-width="1.3"/>
-      <text x="619.6" y="388.5" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" font-weight="600" fill="#92400E">w=0.50</text>
+      <text x="619.6" y="388.5" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10" font-weight="600" fill="#92400E">w=0.50</text>
   </g>
 
   <!-- Bottom Schematic Footer Callout -->
   <rect x="28" y="594" width="1144" height="28" rx="6" fill="#64748B" fill-opacity="0.10" stroke="#64748B" stroke-opacity="0.34"/>
-  <text x="44" y="612" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#6B7F99">
-    <tspan fill="#0891B2">● Dashed Outer Bounds:</tspan> clusterGapPx=16px   <tspan fill="#D97706">● Dashed Tethers:</tspan> barycentric weights (w_ik) → OKLab mix   <tspan fill="#D946EF">● Solid Outlines:</tspan> ConvexGeometry SAT/MTV bounds
+  <text x="44" y="612" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="600" fill="#6B7F99">
+    <tspan fill="#0891B2">• Dashed Outer Bounds:</tspan> clusterGapPx=16px   <tspan fill="#D97706">• Dashed Tethers:</tspan> barycentric weights (w_ik) → OKLab mix   <tspan fill="#D946EF">• Solid Outlines:</tspan> ConvexGeometry SAT/MTV bounds
   </text>
 </svg>

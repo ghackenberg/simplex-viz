@@ -1,7 +1,10 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Resvg } from '@resvg/resvg-js';
+import decompress from 'woff2-encoder/decompress';
 
 interface VertexSpec {
   readonly cx: number;
@@ -238,12 +241,12 @@ function renderBannerLogoSvg(spec: BannerLogoSpec): string {
     '  </g>',
     '',
     `  <!-- ${spec.wordmarkComment} -->`,
-    '  <text x="166" y="76" font-family="Noto Sans, sans-serif" font-size="44" font-weight="700" letter-spacing="-0.8">',
+    '  <text x="166" y="76" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="44" font-weight="700" letter-spacing="-0.8">',
     `    ${spec.titleXml}`,
     '  </text>',
     '',
     '  <!-- Subtitle -->',
-    `  <text x="168" y="114" font-family="JetBrains Mono, monospace" font-size="${spec.subtitleFontSize}" font-weight="600" letter-spacing="${spec.subtitleLetterSpacing}" fill="${BRAND_COLORS.neutral.slate}">`,
+    `  <text x="168" y="114" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="${spec.subtitleFontSize}" font-weight="600" letter-spacing="${spec.subtitleLetterSpacing}" fill="${BRAND_COLORS.neutral.slate}">`,
     `    ${spec.subtitle}`,
     '  </text>',
     '</svg>',
@@ -402,15 +405,58 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function renderPng(svgContent: string, targetWidth: number): Buffer {
+const require = createRequire(import.meta.url);
+
+const FONT_PACKAGE_SPECIFIERS: readonly string[] = [
+  '@fontsource/plus-jakarta-sans/files/plus-jakarta-sans-latin-400-normal.woff2',
+  '@fontsource/plus-jakarta-sans/files/plus-jakarta-sans-latin-600-normal.woff2',
+  '@fontsource/plus-jakarta-sans/files/plus-jakarta-sans-latin-700-normal.woff2',
+  '@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2',
+  '@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-600-normal.woff2',
+  '@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-700-normal.woff2',
+  '@fontsource/noto-sans/files/noto-sans-greek-400-normal.woff2',
+  '@fontsource/noto-sans/files/noto-sans-greek-600-normal.woff2',
+  '@fontsource/noto-sans/files/noto-sans-greek-700-normal.woff2',
+  '@fontsource/noto-sans-symbols/files/noto-sans-symbols-symbols-400-normal.woff2',
+  '@fontsource/noto-sans-symbols/files/noto-sans-symbols-symbols-600-normal.woff2',
+  '@fontsource/noto-sans-symbols/files/noto-sans-symbols-symbols-700-normal.woff2',
+];
+
+async function prepareFontFiles(): Promise<{
+  readonly tempDir: string;
+  readonly fontFiles: readonly string[];
+}> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'simplex-viz-fonts-'));
+  const fontFiles: string[] = [];
+
+  for (const specifier of FONT_PACKAGE_SPECIFIERS) {
+    const woff2Path = require.resolve(specifier);
+    const woff2Buffer = await readFile(woff2Path);
+    const ttfData = await decompress(woff2Buffer);
+    const ttfPath = path.join(tempDir, `${path.basename(woff2Path, '.woff2')}.ttf`);
+    await writeFile(ttfPath, ttfData);
+    fontFiles.push(ttfPath);
+  }
+
+  return { tempDir, fontFiles };
+}
+
+function renderPng(
+  svgContent: string,
+  targetWidth: number,
+  fontFiles: readonly string[],
+): Buffer {
   const resvg = new Resvg(svgContent, {
     fitTo: {
       mode: 'width',
       value: targetWidth,
     },
     font: {
-      loadSystemFonts: true,
-      defaultFontFamily: 'Noto Sans',
+      loadSystemFonts: false,
+      fontFiles: [...fontFiles],
+      defaultFontFamily: 'Plus Jakarta Sans',
+      sansSerifFamily: 'Plus Jakarta Sans',
+      monospaceFamily: 'IBM Plex Mono',
     },
   });
   return resvg.render().asPng();
@@ -436,7 +482,7 @@ const BANNER_LOGOS: readonly BannerLogoSpec[] = [
     height: 160,
     pngWidth: 1160,
     wordmarkComment: 'Wordmark synced to top vertex Cyan',
-    titleXml: `<tspan fill="${BRAND_COLORS.neutral.wordmark}">SimplexViz</tspan><tspan fill="${BRAND_COLORS.neutral.slate}" font-weight="400"> / </tspan><tspan fill="${BRAND_COLORS.cyan.core}" font-family="JetBrains Mono, monospace" font-size="38" font-weight="700">core</tspan>`,
+    titleXml: `<tspan fill="${BRAND_COLORS.neutral.wordmark}">SimplexViz</tspan><tspan fill="${BRAND_COLORS.neutral.slate}" font-weight="400"> / </tspan><tspan fill="${BRAND_COLORS.cyan.core}" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="38" font-weight="700">core</tspan>`,
     subtitle: 'HEADLESS MESH · CLUSTERING · SAT SOLVER',
     subtitleFontSize: 13,
     subtitleLetterSpacing: 0.9,
@@ -448,7 +494,7 @@ const BANNER_LOGOS: readonly BannerLogoSpec[] = [
     height: 160,
     pngWidth: 1160,
     wordmarkComment: 'Wordmark synced to bottom-left vertex Amber',
-    titleXml: `<tspan fill="${BRAND_COLORS.neutral.wordmark}">SimplexViz</tspan><tspan fill="${BRAND_COLORS.neutral.slate}" font-weight="400"> / </tspan><tspan fill="${BRAND_COLORS.amber.core}" font-family="JetBrains Mono, monospace" font-size="38" font-weight="700">svg</tspan>`,
+    titleXml: `<tspan fill="${BRAND_COLORS.neutral.wordmark}">SimplexViz</tspan><tspan fill="${BRAND_COLORS.neutral.slate}" font-weight="400"> / </tspan><tspan fill="${BRAND_COLORS.amber.core}" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="38" font-weight="700">svg</tspan>`,
     subtitle: 'FRAMEWORK-AGNOSTIC SVG SCENE GRAPH',
     subtitleFontSize: 13,
     subtitleLetterSpacing: 0.9,
@@ -460,7 +506,7 @@ const BANNER_LOGOS: readonly BannerLogoSpec[] = [
     height: 160,
     pngWidth: 1160,
     wordmarkComment: 'Wordmark synced to bottom-right vertex Magenta',
-    titleXml: `<tspan fill="${BRAND_COLORS.neutral.wordmark}">SimplexViz</tspan><tspan fill="${BRAND_COLORS.neutral.slate}" font-weight="400"> / </tspan><tspan fill="${BRAND_COLORS.magenta.core}" font-family="JetBrains Mono, monospace" font-size="38" font-weight="700">react</tspan>`,
+    titleXml: `<tspan fill="${BRAND_COLORS.neutral.wordmark}">SimplexViz</tspan><tspan fill="${BRAND_COLORS.neutral.slate}" font-weight="400"> / </tspan><tspan fill="${BRAND_COLORS.magenta.core}" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="38" font-weight="700">react</tspan>`,
     subtitle: 'TYPE-SAFE REACT BINDINGS &amp; JSX RENDERERS',
     subtitleFontSize: 13,
     subtitleLetterSpacing: 0.9,
@@ -571,92 +617,97 @@ async function main(): Promise<void> {
 
   const markDefsLines = getMarkGradientLines(false);
   const markNodeLines = getMarkGeometryLines();
+  const { tempDir, fontFiles } = await prepareFontFiles();
 
-  // 1. Standalone freestanding mark assets (transparent SVG + 512px PNG)
-  const faviconSvg = renderFaviconSvg();
-  if (await syncTextOutput('public/favicon.svg', faviconSvg, checkOnly, diffs)) {
-    updatedCount += 1;
-  }
-  const markPngBuffer = renderPng(faviconSvg, 512);
-  if (await syncBinaryOutput('docs/assets/mark-512.png', markPngBuffer, checkOnly, diffs)) {
-    updatedCount += 1;
-  }
-
-  // 2. React inline logo mark component
-  const logoMarkTsx = renderSimplexLogoMarkTsx();
-  if (
-    await syncTextOutput('src/demo/components/SimplexLogoMark.tsx', logoMarkTsx, checkOnly, diffs)
-  ) {
-    updatedCount += 1;
-  }
-
-  // 3. Tile-boxed app icon SVG + raster PNGs (icon-512, icon-192, apple-touch-icon)
-  const tileIconSvg = renderTileIconSvg();
-  if (await syncTextOutput('docs/assets/icon.svg', tileIconSvg, checkOnly, diffs)) {
-    updatedCount += 1;
-  }
-  const tilePngSpecs: ReadonlyArray<{ readonly pngPath: string; readonly width: number }> = [
-    { pngPath: 'docs/assets/icon-512.png', width: 512 },
-    { pngPath: 'public/icon-192.png', width: 192 },
-    { pngPath: 'public/apple-touch-icon.png', width: 180 },
-  ];
-  for (const spec of tilePngSpecs) {
-    const pngBuffer = renderPng(tileIconSvg, spec.width);
-    if (await syncBinaryOutput(spec.pngPath, pngBuffer, checkOnly, diffs)) {
+  try {
+    // 1. Standalone freestanding mark assets (transparent SVG + 512px PNG)
+    const faviconSvg = renderFaviconSvg();
+    if (await syncTextOutput('public/favicon.svg', faviconSvg, checkOnly, diffs)) {
       updatedCount += 1;
     }
-  }
-
-  // 4. Project & package banner logos (SVG + PNG)
-  for (const spec of BANNER_LOGOS) {
-    const bannerSvg = renderBannerLogoSvg(spec);
-    if (await syncTextOutput(spec.svgPath, bannerSvg, checkOnly, diffs)) {
-      updatedCount += 1;
-    }
-    const pngBuffer = renderPng(bannerSvg, spec.pngWidth);
-    if (await syncBinaryOutput(spec.pngPath, pngBuffer, checkOnly, diffs)) {
-      updatedCount += 1;
-    }
-  }
-
-  // 5. Composite scene SVGs (preview-demo, og-demo-preview, social-preview-github)
-  for (const target of SCENE_SVGS) {
-    const absPath = path.join(ROOT_DIR, target.svgPath);
-    const originalSvg = await readFile(absPath, 'utf8');
-    const withDefs = replaceBetweenMarkers(
-      originalSvg,
-      DEFS_START_MARKER,
-      DEFS_END_MARKER,
-      markDefsLines,
-      target.svgPath,
-    );
-    const syncedSvg = replaceBetweenMarkers(
-      withDefs,
-      NODE_START_MARKER,
-      NODE_END_MARKER,
-      markNodeLines,
-      target.svgPath,
-    );
-
-    if (await syncTextOutput(target.svgPath, syncedSvg, checkOnly, diffs)) {
+    const markPngBuffer = renderPng(faviconSvg, 512, fontFiles);
+    if (await syncBinaryOutput('docs/assets/mark-512.png', markPngBuffer, checkOnly, diffs)) {
       updatedCount += 1;
     }
 
-    for (const pngSpec of target.pngOutputs) {
-      const pngBuffer = renderPng(syncedSvg, pngSpec.width);
-      if (await syncBinaryOutput(pngSpec.pngPath, pngBuffer, checkOnly, diffs)) {
+    // 2. React inline logo mark component
+    const logoMarkTsx = renderSimplexLogoMarkTsx();
+    if (
+      await syncTextOutput('src/demo/components/SimplexLogoMark.tsx', logoMarkTsx, checkOnly, diffs)
+    ) {
+      updatedCount += 1;
+    }
+
+    // 3. Tile-boxed app icon SVG + raster PNGs (icon-512, icon-192, apple-touch-icon)
+    const tileIconSvg = renderTileIconSvg();
+    if (await syncTextOutput('docs/assets/icon.svg', tileIconSvg, checkOnly, diffs)) {
+      updatedCount += 1;
+    }
+    const tilePngSpecs: ReadonlyArray<{ readonly pngPath: string; readonly width: number }> = [
+      { pngPath: 'docs/assets/icon-512.png', width: 512 },
+      { pngPath: 'public/icon-192.png', width: 192 },
+      { pngPath: 'public/apple-touch-icon.png', width: 180 },
+    ];
+    for (const spec of tilePngSpecs) {
+      const pngBuffer = renderPng(tileIconSvg, spec.width, fontFiles);
+      if (await syncBinaryOutput(spec.pngPath, pngBuffer, checkOnly, diffs)) {
         updatedCount += 1;
       }
     }
-  }
 
-  // 6. Static package preview SVGs -> PNGs (preview-core, preview-svg, preview-react)
-  for (const preview of STATIC_PREVIEWS) {
-    const svgContent = await readFile(path.join(ROOT_DIR, preview.svgPath), 'utf8');
-    const pngBuffer = renderPng(svgContent, preview.width);
-    if (await syncBinaryOutput(preview.pngPath, pngBuffer, checkOnly, diffs)) {
-      updatedCount += 1;
+    // 4. Project & package banner logos (SVG + PNG)
+    for (const spec of BANNER_LOGOS) {
+      const bannerSvg = renderBannerLogoSvg(spec);
+      if (await syncTextOutput(spec.svgPath, bannerSvg, checkOnly, diffs)) {
+        updatedCount += 1;
+      }
+      const pngBuffer = renderPng(bannerSvg, spec.pngWidth, fontFiles);
+      if (await syncBinaryOutput(spec.pngPath, pngBuffer, checkOnly, diffs)) {
+        updatedCount += 1;
+      }
     }
+
+    // 5. Composite scene SVGs (preview-demo, og-demo-preview, social-preview-github)
+    for (const target of SCENE_SVGS) {
+      const absPath = path.join(ROOT_DIR, target.svgPath);
+      const originalSvg = await readFile(absPath, 'utf8');
+      const withDefs = replaceBetweenMarkers(
+        originalSvg,
+        DEFS_START_MARKER,
+        DEFS_END_MARKER,
+        markDefsLines,
+        target.svgPath,
+      );
+      const syncedSvg = replaceBetweenMarkers(
+        withDefs,
+        NODE_START_MARKER,
+        NODE_END_MARKER,
+        markNodeLines,
+        target.svgPath,
+      );
+
+      if (await syncTextOutput(target.svgPath, syncedSvg, checkOnly, diffs)) {
+        updatedCount += 1;
+      }
+
+      for (const pngSpec of target.pngOutputs) {
+        const pngBuffer = renderPng(syncedSvg, pngSpec.width, fontFiles);
+        if (await syncBinaryOutput(pngSpec.pngPath, pngBuffer, checkOnly, diffs)) {
+          updatedCount += 1;
+        }
+      }
+    }
+
+    // 6. Static package preview SVGs -> PNGs (preview-core, preview-svg, preview-react)
+    for (const preview of STATIC_PREVIEWS) {
+      const svgContent = await readFile(path.join(ROOT_DIR, preview.svgPath), 'utf8');
+      const pngBuffer = renderPng(svgContent, preview.width, fontFiles);
+      if (await syncBinaryOutput(preview.pngPath, pngBuffer, checkOnly, diffs)) {
+        updatedCount += 1;
+      }
+    }
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
   }
 
   if (checkOnly) {

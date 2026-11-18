@@ -31,7 +31,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">VID · 11m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">VID · 11m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#5eba9b" fill-opacity="0.88"/>
       </g>
     
@@ -41,7 +41,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">ART · 21m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">ART · 21m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#5eba9b" fill-opacity="0.88"/>
       </g>
     
@@ -51,7 +51,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">PRJ · 7m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">PRJ · 7m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#5eba9b" fill-opacity="0.88"/>
       </g>
     
@@ -61,7 +61,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">VID · 17m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">VID · 17m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#5eba9b" fill-opacity="0.88"/>
       </g>
     
@@ -71,7 +71,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">ART · 27m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">ART · 27m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#5eba9b" fill-opacity="0.88"/>
       </g>
     
@@ -81,7 +81,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">ART · 22m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">ART · 22m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#d17dc6" fill-opacity="0.88"/>
       </g>
     
@@ -91,7 +91,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">PRJ · 8m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">PRJ · 8m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#d17dc6" fill-opacity="0.88"/>
       </g>
     
@@ -101,7 +101,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">VID · 18m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">VID · 18m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#d17dc6" fill-opacity="0.88"/>
       </g>
     
@@ -111,7 +111,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">ART · 4m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">ART · 4m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#d17dc6" fill-opacity="0.88"/>
       </g>
     
@@ -121,7 +121,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">PRJ · 14m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">PRJ · 14m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#d17dc6" fill-opacity="0.88"/>
       </g>
     
@@ -131,7 +131,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">PRJ · 9m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">PRJ · 9m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#97bf3f" fill-opacity="0.88"/>
       </g>
     
@@ -141,7 +141,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">VID · 19m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">VID · 19m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#97bf3f" fill-opacity="0.88"/>
       </g>
     
@@ -151,7 +151,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">ART · 5m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">ART · 5m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#97bf3f" fill-opacity="0.88"/>
       </g>
     
@@ -161,7 +161,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">PRJ · 15m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">PRJ · 15m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#97bf3f" fill-opacity="0.88"/>
       </g>
     
@@ -171,7 +171,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">VID · 25m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">VID · 25m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#97bf3f" fill-opacity="0.88"/>
       </g>
     
@@ -181,7 +181,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">VID · 20m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">VID · 20m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#87a2fb" fill-opacity="0.88"/>
       </g>
     
@@ -191,7 +191,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">ART · 6m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">ART · 6m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#87a2fb" fill-opacity="0.88"/>
       </g>
     
@@ -201,7 +201,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">PRJ · 16m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">PRJ · 16m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#87a2fb" fill-opacity="0.88"/>
       </g>
     
@@ -211,7 +211,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">VID · 26m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">VID · 26m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#87a2fb" fill-opacity="0.88"/>
       </g>
     
@@ -221,7 +221,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">ART · 12m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">ART · 12m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#87a2fb" fill-opacity="0.88"/>
       </g>
     
@@ -231,7 +231,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">ART · 7m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">ART · 7m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#ff8083" fill-opacity="0.88"/>
       </g>
     
@@ -241,7 +241,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">PRJ · 17m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">PRJ · 17m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#ff8083" fill-opacity="0.88"/>
       </g>
     
@@ -251,7 +251,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">VID · 27m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">VID · 27m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#ff8083" fill-opacity="0.88"/>
       </g>
     
@@ -261,7 +261,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">ART · 13m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">ART · 13m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#ff8083" fill-opacity="0.88"/>
       </g>
     
@@ -271,7 +271,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">PRJ · 23m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">PRJ · 23m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#ff8083" fill-opacity="0.88"/>
       </g>
     
@@ -281,7 +281,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">PRJ · 18m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">PRJ · 18m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#c98ddb" fill-opacity="0.88"/>
       </g>
     
@@ -291,7 +291,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">VID · 4m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">VID · 4m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#c98ddb" fill-opacity="0.88"/>
       </g>
     
@@ -301,7 +301,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">ART · 14m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">ART · 14m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#c98ddb" fill-opacity="0.88"/>
       </g>
     
@@ -311,7 +311,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">PRJ · 24m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">PRJ · 24m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#c98ddb" fill-opacity="0.88"/>
       </g>
     
@@ -321,7 +321,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">VID · 10m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">VID · 10m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#c98ddb" fill-opacity="0.88"/>
       </g>
     
@@ -331,7 +331,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">VID · 5m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">VID · 5m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#e9839b" fill-opacity="0.88"/>
       </g>
     
@@ -341,7 +341,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">ART · 15m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">ART · 15m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#e9839b" fill-opacity="0.88"/>
       </g>
     
@@ -351,7 +351,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">PRJ · 25m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">PRJ · 25m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#e9839b" fill-opacity="0.88"/>
       </g>
     
@@ -361,7 +361,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">VID · 11m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">VID · 11m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#e9839b" fill-opacity="0.88"/>
       </g>
     
@@ -371,7 +371,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">ART · 21m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">ART · 21m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#e9839b" fill-opacity="0.88"/>
       </g>
     
@@ -381,7 +381,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">ART · 16m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">ART · 16m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#59c185" fill-opacity="0.88"/>
       </g>
     
@@ -391,7 +391,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">PRJ · 26m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">PRJ · 26m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#59c185" fill-opacity="0.88"/>
       </g>
     
@@ -401,7 +401,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">VID · 12m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">VID · 12m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#59c185" fill-opacity="0.88"/>
       </g>
     
@@ -411,7 +411,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">ART · 22m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">ART · 22m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#59c185" fill-opacity="0.88"/>
       </g>
     
@@ -421,7 +421,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">PRJ · 8m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">PRJ · 8m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#59c185" fill-opacity="0.88"/>
       </g>
     
@@ -431,7 +431,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">PRJ · 27m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">PRJ · 27m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#75c382" fill-opacity="0.88"/>
       </g>
     
@@ -441,7 +441,7 @@
         <!-- Skeleton title placeholder bar -->
         <rect x="-35" y="-8.5" width="80" height="6.5" rx="2.5" fill="#475569" fill-opacity="0.82"/>
         <!-- Slot metadata + accent bar -->
-        <text x="-47" y="10.5" font-family="JetBrains Mono, monospace" font-size="8" fill="#475569">VID · 13m</text>
+        <text x="-47" y="10.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="8" fill="#475569">VID · 13m</text>
         <rect x="11" y="5" width="34" height="5" rx="2.5" fill="#75c382" fill-opacity="0.88"/>
       </g>
 
@@ -449,71 +449,71 @@
       <g transform="translate(378.3, 92.0) scale(1.000)">
         <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#E2E8F0" fill-opacity="0.95" stroke="#ff8083" stroke-width="1.7" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#ff8083" stroke="#64748B" stroke-opacity="0.45" stroke-width="0.7"/>
-        <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T1</text>
+        <text x="-55" y="-4.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T1</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#334155" fill-opacity="0.82"/>
-        <text x="-68" y="13.5" font-family="JetBrains Mono, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
+        <text x="-68" y="13.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
       </g>
 
       <g transform="translate(600.0, 92.0) scale(1.000)">
         <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#E2E8F0" fill-opacity="0.95" stroke="#0dcaad" stroke-width="1.7" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#0dcaad" stroke="#64748B" stroke-opacity="0.45" stroke-width="0.7"/>
-        <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T2</text>
+        <text x="-55" y="-4.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T2</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#334155" fill-opacity="0.82"/>
-        <text x="-68" y="13.5" font-family="JetBrains Mono, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
+        <text x="-68" y="13.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
       </g>
 
       <g transform="translate(821.7, 92.0) scale(1.000)">
         <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#E2E8F0" fill-opacity="0.95" stroke="#c079de" stroke-width="1.7" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#c079de" stroke="#64748B" stroke-opacity="0.45" stroke-width="0.7"/>
-        <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T3</text>
+        <text x="-55" y="-4.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T3</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#334155" fill-opacity="0.82"/>
-        <text x="-68" y="13.5" font-family="JetBrains Mono, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
+        <text x="-68" y="13.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
       </g>
 
       <g transform="translate(489.1, 284.0) scale(1.000)">
         <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#E2E8F0" fill-opacity="0.95" stroke="#ad8dfd" stroke-width="1.7" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#ad8dfd" stroke="#64748B" stroke-opacity="0.45" stroke-width="0.7"/>
-        <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T4</text>
+        <text x="-55" y="-4.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T4</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#334155" fill-opacity="0.82"/>
-        <text x="-68" y="13.5" font-family="JetBrains Mono, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
+        <text x="-68" y="13.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
       </g>
 
       <g transform="translate(710.9, 284.0) scale(1.000)">
         <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#E2E8F0" fill-opacity="0.95" stroke="#e29e3c" stroke-width="1.7" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#e29e3c" stroke="#64748B" stroke-opacity="0.45" stroke-width="0.7"/>
-        <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T5</text>
+        <text x="-55" y="-4.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T5</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#334155" fill-opacity="0.82"/>
-        <text x="-68" y="13.5" font-family="JetBrains Mono, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
+        <text x="-68" y="13.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
       </g>
 
       <g transform="translate(378.3, 476.0) scale(1.000)">
         <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#E2E8F0" fill-opacity="0.95" stroke="#97bf3f" stroke-width="1.7" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#97bf3f" stroke="#64748B" stroke-opacity="0.45" stroke-width="0.7"/>
-        <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T6</text>
+        <text x="-55" y="-4.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T6</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#334155" fill-opacity="0.82"/>
-        <text x="-68" y="13.5" font-family="JetBrains Mono, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
+        <text x="-68" y="13.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
       </g>
 
       <g transform="translate(600.0, 476.0) scale(1.000)">
         <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#E2E8F0" fill-opacity="0.95" stroke="#00b4d2" stroke-width="1.7" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#00b4d2" stroke="#64748B" stroke-opacity="0.45" stroke-width="0.7"/>
-        <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T7</text>
+        <text x="-55" y="-4.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T7</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#334155" fill-opacity="0.82"/>
-        <text x="-68" y="13.5" font-family="JetBrains Mono, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
+        <text x="-68" y="13.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
       </g>
 
       <g transform="translate(821.7, 476.0) scale(1.000)">
         <rect x="-81" y="-25" width="162" height="50" rx="8" fill="#E2E8F0" fill-opacity="0.95" stroke="#e27fb4" stroke-width="1.7" stroke-dasharray="5 3"/>
         <circle cx="-65" cy="-8" r="4.5" fill="#e27fb4" stroke="#64748B" stroke-opacity="0.45" stroke-width="0.7"/>
-        <text x="-55" y="-4.5" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T8</text>
+        <text x="-55" y="-4.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T8</text>
         <rect x="-32" y="-12.5" width="99" height="8" rx="3" fill="#334155" fill-opacity="0.82"/>
-        <text x="-68" y="13.5" font-family="JetBrains Mono, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
+        <text x="-68" y="13.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#475569">&lt;renderClusterNode /&gt;</text>
       </g>
   </g>
 
   <!-- Minimal React Slot Callout Bar -->
   <rect x="24" y="594" width="1152" height="30" rx="6" fill="#64748B" fill-opacity="0.10" stroke="#64748B" stroke-opacity="0.34"/>
-  <text x="42" y="613" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#6B7F99">
+  <text x="42" y="613" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="600" fill="#6B7F99">
     <tspan fill="#D946EF">&lt;SimplexTopicGraph</tspan>  <tspan fill="#64748B">renderClusterNode=</tspan><tspan fill="#0891B2">{slot}</tspan>  <tspan fill="#64748B">renderContentNode=</tspan><tspan fill="#0891B2">{slot}</tspan>  <tspan fill="#64748B">getBBox()=</tspan><tspan fill="#D97706">auto</tspan>  <tspan fill="#D946EF">/&gt;</tspan>
   </text>
 </svg>

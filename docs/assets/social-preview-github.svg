@@ -75,7 +75,7 @@
     <!-- Repository Eyebrow -->
     <rect x="0" y="0" width="234" height="30" rx="6" fill="#0F172A" stroke="#334155" stroke-width="1.2"/>
     <circle cx="16" cy="15" r="4" fill="#06B6D4"/>
-    <text x="29" y="19.5" font-family="JetBrains Mono, monospace" font-size="12.5" font-weight="600" fill="#CBD5E1">ghackenberg/simplex-viz</text>
+    <text x="29" y="19.5" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="12.5" font-weight="600" fill="#CBD5E1">ghackenberg/simplex-viz</text>
 
     <!-- Icon + Wordmark -->
     <g transform="translate(0, 56)">
@@ -100,40 +100,40 @@
         <circle cx="442" cy="417.2" r="37" fill="#D946EF"/>
         <!-- @simplex-mark-node:end -->
       </g>
-      <text x="112" y="64" font-family="Noto Sans, sans-serif" font-size="56" font-weight="700" letter-spacing="-1.2">
+      <text x="112" y="64" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="56" font-weight="700" letter-spacing="-1.2">
         <tspan fill="#F8FAFC">Simplex</tspan><tspan fill="#06B6D4">Viz</tspan>
       </text>
     </g>
 
     <!-- Tagline & Description -->
-    <text x="0" y="198" font-family="Noto Sans, sans-serif" font-size="24" font-weight="600" fill="#E2E8F0">
+    <text x="0" y="198" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="24" font-weight="600" fill="#E2E8F0">
       60° Triangulation Content Atlas
     </text>
-    <text x="0" y="238" font-family="Noto Sans, sans-serif" font-size="17.5" fill="#94A3B8">
+    <text x="0" y="238" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="17.5" fill="#94A3B8">
       Strictly overlap-free visualization of tagged collections
     </text>
-    <text x="0" y="264" font-family="Noto Sans, sans-serif" font-size="17.5" fill="#94A3B8">
+    <text x="0" y="264" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="17.5" fill="#94A3B8">
       on an adaptive equilateral triangle mesh with OKLab mixing.
     </text>
 
     <!-- 3-Package Architecture Strip (1:1 synced to 3 vertex colors) -->
     <g transform="translate(0, 308)">
       <rect x="0" y="0" width="166" height="40" rx="8" fill="#0D1526" stroke="#06B6D4" stroke-opacity="0.55"/>
-      <text x="83" y="25" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600" fill="#22D3EE">@simplex-viz/core</text>
+      <text x="83" y="25" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="13" font-weight="600" fill="#22D3EE">@simplex-viz/core</text>
 
       <rect x="178" y="0" width="158" height="40" rx="8" fill="#1C150B" stroke="#F59E0B" stroke-opacity="0.55"/>
-      <text x="257" y="25" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600" fill="#FBBF24">@simplex-viz/svg</text>
+      <text x="257" y="25" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="13" font-weight="600" fill="#FBBF24">@simplex-viz/svg</text>
 
       <rect x="348" y="0" width="174" height="40" rx="8" fill="#1A0E24" stroke="#D946EF" stroke-opacity="0.55"/>
-      <text x="435" y="25" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600" fill="#E879F9">@simplex-viz/react</text>
+      <text x="435" y="25" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="13" font-weight="600" fill="#E879F9">@simplex-viz/react</text>
     </g>
 
     <!-- Key Properties Footer -->
     <g transform="translate(0, 392)">
-      <text x="0" y="20" font-family="JetBrains Mono, monospace" font-size="13.5" fill="#94A3B8">
+      <text x="0" y="20" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="13.5" fill="#94A3B8">
         <tspan fill="#06B6D4">0.0px</tspan> SAT Overlap  ·  <tspan fill="#F59E0B">OKLab</tspan> Barycentric Blend  ·  <tspan fill="#D946EF">60fps</tspan> Springs
       </text>
-      <text x="0" y="48" font-family="JetBrains Mono, monospace" font-size="13.5" fill="#64748B">
+      <text x="0" y="48" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="13.5" fill="#64748B">
         TypeScript · Zero-Dependency Core · hackenberg.tech/simplex-viz
       </text>
     </g>
@@ -228,43 +228,43 @@
         <g transform="translate(64.0, 183.6)">
           <circle r="27.5" fill="#07090E" fill-opacity="0.92" stroke="#ff8083" stroke-width="1.8" stroke-dasharray="4 2.5"/>
           <circle r="21.5" fill="#ff8083" fill-opacity="0.20" stroke="#ff8083" stroke-width="1.4"/>
-          <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T1</text>
-          <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#ff8083">5n</text>
+          <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T1</text>
+          <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#ff8083">5n</text>
         </g>
       
         <g transform="translate(64.0, 368.4)">
           <circle r="27.5" fill="#07090E" fill-opacity="0.92" stroke="#0dcaad" stroke-width="1.8" stroke-dasharray="4 2.5"/>
           <circle r="21.5" fill="#0dcaad" fill-opacity="0.20" stroke="#0dcaad" stroke-width="1.4"/>
-          <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T2</text>
-          <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#0dcaad">13n</text>
+          <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T2</text>
+          <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#0dcaad">13n</text>
         </g>
       
         <g transform="translate(224.0, 276.0)">
           <circle r="27.5" fill="#07090E" fill-opacity="0.92" stroke="#ad8dfd" stroke-width="1.8" stroke-dasharray="4 2.5"/>
           <circle r="21.5" fill="#ad8dfd" fill-opacity="0.20" stroke="#ad8dfd" stroke-width="1.4"/>
-          <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T3</text>
-          <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#ad8dfd">25n</text>
+          <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T3</text>
+          <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#ad8dfd">25n</text>
         </g>
       
         <g transform="translate(384.0, 183.6)">
           <circle r="27.5" fill="#07090E" fill-opacity="0.92" stroke="#97bf3f" stroke-width="1.8" stroke-dasharray="4 2.5"/>
           <circle r="21.5" fill="#97bf3f" fill-opacity="0.20" stroke="#97bf3f" stroke-width="1.4"/>
-          <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T4</text>
-          <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#97bf3f">12n</text>
+          <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T4</text>
+          <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#97bf3f">12n</text>
         </g>
       
         <g transform="translate(384.0, 368.4)">
           <circle r="27.5" fill="#07090E" fill-opacity="0.92" stroke="#f67d51" stroke-width="1.8" stroke-dasharray="4 2.5"/>
           <circle r="21.5" fill="#f67d51" fill-opacity="0.20" stroke="#f67d51" stroke-width="1.4"/>
-          <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T5</text>
-          <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#f67d51">18n</text>
+          <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T5</text>
+          <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#f67d51">18n</text>
         </g>
       
         <g transform="translate(544.0, 276.0)">
           <circle r="27.5" fill="#07090E" fill-opacity="0.92" stroke="#6d99f0" stroke-width="1.8" stroke-dasharray="4 2.5"/>
           <circle r="21.5" fill="#6d99f0" fill-opacity="0.20" stroke="#6d99f0" stroke-width="1.4"/>
-          <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T6</text>
-          <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#6d99f0">18n</text>
+          <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11.5" font-weight="700" fill="#F8FAFC">T6</text>
+          <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" fill="#6d99f0">18n</text>
         </g>
     </g>
   </g>

@@ -56,55 +56,55 @@
     <circle cx="442" cy="417.2" r="37" fill="#D946EF"/>
     <!-- @simplex-mark-node:end -->
   </g>
-  <text x="50" y="30" font-family="Noto Sans, sans-serif" font-size="16" font-weight="700" fill="#6B7F99">Simplex<tspan fill="#06B6D4">Viz</tspan></text>
-  <text x="165" y="29" font-family="Noto Sans, sans-serif" font-size="12.5" font-weight="700" fill="#6B7F99">Atlas</text>
+  <text x="50" y="30" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="16" font-weight="700" fill="#6B7F99">Simplex<tspan fill="#06B6D4">Viz</tspan></text>
+  <text x="165" y="29" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="12.5" font-weight="700" fill="#6B7F99">Atlas</text>
   <line x1="162" y1="36" x2="196" y2="36" stroke="#06B6D4" stroke-width="2"/>
-  <text x="218" y="29" font-family="Noto Sans, sans-serif" font-size="12.5" fill="#64748B">Rendering</text>
-  <text x="298" y="29" font-family="Noto Sans, sans-serif" font-size="12.5" fill="#64748B">Geometry</text>
-  <text x="378" y="29" font-family="Noto Sans, sans-serif" font-size="12.5" fill="#64748B">Interaction</text>
+  <text x="218" y="29" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="12.5" fill="#64748B">Rendering</text>
+  <text x="298" y="29" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="12.5" fill="#64748B">Geometry</text>
+  <text x="378" y="29" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="12.5" fill="#64748B">Interaction</text>
   <rect x="1158" y="11" width="104" height="26" rx="5" fill="#06B6D4" fill-opacity="0.14" stroke="#06B6D4" stroke-opacity="0.65"/>
-  <text x="1210" y="28" text-anchor="middle" font-family="Noto Sans, sans-serif" font-size="11.5" font-weight="600" fill="#06B6D4">Reset Camera</text>
+  <text x="1210" y="28" text-anchor="middle" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="11.5" font-weight="600" fill="#06B6D4">Reset Camera</text>
 
   <!-- Left Control Sidebar (Frosted Dual-Theme Surface) -->
   <rect x="1" y="48" width="290" height="670" fill="#64748B" fill-opacity="0.06"/>
   <line x1="290" y1="48" x2="290" y2="719" stroke="#64748B" stroke-opacity="0.30" stroke-width="1"/>
 
   <!-- Preset section -->
-  <text x="16" y="72" font-family="Noto Sans, sans-serif" font-size="11.5" font-weight="700" fill="#6B7F99">Rendering Plugin</text>
-  <text x="274" y="72" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#64748B">Live Crossfade</text>
+  <text x="16" y="72" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="11.5" font-weight="700" fill="#6B7F99">Rendering Plugin</text>
+  <text x="274" y="72" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10.5" fill="#64748B">Live Crossfade</text>
 
   <rect x="16" y="82" width="258" height="44" rx="6" fill="#06B6D4" fill-opacity="0.12" stroke="#06B6D4" stroke-opacity="0.65"/>
-  <text x="26" y="100" font-family="Noto Sans, sans-serif" font-size="11.5" font-weight="700" fill="#06B6D4">A · Geometric Encoding</text>
-  <text x="26" y="116" font-family="Noto Sans, sans-serif" font-size="10.5" fill="#64748B">SvgNodeView with 64-point morphing</text>
+  <text x="26" y="100" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="11.5" font-weight="700" fill="#06B6D4">A · Geometric Encoding</text>
+  <text x="26" y="116" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="10.5" fill="#64748B">SvgNodeView with 64-point morphing</text>
 
   <rect x="16" y="132" width="258" height="44" rx="6" fill="#64748B" fill-opacity="0.09" stroke="#64748B" stroke-opacity="0.32"/>
-  <text x="26" y="150" font-family="Noto Sans, sans-serif" font-size="11.5" font-weight="600" fill="#6B7F99">B · Topic Glyphs &amp; Badges</text>
-  <text x="26" y="166" font-family="Noto Sans, sans-serif" font-size="10.5" fill="#64748B">Multi-sector donut + getBBox() pills</text>
+  <text x="26" y="150" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="11.5" font-weight="600" fill="#6B7F99">B · Topic Glyphs &amp; Badges</text>
+  <text x="26" y="166" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="10.5" fill="#64748B">Multi-sector donut + getBBox() pills</text>
 
   <rect x="16" y="182" width="258" height="44" rx="6" fill="#64748B" fill-opacity="0.09" stroke="#64748B" stroke-opacity="0.32"/>
-  <text x="26" y="200" font-family="Noto Sans, sans-serif" font-size="11.5" font-weight="600" fill="#6B7F99">C · React JSX Mini-Cards</text>
-  <text x="26" y="216" font-family="Noto Sans, sans-serif" font-size="10.5" fill="#64748B">Declarative JSX + auto-scaling</text>
+  <text x="26" y="200" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="11.5" font-weight="600" fill="#6B7F99">C · React JSX Mini-Cards</text>
+  <text x="26" y="216" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="10.5" fill="#64748B">Declarative JSX + auto-scaling</text>
   <line x1="1" y1="238" x2="290" y2="238" stroke="#64748B" stroke-opacity="0.30" stroke-width="1"/>
 
   <!-- Mutations section -->
-  <text x="16" y="262" font-family="Noto Sans, sans-serif" font-size="11.5" font-weight="700" fill="#6B7F99">Dynamic Mutations</text>
-  <text x="274" y="262" text-anchor="end" font-family="Noto Sans, sans-serif" font-size="10.5" fill="#64748B">Reset</text>
+  <text x="16" y="262" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="11.5" font-weight="700" fill="#6B7F99">Dynamic Mutations</text>
+  <text x="274" y="262" text-anchor="end" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="10.5" fill="#64748B">Reset</text>
   <rect x="16" y="272" width="125" height="28" rx="5" fill="#64748B" fill-opacity="0.10" stroke="#64748B" stroke-opacity="0.36"/>
-  <text x="78" y="290" text-anchor="middle" font-family="Noto Sans, sans-serif" font-size="11" font-weight="600" fill="#6B7F99">+ 1 Item</text>
+  <text x="78" y="290" text-anchor="middle" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="11" font-weight="600" fill="#6B7F99">+ 1 Item</text>
   <rect x="148" y="272" width="126" height="28" rx="5" fill="#64748B" fill-opacity="0.10" stroke="#64748B" stroke-opacity="0.36"/>
-  <text x="211" y="290" text-anchor="middle" font-family="Noto Sans, sans-serif" font-size="11" font-weight="600" fill="#6B7F99">+ 10 Items</text>
+  <text x="211" y="290" text-anchor="middle" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="11" font-weight="600" fill="#6B7F99">+ 10 Items</text>
   <rect x="16" y="306" width="125" height="28" rx="5" fill="#64748B" fill-opacity="0.10" stroke="#64748B" stroke-opacity="0.36"/>
-  <text x="78" y="324" text-anchor="middle" font-family="Noto Sans, sans-serif" font-size="11" font-weight="600" fill="#6B7F99">- 1 Item</text>
+  <text x="78" y="324" text-anchor="middle" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="11" font-weight="600" fill="#6B7F99">- 1 Item</text>
   <rect x="148" y="306" width="126" height="28" rx="5" fill="#64748B" fill-opacity="0.10" stroke="#64748B" stroke-opacity="0.36"/>
-  <text x="211" y="324" text-anchor="middle" font-family="Noto Sans, sans-serif" font-size="11" font-weight="600" fill="#6B7F99">- 10 Items</text>
+  <text x="211" y="324" text-anchor="middle" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="11" font-weight="600" fill="#6B7F99">- 10 Items</text>
   <rect x="16" y="340" width="258" height="32" rx="5" fill="#64748B" fill-opacity="0.13" stroke="#64748B" stroke-opacity="0.42"/>
-  <text x="145" y="360" text-anchor="middle" font-family="Noto Sans, sans-serif" font-size="11.5" font-weight="700" fill="#6B7F99">Rapid-Fire Mutation Test</text>
+  <text x="145" y="360" text-anchor="middle" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="11.5" font-weight="700" fill="#6B7F99">Rapid-Fire Mutation Test</text>
   <line x1="1" y1="386" x2="290" y2="386" stroke="#64748B" stroke-opacity="0.30" stroke-width="1"/>
 
   <!-- Inspector section -->
-  <text x="16" y="408" font-family="Noto Sans, sans-serif" font-size="11.5" font-weight="700" fill="#6B7F99">Collision &amp; Geometry Inspector</text>
-  <text x="16" y="430" font-family="Noto Sans, sans-serif" font-size="11" fill="#64748B">Size Multiplier</text>
-  <text x="274" y="430" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#06B6D4">1.00×</text>
+  <text x="16" y="408" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="11.5" font-weight="700" fill="#6B7F99">Collision &amp; Geometry Inspector</text>
+  <text x="16" y="430" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="11" fill="#64748B">Size Multiplier</text>
+  <text x="274" y="430" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="600" fill="#06B6D4">1.00×</text>
   <line x1="16" y1="442" x2="274" y2="442" stroke="#64748B" stroke-opacity="0.35" stroke-width="4" stroke-linecap="round"/>
   <line x1="16" y1="442" x2="105" y2="442" stroke="#06B6D4" stroke-width="4" stroke-linecap="round"/>
   <circle cx="105" cy="442" r="6" fill="#06B6D4"/>
@@ -115,20 +115,20 @@
   <line x1="16" y1="514" x2="274" y2="514" stroke="#64748B" stroke-opacity="0.28"/>
   <line x1="16" y1="566" x2="274" y2="566" stroke="#64748B" stroke-opacity="0.28"/>
 
-  <text x="26" y="480" font-family="Noto Sans, sans-serif" font-size="10.5" fill="#64748B">Clusters K</text>
-  <text x="26" y="502" font-family="JetBrains Mono, monospace" font-size="15" font-weight="700" fill="#6B7F99">8</text>
-  <text x="155" y="480" font-family="Noto Sans, sans-serif" font-size="10.5" fill="#64748B">Items</text>
-  <text x="155" y="502" font-family="JetBrains Mono, monospace" font-size="15" font-weight="700" fill="#6B7F99">92</text>
+  <text x="26" y="480" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="10.5" fill="#64748B">Clusters K</text>
+  <text x="26" y="502" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="15" font-weight="700" fill="#6B7F99">8</text>
+  <text x="155" y="480" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="10.5" fill="#64748B">Items</text>
+  <text x="155" y="502" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="15" font-weight="700" fill="#6B7F99">92</text>
 
-  <text x="26" y="532" font-family="Noto Sans, sans-serif" font-size="10.5" fill="#64748B">α Cluster</text>
-  <text x="26" y="554" font-family="JetBrains Mono, monospace" font-size="15" font-weight="700" fill="#F59E0B">1.000</text>
-  <text x="155" y="532" font-family="Noto Sans, sans-serif" font-size="10.5" fill="#64748B">α Content</text>
-  <text x="155" y="554" font-family="JetBrains Mono, monospace" font-size="15" font-weight="700" fill="#06B6D4">1.000</text>
+  <text x="26" y="532" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="10.5" fill="#64748B">α Cluster</text>
+  <text x="26" y="554" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="15" font-weight="700" fill="#F59E0B">1.000</text>
+  <text x="155" y="532" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="10.5" fill="#64748B">α Content</text>
+  <text x="155" y="554" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="15" font-weight="700" fill="#06B6D4">1.000</text>
 
-  <text x="26" y="584" font-family="Noto Sans, sans-serif" font-size="10.5" fill="#64748B">Overlaps</text>
-  <text x="26" y="606" font-family="JetBrains Mono, monospace" font-size="15" font-weight="700" fill="#06B6D4">0</text>
-  <text x="155" y="584" font-family="Noto Sans, sans-serif" font-size="10.5" fill="#64748B">Frame Rate</text>
-  <text x="155" y="606" font-family="JetBrains Mono, monospace" font-size="15" font-weight="700" fill="#6B7F99">60 <tspan font-size="10.5" font-weight="400" fill="#64748B">fps</tspan></text>
+  <text x="26" y="584" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="10.5" fill="#64748B">Overlaps</text>
+  <text x="26" y="606" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="15" font-weight="700" fill="#06B6D4">0</text>
+  <text x="155" y="584" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="10.5" fill="#64748B">Frame Rate</text>
+  <text x="155" y="606" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="15" font-weight="700" fill="#6B7F99">60 <tspan font-size="10.5" font-weight="400" fill="#64748B">fps</tspan></text>
 
   <!-- Main Stage (clipped cleanly) -->
   <g transform="translate(290, 48)" clip-path="url(#demoStageClip)">
@@ -246,72 +246,72 @@
       <g transform="translate(56.0, 209.3)">
         <circle r="26.0" fill="#ff8083" fill-opacity="0.20" stroke="#ff8083" stroke-width="1.6" stroke-dasharray="4 2.5"/>
         <circle r="21.0" fill="#ff8083" fill-opacity="0.96" stroke="#475569" stroke-opacity="0.38" stroke-width="1.2"/>
-        <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T1</text>
-        <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">26n</text>
+        <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T1</text>
+        <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">26n</text>
       </g>
 
       <g transform="translate(56.0, 462.7)">
         <circle r="26.0" fill="#0dcaad" fill-opacity="0.20" stroke="#0dcaad" stroke-width="1.6" stroke-dasharray="4 2.5"/>
         <circle r="21.0" fill="#0dcaad" fill-opacity="0.96" stroke="#475569" stroke-opacity="0.38" stroke-width="1.2"/>
-        <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T2</text>
-        <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">16n</text>
+        <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T2</text>
+        <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">16n</text>
       </g>
 
       <g transform="translate(275.5, 336.0)">
         <circle r="26.0" fill="#ad8dfd" fill-opacity="0.20" stroke="#ad8dfd" stroke-width="1.6" stroke-dasharray="4 2.5"/>
         <circle r="21.0" fill="#ad8dfd" fill-opacity="0.96" stroke="#475569" stroke-opacity="0.38" stroke-width="1.2"/>
-        <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T3</text>
-        <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">46n</text>
+        <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T3</text>
+        <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">46n</text>
       </g>
 
       <g transform="translate(495.0, 209.3)">
         <circle r="26.0" fill="#97bf3f" fill-opacity="0.20" stroke="#97bf3f" stroke-width="1.6" stroke-dasharray="4 2.5"/>
         <circle r="21.0" fill="#97bf3f" fill-opacity="0.96" stroke="#475569" stroke-opacity="0.38" stroke-width="1.2"/>
-        <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T4</text>
-        <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">13n</text>
+        <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T4</text>
+        <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">13n</text>
       </g>
 
       <g transform="translate(495.0, 462.7)">
         <circle r="26.0" fill="#f67d51" fill-opacity="0.20" stroke="#f67d51" stroke-width="1.6" stroke-dasharray="4 2.5"/>
         <circle r="21.0" fill="#f67d51" fill-opacity="0.96" stroke="#475569" stroke-opacity="0.38" stroke-width="1.2"/>
-        <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T5</text>
-        <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">14n</text>
+        <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T5</text>
+        <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">14n</text>
       </g>
 
       <g transform="translate(714.5, 336.0)">
         <circle r="26.0" fill="#6d99f0" fill-opacity="0.20" stroke="#6d99f0" stroke-width="1.6" stroke-dasharray="4 2.5"/>
         <circle r="21.0" fill="#6d99f0" fill-opacity="0.96" stroke="#475569" stroke-opacity="0.38" stroke-width="1.2"/>
-        <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T6</text>
-        <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">18n</text>
+        <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T6</text>
+        <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">18n</text>
       </g>
 
       <g transform="translate(934.0, 209.3)">
         <circle r="26.0" fill="#e29e3c" fill-opacity="0.20" stroke="#e29e3c" stroke-width="1.6" stroke-dasharray="4 2.5"/>
         <circle r="21.0" fill="#e29e3c" fill-opacity="0.96" stroke="#475569" stroke-opacity="0.38" stroke-width="1.2"/>
-        <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T7</text>
-        <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">8n</text>
+        <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T7</text>
+        <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">8n</text>
       </g>
 
       <g transform="translate(934.0, 462.7)">
         <circle r="26.0" fill="#3fb479" fill-opacity="0.20" stroke="#3fb479" stroke-width="1.6" stroke-dasharray="4 2.5"/>
         <circle r="21.0" fill="#3fb479" fill-opacity="0.96" stroke="#475569" stroke-opacity="0.38" stroke-width="1.2"/>
-        <text y="-2" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0F172A">T8</text>
-        <text y="11" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="600" fill="#1E293B">6n</text>
+        <text y="-2" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#0F172A">T8</text>
+        <text y="11" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="600" fill="#1E293B">6n</text>
       </g>
 
     <!-- Floating Hover Tooltip Card -->
     <g transform="translate(454.9, 247.9)">
       <rect width="252" height="68" rx="6" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.72" stroke-width="1.3"/>
-      <text x="12" y="21" font-family="Noto Sans, sans-serif" font-size="11.5" font-weight="600" fill="#0F172A">Hierarchical Information Density …</text>
-      <text x="12" y="39" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#475569">project · 18 min · 2026</text>
-      <text x="12" y="55" font-family="Noto Sans, sans-serif" font-size="10.5" font-weight="600" fill="#0E7490">Typography · SVG Scene Graph</text>
+      <text x="12" y="21" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="11.5" font-weight="600" fill="#0F172A">Hierarchical Information Density …</text>
+      <text x="12" y="39" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10.5" fill="#475569">project · 18 min · 2026</text>
+      <text x="12" y="55" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="10.5" font-weight="600" fill="#0E7490">Typography · SVG Scene Graph</text>
     </g>
 
     <!-- Bottom-right Camera Zoom Controls -->
     <g transform="translate(886, 628)">
       <rect width="88" height="30" rx="6" fill="#64748B" fill-opacity="0.12" stroke="#64748B" stroke-opacity="0.38"/>
-      <text x="18" y="20" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="14" font-weight="600" fill="#6B7F99">+</text>
-      <text x="44" y="20" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="14" font-weight="600" fill="#6B7F99">-</text>
+      <text x="18" y="20" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="14" font-weight="600" fill="#6B7F99">+</text>
+      <text x="44" y="20" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="14" font-weight="600" fill="#6B7F99">-</text>
       <path d="M74 12.5A4.8 4.8 0 1 0 74.7 17.5M74 10v3h-3" fill="none" stroke="#6B7F99" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
     </g>
   </g>

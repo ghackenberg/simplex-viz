@@ -48,12 +48,12 @@
   </g>
 
   <!-- Dual-Contrast Wordmark synced to top vertex Cyan -->
-  <text x="166" y="76" font-family="Noto Sans, sans-serif" font-size="44" font-weight="700" letter-spacing="-0.8">
+  <text x="166" y="76" font-family="Plus Jakarta Sans, Noto Sans, Noto Sans Symbols, sans-serif" font-size="44" font-weight="700" letter-spacing="-0.8">
     <tspan fill="#6B7F99">Simplex</tspan><tspan fill="#06B6D4">Viz</tspan>
   </text>
 
   <!-- Subtitle -->
-  <text x="168" y="114" font-family="JetBrains Mono, monospace" font-size="13.5" font-weight="600" letter-spacing="1" fill="#64748B">
+  <text x="168" y="114" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="13.5" font-weight="600" letter-spacing="1" fill="#64748B">
     60° TRIANGULATION CONTENT ATLAS
   </text>
 </svg>
