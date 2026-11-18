@@ -75,6 +75,12 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.14.0(jiti@2.7.0))
+      '@fontsource/noto-sans':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/noto-sans-symbols':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@resvg/resvg-js':
         specifier: ^2.6.2
         version: 2.6.2
@@ -132,6 +138,9 @@ importers:
       vitest:
         specifier: ^5.1.0
         version: 5.1.0(@types/node@22.20.5)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4)(vite@8.3.8(@types/node@22.20.5)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      woff2-encoder:
+        specifier: ^2.0.0
+        version: 2.0.0
 
   packages/core: {}
 
@@ -831,6 +840,12 @@ packages:
 
   '@fontsource/ibm-plex-mono@5.3.0':
     resolution: {integrity: sha512-eTgnZjZEGk1QtD3ZstF+Vclo2HLAni8YMy34/DxllwZvyz1lR/1RF/xTiAquOBO7MvqBx8D2Ig2WCPMVfdZu7Q==}
+
+  '@fontsource/noto-sans-symbols@5.3.0':
+    resolution: {integrity: sha512-Al5jMC2ivI5JkBP3RpcEhkY3zel9CyS199TfKC/B1SAFVj8BJghUNX0tMif0CuhVLpVwZMacM/lHJx3wxdJZBQ==}
+
+  '@fontsource/noto-sans@5.3.0':
+    resolution: {integrity: sha512-fBCog2PY7DiVVTEEqtI/Qdinx/knobHYfoGpjFXdfBX5RoJaBp1Prw2G75p0OIsdlMZg3cLo0c+YbIUYOxnQJw==}
 
   '@fontsource/plus-jakarta-sans@5.3.0':
     resolution: {integrity: sha512-9WRw3G74Ve4cyPApAZSXLPY5DiLOZXDn7Q7dIBjFBpA0Pj56ljDItEdy2UUajjJxRuTg2HkMLO5C3K2nAQORWg==}
@@ -4055,6 +4070,10 @@ packages:
     engines: {node: '>=20.11'}
     hasBin: true
 
+  woff2-encoder@2.0.0:
+    resolution: {integrity: sha512-wH1rcskczCP5+BJABM88aM3hoEX1VUW6U+Ksx/7bmXvctWGqF+O/YQdC6vWQ7lJS7ny21a0MkAqcZyOP2O8CAg==}
+    engines: {node: '>= 18.x'}
+
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
@@ -4708,6 +4727,10 @@ snapshots:
       levn: 0.4.1
 
   '@fontsource/ibm-plex-mono@5.3.0': {}
+
+  '@fontsource/noto-sans-symbols@5.3.0': {}
+
+  '@fontsource/noto-sans@5.3.0': {}
 
   '@fontsource/plus-jakarta-sans@5.3.0': {}
 
@@ -8258,6 +8281,8 @@ snapshots:
       isexe: 2.0.0
 
   why-is-node-running@3.2.1: {}
+
+  woff2-encoder@2.0.0: {}
 
   word-wrap@1.2.5: {}
 
