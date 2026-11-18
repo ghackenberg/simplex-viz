@@ -305,12 +305,12 @@ export function UseCaseMiniAtlas({
             ? 'sv-atlas-fullscreen'
             : embedded
               ? ''
-              : 'my-6 rounded-xl border border-slate-200/90 dark:border-slate-800/80'
+              : 'my-6 rounded-2xl border border-slate-200/90 dark:border-slate-800/90'
         }`}
       >
         {/* Live Simplex Canvas with Floating Dataset Info & Fullscreen Overlay Controls */}
         <div
-          className={`relative w-full bg-slate-50/70 dark:bg-[#07090E] ${
+          className={`relative w-full bg-white dark:bg-[#0B0F17] ${
             isFullscreen ? 'min-h-0 flex-1' : 'h-[460px] sm:h-[540px]'
           }`}
         >

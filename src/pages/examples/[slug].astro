@@ -169,59 +169,73 @@ const jsonLd = {
       />
     </header>
 
-    <!-- Minimalist 3-Tab Workbench: Preview · Code · Dataset -->
-    <section
-      data-example-workbench
-      aria-label="Interactive example workbench"
-      class="mt-8 overflow-hidden rounded-xl border border-slate-200/90 bg-white dark:border-slate-800/85 dark:bg-[#0B0F17]"
-    >
-      <!-- Workbench Top Bar -->
-      <div class="flex items-center border-b border-slate-200/90 bg-slate-50/80 px-3 py-2 sm:px-4 dark:border-slate-800/85 dark:bg-[#0F1522]">
-        <div
-          role="tablist"
-          aria-label="Example views"
-          class="inline-flex items-center gap-1 rounded-lg bg-slate-200/75 p-1 dark:bg-slate-900"
-        >
-          <button
-            type="button"
-            role="tab"
-            id="tab-example-preview"
-            aria-controls="panel-example-preview"
-            aria-selected="true"
-            data-example-tab="preview"
-            data-active="true"
-            class="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 text-slate-600 hover:text-slate-950 data-[active=true]:bg-white data-[active=true]:text-slate-950 data-[active=true]:shadow-xs dark:text-slate-400 dark:hover:text-white dark:data-[active=true]:bg-slate-800 dark:data-[active=true]:text-cyan-300"
+    <!-- Synchronized 3-Tab Showcase Workbench: Preview · Code · Dataset -->
+    <div class="relative mt-8">
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute -inset-x-6 -top-6 h-44 rounded-full bg-cyan-500/[0.05] blur-3xl dark:bg-cyan-400/[0.06]"
+      />
+      <section
+        data-example-workbench
+        aria-label="Interactive example workbench"
+        class="relative overflow-hidden rounded-2xl border border-slate-300/80 bg-white shadow-lg shadow-slate-950/[0.04] dark:border-slate-700/80 dark:bg-[#0B0F17] dark:shadow-black/45"
+      >
+        <!-- Full-Width Segmented Tab Bar (Synchronized with Home Hero Atlas) -->
+        <div class="border-b border-slate-200/80 bg-slate-100/85 p-1.5 dark:border-slate-800/80 dark:bg-[#0E131D]">
+          <div
+            role="tablist"
+            aria-label="Example views"
+            class="grid grid-cols-3 gap-1"
           >
-            Preview
-          </button>
-          <button
-            type="button"
-            role="tab"
-            id="tab-example-code"
-            aria-controls="panel-example-code"
-            aria-selected="false"
-            tabindex="-1"
-            data-example-tab="code"
-            data-active="false"
-            class="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 text-slate-600 hover:text-slate-950 data-[active=true]:bg-white data-[active=true]:text-slate-950 data-[active=true]:shadow-xs dark:text-slate-400 dark:hover:text-white dark:data-[active=true]:bg-slate-800 dark:data-[active=true]:text-cyan-300"
-          >
-            Code
-          </button>
-          <button
-            type="button"
-            role="tab"
-            id="tab-example-dataset"
-            aria-controls="panel-example-dataset"
-            aria-selected="false"
-            tabindex="-1"
-            data-example-tab="dataset"
-            data-active="false"
-            class="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 text-slate-600 hover:text-slate-950 data-[active=true]:bg-white data-[active=true]:text-slate-950 data-[active=true]:shadow-xs dark:text-slate-400 dark:hover:text-white dark:data-[active=true]:bg-slate-800 dark:data-[active=true]:text-cyan-300"
-          >
-            Dataset
-          </button>
+            <button
+              type="button"
+              role="tab"
+              id="tab-example-preview"
+              aria-controls="panel-example-preview"
+              aria-selected="true"
+              data-example-tab="preview"
+              data-active="true"
+              class="group flex h-9 sm:h-8.5 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-600 transition-colors whitespace-nowrap hover:bg-white/60 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 data-[active=true]:bg-white data-[active=true]:font-semibold data-[active=true]:text-slate-950 data-[active=true]:shadow-xs data-[active=true]:hover:bg-white dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-100 dark:data-[active=true]:bg-[#0B0F17] dark:data-[active=true]:text-cyan-300 dark:data-[active=true]:hover:bg-[#0B0F17]"
+            >
+              <span>Preview</span>
+              <span class="hidden sm:inline font-normal text-slate-400 group-data-[active=true]:text-slate-400 dark:text-slate-500 dark:group-data-[active=true]:text-cyan-400/70">
+                · Live
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="tab-example-code"
+              aria-controls="panel-example-code"
+              aria-selected="false"
+              tabindex="-1"
+              data-example-tab="code"
+              data-active="false"
+              class="group flex h-9 sm:h-8.5 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-600 transition-colors whitespace-nowrap hover:bg-white/60 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 data-[active=true]:bg-white data-[active=true]:font-semibold data-[active=true]:text-slate-950 data-[active=true]:shadow-xs data-[active=true]:hover:bg-white dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-100 dark:data-[active=true]:bg-[#0B0F17] dark:data-[active=true]:text-cyan-300 dark:data-[active=true]:hover:bg-[#0B0F17]"
+            >
+              <span>Code</span>
+              <span class="hidden sm:inline font-normal text-slate-400 group-data-[active=true]:text-slate-400 dark:text-slate-500 dark:group-data-[active=true]:text-cyan-400/70">
+                · TSX
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="tab-example-dataset"
+              aria-controls="panel-example-dataset"
+              aria-selected="false"
+              tabindex="-1"
+              data-example-tab="dataset"
+              data-active="false"
+              class="group flex h-9 sm:h-8.5 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-600 transition-colors whitespace-nowrap hover:bg-white/60 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 data-[active=true]:bg-white data-[active=true]:font-semibold data-[active=true]:text-slate-950 data-[active=true]:shadow-xs data-[active=true]:hover:bg-white dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-100 dark:data-[active=true]:bg-[#0B0F17] dark:data-[active=true]:text-cyan-300 dark:data-[active=true]:hover:bg-[#0B0F17]"
+            >
+              <span>Dataset</span>
+              <span class="hidden sm:inline font-normal text-slate-400 group-data-[active=true]:text-slate-400 dark:text-slate-500 dark:group-data-[active=true]:text-cyan-400/70">
+                · JSON
+              </span>
+            </button>
+          </div>
         </div>
-      </div>
 
       <!-- Panel 1: Interactive SimplexViz Preview -->
       <div
@@ -331,7 +345,8 @@ const jsonLd = {
           />
         </div>
       </div>
-    </section>
+      </section>
+    </div>
 
     <!-- Concise Centered Architecture Rationale Below Workbench -->
     <article class="mx-auto mt-12 max-w-3xl">

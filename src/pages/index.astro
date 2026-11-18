@@ -134,8 +134,8 @@ const pipelineStages = [
           </div>
 
           <!-- Compact Self-Contained Package Install Bar -->
-          <div class="mx-auto mt-6 max-w-md overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50/90 text-left lg:mx-0 lg:max-w-none dark:border-slate-800 dark:bg-[#07090E]">
-            <div class="flex items-center justify-between gap-2 border-b border-slate-200/80 bg-slate-100/80 px-1.5 pt-1.5 dark:border-slate-800/90 dark:bg-[#0F1522]">
+          <div class="mx-auto mt-6 max-w-md overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50/70 text-left lg:mx-0 lg:max-w-none dark:border-slate-800/90 dark:bg-[#07090E]">
+            <div class="flex items-center justify-between gap-2 border-b border-slate-200/80 bg-slate-100/85 px-1.5 pt-1.5 dark:border-slate-800/80 dark:bg-[#0E131D]">
               <div role="tablist" aria-label="Choose package layer" class="flex items-center gap-0.5">
                 {
                   installTargets.map((target, idx) => (
@@ -148,10 +148,10 @@ const pipelineStages = [
                       data-full-cmd={target.fullCmd}
                       data-install-hint={target.hint}
                       class:list={[
-                        'cursor-pointer rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap',
+                        'cursor-pointer rounded-t-md px-3 py-1.5 text-xs transition-colors whitespace-nowrap',
                         idx === 0
                           ? 'bg-slate-50 text-slate-950 font-semibold dark:bg-[#07090E] dark:text-cyan-300'
-                          : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200',
+                          : 'font-medium text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-100',
                       ]}
                     >
                       {target.label}
@@ -385,8 +385,11 @@ const pipelineStages = [
               'dark:text-cyan-300',
             );
             other.classList.remove(
-              'text-slate-500',
+              'font-medium',
+              'text-slate-600',
+              'hover:text-slate-950',
               'dark:text-slate-400',
+              'dark:hover:text-slate-100',
             );
           } else {
             other.classList.remove(
@@ -397,8 +400,11 @@ const pipelineStages = [
               'dark:text-cyan-300',
             );
             other.classList.add(
-              'text-slate-500',
+              'font-medium',
+              'text-slate-600',
+              'hover:text-slate-950',
               'dark:text-slate-400',
+              'dark:hover:text-slate-100',
             );
           }
         });
