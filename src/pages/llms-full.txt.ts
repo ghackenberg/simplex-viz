@@ -9,13 +9,10 @@ function stripMdxImportsAndJsxIslands(rawBody: string | undefined): string {
   return rawBody
     .replace(/<StrategyDecisionList[\s\S]*?\/>/g, '')
     .replace(/<StrategyDiagram[\s\S]*?\/>/g, '')
+    .replace(/<StrategyParameterComparison[\s\S]*?\/>/g, '')
     .split('\n')
     .filter((line) => !line.trim().startsWith('import '))
-    .filter(
-      (line) =>
-        !line.includes('<StrategyLiveSandbox') &&
-        !line.includes('<UseCaseMiniAtlas'),
-    )
+    .filter((line) => !line.includes('<UseCaseMiniAtlas'))
     .join('\n')
     .trim();
 }

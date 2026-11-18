@@ -15,8 +15,8 @@ relatedApiSlug: "core"
 ---
 
 import StrategyDiagram from '../../components/diagrams/StrategyDiagram.astro';
+import StrategyParameterComparison from '../../components/diagrams/StrategyParameterComparison.astro';
 import StrategyDecisionList from '../../components/docs/StrategyDecisionList.astro';
-import { StrategyLiveSandbox } from '../../components/islands/StrategyLiveSandbox';
 
 Stage 2 (`SimplexClusteringStrategy`) solves three coupled mathematical problems:
 
@@ -28,12 +28,6 @@ Stage 2 (`SimplexClusteringStrategy`) solves three coupled mathematical problems
   kind="clustering"
   caption="Left: Discrete Explaining-Away / sparse NNLS snaps items onto exact vertices, 2-cluster edges, or 3-cluster centroids. Right: Soft-Simplex blends continuous affinity across the best covering triangle while keeping single-cluster items unconstrained in a 360° halo."
 />
-
-## Interactive Comparison: Soft-Simplex vs. Jaccard Annealing
-
-Toggle between **Soft-Simplex Tag Clustering** and **Jaccard Annealing Clustering** below, and drag `triangleSpread` to observe how multi-topic items populate triangle interiors without pulling single-topic halo nodes inward:
-
-<StrategyLiveSandbox mode="clustering" client:visible />
 
 ## Strategy Decision Matrix
 
@@ -82,6 +76,15 @@ Toggle between **Soft-Simplex Tag Clustering** and **Jaccard Annealing Clusterin
         'PAM k-Medoids + QAP mesh embedding + simplex projection for arbitrary pairwise similarity functions without explicit feature vectors.',
     },
   ]}
+/>
+
+## Parameter Effect: `triangleSpread` (`0.00` vs. `0.45` vs. `0.90`)
+
+Raising `triangleSpread` smoothly distributes multi-cluster items across the covering 2-simplex triangle interior while keeping single-cluster items unconstrained in an outer `360°` vertex halo:
+
+<StrategyParameterComparison
+  kind="clustering"
+  caption="Left: triangleSpread = 0.00 (or discrete Jaccard / NNLS anchoring) snaps shared items strictly onto edges and triangle centroids. Center: default triangleSpread = 0.45 spreads bridge items evenly across the 2-simplex face while preserving a 360° halo around C1. Right: triangleSpread = 0.90 diffuses interior weights broadly toward the center."
 />
 
 ## Tag Rules: Planar Hitting-Set & Explaining-Away

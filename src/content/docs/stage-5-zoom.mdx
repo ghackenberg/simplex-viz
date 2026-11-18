@@ -15,8 +15,8 @@ relatedApiSlug: "core"
 ---
 
 import StrategyDiagram from '../../components/diagrams/StrategyDiagram.astro';
+import StrategyParameterComparison from '../../components/diagrams/StrategyParameterComparison.astro';
 import StrategyDecisionList from '../../components/docs/StrategyDecisionList.astro';
-import { StrategyLiveSandbox } from '../../components/islands/StrategyLiveSandbox';
 
 Stage 5 (`SimplexZoomStrategy`) governs how users navigate dense regions of the simplex atlas—either via a **continuous 2D camera** (`mode: 'free-camera'`) or via **discrete, structure-preserving hierarchical drill-down** (`mode: 'drill-down'`).
 
@@ -24,12 +24,6 @@ Stage 5 (`SimplexZoomStrategy`) governs how users navigate dense regions of the 
   kind="zoom"
   caption="Left: Conformal 1:4 subdivision connects edge midpoints (M_ab, M_bc, M_ca) to create 4 equilateral sub-triangles while preserving exact ▲/▼/▶/◀ parent orientation. Right: Clicking a cluster vertex in 'incident-star' mode focuses its 1-ring star of incident triangles."
 />
-
-## Interactive Drill-Down Sandbox
-
-Click any triangle with internal subdivision lines (or any cluster badge) below to drill down, click dimmed neighbor triangles to pan/zoom across regions, and switch between **Subspace Re-Clustering Drill-Down**, **Semantic 3→6 Tag Drill-Down**, **Barycentric 1:4 Drill-Down**, and **Continuous Free Camera**:
-
-<StrategyLiveSandbox mode="zoom" client:visible />
 
 ## Strategy Decision Matrix
 
@@ -64,6 +58,15 @@ Click any triangle with internal subdivision lines (or any cluster badge) below 
         'Continuous cursor-centered wheel zoom, drag-to-pan, and two-finger touch pinch over fixed world coordinates without re-solving sub-meshes.',
     },
   ]}
+/>
+
+## Side-by-Side Comparison: How Each 1:4 Drill-Down Strategy Refines a Triangle
+
+Clicking the same crowded `(Physics, Math, CS)` parent triangle behaves distinctly depending on whether you want pure geometric magnification, secondary tag promotion, or variance-driven subspace re-clustering:
+
+<StrategyParameterComparison
+  kind="zoom"
+  caption="Left: Barycentric 1:4 preserves exact parent coordinates with Adaptive Contrast Stretch and explicit A ↔ B midpoint bridges. Center: Semantic 3→6 promotes the top discriminative sub-tags onto the 3 edge midpoints. Right: Subspace Re-Cluster projects out constant parent traits (σ_local = 0) and assigns all 6 sub-vertices to fresh high-variance dimensions."
 />
 
 ## Key UX & Geometric Mechanics in `drill-down` Mode

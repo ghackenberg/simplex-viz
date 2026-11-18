@@ -14,22 +14,15 @@ summaryPoints:
 relatedApiSlug: "core"
 ---
 
-import StrategyDiagram from '../../components/diagrams/StrategyDiagram.astro';
+import StrategyParameterComparison from '../../components/diagrams/StrategyParameterComparison.astro';
 import StrategyDecisionList from '../../components/docs/StrategyDecisionList.astro';
-import { StrategyLiveSandbox } from '../../components/islands/StrategyLiveSandbox';
 
 Stage 4 (`SimplexLayoutStrategy`) transforms abstract barycentric weights into exact 2D world coordinates `(x, y)` and per-node scale factors (`clusterScale`, `itemScales`) for arbitrary `ConvexGeometry` hulls (circles, regular polygons, star hulls, or measured React/SVG bounding boxes).
 
-<StrategyDiagram
+<StrategyParameterComparison
   kind="layout"
-  caption="Left: Global Uniform Scaling preserves exact relative size ratios across the entire atlas by shrinking every item to α = 0.52 when one triangle becomes crowded. Right: Collision-Driven Local Scaling shrinks only colliding pockets, leaving sparse triangles at 1.00x leaf scale."
+  caption="Same skewed mesh distribution evaluated under all three scaling modes: Uniform PBD shrinks every node globally to α = 0.50 to keep size ratios exact; Collision-Local Pocket shrinks only overlapping pockets while keeping sparse triangles at 1.00x leaf scale; Density-Adaptive computes a smooth radial gradient over crowdRadiusPx."
 />
-
-## Interactive Comparison: Collision-Local vs. Uniform PBD Layout
-
-Switch between **Collision-Local Pocket Layout** and **Uniform PBD Layout** below to see how sparse outer clusters keep full `1.0x` readability while dense interior pockets pack cleanly with `0` overlaps:
-
-<StrategyLiveSandbox mode="layout" client:visible />
 
 ## Built-In Layout Strategies
 
