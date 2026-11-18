@@ -78,7 +78,7 @@ const STAGE_CHAPTERS: readonly StageChapterMeta[] = [
   aria-labelledby="architecture-heading"
   class="pt-14 pb-12 sm:pt-20 sm:pb-16"
 >
-  <!-- Consistent Section Header matching Examples & Latest Notes -->
+  <!-- Section Header matching Examples & Latest Notes -->
   <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
     <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
       <div class="max-w-xl">
@@ -101,7 +101,7 @@ const STAGE_CHAPTERS: readonly StageChapterMeta[] = [
     </div>
   </div>
 
-  <!-- Scroll Runway for Pinned Full-Viewport Stage Card -->
+  <!-- Scroll Runway for Pinned Studio Viewport -->
   <div
     data-pipeline-runway
     class="relative mt-6 h-[280dvh] min-h-[1450px] max-h-[2600px] sm:mt-8"
@@ -110,31 +110,13 @@ const STAGE_CHAPTERS: readonly StageChapterMeta[] = [
       data-pipeline-sticky
       class="sticky top-14 mx-auto flex h-[min(calc(100dvh-3.5rem),43rem)] max-w-7xl flex-col px-3 py-2 sm:px-6 sm:py-3 lg:px-8"
     >
-      <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_14px_44px_-22px_rgba(15,23,42,0.14)] dark:border-slate-800/90 dark:bg-[#0B0F17] dark:shadow-[0_20px_50px_-24px_rgba(6,182,212,0.14)]">
-        <!-- Top Scroll Progress Hairline -->
-        <svg
-          class="block h-[3px] w-full shrink-0 bg-slate-100 dark:bg-slate-900"
-          viewBox="0 0 1000 3"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <rect
-            data-pipeline-progress
-            x="0"
-            y="0"
-            width="1000"
-            height="3"
-            transform="scale(0.06 1)"
-            class="fill-cyan-600 dark:fill-cyan-400"
-          />
-        </svg>
-
-        <!-- Minimal Centered Stage Tab Bar -->
-        <div class="flex shrink-0 items-center justify-center border-b border-slate-200/80 bg-slate-50/90 px-3 py-1.5 sm:px-5 sm:py-2 dark:border-slate-800/80 dark:bg-[#0E131D]">
+      <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_60px_-24px_rgba(15,23,42,0.16),inset_0_1px_0_0_rgba(255,255,255,0.7)] dark:border-slate-800/90 dark:bg-[#0B0F17] dark:shadow-[0_28px_72px_-24px_rgba(6,182,212,0.16),inset_0_1px_0_0_rgba(255,255,255,0.06)]">
+        <!-- Minimal Architectural Stage Step Rail + Scroll Progress Hairline -->
+        <div class="relative shrink-0 border-b border-slate-200/80 bg-slate-50/90 px-3 py-2 sm:px-5 sm:py-2.5 dark:border-slate-800/80 dark:bg-[#0E131D]/95">
           <div
             role="tablist"
             aria-label="Pipeline stages"
-            class="grid w-full max-w-lg grid-cols-5 gap-1"
+            class="mx-auto grid w-full max-w-xl grid-cols-5 gap-1.5"
           >
             {
               STAGE_CHAPTERS.map((item) => (
@@ -144,229 +126,420 @@ const STAGE_CHAPTERS: readonly StageChapterMeta[] = [
                   data-stage-tab={item.stage}
                   aria-selected={item.stage === 1 ? 'true' : 'false'}
                   data-active={item.stage === 1 ? 'true' : 'false'}
-                  class="flex h-7 sm:h-8 cursor-pointer items-center justify-center gap-1 rounded-lg px-1.5 text-xs font-medium text-slate-600 transition-colors whitespace-nowrap shrink-0 hover:bg-white/80 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 data-[active=true]:bg-white data-[active=true]:font-semibold data-[active=true]:text-slate-950 data-[active=true]:shadow-xs dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-100 dark:data-[active=true]:bg-[#0B0F17] dark:data-[active=true]:text-cyan-300"
+                  data-completed="false"
+                  class="group relative flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-transparent px-2 text-xs font-medium text-slate-500 transition-all whitespace-nowrap shrink-0 hover:bg-white/75 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 data-[completed=true]:text-slate-700 data-[active=true]:border-slate-200/90 data-[active=true]:bg-white data-[active=true]:font-semibold data-[active=true]:text-slate-950 data-[active=true]:shadow-xs dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-100 dark:data-[completed=true]:text-slate-300 dark:data-[active=true]:border-cyan-400/35 dark:data-[active=true]:bg-[#0B0F17] dark:data-[active=true]:text-cyan-200"
                 >
+                  <span
+                    class="h-1.5 w-1.5 rounded-full bg-slate-300 transition-colors group-data-[completed=true]:bg-cyan-500/70 group-data-[active=true]:bg-cyan-500 dark:bg-slate-700 dark:group-data-[completed=true]:bg-cyan-400/60 dark:group-data-[active=true]:bg-cyan-400"
+                    aria-hidden="true"
+                  />
                   <span class="font-mono text-[11px] tabular-nums">{item.num}</span>
                   <span class="hidden sm:inline truncate">{item.shortTab}</span>
                 </button>
               ))
             }
           </div>
+
+          <!-- Precision 2px Bottom Conduit Scroll Hairline -->
+          <svg
+            class="pointer-events-none absolute inset-x-0 bottom-0 block h-[2px] w-full"
+            viewBox="0 0 1000 2"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <rect
+              data-pipeline-progress
+              x="0"
+              y="0"
+              width="1000"
+              height="2"
+              transform="scale(0.06 1)"
+              class="fill-cyan-600 dark:fill-cyan-400"
+            />
+          </svg>
         </div>
 
-        <!-- Adaptive Orientation Body: Portrait Stacked / Landscape Side-by-Side -->
+        <!-- Adaptive Orientation Stage Body: Portrait Stacked / Landscape Side-by-Side -->
         <div class="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_auto] divide-y divide-slate-200/80 landscape:grid-cols-12 landscape:grid-rows-1 landscape:divide-x landscape:divide-y-0 dark:divide-slate-800/80">
-          <!-- Illustration Viewport -->
-          <div class="relative flex min-h-0 items-center justify-center overflow-hidden bg-slate-50/75 p-2 sm:p-5 landscape:col-span-6 dark:bg-[#07090E]">
+          <!-- Left / Top: High-Craft Precision Vector Chamber -->
+          <div class="relative flex min-h-0 items-center justify-center overflow-hidden bg-slate-50/75 p-2 sm:p-4 landscape:col-span-6 dark:bg-[#07090E]">
             <svg
               class="h-full w-full max-h-full select-none"
               viewBox="0 0 640 460"
               preserveAspectRatio="xMidYMid meet"
               role="img"
-              aria-label="Illustration of the active SimplexViz pipeline stage"
+              aria-label="Architectural vector illustration of the active SimplexViz pipeline stage"
             >
               <defs>
-                <radialGradient id="sv-pipe-glow-cyan" cx="50%" cy="50%" r="55%">
+                <!-- Subtle Calibrated Instrument Micro-Dot Grid -->
+                <pattern id="sv-pipe-dot-matrix" width="24" height="24" patternUnits="userSpaceOnUse">
+                  <circle cx="12" cy="12" r="1" class="fill-slate-300/75 dark:fill-slate-700/70" />
+                </pattern>
+                <radialGradient id="sv-pipe-grid-fade" cx="50%" cy="52%" r="52%">
+                  <stop offset="0%" stop-color="#FFFFFF" stop-opacity="1" />
+                  <stop offset="68%" stop-color="#FFFFFF" stop-opacity="0.55" />
+                  <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+                </radialGradient>
+                <mask id="sv-pipe-dot-mask">
+                  <rect width="640" height="460" fill="url(#sv-pipe-grid-fade)" />
+                </mask>
+
+                <!-- Per-Stage Atmospheric Glows -->
+                <radialGradient id="sv-glow-1" cx="50%" cy="52%" r="48%">
                   <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.16" />
                   <stop offset="100%" stop-color="#06B6D4" stop-opacity="0" />
                 </radialGradient>
-                <linearGradient id="sv-pipe-edge-1" x1="320" y1="88" x2="148" y2="384" gradientUnits="userSpaceOnUse">
+                <radialGradient id="sv-glow-2" cx="48%" cy="52%" r="50%">
+                  <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.14" />
+                  <stop offset="55%" stop-color="#D946EF" stop-opacity="0.06" />
+                  <stop offset="100%" stop-color="#06B6D4" stop-opacity="0" />
+                </radialGradient>
+                <radialGradient id="sv-glow-3" cx="50%" cy="54%" r="50%">
+                  <stop offset="0%" stop-color="#10B981" stop-opacity="0.13" />
+                  <stop offset="50%" stop-color="#D946EF" stop-opacity="0.09" />
+                  <stop offset="100%" stop-color="#F59E0B" stop-opacity="0" />
+                </radialGradient>
+                <radialGradient id="sv-glow-4" cx="50%" cy="52%" r="48%">
+                  <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.15" />
+                  <stop offset="55%" stop-color="#10B981" stop-opacity="0.08" />
+                  <stop offset="100%" stop-color="#06B6D4" stop-opacity="0" />
+                </radialGradient>
+                <radialGradient id="sv-glow-5" cx="50%" cy="52%" r="46%">
+                  <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.14" />
+                  <stop offset="55%" stop-color="#06B6D4" stop-opacity="0.10" />
+                  <stop offset="100%" stop-color="#06B6D4" stop-opacity="0" />
+                </radialGradient>
+
+                <!-- Stage 3 True 3-Vertex OKLab Chromatic Field -->
+                <clipPath id="sv-pipe-s3-clip">
+                  <polygon points="320,84 144,388 496,388" />
+                </clipPath>
+                <radialGradient id="sv-oklab-v1" cx="320" cy="84" r="300" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.48" />
+                  <stop offset="70%" stop-color="#06B6D4" stop-opacity="0" />
+                </radialGradient>
+                <radialGradient id="sv-oklab-v2" cx="144" cy="388" r="300" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.46" />
+                  <stop offset="70%" stop-color="#F59E0B" stop-opacity="0" />
+                </radialGradient>
+                <radialGradient id="sv-oklab-v3" cx="496" cy="388" r="300" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#D946EF" stop-opacity="0.46" />
+                  <stop offset="70%" stop-color="#D946EF" stop-opacity="0" />
+                </radialGradient>
+
+                <linearGradient id="sv-pipe-edge-1" x1="320" y1="84" x2="144" y2="388" gradientUnits="userSpaceOnUse">
                   <stop offset="0%" stop-color="#06B6D4" />
                   <stop offset="100%" stop-color="#F59E0B" />
                 </linearGradient>
-                <linearGradient id="sv-pipe-edge-2" x1="320" y1="88" x2="492" y2="384" gradientUnits="userSpaceOnUse">
+                <linearGradient id="sv-pipe-edge-2" x1="320" y1="84" x2="496" y2="388" gradientUnits="userSpaceOnUse">
                   <stop offset="0%" stop-color="#06B6D4" />
                   <stop offset="100%" stop-color="#D946EF" />
                 </linearGradient>
-                <linearGradient id="sv-pipe-edge-3" x1="148" y1="384" x2="492" y2="384" gradientUnits="userSpaceOnUse">
+                <linearGradient id="sv-pipe-edge-3" x1="144" y1="388" x2="496" y2="388" gradientUnits="userSpaceOnUse">
                   <stop offset="0%" stop-color="#F59E0B" />
                   <stop offset="100%" stop-color="#D946EF" />
                 </linearGradient>
               </defs>
 
-              <!-- Scroll-Linked Ambient Coordinate Rings -->
+              <!-- Masked Calibrated Micro-Dot Field -->
+              <rect width="640" height="460" fill="url(#sv-pipe-dot-matrix)" mask="url(#sv-pipe-dot-mask)" />
+
+              <!-- Corner Registration Crosshairs -->
+              <g class="stroke-slate-300 dark:stroke-slate-700/80" stroke-width="1.2" fill="none">
+                <path d="M 32 40 L 44 40 M 38 34 L 38 46" />
+                <path d="M 596 40 L 608 40 M 602 34 L 602 46" />
+                <path d="M 32 420 L 44 420 M 38 414 L 38 426" />
+                <path d="M 596 420 L 608 420 M 602 414 L 602 426" />
+              </g>
+
+              <!-- Per-Stage Adaptive Atmospheric Glows -->
+              <circle cx="320" cy="238" r="215" fill="url(#sv-glow-1)" class="sv-stage-glow" data-glow="1" />
+              <circle cx="320" cy="238" r="215" fill="url(#sv-glow-2)" class="sv-stage-glow" data-glow="2" />
+              <circle cx="320" cy="242" r="215" fill="url(#sv-glow-3)" class="sv-stage-glow" data-glow="3" />
+              <circle cx="320" cy="238" r="215" fill="url(#sv-glow-4)" class="sv-stage-glow" data-glow="4" />
+              <circle cx="320" cy="238" r="215" fill="url(#sv-glow-5)" class="sv-stage-glow" data-glow="5" />
+
+              <!-- Scroll-Linked Ambient Compass Rings -->
               <g data-parallax-depth="0.45">
-                <circle cx="320" cy="242" r="190" fill="url(#sv-pipe-glow-cyan)" />
-                <g data-parallax-rotate="24" class="stroke-slate-300/70 dark:stroke-slate-800/80" stroke-width="1" fill="none">
-                  <circle cx="320" cy="242" r="168" stroke-dasharray="3 7" />
-                  <circle cx="320" cy="242" r="118" stroke-dasharray="2 8" />
-                  <line x1="72" y1="242" x2="568" y2="242" stroke-dasharray="4 6" />
-                  <line x1="320" y1="54" x2="320" y2="418" stroke-dasharray="4 6" />
+                <g data-parallax-rotate="24" class="stroke-slate-300/65 dark:stroke-slate-800/85" stroke-width="1" fill="none">
+                  <circle cx="320" cy="238" r="186" stroke-dasharray="2 8" />
+                  <circle cx="320" cy="238" r="134" stroke-dasharray="4 8" />
+                  <line x1="68" y1="238" x2="572" y2="238" stroke-dasharray="3 7" />
+                  <line x1="320" y1="36" x2="320" y2="430" stroke-dasharray="3 7" />
                 </g>
               </g>
 
-              <!-- STAGE 1: Mesh Triangulation -->
+              <!-- STAGE 1: Multi-Cell 60° Staggered Hex Lattice -->
               <g class="sv-pipeline-stage-layer" data-stage="1">
-                <g class="sv-pipeline-draw stroke-slate-300 dark:stroke-slate-700" stroke-width="1.8" fill="none">
-                  <polygon points="320,92 162,366 478,366" class="fill-cyan-500/[0.06] dark:fill-cyan-400/[0.08]" />
-                  <polygon points="162,184 320,92 162,366" />
-                  <polygon points="478,184 320,92 478,366" />
-                  <line x1="241" y1="229" x2="399" y2="229" />
+                <!-- Peripheral Staggered Hex Field -->
+                <g class="stroke-slate-300/70 dark:stroke-slate-800/90" stroke-width="1.2" fill="none">
+                  <polygon points="168,94 92,226 244,226" />
+                  <polygon points="472,94 396,226 548,226" />
+                  <polygon points="92,226 168,358 244,226" />
+                  <polygon points="548,226 472,358 396,226" />
+                  <polygon points="244,226 168,358 320,358" />
+                  <polygon points="396,226 320,358 472,358" />
                 </g>
-                <path d="M 294 136 A 44 44 0 0 0 346 136" fill="none" stroke="#06B6D4" stroke-width="2.2" />
-                <text x="320" y="158" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" class="fill-cyan-700 dark:fill-cyan-300">60°</text>
-                <path d="M 96 102 L 96 80 L 118 80 M 544 102 L 544 80 L 522 80 M 96 356 L 96 378 L 118 378 M 544 356 L 544 378 L 522 378" fill="none" class="stroke-slate-400 dark:stroke-slate-600" stroke-width="1.8" stroke-linecap="round" />
 
+                <!-- Hero Equilateral 60° Simplex -->
+                <g class="sv-pipeline-draw" fill="none">
+                  <polygon
+                    points="320,94 168,358 472,358"
+                    stroke="#06B6D4"
+                    stroke-width="2"
+                    class="fill-cyan-500/[0.06] dark:fill-cyan-400/[0.08]"
+                  />
+                  <polygon
+                    points="244,226 396,226 320,358"
+                    class="stroke-cyan-600/45 dark:stroke-cyan-400/45"
+                    stroke-width="1.4"
+                  />
+                  <line x1="320" y1="94" x2="320" y2="358" class="stroke-slate-400/50 dark:stroke-slate-600/60" stroke-width="1.2" stroke-dasharray="4 4" />
+                </g>
+
+                <!-- Precision 60° Angle Callout -->
+                <path d="M 294 140 A 46 46 0 0 0 346 140" fill="none" stroke="#06B6D4" stroke-width="2.2" stroke-linecap="round" />
+                <text x="320" y="164" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" class="fill-cyan-700 dark:fill-cyan-300">60.0°</text>
+
+                <!-- Aspect Fit Framing Brackets -->
+                <path d="M 80 100 L 80 76 L 104 76 M 560 100 L 560 76 L 536 76 M 80 356 L 80 380 L 104 380 M 560 356 L 560 380 L 536 380" fill="none" class="stroke-slate-400/80 dark:stroke-slate-600" stroke-width="1.6" stroke-linecap="round" />
+
+                <!-- Illuminated Vertex Nodes -->
                 <g class="sv-pipeline-node-pop">
-                  <circle cx="320" cy="92" r="14" class="fill-white dark:fill-[#0B0F17]" stroke="#06B6D4" stroke-width="3" />
-                  <circle cx="320" cy="92" r="5" fill="#06B6D4" />
-                  <circle cx="162" cy="366" r="14" class="fill-white dark:fill-[#0B0F17]" stroke="#F59E0B" stroke-width="3" />
-                  <circle cx="162" cy="366" r="5" fill="#F59E0B" />
-                  <circle cx="478" cy="366" r="14" class="fill-white dark:fill-[#0B0F17]" stroke="#D946EF" stroke-width="3" />
-                  <circle cx="478" cy="366" r="5" fill="#D946EF" />
+                  <circle cx="244" cy="226" r="5" class="fill-slate-300 dark:fill-slate-700" />
+                  <circle cx="396" cy="226" r="5" class="fill-slate-300 dark:fill-slate-700" />
+                  <circle cx="320" cy="358" r="5" class="fill-slate-300 dark:fill-slate-700" />
+
+                  <circle cx="320" cy="94" r="20" fill="#06B6D4" fill-opacity="0.14" />
+                  <circle cx="320" cy="94" r="13" class="fill-white dark:fill-[#0B0F17]" stroke="#06B6D4" stroke-width="2.6" />
+                  <circle cx="320" cy="94" r="4.5" fill="#06B6D4" />
+
+                  <circle cx="168" cy="358" r="20" fill="#F59E0B" fill-opacity="0.14" />
+                  <circle cx="168" cy="358" r="13" class="fill-white dark:fill-[#0B0F17]" stroke="#F59E0B" stroke-width="2.6" />
+                  <circle cx="168" cy="358" r="4.5" fill="#F59E0B" />
+
+                  <circle cx="472" cy="358" r="20" fill="#D946EF" fill-opacity="0.14" />
+                  <circle cx="472" cy="358" r="13" class="fill-white dark:fill-[#0B0F17]" stroke="#D946EF" stroke-width="2.6" />
+                  <circle cx="472" cy="358" r="4.5" fill="#D946EF" />
                 </g>
               </g>
 
-              <!-- STAGE 2: Simplex Projection -->
+              <!-- STAGE 2: High-D Cloud to Barycentric Simplex Projection -->
               <g class="sv-pipeline-stage-layer" data-stage="2">
-                <polygon points="354,90 192,372 516,372" class="sv-pipeline-draw fill-slate-200/40 stroke-slate-300 dark:fill-slate-900/50 dark:stroke-slate-700" stroke-width="1.8" />
-
-                <g class="sv-pipeline-node-pop">
-                  <circle cx="96" cy="176" r="6" class="fill-slate-400 dark:fill-slate-600" />
-                  <circle cx="122" cy="208" r="5" class="fill-slate-400 dark:fill-slate-600" />
-                  <circle cx="104" cy="244" r="6.5" class="fill-slate-400 dark:fill-slate-600" />
-                  <circle cx="132" cy="280" r="5" class="fill-slate-400 dark:fill-slate-600" />
+                <!-- Raw Source Embedding Cloud Hulls -->
+                <g class="stroke-slate-300/75 dark:stroke-slate-700/80" stroke-width="1.2" fill="none">
+                  <ellipse cx="110" cy="236" rx="54" ry="86" stroke-dasharray="4 4" class="fill-slate-200/25 dark:fill-slate-900/40" />
+                  <ellipse cx="110" cy="236" rx="30" ry="52" stroke-dasharray="2 4" />
                 </g>
 
+                <!-- Target Simplex with Barycentric Isolines -->
+                <polygon points="366,86 206,368 526,368" class="sv-pipeline-draw fill-cyan-500/[0.04] stroke-slate-300 dark:fill-slate-900/55 dark:stroke-slate-700" stroke-width="1.8" />
+                <g class="stroke-slate-300/55 dark:stroke-slate-700/55" stroke-width="1" fill="none" stroke-dasharray="3 4">
+                  <line x1="286" y1="227" x2="446" y2="227" />
+                  <line x1="246" y1="297" x2="486" y2="297" />
+                  <line x1="366" y1="86" x2="366" y2="368" />
+                </g>
+
+                <!-- Source Scatter Nodes -->
+                <g class="sv-pipeline-node-pop">
+                  <circle cx="94" cy="182" r="5.5" fill="#06B6D4" fill-opacity="0.7" />
+                  <circle cx="124" cy="212" r="5" fill="#F59E0B" fill-opacity="0.7" />
+                  <circle cx="96" cy="252" r="6" fill="#D946EF" fill-opacity="0.7" />
+                  <circle cx="124" cy="288" r="4.5" class="fill-slate-400 dark:fill-slate-600" />
+                  <text x="110" y="344" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" class="fill-slate-500 dark:fill-slate-400">R^d vectors</text>
+                </g>
+
+                <!-- Continuous Projection Ribbons -->
                 <g class="sv-pipeline-flow" fill="none" stroke-width="2" stroke-dasharray="6 4">
-                  <path d="M 104 176 C 186 138 252 172 318 224" stroke="#06B6D4" />
-                  <path d="M 128 210 C 194 214 256 258 354 270" stroke="#F59E0B" />
-                  <path d="M 110 244 C 192 310 318 326 414 304" stroke="#D946EF" />
+                  <path d="M 102 182 C 192 134 268 166 340 218" stroke="#06B6D4" />
+                  <path d="M 132 212 C 204 218 268 256 366 266" stroke="#F59E0B" />
+                  <path d="M 104 252 C 196 318 320 330 426 306" stroke="#D946EF" />
                 </g>
 
+                <!-- Projected Barycentric Interior Cluster -->
                 <g class="sv-pipeline-node-pop">
-                  <circle cx="354" cy="90" r="14" class="fill-white dark:fill-[#0B0F17]" stroke="#06B6D4" stroke-width="3" />
-                  <circle cx="192" cy="372" r="14" class="fill-white dark:fill-[#0B0F17]" stroke="#F59E0B" stroke-width="3" />
-                  <circle cx="516" cy="372" r="14" class="fill-white dark:fill-[#0B0F17]" stroke="#D946EF" stroke-width="3" />
+                  <circle cx="366" cy="86" r="14" class="fill-white dark:fill-[#0B0F17]" stroke="#06B6D4" stroke-width="2.6" />
+                  <circle cx="366" cy="86" r="4.5" fill="#06B6D4" />
+                  <circle cx="206" cy="368" r="14" class="fill-white dark:fill-[#0B0F17]" stroke="#F59E0B" stroke-width="2.6" />
+                  <circle cx="206" cy="368" r="4.5" fill="#F59E0B" />
+                  <circle cx="526" cy="368" r="14" class="fill-white dark:fill-[#0B0F17]" stroke="#D946EF" stroke-width="2.6" />
+                  <circle cx="526" cy="368" r="4.5" fill="#D946EF" />
 
-                  <circle cx="320" cy="226" r="12" fill="#06B6D4" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
-                  <circle cx="354" cy="270" r="14" fill="#F59E0B" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
-                  <circle cx="416" cy="306" r="12" fill="#D946EF" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
-                  <text x="354" y="344" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600" class="fill-slate-600 dark:fill-slate-300">w₁ + w₂ + w₃ = 1.0</text>
+                  <!-- Focal Item Crosshair -->
+                  <circle cx="366" cy="266" r="22" fill="none" stroke="#F59E0B" stroke-opacity="0.35" stroke-width="1.4" stroke-dasharray="3 3" />
+                  <circle cx="340" cy="218" r="11" fill="#06B6D4" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
+                  <circle cx="366" cy="266" r="13" fill="#F59E0B" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
+                  <circle cx="426" cy="306" r="11" fill="#D946EF" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
+
+                  <rect x="292" y="388" width="148" height="26" rx="6" class="fill-white/90 stroke-slate-200 dark:fill-[#0B0F17]/90 dark:stroke-slate-800" stroke-width="1.2" />
+                  <text x="366" y="405" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="600" class="fill-slate-700 dark:fill-slate-200">w₁ + w₂ + w₃ = 1.0</text>
                 </g>
               </g>
 
-              <!-- STAGE 3: OKLab Perceptual Color -->
+              <!-- STAGE 3: Perceptual 3-Vertex OKLab Chromatic Field -->
               <g class="sv-pipeline-stage-layer" data-stage="3">
-                <polygon points="320,88 148,384 492,384" fill="#06B6D4" fill-opacity="0.06" />
-                <line x1="320" y1="88" x2="148" y2="384" stroke="url(#sv-pipe-edge-1)" stroke-width="3.2" stroke-linecap="round" class="sv-pipeline-draw" />
-                <line x1="320" y1="88" x2="492" y2="384" stroke="url(#sv-pipe-edge-2)" stroke-width="3.2" stroke-linecap="round" class="sv-pipeline-draw" />
-                <line x1="148" y1="384" x2="492" y2="384" stroke="url(#sv-pipe-edge-3)" stroke-width="3.2" stroke-linecap="round" class="sv-pipeline-draw" />
+                <!-- True Blended 3-Corner Simplex Chromatic Fill -->
+                <g clip-path="url(#sv-pipe-s3-clip)">
+                  <rect x="130" y="70" width="380" height="330" fill="url(#sv-oklab-v1)" />
+                  <rect x="130" y="70" width="380" height="330" fill="url(#sv-oklab-v2)" />
+                  <rect x="130" y="70" width="380" height="330" fill="url(#sv-oklab-v3)" />
+                </g>
 
+                <!-- Luminance Iso-Rings -->
+                <circle cx="320" cy="286" r="96" fill="none" class="stroke-white/40 dark:stroke-white/10" stroke-width="1.2" stroke-dasharray="3 5" />
+                <circle cx="320" cy="286" r="52" fill="none" class="stroke-white/50 dark:stroke-white/15" stroke-width="1.2" />
+
+                <!-- Perceptual Gradient Simplex Edges -->
+                <line x1="320" y1="84" x2="144" y2="388" stroke="url(#sv-pipe-edge-1)" stroke-width="3.2" stroke-linecap="round" class="sv-pipeline-draw" />
+                <line x1="320" y1="84" x2="496" y2="388" stroke="url(#sv-pipe-edge-2)" stroke-width="3.2" stroke-linecap="round" class="sv-pipeline-draw" />
+                <line x1="144" y1="388" x2="496" y2="388" stroke="url(#sv-pipe-edge-3)" stroke-width="3.2" stroke-linecap="round" class="sv-pipeline-draw" />
+
+                <!-- ΔE_OK Chromatic Mixing Nodes -->
                 <g class="sv-pipeline-node-pop">
-                  <circle cx="320" cy="190" r="16" fill="#06B6D4" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
-                  <circle cx="244" cy="292" r="16" fill="#10B981" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
-                  <circle cx="396" cy="292" r="16" fill="#A855F7" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
-                  <circle cx="320" cy="262" r="20" fill="#38BDF8" class="stroke-white dark:stroke-[#07090E]" stroke-width="3" />
-                  <circle cx="320" cy="338" r="15" fill="#EC4899" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
+                  <circle cx="320" cy="184" r="15" fill="#06B6D4" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
+                  <circle cx="242" cy="292" r="16" fill="#10B981" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
+                  <circle cx="398" cy="292" r="16" fill="#A855F7" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
+                  <circle cx="320" cy="264" r="22" fill="#38BDF8" class="stroke-white dark:stroke-[#07090E]" stroke-width="3" />
+                  <circle cx="320" cy="342" r="15" fill="#EC4899" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
 
-                  <circle cx="320" cy="88" r="17" fill="#06B6D4" class="stroke-white dark:stroke-[#07090E]" stroke-width="3" />
-                  <circle cx="148" cy="384" r="17" fill="#F59E0B" class="stroke-white dark:stroke-[#07090E]" stroke-width="3" />
-                  <circle cx="492" cy="384" r="17" fill="#D946EF" class="stroke-white dark:stroke-[#07090E]" stroke-width="3" />
+                  <circle cx="320" cy="84" r="24" fill="#06B6D4" fill-opacity="0.18" />
+                  <circle cx="320" cy="84" r="17" fill="#06B6D4" class="stroke-white dark:stroke-[#07090E]" stroke-width="3" />
+
+                  <circle cx="144" cy="388" r="24" fill="#F59E0B" fill-opacity="0.18" />
+                  <circle cx="144" cy="388" r="17" fill="#F59E0B" class="stroke-white dark:stroke-[#07090E]" stroke-width="3" />
+
+                  <circle cx="496" cy="388" r="24" fill="#D946EF" fill-opacity="0.18" />
+                  <circle cx="496" cy="388" r="17" fill="#D946EF" class="stroke-white dark:stroke-[#07090E]" stroke-width="3" />
                 </g>
               </g>
 
-              <!-- STAGE 4: Convex SAT Layout -->
+              <!-- STAGE 4: Convex SAT Separation (0.0 px Overlap) -->
               <g class="sv-pipeline-stage-layer" data-stage="4">
-                <polygon points="320,84 144,386 496,386" class="sv-pipeline-draw fill-cyan-500/[0.04] stroke-slate-300 dark:stroke-slate-700" stroke-width="1.8" />
-                <polygon points="320,132 186,362 454,362" fill="none" stroke="#22D3EE" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="5 4" />
+                <polygon points="320,82 142,388 498,388" class="sv-pipeline-draw fill-cyan-500/[0.04] stroke-slate-300 dark:stroke-slate-700" stroke-width="1.8" />
+                <polygon points="320,126 180,366 460,366" fill="none" stroke="#22D3EE" stroke-opacity="0.4" stroke-width="1.4" stroke-dasharray="5 4" />
 
-                <g class="sv-pipeline-flow" stroke="#06B6D4" stroke-width="1.8" fill="none" stroke-dasharray="6 4">
-                  <line x1="320" y1="246" x2="262" y2="204" />
-                  <line x1="320" y1="246" x2="380" y2="206" />
-                  <line x1="320" y1="246" x2="264" y2="314" />
-                  <line x1="320" y1="246" x2="378" y2="314" />
+                <!-- Ghost Unresolved Overlap Cluster at Center -->
+                <g class="stroke-slate-400/50 dark:stroke-slate-600/60" stroke-width="1.2" stroke-dasharray="3 3" fill="none">
+                  <circle cx="310" cy="252" r="18" />
+                  <circle cx="330" cy="252" r="18" />
+                  <circle cx="320" cy="268" r="18" />
                 </g>
 
+                <!-- Active SAT Separating Axis MTV Vectors -->
+                <g class="sv-pipeline-flow" stroke="#06B6D4" stroke-width="1.8" fill="none" stroke-dasharray="6 4">
+                  <line x1="312" y1="246" x2="256" y2="206" />
+                  <line x1="328" y1="246" x2="386" y2="208" />
+                  <line x1="312" y1="264" x2="258" y2="318" />
+                  <line x1="328" y1="264" x2="384" y2="318" />
+                </g>
+
+                <!-- Separated Convex Node Bounds with Clearance Halos -->
                 <g class="sv-pipeline-node-pop">
-                  <g transform="translate(248, 198)">
-                    <rect x="-44" y="-19" width="88" height="38" rx="19" fill="none" stroke="#06B6D4" stroke-opacity="0.4" stroke-width="1.4" stroke-dasharray="3 3" />
-                    <rect x="-38" y="-14" width="76" height="28" rx="14" class="fill-white dark:fill-[#0B0F17]" stroke="#06B6D4" stroke-width="2.2" />
-                    <circle cx="-21" cy="0" r="5" fill="#06B6D4" />
-                    <line x1="-10" y1="0" x2="22" y2="0" class="stroke-slate-400 dark:stroke-slate-500" stroke-width="3" stroke-linecap="round" />
+                  <g transform="translate(242, 198)">
+                    <rect x="-48" y="-21" width="96" height="42" rx="21" fill="#06B6D4" fill-opacity="0.06" stroke="#06B6D4" stroke-opacity="0.45" stroke-width="1.4" stroke-dasharray="3 3" />
+                    <rect x="-40" y="-14" width="80" height="28" rx="14" class="fill-white dark:fill-[#0B0F17]" stroke="#06B6D4" stroke-width="2.2" />
+                    <circle cx="-22" cy="0" r="5" fill="#06B6D4" />
+                    <line x1="-10" y1="0" x2="24" y2="0" class="stroke-slate-400 dark:stroke-slate-500" stroke-width="3" stroke-linecap="round" />
                   </g>
 
-                  <g transform="translate(392, 200)">
-                    <circle cx="0" cy="0" r="29" fill="none" stroke="#D946EF" stroke-opacity="0.4" stroke-width="1.4" stroke-dasharray="3 3" />
+                  <g transform="translate(396, 200)">
+                    <circle cx="0" cy="0" r="30" fill="#D946EF" fill-opacity="0.06" stroke="#D946EF" stroke-opacity="0.45" stroke-width="1.4" stroke-dasharray="3 3" />
                     <circle cx="0" cy="0" r="23" class="fill-white dark:fill-[#0B0F17]" stroke="#D946EF" stroke-width="2.2" />
                     <circle cx="0" cy="0" r="8.5" fill="#D946EF" />
                   </g>
 
-                  <g transform="translate(256, 316)">
-                    <circle cx="0" cy="0" r="27" fill="none" stroke="#F59E0B" stroke-opacity="0.4" stroke-width="1.4" stroke-dasharray="3 3" />
+                  <g transform="translate(252, 320)">
+                    <circle cx="0" cy="0" r="28" fill="#F59E0B" fill-opacity="0.06" stroke="#F59E0B" stroke-opacity="0.45" stroke-width="1.4" stroke-dasharray="3 3" />
                     <circle cx="0" cy="0" r="21" class="fill-white dark:fill-[#0B0F17]" stroke="#F59E0B" stroke-width="2.2" />
                     <circle cx="0" cy="0" r="8" fill="#F59E0B" />
                   </g>
 
-                  <g transform="translate(384, 316)">
-                    <rect x="-44" y="-19" width="88" height="38" rx="8" fill="none" stroke="#10B981" stroke-opacity="0.4" stroke-width="1.4" stroke-dasharray="3 3" />
-                    <rect x="-38" y="-14" width="76" height="28" rx="6" class="fill-white dark:fill-[#0B0F17]" stroke="#10B981" stroke-width="2.2" />
+                  <g transform="translate(388, 320)">
+                    <rect x="-48" y="-21" width="96" height="42" rx="10" fill="#10B981" fill-opacity="0.06" stroke="#10B981" stroke-opacity="0.45" stroke-width="1.4" stroke-dasharray="3 3" />
+                    <rect x="-40" y="-14" width="80" height="28" rx="6" class="fill-white dark:fill-[#0B0F17]" stroke="#10B981" stroke-width="2.2" />
                     <rect x="-26" y="-5" width="10" height="10" rx="2" fill="#10B981" />
-                    <line x1="-10" y1="0" x2="22" y2="0" class="stroke-slate-400 dark:stroke-slate-500" stroke-width="3" stroke-linecap="round" />
+                    <line x1="-10" y1="0" x2="24" y2="0" class="stroke-slate-400 dark:stroke-slate-500" stroke-width="3" stroke-linecap="round" />
                   </g>
 
-                  <text x="320" y="414" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600" class="fill-cyan-700 dark:fill-cyan-300">maxPenetrationPx === 0.0</text>
+                  <rect x="220" y="394" width="200" height="26" rx="6" class="fill-white/95 stroke-cyan-500/45 dark:fill-[#0B0F17]/95 dark:stroke-cyan-400/40" stroke-width="1.2" />
+                  <text x="320" y="411" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11.5" font-weight="600" class="fill-cyan-700 dark:fill-cyan-300">maxPenetrationPx === 0.0</text>
                 </g>
               </g>
 
-              <!-- STAGE 5: Conformal 1:4 Zoom -->
+              <!-- STAGE 5: Optical 1:4 Conformal Subdivision Lens -->
               <g class="sv-pipeline-stage-layer" data-stage="5">
-                <polygon points="320,82 152,374 488,374" fill="#06B6D4" fill-opacity="0.06" stroke="#22D3EE" stroke-width="2.2" class="sv-pipeline-draw" />
-                <polygon points="236,228 404,228 320,374" fill="#F59E0B" fill-opacity="0.08" stroke="#FBBF24" stroke-width="2" stroke-dasharray="5 4" class="sv-pipeline-flow" />
+                <!-- Optical Magnifying Aperture Ring -->
+                <circle cx="320" cy="252" r="196" fill="none" class="stroke-slate-300/65 dark:stroke-slate-700/75" stroke-width="1.2" stroke-dasharray="2 6" />
+                <circle cx="320" cy="252" r="176" fill="none" stroke="#06B6D4" stroke-opacity="0.28" stroke-width="1.4" />
+
+                <!-- Outer Conformal Parent Triangle -->
+                <polygon points="320,82 150,376 490,376" fill="#06B6D4" fill-opacity="0.06" stroke="#22D3EE" stroke-width="2.2" class="sv-pipeline-draw" />
+                <!-- Inverted 1:4 Central Midpoint Bridge Triangle -->
+                <polygon points="235,229 405,229 320,376" fill="#F59E0B" fill-opacity="0.08" stroke="#FBBF24" stroke-width="2" stroke-dasharray="5 4" class="sv-pipeline-flow" />
+                <!-- Fine Secondary Sub-Mesh Lattice Inside Central Triangle -->
+                <polygon points="277,302 363,302 320,229" fill="none" class="stroke-slate-400/45 dark:stroke-slate-600/55" stroke-width="1" stroke-dasharray="3 3" />
 
                 <g class="sv-pipeline-node-pop">
                   <circle cx="320" cy="172" r="10" fill="#06B6D4" />
-                  <circle cx="238" cy="322" r="10" fill="#F59E0B" />
-                  <circle cx="402" cy="322" r="10" fill="#D946EF" />
-                  <circle cx="320" cy="274" r="11" fill="#38BDF8" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
+                  <circle cx="236" cy="324" r="10" fill="#F59E0B" />
+                  <circle cx="404" cy="324" r="10" fill="#D946EF" />
+                  <circle cx="320" cy="276" r="12" fill="#38BDF8" class="stroke-white dark:stroke-[#07090E]" stroke-width="2.5" />
 
                   <rect x="288" y="64" width="64" height="28" rx="14" fill="#0E7490" stroke="#22D3EE" stroke-width="1.8" />
                   <text x="320" y="82" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="700" fill="#FFFFFF">A1</text>
 
-                  <rect x="120" y="360" width="64" height="28" rx="14" fill="#B45309" stroke="#FBBF24" stroke-width="1.8" />
-                  <text x="152" y="378" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="700" fill="#FFFFFF">A2</text>
+                  <rect x="118" y="362" width="64" height="28" rx="14" fill="#B45309" stroke="#FBBF24" stroke-width="1.8" />
+                  <text x="150" y="380" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="700" fill="#FFFFFF">A2</text>
 
-                  <rect x="456" y="360" width="64" height="28" rx="14" fill="#86198F" stroke="#E879F9" stroke-width="1.8" />
-                  <text x="488" y="378" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="700" fill="#FFFFFF">A3</text>
+                  <rect x="458" y="362" width="64" height="28" rx="14" fill="#86198F" stroke="#E879F9" stroke-width="1.8" />
+                  <text x="490" y="380" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="700" fill="#FFFFFF">A3</text>
 
-                  <polygon points="199,215 273,215 279,228 273,241 199,241 193,228" class="fill-white dark:fill-[#0B0F17]" stroke="#38BDF8" stroke-width="1.8" />
-                  <text x="236" y="232" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" font-weight="600" class="fill-slate-800 dark:fill-slate-200">A1 ↔ A2</text>
+                  <polygon points="198,216 272,216 278,229 272,242 198,242 192,229" class="fill-white dark:fill-[#0B0F17]" stroke="#38BDF8" stroke-width="1.8" />
+                  <text x="235" y="233" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" font-weight="600" class="fill-slate-800 dark:fill-slate-200">A1 ↔ A2</text>
 
-                  <polygon points="367,215 441,215 447,228 441,241 367,241 361,228" class="fill-white dark:fill-[#0B0F17]" stroke="#E879F9" stroke-width="1.8" />
-                  <text x="404" y="232" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" font-weight="600" class="fill-slate-800 dark:fill-slate-200">A1 ↔ A3</text>
+                  <polygon points="368,216 442,216 448,229 442,242 368,242 362,229" class="fill-white dark:fill-[#0B0F17]" stroke="#E879F9" stroke-width="1.8" />
+                  <text x="405" y="233" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" font-weight="600" class="fill-slate-800 dark:fill-slate-200">A1 ↔ A3</text>
 
-                  <polygon points="283,361 357,361 363,374 357,387 283,387 277,374" class="fill-white dark:fill-[#0B0F17]" stroke="#FBBF24" stroke-width="1.8" />
-                  <text x="320" y="378" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" font-weight="600" class="fill-slate-800 dark:fill-slate-200">A2 ↔ A3</text>
+                  <polygon points="283,363 357,363 363,376 357,389 283,389 277,376" class="fill-white dark:fill-[#0B0F17]" stroke="#FBBF24" stroke-width="1.8" />
+                  <text x="320" y="380" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" font-weight="600" class="fill-slate-800 dark:fill-slate-200">A2 ↔ A3</text>
                 </g>
               </g>
             </svg>
           </div>
 
-          <!-- Reduced Single-Stage Explanation Pane: Stage Number, Heading, Description, Docs Link -->
-          <div class="flex min-h-0 flex-col justify-center px-5 py-4 sm:px-8 sm:py-6 landscape:col-span-6 lg:px-10">
+          <!-- Right / Bottom: Choreographed Single-Stage Editorial Pane -->
+          <div class="relative flex min-h-0 flex-col justify-center overflow-hidden px-5 py-4 sm:px-8 sm:py-6 landscape:col-span-6 lg:px-10">
             <div class="grid">
               {
                 STAGE_CHAPTERS.map((chapter) => (
                   <article
                     data-stage={chapter.stage}
                     aria-hidden={chapter.stage === 1 ? 'false' : 'true'}
-                    class="sv-stage-copy flex flex-col justify-center"
+                    class="sv-stage-copy relative flex flex-col justify-center"
                   >
-                    <p class="font-mono text-xs font-semibold text-cyan-700 dark:text-cyan-400 tabular-nums">
+                    <!-- Architectural Oversized Watermark Numeral -->
+                    <span
+                      aria-hidden="true"
+                      class="pointer-events-none absolute -top-2 right-0 hidden sm:block font-mono text-6xl lg:text-7xl font-bold tracking-tighter text-slate-900/[0.045] select-none dark:text-white/[0.04]"
+                    >
+                      {chapter.num}
+                    </span>
+
+                    <p class="sv-copy-item sv-copy-delay-1 font-mono text-xs font-semibold text-cyan-700 dark:text-cyan-400 tabular-nums">
                       Stage {chapter.num}
                     </p>
 
-                    <h3 class="mt-1.5 text-xl sm:text-2xl lg:text-[1.75rem] font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
+                    <h3 class="sv-copy-item sv-copy-delay-2 mt-1.5 text-xl sm:text-2xl lg:text-[1.85rem] font-bold tracking-[-0.025em] text-slate-950 dark:text-white [text-wrap:balance]">
                       {chapter.title}
                     </h3>
 
-                    <p class="mt-2.5 max-w-md text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                    <p class="sv-copy-item sv-copy-delay-2 mt-2.5 max-w-md text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300">
                       {chapter.description}
                     </p>
 
                     <div
                       aria-label={`${chapter.title} strategies`}
-                      class="mt-3 sm:mt-4 flex flex-wrap gap-1.5"
+                      class="sv-copy-item sv-copy-delay-3 mt-3.5 sm:mt-5 flex flex-wrap gap-1.5"
                     >
                       {chapter.strategies.map((spec) => (
                         <a
@@ -390,13 +563,20 @@ const STAGE_CHAPTERS: readonly StageChapterMeta[] = [
                       ))}
                     </div>
 
-                    <div class="mt-4 sm:mt-5">
+                    <div class="sv-copy-item sv-copy-delay-4 mt-4 sm:mt-6">
                       <a
                         href={chapter.href}
-                        class="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-cyan-700 hover:underline dark:text-cyan-300 whitespace-nowrap"
+                        class="group/link inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-cyan-700 hover:text-cyan-800 dark:text-cyan-300 dark:hover:text-cyan-200 whitespace-nowrap"
                       >
-                        <span>Stage documentation</span>
-                        <span aria-hidden="true">→</span>
+                        <span class="underline-offset-4 group-hover/link:underline">
+                          Stage documentation
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          class="transition-transform group-hover/link:translate-x-0.5"
+                        >
+                          →
+                        </span>
                       </a>
                     </div>
                   </article>
@@ -439,8 +619,10 @@ const STAGE_CHAPTERS: readonly StageChapterMeta[] = [
 
       for (var t = 0; t < tabs.length; t++) {
         var tab = tabs[t];
-        var isMatch = Number(tab.getAttribute('data-stage-tab')) === stageNum;
+        var tabStage = Number(tab.getAttribute('data-stage-tab'));
+        var isMatch = tabStage === stageNum;
         tab.setAttribute('data-active', isMatch ? 'true' : 'false');
+        tab.setAttribute('data-completed', tabStage < stageNum ? 'true' : 'false');
         tab.setAttribute('aria-selected', isMatch ? 'true' : 'false');
       }
 
@@ -529,7 +711,7 @@ const STAGE_CHAPTERS: readonly StageChapterMeta[] = [
           var maxDeg = Number(rLayer.getAttribute('data-parallax-rotate')) || 0;
           rLayer.setAttribute(
             'transform',
-            'rotate(' + (centered * maxDeg).toFixed(2) + ' 320 242)',
+            'rotate(' + (centered * maxDeg).toFixed(2) + ' 320 238)',
           );
         }
       }
