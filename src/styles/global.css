@@ -36,7 +36,7 @@ html.dark .astro-code span {
 }
 
 html:not(.dark) .astro-code {
-  background-color: #f8fafc !important;
+  background-color: #ffffff !important;
 }
 
 /* Clean prose typography for pre-rendered MDX documentation, API pages, and notes */
@@ -140,30 +140,32 @@ html:not(.dark) .astro-code {
 
 .sv-prose :not(pre) > code:not(:where(.not-prose, .not-prose *)) {
   border-radius: 0.25rem;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background-color: rgba(241, 245, 249, 0.85);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background-color: #ffffff;
   padding: 0.1rem 0.35rem;
   font-size: 0.825em;
   color: #0f172a;
 }
 
 .dark .sv-prose :not(pre) > code:not(:where(.not-prose, .not-prose *)) {
-  border-color: rgba(51, 65, 85, 0.8);
-  background-color: rgba(15, 23, 42, 0.85);
+  border-color: rgba(30, 41, 59, 0.85);
+  background-color: #0b0f17;
   color: #e2e8f0;
 }
 
 .sv-prose pre:not(:where(.not-prose, .not-prose *)) {
   overflow-x: auto;
   border-radius: 0.5rem;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background-color: #ffffff;
   padding: 1rem 1.15rem;
   font-size: 0.8125rem;
   line-height: 1.65;
 }
 
 .dark .sv-prose pre:not(:where(.not-prose, .not-prose *)) {
-  border-color: rgba(30, 41, 59, 0.9);
+  border-color: rgba(30, 41, 59, 0.85);
+  background-color: #0b0f17;
 }
 
 .sv-prose table:not(:where(.not-prose, .not-prose *)) {
