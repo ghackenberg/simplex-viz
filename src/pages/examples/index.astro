@@ -32,7 +32,7 @@ const datasets = (await getCollection('datasets')).sort(
       </p>
     </header>
 
-    <div class="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+    <div class="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {datasets.map((ds) => <ExamplePreviewCard dataset={ds} headingTag="h2" />)}
     </div>
   </div>

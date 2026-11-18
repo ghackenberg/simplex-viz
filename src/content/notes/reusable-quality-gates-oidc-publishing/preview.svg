@@ -1,37 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
-  <defs>
-    <linearGradient id="sv-oidc-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0B111E"/>
-      <stop offset="65%" stop-color="#07090E"/>
-      <stop offset="100%" stop-color="#05070C"/>
-    </linearGradient>
-    <radialGradient id="sv-oidc-glow" cx="50%" cy="48%" r="58%">
-      <stop offset="0%" stop-color="#D946EF" stop-opacity="0.18"/>
-      <stop offset="60%" stop-color="#06B6D4" stop-opacity="0.05"/>
-      <stop offset="100%" stop-color="#07090E" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-
-  <rect width="800" height="450" fill="url(#sv-oidc-bg)"/>
-  <rect width="800" height="450" fill="url(#sv-oidc-glow)"/>
-
   <!-- Left Parallel Gate Checks -->
   <g font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13" font-weight="600">
-    <rect x="64" y="88" width="176" height="48" rx="10" fill="#0B111E" stroke="#06B6D4" stroke-opacity="0.75" stroke-width="1.6"/>
-    <text x="152" y="117" text-anchor="middle" fill="#F8FAFC">ESLint + tsc</text>
+    <rect class="sv-panel sv-stroke-cyan" x="64" y="88" width="176" height="48" rx="10" fill="#0B111E" stroke="#06B6D4" stroke-opacity="0.75" stroke-width="1.6"/>
+    <text class="sv-ink" x="152" y="117" text-anchor="middle" fill="#F8FAFC">ESLint + tsc</text>
 
-    <rect x="64" y="158" width="176" height="48" rx="10" fill="#0B111E" stroke="#F59E0B" stroke-opacity="0.75" stroke-width="1.6"/>
-    <text x="152" y="187" text-anchor="middle" fill="#F8FAFC">Brand Sync</text>
+    <rect class="sv-panel sv-stroke-amber" x="64" y="158" width="176" height="48" rx="10" fill="#0B111E" stroke="#F59E0B" stroke-opacity="0.75" stroke-width="1.6"/>
+    <text class="sv-ink" x="152" y="187" text-anchor="middle" fill="#F8FAFC">Brand Sync</text>
 
-    <rect x="64" y="228" width="176" height="48" rx="10" fill="#0B111E" stroke="#D946EF" stroke-opacity="0.75" stroke-width="1.6"/>
-    <text x="152" y="257" text-anchor="middle" fill="#F8FAFC">Publint + ESM</text>
+    <rect class="sv-panel sv-stroke-fuchsia" x="64" y="228" width="176" height="48" rx="10" fill="#0B111E" stroke="#D946EF" stroke-opacity="0.75" stroke-width="1.6"/>
+    <text class="sv-ink" x="152" y="257" text-anchor="middle" fill="#F8FAFC">Publint + ESM</text>
 
-    <rect x="64" y="298" width="176" height="48" rx="10" fill="#0B111E" stroke="#475569" stroke-width="1.6"/>
-    <text x="152" y="327" text-anchor="middle" fill="#F8FAFC">Vitest Suite</text>
+    <rect class="sv-panel sv-edge-mid" x="64" y="298" width="176" height="48" rx="10" fill="#0B111E" stroke="#475569" stroke-width="1.6"/>
+    <text class="sv-ink" x="152" y="327" text-anchor="middle" fill="#F8FAFC">Vitest Suite</text>
   </g>
 
   <!-- Converging Flow Paths -->
-  <g stroke="#475569" stroke-width="2" fill="none">
+  <g class="sv-edge-mid" stroke="#475569" stroke-width="2" fill="none">
     <path d="M240 112 C285 112 285 225 326 225"/>
     <path d="M240 182 C285 182 285 225 326 225"/>
     <path d="M240 252 C285 252 285 225 326 225"/>
@@ -39,18 +23,18 @@
   </g>
 
   <!-- Central Reusable Workflow Hub -->
-  <rect x="326" y="174" width="176" height="102" rx="14" fill="#D946EF" fill-opacity="0.16" stroke="#E879F9" stroke-width="2.2"/>
-  <text x="414" y="222" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="16" font-weight="700" fill="#F8FAFC">_quality.yml</text>
-  <text x="414" y="248" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="12" fill="#E879F9">SINGLE GATE</text>
+  <rect class="sv-stroke-fuchsia" x="326" y="174" width="176" height="102" rx="14" fill="#D946EF" fill-opacity="0.16" stroke="#E879F9" stroke-width="2.2"/>
+  <text class="sv-ink" x="414" y="222" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="16" font-weight="700" fill="#F8FAFC">_quality.yml</text>
+  <text class="sv-text-fuchsia" x="414" y="248" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="12" fill="#E879F9">SINGLE GATE</text>
 
   <!-- Outbound Paths -->
-  <path d="M502 225 C536 225 536 164 568 164" fill="none" stroke="#06B6D4" stroke-width="2.2"/>
-  <path d="M502 225 C536 225 536 286 568 286" fill="none" stroke="#F59E0B" stroke-width="2.2"/>
+  <path class="sv-stroke-cyan" d="M502 225 C536 225 536 164 568 164" fill="none" stroke="#06B6D4" stroke-width="2.2"/>
+  <path class="sv-stroke-amber" d="M502 225 C536 225 536 286 568 286" fill="none" stroke="#F59E0B" stroke-width="2.2"/>
 
   <!-- Target Environments -->
-  <rect x="568" y="132" width="168" height="64" rx="12" fill="#0B111E" stroke="#06B6D4" stroke-width="1.8"/>
-  <text x="652" y="169" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13.5" font-weight="700" fill="#22D3EE">GitHub Pages</text>
+  <rect class="sv-panel sv-stroke-cyan" x="568" y="132" width="168" height="64" rx="12" fill="#0B111E" stroke="#06B6D4" stroke-width="1.8"/>
+  <text class="sv-text-cyan" x="652" y="169" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13.5" font-weight="700" fill="#22D3EE">GitHub Pages</text>
 
-  <rect x="568" y="254" width="168" height="64" rx="12" fill="#0B111E" stroke="#F59E0B" stroke-width="1.8"/>
-  <text x="652" y="291" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13.5" font-weight="700" fill="#FBBF24">npm OIDC</text>
+  <rect class="sv-panel sv-stroke-amber" x="568" y="254" width="168" height="64" rx="12" fill="#0B111E" stroke="#F59E0B" stroke-width="1.8"/>
+  <text class="sv-text-amber" x="652" y="291" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13.5" font-weight="700" fill="#FBBF24">npm OIDC</text>
 </svg>

@@ -30,6 +30,6 @@ export function prepareInlinePreviewSvg(
         .replace(/\s(?:width|height|class|role|aria-label|aria-hidden)=("[^"]*"|'[^']*')/gi, '')
         .trim();
       const attrPrefix = cleanedAttrs.length > 0 ? ` ${cleanedAttrs}` : '';
-      return `<svg${attrPrefix}${labelAttr} class="block h-full w-full transition-transform duration-300 group-hover:scale-[1.02]">`;
+      return `<svg${attrPrefix}${labelAttr} class="sv-preview-svg block h-full w-full transition-transform duration-300 group-hover:scale-[1.02]">`;
     });
 }

@@ -1,52 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
-  <defs>
-    <linearGradient id="ex-github-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0B111E"/>
-      <stop offset="65%" stop-color="#07090E"/>
-      <stop offset="100%" stop-color="#05070C"/>
-    </linearGradient>
-    <radialGradient id="ex-github-glow" cx="50%" cy="50%" r="58%">
-      <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.17"/>
-      <stop offset="55%" stop-color="#F59E0B" stop-opacity="0.06"/>
-      <stop offset="100%" stop-color="#07090E" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-
-  <rect width="800" height="450" fill="url(#ex-github-bg)"/>
-  <rect width="800" height="450" fill="url(#ex-github-glow)"/>
-
   <!-- 60-degree Jaccard Topology Bridges Connecting Repository Tiles -->
   <g fill="none" stroke-width="2" stroke-dasharray="6 5">
-    <line x1="400" y1="138" x2="226" y2="298" stroke="#06B6D4" stroke-opacity="0.5"/>
-    <line x1="400" y1="138" x2="574" y2="298" stroke="#D946EF" stroke-opacity="0.5"/>
-    <line x1="226" y1="298" x2="574" y2="298" stroke="#F59E0B" stroke-opacity="0.45"/>
+    <line class="sv-stroke-cyan" x1="400" y1="138" x2="226" y2="298" stroke="#06B6D4" stroke-opacity="0.5"/>
+    <line class="sv-stroke-fuchsia" x1="400" y1="138" x2="574" y2="298" stroke="#D946EF" stroke-opacity="0.5"/>
+    <line class="sv-stroke-amber" x1="226" y1="298" x2="574" y2="298" stroke="#F59E0B" stroke-opacity="0.45"/>
   </g>
 
   <!-- Top Center Hero Tile: three.js -->
   <g transform="translate(400, 138)">
-    <rect x="-154" y="-48" width="308" height="96" rx="16" fill="none" stroke="#22D3EE" stroke-opacity="0.38" stroke-width="2.2"/>
-    <rect x="-144" y="-38" width="288" height="76" rx="12" fill="#0C1220" stroke="#22D3EE" stroke-width="2.8"/>
+    <rect class="sv-stroke-cyan" x="-154" y="-48" width="308" height="96" rx="16" fill="none" stroke="#22D3EE" stroke-opacity="0.38" stroke-width="2.2"/>
+    <rect class="sv-panel sv-stroke-cyan" x="-144" y="-38" width="288" height="76" rx="12" fill="#0C1220" stroke="#22D3EE" stroke-width="2.8"/>
     <rect x="-120" y="-11" width="22" height="22" rx="5" fill="#F1E05A"/>
-    <text x="-84" y="9" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="25" font-weight="700" fill="#F8FAFC">three.js</text>
-    <text x="102" y="8" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="20" font-weight="600" fill="#22D3EE">104k</text>
-    <polygon points="116,-8 118.4,-2.4 124.4,-2 119.8,2 121.2,7.8 116,4.6 110.8,7.8 112.2,2 107.6,-2 113.6,-2.4" fill="#22D3EE"/>
+    <text class="sv-ink" x="-84" y="9" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="25" font-weight="700" fill="#F8FAFC">three.js</text>
+    <text class="sv-text-cyan" x="102" y="8" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="20" font-weight="600" fill="#22D3EE">104k</text>
+    <polygon class="sv-fill-cyan" points="116,-8 118.4,-2.4 124.4,-2 119.8,2 121.2,7.8 116,4.6 110.8,7.8 112.2,2 107.6,-2 113.6,-2.4" fill="#22D3EE"/>
   </g>
 
   <!-- Bottom-Left Tile: d3 -->
   <g transform="translate(226, 298)">
-    <rect x="-134" y="-38" width="268" height="76" rx="12" fill="#0C1220" stroke="#F59E0B" stroke-width="2.6"/>
+    <rect class="sv-panel sv-stroke-amber" x="-134" y="-38" width="268" height="76" rx="12" fill="#0C1220" stroke="#F59E0B" stroke-width="2.6"/>
     <rect x="-110" y="-11" width="22" height="22" rx="5" fill="#F1E05A"/>
-    <text x="-74" y="9" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="25" font-weight="700" fill="#F8FAFC">d3</text>
-    <text x="92" y="8" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="20" font-weight="600" fill="#FBBF24">109k</text>
-    <polygon points="106,-8 108.4,-2.4 114.4,-2 109.8,2 111.2,7.8 106,4.6 100.8,7.8 102.2,2 97.6,-2 103.6,-2.4" fill="#FBBF24"/>
+    <text class="sv-ink" x="-74" y="9" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="25" font-weight="700" fill="#F8FAFC">d3</text>
+    <text class="sv-text-amber" x="92" y="8" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="20" font-weight="600" fill="#FBBF24">109k</text>
+    <polygon class="sv-fill-amber" points="106,-8 108.4,-2.4 114.4,-2 109.8,2 111.2,7.8 106,4.6 100.8,7.8 102.2,2 97.6,-2 103.6,-2.4" fill="#FBBF24"/>
   </g>
 
   <!-- Bottom-Right Tile: deck.gl -->
   <g transform="translate(574, 298)">
-    <rect x="-134" y="-38" width="268" height="76" rx="12" fill="#0C1220" stroke="#D946EF" stroke-width="2.6"/>
+    <rect class="sv-panel sv-stroke-fuchsia" x="-134" y="-38" width="268" height="76" rx="12" fill="#0C1220" stroke="#D946EF" stroke-width="2.6"/>
     <rect x="-110" y="-11" width="22" height="22" rx="5" fill="#3178C6"/>
-    <text x="-74" y="9" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="25" font-weight="700" fill="#F8FAFC">deck.gl</text>
-    <text x="94" y="8" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="19" font-weight="600" fill="#E879F9">12.6k</text>
-    <polygon points="108,-8 110.4,-2.4 116.4,-2 111.8,2 113.2,7.8 108,4.6 102.8,7.8 104.2,2 99.6,-2 105.6,-2.4" fill="#E879F9"/>
+    <text class="sv-ink" x="-74" y="9" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="25" font-weight="700" fill="#F8FAFC">deck.gl</text>
+    <text class="sv-text-fuchsia" x="94" y="8" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="19" font-weight="600" fill="#E879F9">12.6k</text>
+    <polygon class="sv-fill-fuchsia" points="108,-8 110.4,-2.4 116.4,-2 111.8,2 113.2,7.8 108,4.6 102.8,7.8 104.2,2 99.6,-2 105.6,-2.4" fill="#E879F9"/>
   </g>
 </svg>

@@ -1,51 +1,35 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
-  <defs>
-    <linearGradient id="sv-sat-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0B111E"/>
-      <stop offset="65%" stop-color="#07090E"/>
-      <stop offset="100%" stop-color="#05070C"/>
-    </linearGradient>
-    <radialGradient id="sv-sat-glow" cx="50%" cy="48%" r="58%">
-      <stop offset="0%" stop-color="#D946EF" stop-opacity="0.18"/>
-      <stop offset="60%" stop-color="#06B6D4" stop-opacity="0.05"/>
-      <stop offset="100%" stop-color="#07090E" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-
-  <rect width="800" height="450" fill="url(#sv-sat-bg)"/>
-  <rect width="800" height="450" fill="url(#sv-sat-glow)"/>
-
   <!-- Left SAT Convex Collision Separation -->
-  <polygon points="104,134 202,168 176,274 78,242" fill="#06B6D4" fill-opacity="0.22" stroke="#22D3EE" stroke-width="2.6"/>
-  <circle cx="352" cy="238" r="58" fill="#D946EF" fill-opacity="0.22" stroke="#E879F9" stroke-width="2.6"/>
+  <polygon class="sv-stroke-cyan" points="104,134 202,168 176,274 78,242" fill="#06B6D4" fill-opacity="0.22" stroke="#22D3EE" stroke-width="2.6"/>
+  <circle class="sv-stroke-fuchsia" cx="352" cy="238" r="58" fill="#D946EF" fill-opacity="0.22" stroke="#E879F9" stroke-width="2.6"/>
 
   <!-- Separating Axis -->
-  <line x1="274" y1="88" x2="216" y2="352" stroke="#FBBF24" stroke-width="2.6" stroke-dasharray="7 4"/>
+  <line class="sv-stroke-amber" x1="274" y1="88" x2="216" y2="352" stroke="#FBBF24" stroke-width="2.6" stroke-dasharray="7 4"/>
 
   <!-- MTV Push Arrows -->
-  <line x1="230" y1="208" x2="174" y2="195" stroke="#F8FAFC" stroke-width="2.4"/>
-  <polygon points="177,187 162,192 173,203" fill="#F8FAFC"/>
-  <line x1="262" y1="216" x2="318" y2="230" stroke="#F8FAFC" stroke-width="2.4"/>
-  <polygon points="315,238 330,233 319,222" fill="#F8FAFC"/>
+  <line class="sv-ink-stroke" x1="230" y1="208" x2="174" y2="195" stroke="#F8FAFC" stroke-width="2.4"/>
+  <polygon class="sv-ink" points="177,187 162,192 173,203" fill="#F8FAFC"/>
+  <line class="sv-ink-stroke" x1="262" y1="216" x2="318" y2="230" stroke="#F8FAFC" stroke-width="2.4"/>
+  <polygon class="sv-ink" points="315,238 330,233 319,222" fill="#F8FAFC"/>
 
-  <text x="245" y="378" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13.5" font-weight="700" fill="#FBBF24">0.0 px SAT</text>
+  <text class="sv-text-amber" x="245" y="378" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13.5" font-weight="700" fill="#FBBF24">0.0 px SAT</text>
 
   <!-- Vertical Divider -->
-  <line x1="448" y1="90" x2="448" y2="360" stroke="#1E293B" stroke-width="1.5"/>
+  <line class="sv-edge" x1="448" y1="90" x2="448" y2="360" stroke="#1E293B" stroke-width="1.5"/>
 
   <!-- Right Perceptual OKLab Simplex Mixing -->
-  <polygon points="602,110 494,298 710,298" fill="#0B111E" stroke="#334155" stroke-width="2"/>
+  <polygon class="sv-panel sv-panel-stroke" points="602,110 494,298 710,298" fill="#0B111E" stroke="#334155" stroke-width="2"/>
   <line x1="602" y1="110" x2="494" y2="298" stroke="#06B6D4" stroke-width="2.4"/>
   <line x1="602" y1="110" x2="710" y2="298" stroke="#D946EF" stroke-width="2.4"/>
   <line x1="494" y1="298" x2="710" y2="298" stroke="#F59E0B" stroke-width="2.4"/>
 
-  <circle cx="602" cy="110" r="16" fill="#06B6D4" stroke="#07090E" stroke-width="2.4"/>
-  <circle cx="494" cy="298" r="16" fill="#F59E0B" stroke="#07090E" stroke-width="2.4"/>
-  <circle cx="710" cy="298" r="16" fill="#D946EF" stroke="#07090E" stroke-width="2.4"/>
+  <circle class="sv-cutout" cx="602" cy="110" r="16" fill="#06B6D4" stroke="#07090E" stroke-width="2.4"/>
+  <circle class="sv-cutout" cx="494" cy="298" r="16" fill="#F59E0B" stroke="#07090E" stroke-width="2.4"/>
+  <circle class="sv-cutout" cx="710" cy="298" r="16" fill="#D946EF" stroke="#07090E" stroke-width="2.4"/>
   <circle cx="548" cy="204" r="11" fill="#38BDF8"/>
   <circle cx="656" cy="204" r="11" fill="#A855F7"/>
   <circle cx="602" cy="298" r="11" fill="#EC4899"/>
-  <circle cx="602" cy="228" r="15" fill="#94A3B8" stroke="#F8FAFC" stroke-width="2"/>
+  <circle class="sv-ring-ink" cx="602" cy="228" r="15" fill="#94A3B8" stroke="#F8FAFC" stroke-width="2"/>
 
-  <text x="602" y="378" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13.5" font-weight="700" fill="#E879F9">OKLab L a b</text>
+  <text class="sv-text-fuchsia" x="602" y="378" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13.5" font-weight="700" fill="#E879F9">OKLab L a b</text>
 </svg>

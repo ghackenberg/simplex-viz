@@ -1,51 +1,35 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
-  <defs>
-    <linearGradient id="sv-pbd-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0B111E"/>
-      <stop offset="65%" stop-color="#07090E"/>
-      <stop offset="100%" stop-color="#05070C"/>
-    </linearGradient>
-    <radialGradient id="sv-pbd-glow" cx="50%" cy="48%" r="58%">
-      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.18"/>
-      <stop offset="60%" stop-color="#06B6D4" stop-opacity="0.05"/>
-      <stop offset="100%" stop-color="#07090E" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-
-  <rect width="800" height="450" fill="url(#sv-pbd-bg)"/>
-  <rect width="800" height="450" fill="url(#sv-pbd-glow)"/>
-
   <!-- Wide Adaptive Aspect-Aligned 60-deg Lattice -->
-  <g stroke="#24324A" stroke-width="1.5" fill="none">
+  <g class="sv-edge" stroke="#24324A" stroke-width="1.5" fill="none">
     <polygon points="160,82 320,82 240,220" fill="#06B6D4" fill-opacity="0.06"/>
-    <polygon points="320,82 480,82 400,220" fill="#F59E0B" fill-opacity="0.14" stroke="#FBBF24" stroke-width="2.2"/>
+    <polygon class="sv-stroke-amber" points="320,82 480,82 400,220" fill="#F59E0B" fill-opacity="0.14" stroke="#FBBF24" stroke-width="2.2"/>
     <polygon points="480,82 640,82 560,220" fill="#D946EF" fill-opacity="0.06"/>
     <polygon points="240,220 320,82 400,220"/>
     <polygon points="400,220 480,82 560,220"/>
     <polygon points="240,220 400,220 320,358" fill="#F59E0B" fill-opacity="0.07"/>
     <polygon points="400,220 560,220 480,358" fill="#06B6D4" fill-opacity="0.08"/>
-    <polygon points="320,358 400,220 480,358" fill="#D946EF" fill-opacity="0.12" stroke="#D946EF" stroke-opacity="0.6" stroke-width="1.8"/>
+    <polygon class="sv-stroke-fuchsia" points="320,358 400,220 480,358" fill="#D946EF" fill-opacity="0.12" stroke="#D946EF" stroke-opacity="0.6" stroke-width="1.8"/>
   </g>
 
   <!-- Inward-Fan PBD Expansion Vectors -->
-  <g stroke="#FBBF24" stroke-width="2.2" stroke-dasharray="5 3">
+  <g class="sv-stroke-amber" stroke="#FBBF24" stroke-width="2.2" stroke-dasharray="5 3">
     <line x1="336" y1="96" x2="394" y2="146"/>
     <line x1="464" y1="96" x2="406" y2="146"/>
     <line x1="400" y1="202" x2="400" y2="158"/>
   </g>
 
   <!-- Pocket Items with 0.0 px Overlap -->
-  <circle cx="400" cy="142" r="18" fill="#F59E0B" stroke="#07090E" stroke-width="2.5"/>
-  <circle cx="366" cy="116" r="12" fill="#06B6D4" stroke="#07090E" stroke-width="2.2"/>
-  <circle cx="434" cy="116" r="12" fill="#D946EF" stroke="#07090E" stroke-width="2.2"/>
-  <circle cx="400" cy="298" r="17" fill="#E879F9" stroke="#07090E" stroke-width="2.5"/>
-  <circle cx="320" cy="272" r="14" fill="#FBBF24" stroke="#07090E" stroke-width="2.2"/>
-  <circle cx="480" cy="272" r="14" fill="#22D3EE" stroke="#07090E" stroke-width="2.2"/>
-  <circle cx="240" cy="134" r="14" fill="#06B6D4" stroke="#07090E" stroke-width="2.2"/>
-  <circle cx="560" cy="134" r="14" fill="#D946EF" stroke="#07090E" stroke-width="2.2"/>
+  <circle class="sv-cutout" cx="400" cy="142" r="18" fill="#F59E0B" stroke="#07090E" stroke-width="2.5"/>
+  <circle class="sv-cutout" cx="366" cy="116" r="12" fill="#06B6D4" stroke="#07090E" stroke-width="2.2"/>
+  <circle class="sv-cutout" cx="434" cy="116" r="12" fill="#D946EF" stroke="#07090E" stroke-width="2.2"/>
+  <circle class="sv-cutout" cx="400" cy="298" r="17" fill="#E879F9" stroke="#07090E" stroke-width="2.5"/>
+  <circle class="sv-cutout" cx="320" cy="272" r="14" fill="#FBBF24" stroke="#07090E" stroke-width="2.2"/>
+  <circle class="sv-cutout" cx="480" cy="272" r="14" fill="#22D3EE" stroke="#07090E" stroke-width="2.2"/>
+  <circle class="sv-cutout" cx="240" cy="134" r="14" fill="#06B6D4" stroke="#07090E" stroke-width="2.2"/>
+  <circle class="sv-cutout" cx="560" cy="134" r="14" fill="#D946EF" stroke="#07090E" stroke-width="2.2"/>
 
   <!-- Anchor Vertices -->
-  <circle cx="320" cy="82" r="11" fill="#0B111E" stroke="#06B6D4" stroke-width="2.6"/>
-  <circle cx="480" cy="82" r="11" fill="#0B111E" stroke="#F59E0B" stroke-width="2.6"/>
-  <circle cx="400" cy="220" r="11" fill="#0B111E" stroke="#D946EF" stroke-width="2.6"/>
+  <circle class="sv-panel" cx="320" cy="82" r="11" fill="#0B111E" stroke="#06B6D4" stroke-width="2.6"/>
+  <circle class="sv-panel" cx="480" cy="82" r="11" fill="#0B111E" stroke="#F59E0B" stroke-width="2.6"/>
+  <circle class="sv-panel" cx="400" cy="220" r="11" fill="#0B111E" stroke="#D946EF" stroke-width="2.6"/>
 </svg>

@@ -1,26 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
-  <defs>
-    <linearGradient id="ex-penguin-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0B111E"/>
-      <stop offset="65%" stop-color="#07090E"/>
-      <stop offset="100%" stop-color="#05070C"/>
-    </linearGradient>
-    <radialGradient id="ex-penguin-glow" cx="50%" cy="50%" r="58%">
-      <stop offset="0%" stop-color="#0891B2" stop-opacity="0.18"/>
-      <stop offset="55%" stop-color="#C026D3" stop-opacity="0.06"/>
-      <stop offset="100%" stop-color="#07090E" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-
-  <rect width="800" height="450" fill="url(#ex-penguin-bg)"/>
-  <rect width="800" height="450" fill="url(#ex-penguin-glow)"/>
-
   <!-- Subtle Biometric Simplex Backdrop -->
-  <polygon points="400,162 214,296 586,296" fill="#0891B2" fill-opacity="0.045" stroke="#1E293B" stroke-width="2" stroke-dasharray="6 5"/>
+  <polygon class="sv-edge" points="400,162 214,296 586,296" fill="#0891B2" fill-opacity="0.045" stroke="#1E293B" stroke-width="2" stroke-dasharray="6 5"/>
 
   <!-- Left Medallion: Adelie Penguin Morphometry -->
   <g transform="translate(214, 278)">
-    <circle cx="0" cy="0" r="74" fill="#0B101B" stroke="#D97706" stroke-width="3"/>
+    <circle class="sv-panel" cx="0" cy="0" r="74" fill="#0B101B" stroke="#D97706" stroke-width="3"/>
     <circle cx="0" cy="0" r="63" fill="none" stroke="#D97706" stroke-opacity="0.28" stroke-width="2" stroke-dasharray="5 5"/>
     <!-- Flippers -->
     <path d="M -14 -8 Q -32 8 -24 26 Q -10 16 -10 2 Z" fill="#D97706" fill-opacity="0.92"/>
@@ -30,13 +14,13 @@
     <circle cx="0" cy="-24" r="13" fill="#D97706"/>
     <polygon points="9,-28 24,-22 9,-18" fill="#F59E0B"/>
     <!-- Countershaded Belly & Adelie White Eye-Ring -->
-    <ellipse cx="2" cy="11" rx="11.5" ry="20" fill="#0B101B"/>
-    <circle cx="3.5" cy="-25" r="4.2" fill="#0B101B"/>
+    <ellipse class="sv-panel" cx="2" cy="11" rx="11.5" ry="20" fill="#0B101B"/>
+    <circle class="sv-panel" cx="3.5" cy="-25" r="4.2" fill="#0B101B"/>
   </g>
 
   <!-- Right Medallion: Chinstrap Penguin Morphometry -->
   <g transform="translate(586, 278)">
-    <circle cx="0" cy="0" r="74" fill="#0B101B" stroke="#C026D3" stroke-width="3"/>
+    <circle class="sv-panel" cx="0" cy="0" r="74" fill="#0B101B" stroke="#C026D3" stroke-width="3"/>
     <circle cx="0" cy="0" r="63" fill="none" stroke="#C026D3" stroke-opacity="0.28" stroke-width="2" stroke-dasharray="5 5"/>
     <!-- Flippers -->
     <path d="M -15 -8 Q -34 8 -25 27 Q -10 16 -10 2 Z" fill="#C026D3" fill-opacity="0.92"/>
@@ -46,15 +30,15 @@
     <circle cx="0" cy="-24" r="13" fill="#C026D3"/>
     <polygon points="9,-28 28,-22 9,-19" fill="#E879F9"/>
     <!-- Countershaded Belly & Chinstrap Facial Marking -->
-    <ellipse cx="2" cy="11" rx="11.5" ry="20.5" fill="#0B101B"/>
-    <circle cx="2.5" cy="-23" r="6.5" fill="#0B101B"/>
+    <ellipse class="sv-panel" cx="2" cy="11" rx="11.5" ry="20.5" fill="#0B101B"/>
+    <circle class="sv-panel" cx="2.5" cy="-23" r="6.5" fill="#0B101B"/>
     <path d="M -2.5 -19 Q 2.5 -14 8 -21" fill="none" stroke="#C026D3" stroke-width="3"/>
   </g>
 
   <!-- Center Hero Medallion: Gentoo Penguin Morphometry -->
   <g transform="translate(400, 178)">
-    <circle cx="0" cy="0" r="98" fill="none" stroke="#22D3EE" stroke-opacity="0.45" stroke-width="2.4" stroke-dasharray="6 4"/>
-    <circle cx="0" cy="0" r="84" fill="#0B101B" stroke="#0891B2" stroke-width="3.4"/>
+    <circle class="sv-stroke-cyan" cx="0" cy="0" r="98" fill="none" stroke="#22D3EE" stroke-opacity="0.45" stroke-width="2.4" stroke-dasharray="6 4"/>
+    <circle class="sv-panel" cx="0" cy="0" r="84" fill="#0B101B" stroke="#0891B2" stroke-width="3.4"/>
     <circle cx="0" cy="0" r="72" fill="none" stroke="#0891B2" stroke-opacity="0.28" stroke-width="2" stroke-dasharray="5 5"/>
     <!-- Wide Flippers (Gentoo Long Span) -->
     <path d="M -18 -9 Q -42 9 -30 32 Q -12 19 -12 3 Z" fill="#0891B2" fill-opacity="0.94"/>
@@ -64,7 +48,7 @@
     <circle cx="0" cy="-28" r="15" fill="#0891B2"/>
     <polygon points="10,-33 34,-26 10,-22" fill="#F97316"/>
     <!-- Countershaded Belly & Signature White Gentoo Bonnet Patch -->
-    <ellipse cx="2.5" cy="13" rx="14.5" ry="24" fill="#0B101B"/>
-    <ellipse cx="-1" cy="-32" rx="7.8" ry="4.4" fill="#0B101B"/>
+    <ellipse class="sv-panel" cx="2.5" cy="13" rx="14.5" ry="24" fill="#0B101B"/>
+    <ellipse class="sv-panel" cx="-1" cy="-32" rx="7.8" ry="4.4" fill="#0B101B"/>
   </g>
 </svg>

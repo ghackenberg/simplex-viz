@@ -731,6 +731,11 @@ function renderSocialPreviewSvg(
       <stop offset="55%" stop-color="${BRAND_COLORS.cyan.core}" stop-opacity="0.06"/>
       <stop offset="100%" stop-color="#07090E" stop-opacity="0"/>
     </radialGradient>
+    <radialGradient id="bundleStageGlow" cx="50%" cy="50%" r="58%">
+      <stop offset="0%" stop-color="${theme.accent}" stop-opacity="0.16"/>
+      <stop offset="60%" stop-color="${BRAND_COLORS.cyan.core}" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#090D16" stop-opacity="0"/>
+    </radialGradient>
     <clipPath id="bundleStageClip">
       <rect x="0" y="0" width="466" height="400" rx="16"/>
     </clipPath>
@@ -780,6 +785,7 @@ ${markNodes}
       <text x="34" y="24" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11.5" font-weight="600" fill="#CBD5E1">${escapeXml(meta.stageCardHeader)}</text>
       <text x="448" y="24" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11" fill="#64748B">60° SIMPLEX</text>
 
+      <rect x="0" y="40" width="466" height="262.125" fill="url(#bundleStageGlow)"/>
       <svg x="0" y="40" width="466" height="262.125" viewBox="${escapeXml(fragment.viewBox)}" preserveAspectRatio="xMidYMid meet">
         ${fragment.innerXml}
       </svg>
