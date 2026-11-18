@@ -1,3 +1,5 @@
+import corePkg from '../../packages/core/package.json';
+
 /**
  * Resolves internal site routes safely whether served at `/` (local dev & AI Studio)
  * or under a GitHub Pages sub-path such as `/simplex-viz/`.
@@ -38,5 +40,5 @@ export const SITE_META = {
   npmCoreUrl: 'https://www.npmjs.com/package/@simplex-viz/core',
   npmSvgUrl: 'https://www.npmjs.com/package/@simplex-viz/svg',
   npmReactUrl: 'https://www.npmjs.com/package/@simplex-viz/react',
-  version: '0.6.0',
+  version: corePkg.version,
 } as const;

@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
   id-token: write
 
 concurrency:
@@ -37,11 +36,21 @@ jobs:
       - name: Upgrade npm CLI for OIDC Trusted Publishing
         run: npm install -g npm@latest
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build and validate workspace packages
-        run: pnpm build:packages && pnpm validate:packages
+      - name: Verify synchronized workspace version
+        id: version
+        run: |
+          VERSION="$(node -e '
+            const fs = require("node:fs");
+            const pkgs = ["packages/core/package.json", "packages/svg/package.json", "packages/react/package.json"];
+            const versions = pkgs.map((p) => JSON.parse(fs.readFileSync(p, "utf8")).version);
+            if (new Set(versions).size !== 1) {
+              console.error("Workspace package versions do not match:", versions);
+              process.exit(1);
+            }
+            process.stdout.write(versions[0]);
+          ')"
+          echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Check npm publishing configuration
         id: npm_config
@@ -52,27 +61,119 @@ jobs:
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::npm publish skipped: add NPM_TOKEN secret (or publish v0.1.0 once, configure npm Trusted Publishing for this repo/workflow, and set repository variable NPM_TRUSTED_PUBLISHING=true)."
+            echo "::notice::Release skipped: configure NPM_TOKEN secret or npm Trusted Publishing (NPM_TRUSTED_PUBLISHING=true) so npmjs.org and GitHub Releases stay 1:1 synchronized."
           fi
 
-      - name: Create Release PR or Publish to npmjs.org
+      - name: Check whether current version is unpublished on npmjs.org
+        id: npm_state
         if: steps.npm_config.outputs.enabled == 'true'
-        uses: changesets/action@v1
-        with:
-          publish: pnpm -r publish --access public --no-git-checks
-          title: 'chore(release): Version Packages'
-          commit: 'chore(release): Version Packages'
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          UNPUBLISHED="false"
+          for pkg in @simplex-viz/core @simplex-viz/svg @simplex-viz/react; do
+            if ! npm view "${pkg}@${VERSION}" version >/dev/null 2>&1; then
+              UNPUBLISHED="true"
+              break
+            fi
+          done
+          echo "should_publish=${UNPUBLISHED}" >> "$GITHUB_OUTPUT"
+          if [ "$UNPUBLISHED" = "false" ]; then
+            echo "All workspace packages at v${VERSION} are already published on npmjs.org; skipping release."
+          fi
+
+      - name: Install dependencies
+        if: steps.npm_state.outputs.should_publish == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify quality, packages, tests, and site build
+        if: steps.npm_state.outputs.should_publish == 'true'
+        run: pnpm lint && pnpm typecheck && pnpm build:packages && pnpm validate:packages && pnpm test && pnpm build:demo
+
+      - name: Publish packages to npmjs.org
+        if: steps.npm_state.outputs.should_publish == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
+          fi
+          VERSION="${{ steps.version.outputs.value }}"
+          for dir in packages/core packages/svg packages/react; do
+            NAME="$(node -p "require('./${dir}/package.json').name")"
+            if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
+              echo "${NAME}@${VERSION} is already published on npmjs.org; skipping."
+            else
+              pnpm --filter "$NAME" publish --access public --no-git-checks
+            fi
+          done
 
-      - name: Create Release PR (npm publish skipped until configured)
-        if: steps.npm_config.outputs.enabled != 'true'
-        uses: changesets/action@v1
-        with:
-          title: 'chore(release): Version Packages'
-          commit: 'chore(release): Version Packages'
+      - name: Create GitHub Release for published commit
+        if: success() && steps.npm_state.outputs.should_publish == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          TAG="${{ steps.version.outputs.tag }}"
 
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "GitHub Release ${TAG} already exists; skipping."
+            exit 0
+          fi
+
+          node -e '
+            const fs = require("node:fs");
+            const version = process.argv[1];
+            let notes = "";
+
+            if (fs.existsSync("CHANGELOG.md")) {
+              const lines = fs.readFileSync("CHANGELOG.md", "utf8").split(/\r?\n/);
+              const startIdx = lines.findIndex((l) => l.startsWith(`## [${version}]`));
+              if (startIdx !== -1) {
+                let endIdx = lines.length;
+                for (let i = startIdx + 1; i < lines.length; i++) {
+                  if (/^## \[/.test(lines[i])) {
+                    endIdx = i;
+                    break;
+                  }
+                }
+                notes = lines.slice(startIdx + 1, endIdx).join("\n").trim();
+              }
+            }
+
+            if (!notes && fs.existsSync("packages/core/CHANGELOG.md")) {
+              const pkgLines = fs.readFileSync("packages/core/CHANGELOG.md", "utf8").split(/\r?\n/);
+              const startIdx = pkgLines.findIndex((l) => l.trim() === `## ${version}`);
+              if (startIdx !== -1) {
+                let endIdx = pkgLines.length;
+                for (let i = startIdx + 1; i < pkgLines.length; i++) {
+                  if (/^##\s+/.test(pkgLines[i])) {
+                    endIdx = i;
+                    break;
+                  }
+                }
+                notes = pkgLines.slice(startIdx + 1, endIdx).join("\n").trim();
+              }
+            }
+
+            if (notes) {
+              fs.writeFileSync("/tmp/release-notes.md", notes + "\n", "utf8");
+            }
+          ' "$VERSION"
+
+          TARGET_ARGS=()
+          if ! git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            TARGET_ARGS=(--target "$GITHUB_SHA")
+          fi
+
+          if [ -s /tmp/release-notes.md ]; then
+            gh release create "$TAG" \
+              "${TARGET_ARGS[@]}" \
+              --title "SimplexViz ${TAG}" \
+              --notes-file /tmp/release-notes.md
+          else
+            gh release create "$TAG" \
+              "${TARGET_ARGS[@]}" \
+              --title "SimplexViz ${TAG}" \
+              --generate-notes
+          fi
