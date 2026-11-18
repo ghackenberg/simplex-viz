@@ -5,6 +5,10 @@ import KeyTakeaways from '../components/KeyTakeaways.astro';
 import OnThisPage from '../components/OnThisPage.astro';
 import PageMeta, { type PageMetaItem } from '../components/PageMeta.astro';
 import BaseLayout from './BaseLayout.astro';
+import {
+  buildDocsNavSequence,
+  resolveDocsPagination,
+} from '../site/docsNavigation';
 import { getStrategiesByStage } from '../site/strategies';
 import { withBase } from '../site/url';
 
@@ -52,6 +56,12 @@ const stageDocs = allDocs.filter((d) => d.data.section === 'Core Strategies');
 const customizationDocs = allDocs.filter((d) => d.data.section === 'Customization');
 
 const tocHeadings = headings.filter((h) => h.depth === 2 || h.depth === 3);
+const navSequence = buildDocsNavSequence(allDocs, allApi);
+const { prev: prevDocPage, next: nextDocPage } = resolveDocsPagination(
+  navSequence,
+  activeGroup,
+  activeSlug,
+);
 ---
 
 <BaseLayout title={title} description={description} jsonLd={jsonLd}>
@@ -424,6 +434,45 @@ const tocHeadings = headings.filter((h) => h.depth === 2 || h.depth === 3);
         <div class="sv-prose mt-8 overflow-x-hidden">
           <slot />
         </div>
+
+        {
+          (prevDocPage || nextDocPage) && (
+            <nav
+              aria-label="Documentation pagination"
+              class="not-prose mt-12 grid grid-cols-1 gap-4 border-t border-slate-200/80 pt-8 sm:grid-cols-2 dark:border-slate-800/80"
+            >
+              {prevDocPage ? (
+                <a
+                  href={withBase(prevDocPage.href)}
+                  class="group rounded-lg border border-slate-200/90 bg-white p-4 transition-colors hover:border-cyan-500/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:border-slate-800/90 dark:bg-[#0B0F17] dark:hover:border-cyan-400/60"
+                >
+                  <span class="block text-xs text-slate-500 dark:text-slate-400">
+                    Previous · {prevDocPage.contextLabel}
+                  </span>
+                  <span class="mt-1 block text-sm font-semibold text-slate-950 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors [text-wrap:balance]">
+                    ← {prevDocPage.label}
+                  </span>
+                </a>
+              ) : (
+                <div />
+              )}
+
+              {nextDocPage && (
+                <a
+                  href={withBase(nextDocPage.href)}
+                  class="group rounded-lg border border-slate-200/90 bg-white p-4 text-right transition-colors hover:border-cyan-500/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:border-slate-800/90 dark:bg-[#0B0F17] dark:hover:border-cyan-400/60"
+                >
+                  <span class="block text-xs text-slate-500 dark:text-slate-400">
+                    Next · {nextDocPage.contextLabel}
+                  </span>
+                  <span class="mt-1 block text-sm font-semibold text-slate-950 group-hover:text-cyan-700 dark:text-white dark:group-hover:text-cyan-300 transition-colors [text-wrap:balance]">
+                    {nextDocPage.label} →
+                  </span>
+                </a>
+              )}
+            </nav>
+          )
+        }
       </article>
 
       <!-- Right Table of Contents: Starts at Very Top of Shell -->
