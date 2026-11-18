@@ -2,7 +2,7 @@
 
 All notable changes to **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`, and the documentation/showcase site) are documented in this file following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), coordinated with per-package release notes via `@changesets/cli`.
 
-## [Unreleased]
+## [0.7.0] - 2026-11-18
 
 ### Fixed
 - **`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react` — ESM `Node16` / `NodeNext` `.d.ts` module resolution ([#2](https://github.com/ghackenberg/simplex-viz/issues/2))**:
@@ -22,9 +22,10 @@ All notable changes to **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, 
 - **`@simplex-viz/svg` & `@simplex-viz/react`**:
   - Added WCAG-AA perceptual cluster surface contrast calibration (`colorContrast`) and two-line `parentContextLabel` rendering on chamfered intermediate subcluster plaques in `BadgeClusterSvgView` and `ClusterAnchorSvgView`.
   - Re-exported `createSubspaceZoomStrategy`, `resolveDefaultInnerPadding`, discriminative label helpers, and enriched `SimplexZoomState` fields (`activeFrameKind`, `focusableTriangleIndices`) across `@simplex-viz/svg` and `@simplex-viz/react`.
-- **Documentation, Playground & Benchmark Website**:
+- **Documentation, Brand Pipeline & CI/CD**:
   - Built the multi-page Astro 7 documentation, interactive strategy catalog, live Playground, real-world open dataset explorers (UCI Zoo, Hillenbrand American English Vowels, Palmer Penguins, Wikimedia Commons Media, arXiv CS Abstracts), package API references, and engineering notes.
   - Added `scripts/gh-issue.ts` (`npm run issue`) for fetching open GitHub issues and comments directly from the repository via the public GitHub REST API.
+  - Refactored GitHub Actions workflows around a reusable `_quality.yml` gate (gating both GitHub Pages deployment and npm publishing while preserving `release.yml` for npm OIDC Trusted Publishing), enabled `pnpm sync:brand:check` in CI, switched brand PNG rendering to deterministic npm-managed `@fontsource/*` WOFF2 fonts (`Plus Jakarta Sans` + `IBM Plex Mono` + `Noto Sans` fallbacks) decompressed via `woff2-encoder` without relying on OS fonts, and cleaned stale artifacts from `public/`.
 
 ## [0.6.0] - 2026-11-15
 

@@ -1,5 +1,16 @@
 # @simplex-viz/svg
 
+## 0.7.0
+
+### Minor Changes
+
+- Add explicit `.js` extensions for ESM `Node16`/`NodeNext` `.d.ts` compatibility (#2), add WCAG-AA perceptual cluster surface contrast calibration (`colorContrast`) and two-line `parentContextLabel` corner plaques in `BadgeClusterSvgView` and `ClusterAnchorSvgView`, and re-export `createSubspaceZoomStrategy`, `resolveDefaultInnerPadding`, discriminative label helpers, and enriched `SimplexZoomState` fields (`activeFrameKind`, `focusableTriangleIndices`).
+
+### Patch Changes
+
+- Updated dependencies
+  - @simplex-viz/core@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes

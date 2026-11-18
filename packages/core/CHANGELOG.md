@@ -1,5 +1,11 @@
 # @simplex-viz/core
 
+## 0.7.0
+
+### Minor Changes
+
+- Fix ESM `Node16`/`NodeNext` `.d.ts` resolution with explicit `.js` extensions on all relative imports/exports and `"moduleResolution": "NodeNext"` build checks (#2), add `createSubspaceZoomStrategy` for representation-agnostic `6`-vertex local subspace refinement, add discriminative cluster labeling helpers (`assignDiscriminativeClusterLabels`, `resolveDiscriminativeClusterLabel`, `disambiguatePeerClusterTitle`, `parentContextLabel`), standardize 1-ring `'incident-star'` cluster/subcluster drill-down with barycentric simplex-distance dimming, support single-triangle leaf focus (`'triangle-focus'`, `leafTriangleFocus: true`) with directly clickable content items, upgrade `buildSimplexMesh` / `createAdaptiveHexMeshStrategy` to aspect-aligned full-canvas triangulation (`resolveDefaultInnerPadding`, `minSideLength: 130`, `maxClusters: 14`), upgrade space-filling PBD layout presets, and remove automatic nearest-neighbor emphasis on content selection.
+
 ## 0.6.0
 
 ### Minor Changes

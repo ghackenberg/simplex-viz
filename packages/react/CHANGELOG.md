@@ -1,5 +1,18 @@
 # @simplex-viz/react
 
+## 0.7.0
+
+### Minor Changes
+
+- Add explicit `.js` extensions for ESM `Node16`/`NodeNext` `.d.ts` compatibility (#2) and re-export `createSubspaceZoomStrategy`, `resolveDefaultInnerPadding`, discriminative label helpers, and enriched `SimplexZoomState` fields (`activeFrameKind`, `focusableTriangleIndices`) from `@simplex-viz/svg` and `@simplex-viz/core`.
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @simplex-viz/core@0.7.0
+  - @simplex-viz/svg@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes

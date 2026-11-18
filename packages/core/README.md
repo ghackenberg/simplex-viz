@@ -364,8 +364,8 @@ Or compose custom layout pipelines via `createComposedLayoutStrategy(options)` /
 
 Every algorithmic building block can also be imported standalone:
 
-- **Mesh & Zoom Geometry**: `buildSimplexMesh`, `buildSimplexLattice`, `buildSubdividedTriangleMesh`, `buildIncidentStarMesh`, `applyZoomAffine`, `invertZoomAffine`, `composeZoomAffine`
-- **Clustering**: `computeSimplexClustering`, `embedSimilarityMatrixOnMesh`, `extractIdentifiedItems`, `analyzeTagCorpus`, `partitionTagsJaccard`, `computeMeshHopDistances`, `embedClustersQapAnnealing`, `completePlanarSharedTags`, `matchClustersHungarian`, `assignItemsToSimplexUnits`, `extractNormalizedItems`, `defaultNormalizeTag`
+- **Mesh & Zoom Geometry**: `buildSimplexMesh`, `buildSimplexLattice`, `resolveDefaultInnerPadding`, `buildSubdividedTriangleMesh`, `buildIncidentStarMesh`, `applyZoomAffine`, `invertZoomAffine`, `composeZoomAffine`
+- **Clustering**: `computeSimplexClustering`, `embedSimilarityMatrixOnMesh`, `extractIdentifiedItems`, `analyzeTagCorpus`, `partitionTagsJaccard`, `computeMeshHopDistances`, `embedClustersQapAnnealing`, `completePlanarSharedTags`, `matchClustersHungarian`, `assignItemsToSimplexUnits`, `assignDiscriminativeClusterLabels`, `resolveDiscriminativeClusterLabel`, `disambiguatePeerClusterTitle`, `extractNormalizedItems`, `defaultNormalizeTag`
 - **Layout Solver**: `solveComposedLayout`, `solveTwoPhaseLayout`, `solveLocalAdaptiveLayout`, `solveCollisionDrivenLayout`, `buildItemCoveringTriangles`, `measureLayoutOverlaps`
 - **Geometry & Collision**: `computeConvexHull`, `rectToConvexPolygon`, `regularPolygon`, `starConvexHull`, `isPointInTriangle`, `computeConvexMtv`, `computeCirclePolygonMtv`, `hitTestConvexGeometry`, `UniformSpatialHashGrid`
 - **Color Science**: `hexToOklab`, `oklabToHex`, `mixOklabColors`, `lerpOklabHex`, `generatePerceptualClusterPalette`, `buildDistinctOklabPalette`, `assignMeshClusterColors`, `assignGreedyEdgeContrastColors`
