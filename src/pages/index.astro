@@ -21,24 +21,24 @@ const latestNotes = (await getCollection('notes'))
 const installTargets = [
   {
     id: 'svg',
-    label: 'Vanilla TS / SVG',
-    shortCmd: 'npm i @simplex-viz/svg',
+    label: 'SVG',
+    shortCmd: 'npm install @simplex-viz/svg',
     fullCmd: 'npm install @simplex-viz/svg',
-    hint: 'Framework-agnostic SVG — works in Vanilla TS, Vue, Svelte, or Angular without React.',
+    hint: 'Vanilla TS · Vue · Svelte',
   },
   {
     id: 'core',
-    label: 'Headless Core',
-    shortCmd: 'npm i @simplex-viz/core',
+    label: 'Core',
+    shortCmd: 'npm install @simplex-viz/core',
     fullCmd: 'npm install @simplex-viz/core',
-    hint: 'Zero-dependency math, clustering & SAT layout engine for Node, Workers, or Canvas.',
+    hint: 'Zero-dep · Headless SSR',
   },
   {
     id: 'react',
     label: 'React',
-    shortCmd: 'npm i @simplex-viz/react',
+    shortCmd: 'npm install @simplex-viz/react',
     fullCmd: 'npm install @simplex-viz/react',
-    hint: 'Type-safe React 18 & 19 <SimplexTopicGraph /> component and controller hook.',
+    hint: 'React 18 & 19 JSX',
   },
 ] as const;
 
@@ -90,52 +90,91 @@ const pipelineStages = [
   title={SITE_META.defaultTitle}
   description={SITE_META.defaultDescription}
 >
-  <!-- Section 1: Concise Centered Hero + Multi-Stack Install + Full-Width Live Demo -->
-  <section class="border-b border-slate-200/80 bg-white dark:border-slate-800/80 dark:bg-[#0B0F17]">
-    <div class="mx-auto max-w-7xl px-4 pt-10 pb-12 sm:px-6 sm:pt-14 sm:pb-16 lg:px-8">
-      <div class="mx-auto max-w-3xl text-center">
-        <h1 class="text-[clamp(2.15rem,4vw,3.4rem)] leading-[1.08] font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
-          Overlap-Free 60° Simplex Atlases.
-        </h1>
-        <p class="mx-auto mt-3.5 max-w-xl text-base leading-relaxed text-slate-600 dark:text-slate-300">
-          Project embeddings, pairwise similarities, or tagged collections onto an equilateral mesh with OKLab color and 1:4 zoom.
-        </p>
+  <!-- Section 1: Proportional 5:7 Product Showcase Hero -->
+  <section class="relative overflow-hidden border-b border-slate-200/80 bg-white dark:border-slate-800/80 dark:bg-[#0B0F17]">
+    <!-- Subtle Geometric Ambient Backdrop -->
+    <div
+      aria-hidden="true"
+      class="pointer-events-none absolute inset-0 overflow-hidden"
+    >
+      <div class="absolute -top-28 right-[12%] h-[420px] w-[540px] rounded-full bg-cyan-500/[0.06] blur-3xl dark:bg-cyan-400/[0.07]" />
+    </div>
 
-        <!-- Multi-Target Install Switcher (Vanilla/SVG, Headless Core, React) -->
-        <div class="mx-auto mt-7 max-w-md">
-          <div class="overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50/80 text-left dark:border-slate-800 dark:bg-[#07090E]">
-            <div
-              role="tablist"
-              aria-label="Choose package layer"
-              class="flex items-center border-b border-slate-200/80 bg-slate-100/80 px-1.5 pt-1.5 dark:border-slate-800/90 dark:bg-[#0B0F17]"
+    <div class="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
+      <div class="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-center lg:gap-10 xl:gap-12">
+        <!-- Left 5 Cols: Editorial Typography, Primary CTAs & Sleek Terminal Bar -->
+        <div class="mx-auto max-w-xl text-center lg:col-span-5 lg:mx-0 lg:max-w-none lg:text-left">
+          <p class="font-mono text-xs font-medium tracking-wide text-cyan-700 dark:text-cyan-400">
+            TypeScript · Zero-Dep Math · MIT
+          </p>
+
+          <h1 class="mt-3 text-[clamp(2rem,3.1vw,2.85rem)] leading-[1.07] font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
+            Overlap-Free 60° Simplex Atlases.
+          </h1>
+
+          <p class="mt-3.5 text-sm sm:text-base leading-relaxed text-slate-600 dark:text-slate-300">
+            Project embeddings, pairwise similarities, or tagged records onto an equilateral mesh with perceptual OKLab color, 0.0 px collision layout, and conformal 1:4 zoom.
+          </p>
+
+          <!-- Primary Action Row -->
+          <div class="mt-6 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+            <a
+              href={withBase('/docs/quickstart')}
+              class="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:bg-cyan-400 dark:text-slate-950 dark:hover:bg-cyan-300"
             >
-              {
-                installTargets.map((target, idx) => (
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={idx === 0 ? 'true' : 'false'}
-                    data-install-tab={target.id}
-                    data-short-cmd={target.shortCmd}
-                    data-full-cmd={target.fullCmd}
-                    data-install-hint={target.hint}
-                    class:list={[
-                      'cursor-pointer rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap',
-                      idx === 0
-                        ? 'bg-slate-50 text-slate-950 font-semibold dark:bg-[#07090E] dark:text-cyan-300'
-                        : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200',
-                    ]}
-                  >
-                    {target.label}
-                  </button>
-                ))
-              }
+              <span>Get Started</span>
+              <span aria-hidden="true">→</span>
+            </a>
+            <a
+              href={withBase('/examples')}
+              class="inline-flex items-center gap-2 rounded-lg border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 transition-colors hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:border-slate-800 dark:bg-[#0F1522] dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-800/80"
+            >
+              <span>Explore Examples</span>
+            </a>
+          </div>
+
+          <!-- Compact Self-Contained Package Install Bar -->
+          <div class="mx-auto mt-6 max-w-md overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50/90 text-left lg:mx-0 lg:max-w-none dark:border-slate-800 dark:bg-[#07090E]">
+            <div class="flex items-center justify-between gap-2 border-b border-slate-200/80 bg-slate-100/80 px-1.5 pt-1.5 dark:border-slate-800/90 dark:bg-[#0F1522]">
+              <div role="tablist" aria-label="Choose package layer" class="flex items-center gap-0.5">
+                {
+                  installTargets.map((target, idx) => (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={idx === 0 ? 'true' : 'false'}
+                      data-install-tab={target.id}
+                      data-short-cmd={target.shortCmd}
+                      data-full-cmd={target.fullCmd}
+                      data-install-hint={target.hint}
+                      class:list={[
+                        'cursor-pointer rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap',
+                        idx === 0
+                          ? 'bg-slate-50 text-slate-950 font-semibold dark:bg-[#07090E] dark:text-cyan-300'
+                          : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200',
+                      ]}
+                    >
+                      {target.label}
+                    </button>
+                  ))
+                }
+              </div>
+
+              <span
+                id="sv-hero-install-hint"
+                class="hidden sm:inline pr-2.5 pb-1 font-mono text-[11px] text-slate-400 dark:text-slate-500 truncate"
+              >
+                {installTargets[0].hint}
+              </span>
             </div>
 
             <div class="flex items-center justify-between gap-3 px-3.5 py-2.5 font-mono text-xs text-slate-800 dark:text-slate-200">
-              <span id="sv-hero-install-text" class="truncate">
-                {installTargets[0].shortCmd}
-              </span>
+              <div class="flex min-w-0 items-center gap-2">
+                <span aria-hidden="true" class="text-slate-400 dark:text-slate-600 select-none">$</span>
+                <span id="sv-hero-install-text" class="truncate">
+                  {installTargets[0].shortCmd}
+                </span>
+              </div>
               <button
                 type="button"
                 id="sv-hero-copy-btn"
@@ -146,22 +185,14 @@ const pipelineStages = [
               </button>
             </div>
           </div>
-
-          <p class="mt-2.5 text-xs text-slate-500 dark:text-slate-400">
-            <span id="sv-hero-install-hint">{installTargets[0].hint}</span>{' '}
-            <a
-              href={withBase('/docs/quickstart')}
-              class="font-semibold text-cyan-700 hover:underline dark:text-cyan-300 whitespace-nowrap"
-            >
-              Quickstart →
-            </a>
-          </p>
         </div>
-      </div>
 
-      <!-- Full-Width Interactive Atlas Showcase -->
-      <div class="mt-8 sm:mt-10">
-        <HeroAtlasIsland thumbManifest={thumbManifest} client:load />
+        <!-- Right 7 Cols: Live Interactive Simplex Atlas Instrument -->
+        <div class="lg:col-span-7">
+          <div class="rounded-2xl shadow-[0_18px_50px_-15px_rgba(8,145,178,0.12)] dark:shadow-[0_20px_60px_-15px_rgba(6,182,212,0.12)]">
+            <HeroAtlasIsland thumbManifest={thumbManifest} client:load />
+          </div>
+        </div>
       </div>
     </div>
   </section>

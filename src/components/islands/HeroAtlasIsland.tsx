@@ -193,7 +193,7 @@ export function HeroAtlasIsland({ thumbManifest }: HeroAtlasIslandProps = {}) {
               >
                 <span className="truncate">{ds.label}</span>
                 <span
-                  className={`hidden lg:inline font-normal ${
+                  className={`hidden sm:inline lg:hidden xl:inline font-normal ${
                     active
                       ? 'text-slate-400 dark:text-cyan-400/70'
                       : 'text-slate-400 dark:text-slate-500'
@@ -210,7 +210,7 @@ export function HeroAtlasIsland({ thumbManifest }: HeroAtlasIslandProps = {}) {
       {/* Live Simplex Canvas with Floating Fullscreen Overlay Button */}
       <div
         className={`relative w-full bg-slate-50/70 dark:bg-[#07090E] ${
-          isFullscreen ? 'min-h-0 flex-1' : 'h-[360px] sm:h-[460px] lg:h-[520px]'
+          isFullscreen ? 'min-h-0 flex-1' : 'h-[360px] sm:h-[420px] lg:h-[450px] xl:h-[480px]'
         }`}
       >
         <div className="pointer-events-none absolute top-3 right-3 z-20 flex items-center gap-2">

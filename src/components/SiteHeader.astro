@@ -32,7 +32,19 @@ const isPlaygroundActive = isActiveLink('/playground', playgroundHref);
       fullWidth ? 'w-full px-3.5' : 'mx-auto max-w-7xl px-4 sm:px-6 lg:px-8',
     ]}
   >
-    <BrandLockup />
+    <div class="flex items-center gap-2.5 shrink-0">
+      <BrandLockup />
+      <a
+        href={SITE_META.releasesUrl}
+        target="_blank"
+        rel="noreferrer"
+        aria-label={`Release v${SITE_META.version} changelog`}
+        title={`Release v${SITE_META.version}`}
+        class="inline-flex items-center rounded-md border border-slate-200/90 bg-slate-100/80 px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none text-slate-600 transition-colors hover:border-cyan-500/40 hover:bg-cyan-50/60 hover:text-cyan-700 dark:border-slate-800 dark:bg-slate-800/70 dark:text-slate-300 dark:hover:border-cyan-400/40 dark:hover:bg-cyan-950/40 dark:hover:text-cyan-300"
+      >
+        v{SITE_META.version}
+      </a>
+    </div>
 
     <nav
       aria-label="Primary navigation"
