@@ -313,7 +313,7 @@ const { prev: prevDocPage, next: nextDocPage } = resolveDocsPagination(
                     stageStrategies.some(
                       (s) => activeGroup === 'strategies' && activeSlug === s.id,
                     );
-                  const openByDefault = isStagePage || hasActiveChild || activeGroup === 'strategies';
+                  const openByDefault = isStagePage || hasActiveChild;
 
                   return (
                     <details open={openByDefault} class="group/stage">
