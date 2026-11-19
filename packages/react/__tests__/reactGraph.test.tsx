@@ -7,6 +7,8 @@ import {
   SimplexTopicGraph,
   createBarycentricZoomStrategy,
   createEmbeddingClusteringStrategy,
+  createLocalAdaptiveLayoutStrategy,
+  createPaletteColorStrategy,
   createSimplexTimeline,
   useSimplexGraphController,
   useSimplexTimeline,
@@ -926,6 +928,100 @@ describe('@simplex-viz/react integration', () => {
         .querySelector('g.sv-node-item[data-node-id="doc-b1"]')!
         .getAttribute('pointer-events'),
     ).toBeNull();
+
+    unmount();
+  });
+
+  it('batches simultaneous React prop updates and imperative handle.setOptions() into a single solve pass (Issue #16)', () => {
+    const items = [
+      { id: 'r1', tags: ['alpha', 'beta'] },
+      { id: 'r2', tags: ['beta', 'gamma'] },
+      { id: 'r3', tags: ['gamma', 'delta'] },
+      { id: 'r4', tags: ['alpha', 'delta'] },
+    ];
+
+    let metricsCalls = 0;
+    const exposed: {
+      handle: ReturnType<typeof useSimplexGraphController<(typeof items)[number]>>['handle'] | null;
+    } = { handle: null };
+
+    const Host = ({
+      theme,
+      preset,
+      strokeColor,
+      colorStrategy,
+      layoutStrategy,
+      zoomStrategy,
+    }: {
+      theme: 'dark' | 'light';
+      preset: 'geometric' | 'badges';
+      strokeColor: string;
+      colorStrategy?: ReturnType<typeof createPaletteColorStrategy>;
+      layoutStrategy?: ReturnType<typeof createLocalAdaptiveLayoutStrategy>;
+      zoomStrategy?: ReturnType<typeof createBarycentricZoomStrategy>;
+    }) => {
+      const { controllerRef, handle } = useSimplexGraphController<(typeof items)[number]>();
+      exposed.handle = handle;
+      return (
+        <div style={{ width: 640, height: 420 }}>
+          <SimplexTopicGraph
+            controllerRef={controllerRef}
+            items={items}
+            theme={theme}
+            preset={preset}
+            shapeOptions={{ strokeColor, strokeWidth: 2 }}
+            colorStrategy={colorStrategy}
+            layoutStrategy={layoutStrategy}
+            zoomStrategy={zoomStrategy}
+            onMetricsChange={() => {
+              metricsCalls += 1;
+            }}
+          />
+        </div>
+      );
+    };
+
+    const { container, rerender, unmount } = render(
+      <Host theme="dark" preset="geometric" strokeColor="#111111" />,
+    );
+
+    // Initial mount solves exactly once (no redundant post-mount sync solve!)
+    expect(metricsCalls).toBe(1);
+
+    // Simultaneous React prop changes (theme + preset + shapeOptions + 3 strategies) -> exactly 1 solve!
+    const nextColor = createPaletteColorStrategy(['#ef4444', '#3b82f6', '#10b981', '#f59e0b']);
+    const nextLayout = createLocalAdaptiveLayoutStrategy();
+    const nextZoom = createBarycentricZoomStrategy();
+    rerender(
+      <Host
+        theme="light"
+        preset="badges"
+        strokeColor="#223344"
+        colorStrategy={nextColor}
+        layoutStrategy={nextLayout}
+        zoomStrategy={nextZoom}
+      />,
+    );
+    expect(metricsCalls).toBe(2);
+    const rawCtrl = exposed.handle!.getRawController()!;
+    for (let i = 0; i < 25; i++) rawCtrl.stepForTest(20);
+    expect(
+      container.querySelector('g.sv-node-item path.sv-geom-shape')!.getAttribute('stroke'),
+    ).toBe('#223344');
+
+    // Imperative handle.setOptions() also executes in a single solve pass
+    act(() => {
+      exposed.handle!.setOptions({
+        theme: 'dark',
+        shapeOptions: { strokeColor: '#556677', strokeWidth: 1.5 },
+        sizeMultiplier: 1.1,
+      });
+    });
+    expect(metricsCalls).toBe(3);
+    for (let i = 0; i < 25; i++) rawCtrl.stepForTest(20);
+    expect(
+      container.querySelector('g.sv-node-item path.sv-geom-shape')!.getAttribute('stroke'),
+    ).toBe('#556677');
 
     unmount();
   });

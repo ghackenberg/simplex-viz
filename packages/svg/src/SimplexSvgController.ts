@@ -306,6 +306,71 @@ export type SimplexSvgControllerOptions<
     'getId' | 'getTags' | 'deriveClusterMeta' | 'clusteringStrategy'
   >;
 
+/**
+ * Partial runtime configuration accepted by `controller.setOptions(options)` so simultaneous
+ * updates to theme, preset, styling options, views, filters, or core strategies execute in
+ * a single atomic layout and render pass.
+ */
+export interface SimplexSvgUpdateOptions<
+  TItem = DefaultTaggedItem,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> {
+  readonly items?: readonly TItem[];
+  readonly preset?: SimplexVisualPreset;
+  readonly getLabel?: (item: TItem) => string;
+  readonly theme?: SimplexTheme;
+  /** Pass a custom `VisualResolver`, or `null` to restore the active built-in preset resolver. */
+  readonly visualResolver?: VisualResolver<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  > | null;
+  /** Pass a custom content node view, or `null` to restore the active built-in preset view. */
+  readonly contentView?: SvgNodeView<TContentVisual> | null;
+  /** Pass a custom cluster node view, or `null` to restore the active built-in preset view. */
+  readonly clusterView?: SvgNodeView<TClusterVisual> | null;
+  readonly triangleView?: SvgTriangleView<TItem, TTagMeta, TClusterMeta>;
+  readonly edgeView?: SvgEdgeView<TItem, TTagMeta, TClusterMeta>;
+  readonly badgeOptions?: PresetBadgeClusterOptions<TItem, TTagMeta, TClusterMeta>;
+  readonly getShape?: PresetContentShapeOption<TItem, TTagMeta, TClusterMeta>;
+  readonly shapeOptions?: GeometricShapeSvgViewOptions;
+  readonly meshOptions?: MeshOptions;
+  readonly layoutOptions?: LayoutSolverOptions;
+  readonly sizeMultiplier?: number;
+  readonly meshStrategy?: SimplexMeshStrategy<TItem>;
+  readonly clusteringStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>;
+  readonly colorStrategy?: SimplexColorStrategy<TItem, TTagMeta>;
+  readonly layoutStrategy?: SimplexLayoutStrategy;
+  readonly zoomStrategy?: SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>;
+  readonly showHulls?: boolean;
+  readonly emptyClusterBehavior?: EmptyClusterBehavior;
+  readonly itemFilter?: ItemFilterPredicate<TItem> | null;
+  readonly itemFilterMode?: ItemFilterMode;
+  readonly showZoomBreadcrumbs?: boolean;
+  readonly timeline?: boolean | TimelinePlayerOptions<TItem>;
+  readonly tooltip?:
+    | boolean
+    | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
+  readonly touchScrollLockPx?: number;
+  readonly clickTolerancePx?: number;
+  readonly interactions?: InteractionHandlers<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >;
+  readonly pinnedIds?: ReadonlySet<string> | readonly string[];
+  readonly highlightedIds?: ReadonlySet<string> | readonly string[];
+  readonly focusedClusterUid?: string | null;
+  readonly focusedTriangleIndex?: number | null;
+}
+
 function resolveContainerElement(target: HTMLElement | string): HTMLElement {
   if (typeof target !== 'string') {
     return target;
@@ -363,10 +428,11 @@ export class SimplexSvgController<
   private readonly getIdExtractor: (item: TItem) => string;
   private getLabelExtractor?: (item: TItem) => string;
   private readonly formatTagLabelFn?: (tag: string) => string;
-  private readonly badgeOptions?: PresetBadgeClusterOptions<TItem, TTagMeta, TClusterMeta>;
-  private readonly getShapeOption?: PresetContentShapeOption<TItem, TTagMeta, TClusterMeta>;
+  private badgeOptions?: PresetBadgeClusterOptions<TItem, TTagMeta, TClusterMeta>;
+  private getShapeOption?: PresetContentShapeOption<TItem, TTagMeta, TClusterMeta>;
   private shapeOptions?: GeometricShapeSvgViewOptions;
-  private readonly usesCustomContentView: boolean;
+  private usesCustomContentView: boolean;
+  private usesCustomClusterView: boolean;
   private tooltipOption:
     | boolean
     | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
@@ -402,13 +468,14 @@ export class SimplexSvgController<
   private focusedTriangleIndexState: number | null = null;
   private currentPreset: SimplexVisualPreset;
   private currentTheme: SimplexTheme;
-  private readonly usesCustomVisualResolver: boolean;
+  private usesCustomVisualResolver: boolean;
   private readonly cameraProxy: CameraController;
 
   private rafId: number | null = null;
   private lastFrameTs = 0;
   private fpsSamples = 0;
   private fpsAccumMs = 0;
+  private controllerBatchDepth = 0;
   private destroyed = false;
 
   // Centralized drag-to-pan, touch direction-locking, and multi-touch pinch-zoom state on root <svg>
@@ -474,6 +541,7 @@ export class SimplexSvgController<
     this.getShapeOption = options.getShape;
     this.shapeOptions = options.shapeOptions;
     this.usesCustomContentView = options.contentView !== undefined;
+    this.usesCustomClusterView = options.clusterView !== undefined;
     this.tooltipOption = options.tooltip ?? false;
     this.getIdExtractor =
       options.getId ??
@@ -1117,29 +1185,30 @@ export class SimplexSvgController<
       if (!this.timelineController) return;
       const hadAutoFinalSeed = this.timelineAutoFinalSeed;
       const hadAutoFinalSeedLayout = this.timelineAutoFinalSeedLayout !== false;
-      this.detachTimelineController();
-      this.timelineAutoFinalSeed = true;
-      this.timelineAutoFinalSeedLayout = false;
-      this.timelineEmptyClusterBehavior = undefined;
-      this.lastTimelineActiveItems = null;
-      this.syncTimelineOverlay(null);
-      this.engine.setCanonicalSeedItems(null);
-      if (this.rawClusteringStrategy) {
-        this.engine.setClusteringStrategy(this.rawClusteringStrategy);
-      } else if (hadAutoFinalSeed) {
-        this.engine.setClusteringStrategy(
-          createSoftSimplexTagClusteringStrategy<TItem, TTagMeta>(),
-        );
-      }
-      if (hadAutoFinalSeedLayout) {
-        this.engine.setLayoutStrategy(
-          this.rawLayoutStrategy ?? createCollisionDrivenLayoutStrategy(),
-        );
-      }
-      this.engine.setEmptyClusterBehavior(this.baseEmptyClusterBehavior);
-      this.engine.setItems(this.fullCorpusItems);
+      this.batch(() => {
+        this.detachTimelineController();
+        this.timelineAutoFinalSeed = true;
+        this.timelineAutoFinalSeedLayout = false;
+        this.timelineEmptyClusterBehavior = undefined;
+        this.lastTimelineActiveItems = null;
+        this.syncTimelineOverlay(null);
+        this.engine.setCanonicalSeedItems(null);
+        if (this.rawClusteringStrategy) {
+          this.engine.setClusteringStrategy(this.rawClusteringStrategy);
+        } else if (hadAutoFinalSeed) {
+          this.engine.setClusteringStrategy(
+            createSoftSimplexTagClusteringStrategy<TItem, TTagMeta>(),
+          );
+        }
+        if (hadAutoFinalSeedLayout) {
+          this.engine.setLayoutStrategy(
+            this.rawLayoutStrategy ?? createCollisionDrivenLayoutStrategy(),
+          );
+        }
+        this.engine.setEmptyClusterBehavior(this.baseEmptyClusterBehavior);
+        this.engine.setItems(this.fullCorpusItems);
+      });
       this.notifyTimelineListeners(null);
-      this.ensureLoopRunning();
       return;
     }
 
@@ -1155,36 +1224,37 @@ export class SimplexSvgController<
     this.timelineEmptyClusterBehavior = opts.emptyClusterBehavior;
     this.timelineOnStateChange = opts.onStateChange;
 
-    this.detachTimelineController();
-    this.timelineController = createSimplexTimeline(this.fullCorpusItems, opts);
-    this.engine.setCanonicalSeedItems(this.fullCorpusItems);
-    const effectiveClustering = this.resolveEffectiveClusteringStrategy(
-      this.rawClusteringStrategy,
-      this.fullCorpusItems,
-    );
-    if (effectiveClustering) {
-      this.engine.setClusteringStrategy(effectiveClustering);
-    } else if (prevAutoFinalSeed) {
-      this.engine.setClusteringStrategy(
-        createSoftSimplexTagClusteringStrategy<TItem, TTagMeta>(),
+    this.batch(() => {
+      this.detachTimelineController();
+      this.timelineController = createSimplexTimeline(this.fullCorpusItems, opts);
+      this.engine.setCanonicalSeedItems(this.fullCorpusItems);
+      const effectiveClustering = this.resolveEffectiveClusteringStrategy(
+        this.rawClusteringStrategy,
+        this.fullCorpusItems,
       );
-    }
-    const effectiveLayout = this.resolveEffectiveLayoutStrategy(this.rawLayoutStrategy);
-    if (effectiveLayout) {
-      this.engine.setLayoutStrategy(effectiveLayout);
-    } else if (prevAutoFinalSeedLayout !== false) {
-      this.engine.setLayoutStrategy(
-        this.rawLayoutStrategy ?? createCollisionDrivenLayoutStrategy(),
+      if (effectiveClustering) {
+        this.engine.setClusteringStrategy(effectiveClustering);
+      } else if (prevAutoFinalSeed) {
+        this.engine.setClusteringStrategy(
+          createSoftSimplexTagClusteringStrategy<TItem, TTagMeta>(),
+        );
+      }
+      const effectiveLayout = this.resolveEffectiveLayoutStrategy(this.rawLayoutStrategy);
+      if (effectiveLayout) {
+        this.engine.setLayoutStrategy(effectiveLayout);
+      } else if (prevAutoFinalSeedLayout !== false) {
+        this.engine.setLayoutStrategy(
+          this.rawLayoutStrategy ?? createCollisionDrivenLayoutStrategy(),
+        );
+      }
+      this.engine.setEmptyClusterBehavior(
+        this.timelineEmptyClusterBehavior ?? this.baseEmptyClusterBehavior,
       );
-    }
-    this.engine.setEmptyClusterBehavior(
-      this.timelineEmptyClusterBehavior ?? this.baseEmptyClusterBehavior,
-    );
-    const activeItems = this.timelineController.getActiveItems();
-    this.lastTimelineActiveItems = activeItems;
-    this.engine.setItems(activeItems);
-    this.attachTimelineController(this.timelineController);
-    this.ensureLoopRunning();
+      const activeItems = this.timelineController.getActiveItems();
+      this.lastTimelineActiveItems = activeItems;
+      this.engine.setItems(activeItems);
+      this.attachTimelineController(this.timelineController);
+    });
   }
 
   getSvgElement(): SVGSVGElement {
@@ -1331,43 +1401,375 @@ export class SimplexSvgController<
   }
 
   /**
+   * Executes `fn` inside a re-entrant batch transaction so multiple sequential controller
+   * setter calls coalesce into at most one pipeline/layout solve and one SVG render pass.
+   */
+  batch<TResult>(fn: () => TResult): TResult {
+    this.controllerBatchDepth += 1;
+    try {
+      return this.engine.batch(fn);
+    } finally {
+      this.controllerBatchDepth -= 1;
+      if (this.controllerBatchDepth === 0) {
+        this.ensureLoopRunning();
+      }
+    }
+  }
+
+  /**
+   * Atomically applies any combination of theme, preset, styling options, views,
+   * filters, strategies, or interaction settings in a single coalesced layout and render pass.
+   */
+  setOptions(
+    options: SimplexSvgUpdateOptions<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): void {
+    if (this.destroyed) return;
+    let shouldSyncZoomOverlays = false;
+    let shouldSyncTimelineOverlay = false;
+
+    this.batch(() => {
+      let needsRenderNow = false;
+      let needsHullInvalidation = false;
+      let presetChanged = false;
+      let themeChanged = false;
+      let resolverInputsChanged = false;
+      let shapeOptionsChanged = false;
+
+      if (options.preset !== undefined && options.preset !== this.currentPreset) {
+        this.currentPreset = options.preset;
+        presetChanged = true;
+        resolverInputsChanged = true;
+      }
+      if ('getLabel' in options && options.getLabel !== this.getLabelExtractor) {
+        this.getLabelExtractor = options.getLabel;
+        resolverInputsChanged = true;
+      }
+      if ('badgeOptions' in options && options.badgeOptions !== this.badgeOptions) {
+        this.badgeOptions = options.badgeOptions;
+        resolverInputsChanged = true;
+        needsHullInvalidation = true;
+      }
+      if ('getShape' in options && options.getShape !== this.getShapeOption) {
+        this.getShapeOption = options.getShape;
+        resolverInputsChanged = true;
+        needsHullInvalidation = true;
+      }
+      if ('shapeOptions' in options && options.shapeOptions !== this.shapeOptions) {
+        this.shapeOptions = options.shapeOptions;
+        shapeOptionsChanged = true;
+      }
+      if (options.theme !== undefined && options.theme !== this.currentTheme) {
+        this.currentTheme = options.theme;
+        themeChanged = true;
+        resolverInputsChanged = true;
+        shouldSyncZoomOverlays = true;
+        shouldSyncTimelineOverlay = true;
+        if (this.tooltipEl) {
+          this.applyTooltipThemeStyles(this.tooltipEl);
+        }
+        this.adapter.setTheme(options.theme);
+        this.engine.setTheme(options.theme);
+        needsRenderNow = true;
+      }
+
+      // Views: rebuild preset views at most once and merge explicit view overrides
+      const viewPatch: Partial<
+        Omit<
+          SvgRendererOptions<
+            TContentVisual,
+            TClusterVisual,
+            TItem,
+            TTagMeta,
+            TClusterMeta
+          >,
+          'theme'
+        >
+      > = {};
+      let hasViewPatch = false;
+
+      if ('contentView' in options) {
+        if (options.contentView === null) {
+          this.usesCustomContentView = false;
+        } else if (options.contentView !== undefined) {
+          this.usesCustomContentView = true;
+          (viewPatch as { contentView?: SvgNodeView<TContentVisual> }).contentView =
+            options.contentView;
+          hasViewPatch = true;
+          needsHullInvalidation = true;
+        }
+      }
+      if ('clusterView' in options) {
+        if (options.clusterView === null) {
+          this.usesCustomClusterView = false;
+        } else if (options.clusterView !== undefined) {
+          this.usesCustomClusterView = true;
+          (viewPatch as { clusterView?: SvgNodeView<TClusterVisual> }).clusterView =
+            options.clusterView;
+          hasViewPatch = true;
+          needsHullInvalidation = true;
+        }
+      }
+
+      const needPresetContentView =
+        !this.usesCustomContentView &&
+        (presetChanged ||
+          options.contentView === null ||
+          (shapeOptionsChanged && this.currentPreset !== 'glyphs'));
+      const needPresetClusterView =
+        !this.usesCustomClusterView &&
+        (presetChanged || options.clusterView === null);
+
+      if (needPresetContentView || needPresetClusterView) {
+        const presetViews = createPresetViews(this.currentPreset, {
+          shapeOptions: this.shapeOptions,
+        });
+        if (needPresetContentView) {
+          (viewPatch as { contentView?: SvgNodeView<TContentVisual> }).contentView =
+            presetViews.contentView as unknown as SvgNodeView<TContentVisual>;
+          hasViewPatch = true;
+          needsHullInvalidation = true;
+        }
+        if (needPresetClusterView) {
+          (viewPatch as { clusterView?: SvgNodeView<TClusterVisual> }).clusterView =
+            presetViews.clusterView as unknown as SvgNodeView<TClusterVisual>;
+          hasViewPatch = true;
+          needsHullInvalidation = true;
+        }
+      }
+
+      if (options.triangleView !== undefined) {
+        (
+          viewPatch as {
+            triangleView?: SvgTriangleView<TItem, TTagMeta, TClusterMeta>;
+          }
+        ).triangleView = options.triangleView;
+        hasViewPatch = true;
+        needsRenderNow = true;
+      }
+      if (options.edgeView !== undefined) {
+        (
+          viewPatch as {
+            edgeView?: SvgEdgeView<TItem, TTagMeta, TClusterMeta>;
+          }
+        ).edgeView = options.edgeView;
+        hasViewPatch = true;
+        needsRenderNow = true;
+      }
+
+      if (hasViewPatch) {
+        this.adapter.setViews(viewPatch);
+        needsRenderNow = true;
+      }
+      if (needsHullInvalidation) {
+        this.adapter.invalidateHulls();
+      }
+
+      // Visual resolver: rebuild at most once
+      let didUpdateResolver = false;
+      if ('visualResolver' in options) {
+        if (options.visualResolver === null) {
+          this.usesCustomVisualResolver = false;
+          const resolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
+            this.currentPreset,
+            {
+              getLabel: this.getLabelExtractor,
+              theme: this.currentTheme,
+              formatTagLabel: this.formatTagLabelFn,
+              badgeOptions: this.badgeOptions,
+              getShape: this.getShapeOption,
+            },
+          );
+          this.engine.setVisualResolver(
+            resolver as unknown as VisualResolver<
+              TItem,
+              TContentVisual,
+              TClusterVisual,
+              TTagMeta,
+              TClusterMeta
+            >,
+          );
+          didUpdateResolver = true;
+          needsRenderNow = true;
+        } else if (options.visualResolver !== undefined) {
+          this.usesCustomVisualResolver = true;
+          this.engine.setVisualResolver(options.visualResolver);
+          didUpdateResolver = true;
+          needsRenderNow = true;
+        }
+      } else if (!this.usesCustomVisualResolver && resolverInputsChanged) {
+        const resolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
+          this.currentPreset,
+          {
+            getLabel: this.getLabelExtractor,
+            theme: this.currentTheme,
+            formatTagLabel: this.formatTagLabelFn,
+            badgeOptions: this.badgeOptions,
+            getShape: this.getShapeOption,
+          },
+        );
+        this.engine.setVisualResolver(
+          resolver as unknown as VisualResolver<
+            TItem,
+            TContentVisual,
+            TClusterVisual,
+            TTagMeta,
+            TClusterMeta
+          >,
+        );
+        didUpdateResolver = true;
+        needsRenderNow = true;
+      }
+
+      if (needsHullInvalidation && !didUpdateResolver) {
+        this.engine.relayout();
+        needsRenderNow = true;
+      }
+
+      // Core solver & strategy options
+      if (options.meshOptions !== undefined) {
+        this.engine.setMeshOptions(options.meshOptions);
+      }
+      if (options.layoutOptions !== undefined) {
+        const mergedLayout =
+          options.sizeMultiplier !== undefined
+            ? { ...options.layoutOptions, sizeMultiplier: options.sizeMultiplier }
+            : options.layoutOptions;
+        this.engine.setLayoutOptions(mergedLayout);
+      } else if (options.sizeMultiplier !== undefined) {
+        this.engine.setSizeMultiplier(options.sizeMultiplier);
+      }
+      if (options.meshStrategy !== undefined) {
+        this.engine.setMeshStrategy(options.meshStrategy);
+      }
+      if (options.clusteringStrategy !== undefined) {
+        this.setClusteringStrategy(options.clusteringStrategy);
+      }
+      if (options.colorStrategy !== undefined) {
+        this.engine.setColorStrategy(options.colorStrategy);
+        needsRenderNow = true;
+      }
+      if (options.layoutStrategy !== undefined) {
+        this.setLayoutStrategy(options.layoutStrategy);
+      }
+      if (options.zoomStrategy !== undefined) {
+        this.engine.setZoomStrategy(options.zoomStrategy);
+        shouldSyncZoomOverlays = true;
+      }
+
+      // Presentation, filter, timeline, items & interaction options
+      if (options.showHulls !== undefined) {
+        this.engine.setShowHulls(options.showHulls);
+        needsRenderNow = true;
+      }
+      if (options.emptyClusterBehavior !== undefined) {
+        this.setEmptyClusterBehavior(options.emptyClusterBehavior);
+      }
+      if ('itemFilter' in options || 'itemFilterMode' in options) {
+        const currentFilter = this.engine.getItemFilter();
+        const nextPredicate =
+          'itemFilter' in options
+            ? (options.itemFilter ?? null)
+            : currentFilter.predicate;
+        const nextMode = options.itemFilterMode ?? currentFilter.mode;
+        this.engine.setItemFilter(nextPredicate, { mode: nextMode });
+      }
+      if (options.pinnedIds !== undefined) {
+        this.engine.setPinnedIds(options.pinnedIds);
+        needsRenderNow = true;
+      }
+      if (options.highlightedIds !== undefined) {
+        this.engine.setHighlightedIds(options.highlightedIds);
+        needsRenderNow = true;
+      }
+      if ('focusedClusterUid' in options) {
+        this.setFocusedClusterUid(options.focusedClusterUid ?? null);
+        needsRenderNow = true;
+      }
+      if ('focusedTriangleIndex' in options) {
+        this.setFocusedTriangleIndex(options.focusedTriangleIndex ?? null);
+        needsRenderNow = true;
+      }
+      if (options.tooltip !== undefined) {
+        this.setTooltip(options.tooltip);
+      }
+      if (options.touchScrollLockPx !== undefined) {
+        this.setTouchScrollLockPx(options.touchScrollLockPx);
+      }
+      if (options.clickTolerancePx !== undefined) {
+        this.setClickTolerancePx(options.clickTolerancePx);
+      }
+      if (options.interactions !== undefined) {
+        this.setInteractions(options.interactions);
+      }
+      if (options.showZoomBreadcrumbs !== undefined) {
+        this.showZoomBreadcrumbs = options.showZoomBreadcrumbs;
+        shouldSyncZoomOverlays = true;
+      }
+      if (options.timeline !== undefined) {
+        this.setTimelineOptions(options.timeline);
+      }
+      if (options.items !== undefined) {
+        this.setItems(options.items);
+      }
+
+      if (needsRenderNow || themeChanged) {
+        this.engine.renderNow();
+      }
+    });
+
+    if (shouldSyncZoomOverlays) {
+      this.syncZoomOverlays(this.engine.getZoomState());
+    }
+    if (shouldSyncTimelineOverlay && this.timelineController) {
+      this.syncTimelineOverlay(this.timelineController.getState());
+    }
+  }
+
+  /**
    * Switches built-in preset & tooltip theme between `'dark'` and `'light'`.
    */
   setTheme(theme: SimplexTheme): void {
     if (this.currentTheme === theme) return;
-    this.currentTheme = theme;
-    if (this.tooltipEl) {
-      this.applyTooltipThemeStyles(this.tooltipEl);
-    }
-    this.adapter.setTheme(theme);
-    this.engine.setTheme(theme);
-    if (!this.usesCustomVisualResolver) {
-      const resolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
-        this.currentPreset,
-        {
-          getLabel: this.getLabelExtractor,
-          theme,
-          formatTagLabel: this.formatTagLabelFn,
-          badgeOptions: this.badgeOptions,
-          getShape: this.getShapeOption,
-        },
-      );
-      this.engine.setVisualResolver(
-        resolver as unknown as VisualResolver<
-          TItem,
-          TContentVisual,
-          TClusterVisual,
-          TTagMeta,
-          TClusterMeta
-        >,
-      );
-    }
+    this.batch(() => {
+      this.currentTheme = theme;
+      if (this.tooltipEl) {
+        this.applyTooltipThemeStyles(this.tooltipEl);
+      }
+      this.adapter.setTheme(theme);
+      this.engine.setTheme(theme);
+      if (!this.usesCustomVisualResolver) {
+        const resolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
+          this.currentPreset,
+          {
+            getLabel: this.getLabelExtractor,
+            theme,
+            formatTagLabel: this.formatTagLabelFn,
+            badgeOptions: this.badgeOptions,
+            getShape: this.getShapeOption,
+          },
+        );
+        this.engine.setVisualResolver(
+          resolver as unknown as VisualResolver<
+            TItem,
+            TContentVisual,
+            TClusterVisual,
+            TTagMeta,
+            TClusterMeta
+          >,
+        );
+      }
+      this.engine.renderNow();
+    });
     this.syncZoomOverlays(this.engine.getZoomState());
     if (this.timelineController) {
       this.syncTimelineOverlay(this.timelineController.getState());
     }
-    this.engine.renderNow();
-    this.ensureLoopRunning();
   }
 
   setMeshStrategy(strategy: SimplexMeshStrategy<TItem>): void {
@@ -2689,7 +3091,7 @@ export class SimplexSvgController<
   }
 
   private ensureLoopRunning(): void {
-    if (this.destroyed || this.rafId !== null) return;
+    if (this.destroyed || this.rafId !== null || this.controllerBatchDepth > 0) return;
     if (typeof requestAnimationFrame === 'undefined') {
       this.engine.renderNow();
       return;

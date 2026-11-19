@@ -1,17 +1,21 @@
 // @vitest-environment happy-dom
 import type { DefaultTaggedItem, VisualResolver } from '@simplex-viz/core';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   BadgeClusterSvgView,
   ClusterTintedEdgeSvgView,
   GeometricShapeSvgView,
   GradientTriangleSvgView,
   SimplexSvgController,
+  SvgRendererAdapter,
   createBarycentricZoomStrategy,
   createEmbeddingClusteringStrategy,
   createFixedLatticeMeshStrategy,
+  createLocalAdaptiveLayoutStrategy,
+  createPaletteColorStrategy,
   createSimplexSvg,
   createSubspaceZoomStrategy,
+  createThemeAdaptiveOklabColorStrategy,
   getHexRelativeLuminance,
   resolveClusterSurfaceColors,
   resolveGeometricShapeSpec,
@@ -2892,6 +2896,146 @@ describe('@simplex-viz/svg integration', () => {
     tlContainer.remove();
     controller.destroy();
     container.remove();
+  });
+
+  it('batches simultaneous theme, preset, styling, filter, and strategy updates into a single solve & SVG render pass via controller.setOptions() and re-entrant controller.batch() (Issue #16)', () => {
+    const items: readonly DefaultTaggedItem[] = [
+      { id: 'b1', tags: ['alpha', 'beta'] },
+      { id: 'b2', tags: ['beta', 'gamma'] },
+      { id: 'b3', tags: ['gamma', 'delta'] },
+      { id: 'b4', tags: ['alpha', 'delta'] },
+      { id: 'b5', tags: ['alpha', 'gamma'] },
+      { id: 'b6', tags: ['beta', 'delta'] },
+    ];
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+    });
+    document.body.appendChild(container);
+
+    let metricsCalls = 0;
+    const renderSpy = vi.spyOn(SvgRendererAdapter.prototype, 'renderFrame');
+
+    try {
+      const controller = createSimplexSvg(container, {
+        items,
+        preset: 'geometric',
+        theme: 'dark',
+        layoutOptions: { seed: 42 },
+        onMetricsChange: () => {
+          metricsCalls += 1;
+        },
+      });
+      for (let i = 0; i < 20; i++) controller.stepForTest(20);
+
+      let colorCalls = 0;
+      const baseColorStrat = createThemeAdaptiveOklabColorStrategy();
+      const trackedColorStrat = {
+        ...baseColorStrat,
+        assignClusterColors: (
+          ...args: Parameters<typeof baseColorStrat.assignClusterColors>
+        ) => {
+          colorCalls += 1;
+          return baseColorStrat.assignClusterColors(...args);
+        },
+      };
+
+      let layoutCalls = 0;
+      const baseLayoutStrat = createLocalAdaptiveLayoutStrategy();
+      const trackedLayoutStrat = {
+        ...baseLayoutStrat,
+        solve: (...args: Parameters<typeof baseLayoutStrat.solve>) => {
+          layoutCalls += 1;
+          return baseLayoutStrat.solve(...args);
+        },
+      };
+
+      const metricsBefore = metricsCalls;
+      renderSpy.mockClear();
+
+      // 1) Atomic setOptions: theme + preset + badgeOptions + shapeOptions + colorStrategy + layoutStrategy + zoomStrategy + itemFilter
+      controller.setOptions({
+        theme: 'light',
+        preset: 'badges',
+        badgeOptions: { showCode: false, maxTitleChars: 20 },
+        shapeOptions: {
+          strokeColor: '#0f172a',
+          strokeWidth: 2.2,
+          dimmedOpacity: 0.2,
+        },
+        colorStrategy: trackedColorStrat,
+        layoutStrategy: trackedLayoutStrat,
+        zoomStrategy: createBarycentricZoomStrategy(),
+        itemFilter: (item) => item.id !== 'b6',
+        itemFilterMode: 'dim',
+      });
+
+      // Exactly 1 layout/metrics pass, 1 color pass, 1 SVG renderFrame pass!
+      expect(metricsCalls - metricsBefore).toBe(1);
+      expect(colorCalls).toBe(1);
+      expect(layoutCalls).toBe(1);
+      expect(renderSpy).toHaveBeenCalledTimes(1);
+
+      const svg = controller.getSvgElement();
+      expect(controller.getZoomStrategy().mode).toBe('drill-down');
+      expect(controller.getLayoutStrategy()).toBe(trackedLayoutStrat);
+      expect(controller.getColorStrategy()).toBe(trackedColorStrat);
+
+      // Step crossfade to settle visual transition, then verify all visual updates took effect
+      for (let i = 0; i < 25; i++) controller.stepForTest(20);
+      const firstItemShape = svg.querySelector('g.sv-node-item path.sv-geom-shape')!;
+      expect(firstItemShape.getAttribute('stroke')).toBe('#0f172a');
+      expect(firstItemShape.getAttribute('stroke-width')).toBe('2.2');
+      expect(svg.querySelectorAll('g.sv-node-cluster .sv-badge-code').length).toBe(0);
+      const b6El = svg.querySelector('g.sv-node-item[data-node-id="b6"]')!;
+      expect(parseFloat(b6El.getAttribute('opacity') ?? '1')).toBeCloseTo(0.2, 2);
+
+      // 2) Re-entrant controller.batch() with nested batch & multiple sequential setters -> 1 solve, 1 render
+      const metricsBeforeBatch = metricsCalls;
+      renderSpy.mockClear();
+      const paletteStrat = createPaletteColorStrategy(['#ef4444', '#3b82f6', '#10b981', '#f59e0b']);
+
+      const result = controller.batch(() => {
+        controller.setTheme('dark');
+        controller.batch(() => {
+          controller.setShapeOptions({
+            strokeColor: '#e2e8f0',
+            strokeWidth: 1.6,
+            dimmedOpacity: 0.3,
+          });
+          controller.setColorStrategy(paletteStrat);
+          controller.setItemFilter(null);
+        });
+        return 'ok';
+      });
+
+      expect(result).toBe('ok');
+      expect(metricsCalls - metricsBeforeBatch).toBe(1);
+      expect(renderSpy).toHaveBeenCalledTimes(1);
+      for (let i = 0; i < 25; i++) controller.stepForTest(20);
+      expect(
+        svg.querySelector('g.sv-node-item path.sv-geom-shape')!.getAttribute('stroke'),
+      ).toBe('#e2e8f0');
+      expect(parseFloat(b6El.getAttribute('opacity') ?? '0')).toBeCloseTo(1, 2);
+
+      // 3) Exception safety: a throwing batch callback restores batchDepth cleanly so subsequent updates work
+      expect(() => {
+        controller.batch(() => {
+          controller.setTheme('light');
+          throw new Error('simulated batch failure');
+        });
+      }).toThrow('simulated batch failure');
+
+      const metricsAfterThrow = metricsCalls;
+      controller.setSizeMultiplier(1.15);
+      expect(metricsCalls - metricsAfterThrow).toBe(1);
+
+      controller.destroy();
+    } finally {
+      renderSpy.mockRestore();
+      container.remove();
+    }
   });
 });
 

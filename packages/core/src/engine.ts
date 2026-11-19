@@ -511,6 +511,12 @@ export class SimplexGraphEngine<
   private dirtyRender = true;
   private awaitingInitialSolve = false;
   private destroyed = false;
+  private batchDepth = 0;
+  private batchPendingPipelineReason: PipelineUpdateReason | null = null;
+  private batchPendingRecolor = false;
+  private batchPendingLayout = false;
+  private batchPendingZoomReset = false;
+  private batchPendingRenderNow = false;
 
   constructor(
     config: SimplexEngineConfig<
@@ -665,7 +671,7 @@ export class SimplexGraphEngine<
 
     this.rawItems = next;
     if (this.awaitingInitialSolve) return;
-    this.recomputePipeline('items');
+    this.requestPipeline('items');
   }
 
   /** Removes one or more items by ID and smoothly fades out exiting nodes. */
@@ -677,47 +683,42 @@ export class SimplexGraphEngine<
     if (filtered.length === this.rawItems.length) return;
     this.rawItems = filtered;
     if (this.awaitingInitialSolve) return;
-    this.recomputePipeline('items');
+    this.requestPipeline('items');
   }
 
   /** Replaces the entire item collection while smoothly morphing matching clusters & items. */
   setItems(items: readonly TItem[]): void {
     this.rawItems = [...items];
     if (this.awaitingInitialSolve) return;
-    this.recomputePipeline('items');
+    this.requestPipeline('items');
   }
 
   /** Swaps the mesh/triangulation strategy at runtime and recomputes the graph. */
   setMeshStrategy(strategy: SimplexMeshStrategy<TItem>): void {
     this.meshStrategy = strategy;
     if (this.awaitingInitialSolve) return;
-    this.recomputePipeline('strategy');
+    this.requestPipeline('strategy');
   }
 
   /** Swaps the topic clustering & vertex assignment strategy at runtime and recomputes. */
   setClusteringStrategy(strategy: SimplexClusteringStrategy<TItem, TTagMeta>): void {
     this.clusteringStrategy = strategy;
     if (this.awaitingInitialSolve) return;
-    this.recomputePipeline('strategy');
+    this.requestPipeline('strategy');
   }
 
   /** Swaps the cluster coloring & item mixing strategy at runtime with smooth transition. */
   setColorStrategy(strategy: SimplexColorStrategy<TItem, TTagMeta>): void {
     this.colorStrategy = strategy;
-    if (this.lastClusteringOutput && this.rootMesh) {
-      this.solvedFrameCache.clear();
-      this.currentMesh = this.rootMesh;
-      this.applyColorsAndDeriveDescriptors('strategy');
-      this.zoomStack = [this.buildRootZoomFrame()];
-      this.recomputeLayoutAndReconcile(false, this.currentMetrics.tagCount, 'strategy');
-    }
+    if (this.awaitingInitialSolve) return;
+    this.requestRecolor();
   }
 
   /** Swaps the node positioning & scaling layout strategy at runtime and re-solves cleanly. */
   setLayoutStrategy(strategy: SimplexLayoutStrategy): void {
     this.layoutStrategy = strategy;
     if (this.awaitingInitialSolve) return;
-    this.recomputeLayoutOnly('strategy');
+    this.requestLayout();
   }
 
   /** Swaps the zoom / drill-down strategy at runtime (resetting any open drill stack cleanly). */
@@ -729,12 +730,139 @@ export class SimplexGraphEngine<
       this.camera.reset();
     }
     if (this.awaitingInitialSolve) return;
+    this.requestZoomReset();
+  }
+
+  /**
+   * Executes `fn` inside a re-entrant batch transaction so multiple sequential state,
+   * theme, visual-resolver, or strategy mutations coalesce into at most one pipeline/layout
+   * pass and one synchronous render frame when the outermost batch exits.
+   */
+  batch<TResult>(fn: () => TResult): TResult {
+    this.batchDepth += 1;
+    try {
+      return fn();
+    } finally {
+      this.batchDepth -= 1;
+      if (this.batchDepth === 0) {
+        this.flushBatch();
+      }
+    }
+  }
+
+  private mergePipelineReason(
+    prev: PipelineUpdateReason | null,
+    next: PipelineUpdateReason,
+  ): PipelineUpdateReason {
+    if (prev === null) return next;
+    const rank: Record<PipelineUpdateReason, number> = {
+      initial: 5,
+      viewport: 4,
+      mesh: 3,
+      strategy: 2,
+      items: 1,
+    };
+    return rank[next] >= rank[prev] ? next : prev;
+  }
+
+  private requestPipeline(reason: PipelineUpdateReason): void {
+    if (this.destroyed || this.awaitingInitialSolve) return;
+    if (this.batchDepth > 0) {
+      this.batchPendingPipelineReason = this.mergePipelineReason(
+        this.batchPendingPipelineReason,
+        reason,
+      );
+      return;
+    }
+    this.recomputePipeline(reason);
+  }
+
+  private requestRecolor(): void {
+    if (this.destroyed || this.awaitingInitialSolve) return;
+    if (this.batchDepth > 0) {
+      this.batchPendingRecolor = true;
+      return;
+    }
+    this.applyRecolorAndReconcile();
+  }
+
+  private requestLayout(): void {
+    if (this.destroyed || this.awaitingInitialSolve) return;
+    if (this.batchDepth > 0) {
+      this.batchPendingLayout = true;
+      return;
+    }
+    this.recomputeLayoutOnly('strategy');
+  }
+
+  private requestZoomReset(): void {
+    if (this.destroyed || this.awaitingInitialSolve) return;
+    if (this.batchDepth > 0) {
+      this.batchPendingZoomReset = true;
+      return;
+    }
+    this.applyZoomStrategyChange();
+  }
+
+  private applyRecolorAndReconcile(): void {
+    if (this.lastClusteringOutput && this.rootMesh) {
+      this.solvedFrameCache.clear();
+      const wasZoomed = this.zoomStack.length > 1;
+      this.currentMesh = this.rootMesh;
+      this.applyColorsAndDeriveDescriptors('strategy');
+      this.zoomStack = [this.buildRootZoomFrame()];
+      this.neighborReturnHighlight = null;
+      if (wasZoomed) {
+        this.camera.reset();
+      }
+      this.recomputeLayoutAndReconcile(false, this.currentMetrics.tagCount, 'strategy');
+    }
+  }
+
+  private applyZoomStrategyChange(): void {
     const rootFrame = this.zoomStack[0];
     if (this.zoomStack.length > 1 && rootFrame) {
       this.executeDrillTransition([rootFrame]);
     } else {
       this.refreshZoomState();
       this.dirtyRender = true;
+    }
+  }
+
+  private flushBatch(): void {
+    const pipelineReason = this.batchPendingPipelineReason;
+    const pendingRecolor = this.batchPendingRecolor;
+    const pendingLayout = this.batchPendingLayout;
+    const pendingZoomReset = this.batchPendingZoomReset;
+    const pendingRenderNow = this.batchPendingRenderNow;
+
+    this.batchPendingPipelineReason = null;
+    this.batchPendingRecolor = false;
+    this.batchPendingLayout = false;
+    this.batchPendingZoomReset = false;
+    this.batchPendingRenderNow = false;
+
+    if (this.destroyed || this.awaitingInitialSolve) return;
+
+    if (pipelineReason !== null) {
+      this.recomputePipeline(pipelineReason);
+    } else if (pendingRecolor) {
+      this.applyRecolorAndReconcile();
+    } else if (pendingLayout) {
+      if (pendingZoomReset && this.zoomStack.length > 1 && this.zoomStack[0]) {
+        const rootFrame = this.zoomStack[0];
+        this.zoomStack = [rootFrame];
+        this.activateZoomFrame(rootFrame);
+        this.neighborReturnHighlight = null;
+        this.camera.reset();
+      }
+      this.recomputeLayoutOnly('strategy');
+    } else if (pendingZoomReset) {
+      this.applyZoomStrategyChange();
+    }
+
+    if (pendingRenderNow && this.dirtyRender) {
+      this.renderNow();
     }
   }
 
@@ -1087,14 +1215,14 @@ export class SimplexGraphEngine<
   setMeshOptions(options: MeshOptions): void {
     this.meshOptions = options;
     if (this.awaitingInitialSolve) return;
-    this.recomputePipeline('mesh');
+    this.requestPipeline('mesh');
   }
 
   /** Updates layout solver options and re-solves overlap-free layout. */
   setLayoutOptions(options: LayoutSolverOptions): void {
     this.layoutOptions = options;
     if (this.awaitingInitialSolve) return;
-    this.recomputeLayoutOnly('strategy');
+    this.requestLayout();
   }
 
   /** Updates canvas theme hint for color strategies. */
@@ -1102,18 +1230,8 @@ export class SimplexGraphEngine<
     if (this.theme === theme) return;
     this.previousTheme = this.theme;
     this.theme = theme;
-    if (this.lastClusteringOutput && this.rootMesh) {
-      this.solvedFrameCache.clear();
-      const wasZoomed = this.zoomStack.length > 1;
-      this.currentMesh = this.rootMesh;
-      this.applyColorsAndDeriveDescriptors('strategy');
-      this.zoomStack = [this.buildRootZoomFrame()];
-      this.neighborReturnHighlight = null;
-      if (wasZoomed) {
-        this.camera.reset();
-      }
-      this.recomputeLayoutAndReconcile(false, this.currentMetrics.tagCount, 'strategy');
-    }
+    if (this.awaitingInitialSolve) return;
+    this.requestRecolor();
   }
 
   /** Swaps the `VisualResolver` at runtime (e.g. changing node visual presets) with smooth crossfade. */
@@ -1129,7 +1247,7 @@ export class SimplexGraphEngine<
     this.visualResolver = resolver;
     this.visualResolverRevision += 1;
     if (this.awaitingInitialSolve) return;
-    this.recomputeLayoutOnly('strategy');
+    this.requestLayout();
   }
 
   /** Updates the uniform size multiplier and re-solves overlap-free layout. */
@@ -1138,7 +1256,7 @@ export class SimplexGraphEngine<
     if (Math.abs((this.layoutOptions.sizeMultiplier ?? 1) - clamped) < 1e-4) return;
     this.layoutOptions = { ...this.layoutOptions, sizeMultiplier: clamped };
     if (this.awaitingInitialSolve) return;
-    this.recomputeLayoutOnly('strategy');
+    this.requestLayout();
   }
 
   /** Updates viewport dimensions and recomputes mesh + layout cleanly. */
@@ -1152,7 +1270,7 @@ export class SimplexGraphEngine<
     if (w === this.viewportWidth && h === this.viewportHeight) return;
     this.viewportWidth = w;
     this.viewportHeight = h;
-    this.recomputePipeline('viewport');
+    this.requestPipeline('viewport');
   }
 
   /**
@@ -1199,6 +1317,11 @@ export class SimplexGraphEngine<
     this.neighborReturnHighlight = null;
     this.camera.reset();
 
+    this.batchPendingPipelineReason = null;
+    this.batchPendingRecolor = false;
+    this.batchPendingLayout = false;
+    this.batchPendingZoomReset = false;
+    this.batchPendingRenderNow = false;
     this.recomputePipeline('initial');
   }
 
@@ -1211,7 +1334,7 @@ export class SimplexGraphEngine<
     if (this.destroyed) return;
     this.visualResolverRevision += 1;
     if (this.awaitingInitialSolve) return;
-    this.recomputeLayoutOnly('strategy');
+    this.requestLayout();
   }
 
   /** Toggles convex hull debug wireframe rendering. */
@@ -1333,7 +1456,7 @@ export class SimplexGraphEngine<
     this.canonicalSeedItems = items ? [...items] : null;
     if (this.destroyed || this.awaitingInitialSolve) return;
     if (this.layoutStrategy.seedCanonicalLayout) {
-      this.recomputeLayoutOnly('strategy');
+      this.requestLayout();
     }
   }
 
@@ -1390,9 +1513,14 @@ export class SimplexGraphEngine<
     this.dirtyRender = true;
   }
 
-  /** Forces an immediate frame render using the current snapshot. */
+  /** Forces an immediate frame render using the current snapshot (deferred until batch end when inside `batch()`). */
   renderNow(): void {
     if (this.destroyed || this.awaitingInitialSolve) return;
+    if (this.batchDepth > 0) {
+      this.batchPendingRenderNow = true;
+      this.dirtyRender = true;
+      return;
+    }
     this.renderer.renderFrame(this.buildFrameSnapshot());
     this.dirtyRender = false;
   }

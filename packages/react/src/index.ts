@@ -52,6 +52,7 @@ export {
   type PresetViewsOptions,
   type PresetVisualResolverOptions,
   type SimplexSvgControllerOptions,
+  type SimplexSvgUpdateOptions,
   type SimplexTheme,
   type SimplexTooltipFormatter,
   type SimplexVisualPreset,

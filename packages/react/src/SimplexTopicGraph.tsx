@@ -32,7 +32,6 @@ import {
 } from '@simplex-viz/core';
 import {
   SimplexSvgController,
-  createPresetViews,
   createPresetVisualResolver,
   extractDefaultItemLabel,
   type DefaultClusterPresetVisual,
@@ -437,6 +436,15 @@ export function SimplexTopicGraph<
   const latestPropsRef = useRef(props);
   latestPropsRef.current = props;
 
+  const syncedItemsRef = useRef(props.items);
+  const syncedThemeRef = useRef(props.theme ?? 'dark');
+  const syncedVisualsInitializedRef = useRef(false);
+  const syncedSizeMultiplierRef = useRef(props.sizeMultiplier);
+  const syncedShowHullsRef = useRef(props.showHulls);
+  const syncedEmptyClusterBehaviorRef = useRef(props.emptyClusterBehavior);
+  const syncedItemFilterRef = useRef(props.itemFilter);
+  const syncedItemFilterModeRef = useRef(props.itemFilterMode);
+  const syncedShowZoomBreadcrumbsRef = useRef(props.showZoomBreadcrumbs);
   const syncedMeshStrategyRef = useRef(props.meshStrategy);
   const syncedClusteringStrategyRef = useRef(props.clusteringStrategy);
   const syncedColorStrategyRef = useRef(props.colorStrategy);
@@ -447,6 +455,7 @@ export function SimplexTopicGraph<
   const syncedTriangleViewRef = useRef(props.triangleView);
   const syncedEdgeViewRef = useRef(props.edgeView);
   const syncedTimelineRef = useRef(props.timeline);
+  const syncedVisualDepsRef = useRef<readonly unknown[] | null>(null);
 
   const resolveTimelineOption = (
     timeline: boolean | TimelinePlayerOptions<TItem> | undefined,
@@ -602,15 +611,12 @@ export function SimplexTopicGraph<
       TClusterMeta
     >,
   ): {
-    contentView: SvgNodeView<TContentVisual>;
-    clusterView: SvgNodeView<TClusterVisual>;
+    contentView: SvgNodeView<TContentVisual> | undefined;
+    clusterView: SvgNodeView<TClusterVisual> | undefined;
   } => {
     const p = latestPropsRef.current;
-    const presetViews = createPresetViews(p.preset ?? 'geometric', {
-      shapeOptions: p.shapeOptions,
-    });
 
-    let contentView: SvgNodeView<TContentVisual>;
+    let contentView: SvgNodeView<TContentVisual> | undefined;
     if (p.renderContentNode) {
       const renderFn = p.renderContentNode;
       jsxContentViewRef.current?.dispose();
@@ -631,10 +637,10 @@ export function SimplexTopicGraph<
     } else {
       jsxContentViewRef.current?.dispose();
       jsxContentViewRef.current = null;
-      contentView = presetViews.contentView as unknown as SvgNodeView<TContentVisual>;
+      contentView = undefined;
     }
 
-    let clusterView: SvgNodeView<TClusterVisual>;
+    let clusterView: SvgNodeView<TClusterVisual> | undefined;
     if (p.renderClusterNode) {
       const renderFn = p.renderClusterNode;
       jsxClusterViewRef.current?.dispose();
@@ -655,7 +661,7 @@ export function SimplexTopicGraph<
     } else {
       jsxClusterViewRef.current?.dispose();
       jsxClusterViewRef.current = null;
-      clusterView = presetViews.clusterView as unknown as SvgNodeView<TClusterVisual>;
+      clusterView = undefined;
     }
 
     return { contentView, clusterView };
@@ -775,8 +781,15 @@ export function SimplexTopicGraph<
     if (!el) return;
 
     const p = latestPropsRef.current;
-    const effectiveResolver = resolveEffectiveResolver();
-    const { contentView, clusterView } = resolveActiveViews(effectiveResolver);
+    const needsCustomResolver = Boolean(
+      p.visualResolver || p.renderContentNode || p.renderClusterNode,
+    );
+    const effectiveResolver = needsCustomResolver
+      ? resolveEffectiveResolver()
+      : undefined;
+    const { contentView, clusterView } = resolveActiveViews(
+      effectiveResolver ?? resolveEffectiveResolver(),
+    );
 
     const ctrl = SimplexSvgController.createFromResolved(el, {
       items: p.items,
@@ -843,21 +856,287 @@ export function SimplexTopicGraph<
     };
   }, []);
 
-  // Sync items
-  useEffect(() => {
-    ctrlRef.current?.setItems(props.items);
-  }, [props.items]);
-
-  // Sync views, presets, theme & visual resolver (triggers smooth crossfade / morph!)
+  // Unified atomic sync for items, theme, presets, views, strategies, options, and filters
   useEffect(() => {
     const ctrl = ctrlRef.current;
     if (!ctrl) return;
-    ctrl.setTheme(props.theme ?? 'dark');
-    const effectiveResolver = resolveEffectiveResolver();
-    const { contentView, clusterView } = resolveActiveViews(effectiveResolver);
-    ctrl.setViews({ contentView, clusterView });
-    ctrl.setVisualResolver(effectiveResolver);
+
+    const visualDeps: readonly unknown[] = [
+      props.preset,
+      props.theme,
+      props.visualResolver,
+      props.contentView,
+      props.clusterView,
+      props.renderContentNode,
+      props.renderClusterNode,
+      props.badgeOptions?.showCode,
+      props.badgeOptions?.maxTitleChars,
+      props.badgeOptions?.formatTitle,
+      props.getShape,
+      props.shapeOptions?.shape,
+      props.shapeOptions?.sides,
+      props.shapeOptions?.rotationRad,
+      props.shapeOptions?.hoverScale,
+      props.shapeOptions?.hoverRingColor,
+      props.shapeOptions?.dimmedOpacity,
+      props.shapeOptions?.strokeColor,
+      props.shapeOptions?.strokeWidth,
+    ];
+
+    if (!syncedVisualsInitializedRef.current) {
+      syncedVisualsInitializedRef.current = true;
+      syncedVisualDepsRef.current = visualDeps;
+      return;
+    }
+
+    const prevVisualDeps = syncedVisualDepsRef.current;
+    const visualsChanged =
+      prevVisualDeps === null ||
+      prevVisualDeps.length !== visualDeps.length ||
+      visualDeps.some((val, i) => !Object.is(val, prevVisualDeps[i]));
+    syncedVisualDepsRef.current = visualDeps;
+
+    const nextTheme = props.theme ?? 'dark';
+    const themeChanged = syncedThemeRef.current !== nextTheme;
+    const itemsChanged = syncedItemsRef.current !== props.items;
+    const sizeMultiplierChanged =
+      syncedSizeMultiplierRef.current !== props.sizeMultiplier;
+    const showHullsChanged = syncedShowHullsRef.current !== props.showHulls;
+    const emptyClusterChanged =
+      syncedEmptyClusterBehaviorRef.current !== props.emptyClusterBehavior;
+    const itemFilterChanged =
+      syncedItemFilterRef.current !== props.itemFilter ||
+      syncedItemFilterModeRef.current !== props.itemFilterMode;
+    const meshStrategyChanged =
+      syncedMeshStrategyRef.current !== props.meshStrategy;
+    const clusteringStrategyChanged =
+      syncedClusteringStrategyRef.current !== props.clusteringStrategy;
+    const colorStrategyChanged =
+      syncedColorStrategyRef.current !== props.colorStrategy;
+    const layoutStrategyChanged =
+      syncedLayoutStrategyRef.current !== props.layoutStrategy;
+    const zoomStrategyChanged =
+      syncedZoomStrategyRef.current !== props.zoomStrategy;
+    const showZoomBreadcrumbsChanged =
+      syncedShowZoomBreadcrumbsRef.current !== props.showZoomBreadcrumbs;
+
+    const prevMeshOpts = syncedMeshOptionsRef.current;
+    const nextMeshOpts = props.meshOptions;
+    const meshOptionsChanged =
+      prevMeshOpts !== nextMeshOpts &&
+      !(
+        prevMeshOpts &&
+        nextMeshOpts &&
+        prevMeshOpts.innerPadding === nextMeshOpts.innerPadding &&
+        prevMeshOpts.sideLength === nextMeshOpts.sideLength &&
+        prevMeshOpts.minSideLength === nextMeshOpts.minSideLength &&
+        prevMeshOpts.maxSideLength === nextMeshOpts.maxSideLength &&
+        prevMeshOpts.maxClusters === nextMeshOpts.maxClusters
+      );
+
+    const prevLayoutOpts = syncedLayoutOptionsRef.current;
+    const nextLayoutOpts = props.layoutOptions;
+    const layoutOptionsChanged =
+      prevLayoutOpts !== nextLayoutOpts &&
+      !(
+        prevLayoutOpts &&
+        nextLayoutOpts &&
+        prevLayoutOpts.clusterGapPx === nextLayoutOpts.clusterGapPx &&
+        prevLayoutOpts.itemGapPx === nextLayoutOpts.itemGapPx &&
+        prevLayoutOpts.minContentScale === nextLayoutOpts.minContentScale &&
+        prevLayoutOpts.relaxationIterations === nextLayoutOpts.relaxationIterations &&
+        prevLayoutOpts.sizeMultiplier === nextLayoutOpts.sizeMultiplier &&
+        prevLayoutOpts.seed === nextLayoutOpts.seed
+      );
+
+    const triangleOrEdgeChanged =
+      syncedTriangleViewRef.current !== props.triangleView ||
+      syncedEdgeViewRef.current !== props.edgeView;
+
+    const prevTimeline = syncedTimelineRef.current;
+    const nextTimeline = props.timeline;
+    const timelineChanged =
+      prevTimeline !== nextTimeline &&
+      !(
+        typeof prevTimeline === 'object' &&
+        prevTimeline !== null &&
+        typeof nextTimeline === 'object' &&
+        nextTimeline !== null &&
+        prevTimeline.showControls === nextTimeline.showControls &&
+        prevTimeline.position === nextTimeline.position &&
+        prevTimeline.autoFinalSeed === nextTimeline.autoFinalSeed &&
+        prevTimeline.autoFinalSeedLayout === nextTimeline.autoFinalSeedLayout &&
+        prevTimeline.emptyClusterBehavior === nextTimeline.emptyClusterBehavior &&
+        prevTimeline.stepIntervalMs === nextTimeline.stepIntervalMs &&
+        prevTimeline.speed === nextTimeline.speed &&
+        prevTimeline.loop === nextTimeline.loop &&
+        prevTimeline.autoPlay === nextTimeline.autoPlay &&
+        prevTimeline.initialStep === nextTimeline.initialStep &&
+        prevTimeline.includeEmptyStart === nextTimeline.includeEmptyStart &&
+        prevTimeline.baselineLabel === nextTimeline.baselineLabel &&
+        prevTimeline.emptyStartLabel === nextTimeline.emptyStartLabel &&
+        Boolean(prevTimeline.getTimestamp) === Boolean(nextTimeline.getTimestamp) &&
+        Boolean(prevTimeline.getFrameKey) === Boolean(nextTimeline.getFrameKey) &&
+        Boolean(prevTimeline.formatFrameLabel) === Boolean(nextTimeline.formatFrameLabel) &&
+        Boolean(prevTimeline.compareFrameKeys) === Boolean(nextTimeline.compareFrameKeys)
+      );
+
+    syncedMeshOptionsRef.current = nextMeshOpts;
+    syncedLayoutOptionsRef.current = nextLayoutOpts;
+    syncedTimelineRef.current = nextTimeline;
+
+    if (
+      !visualsChanged &&
+      !themeChanged &&
+      !itemsChanged &&
+      !sizeMultiplierChanged &&
+      !showHullsChanged &&
+      !emptyClusterChanged &&
+      !itemFilterChanged &&
+      !meshStrategyChanged &&
+      !clusteringStrategyChanged &&
+      !colorStrategyChanged &&
+      !layoutStrategyChanged &&
+      !zoomStrategyChanged &&
+      !showZoomBreadcrumbsChanged &&
+      !meshOptionsChanged &&
+      !layoutOptionsChanged &&
+      !triangleOrEdgeChanged &&
+      !timelineChanged
+    ) {
+      return;
+    }
+
+    ctrl.batch(() => {
+      if (visualsChanged) {
+        syncedThemeRef.current = nextTheme;
+        const needsCustomResolver = Boolean(
+          props.visualResolver || props.renderContentNode || props.renderClusterNode,
+        );
+        const effectiveResolver = needsCustomResolver
+          ? resolveEffectiveResolver()
+          : null;
+        const { contentView, clusterView } = resolveActiveViews(
+          effectiveResolver ?? resolveEffectiveResolver(),
+        );
+        ctrl.setOptions({
+          preset: props.preset ?? 'geometric',
+          theme: nextTheme,
+          badgeOptions: props.badgeOptions,
+          getShape: props.getShape,
+          shapeOptions: props.shapeOptions,
+          contentView: contentView ?? null,
+          clusterView: clusterView ?? null,
+          visualResolver: effectiveResolver,
+        });
+      } else if (themeChanged) {
+        syncedThemeRef.current = nextTheme;
+        ctrl.setTheme(nextTheme);
+      }
+
+      if (triangleOrEdgeChanged) {
+        syncedTriangleViewRef.current = props.triangleView;
+        syncedEdgeViewRef.current = props.edgeView;
+        ctrl.setViews({
+          triangleView: props.triangleView,
+          edgeView: props.edgeView,
+        });
+      }
+
+      if (meshOptionsChanged) {
+        ctrl.setMeshOptions(nextMeshOpts ?? {});
+      }
+
+      if (layoutOptionsChanged) {
+        syncedSizeMultiplierRef.current = props.sizeMultiplier;
+        ctrl.setLayoutOptions(
+          props.sizeMultiplier !== undefined
+            ? { ...nextLayoutOpts, sizeMultiplier: props.sizeMultiplier }
+            : (nextLayoutOpts ?? {}),
+        );
+      } else if (sizeMultiplierChanged) {
+        syncedSizeMultiplierRef.current = props.sizeMultiplier;
+        if (props.sizeMultiplier !== undefined) {
+          ctrl.setSizeMultiplier(props.sizeMultiplier);
+        }
+      }
+
+      if (meshStrategyChanged) {
+        syncedMeshStrategyRef.current = props.meshStrategy;
+        if (props.meshStrategy) {
+          ctrl.setMeshStrategy(props.meshStrategy);
+        }
+      }
+
+      if (clusteringStrategyChanged) {
+        syncedClusteringStrategyRef.current = props.clusteringStrategy;
+        if (props.clusteringStrategy) {
+          ctrl.setClusteringStrategy(props.clusteringStrategy);
+        }
+      }
+
+      if (colorStrategyChanged) {
+        syncedColorStrategyRef.current = props.colorStrategy;
+        if (props.colorStrategy) {
+          ctrl.setColorStrategy(props.colorStrategy);
+        }
+      }
+
+      if (layoutStrategyChanged) {
+        syncedLayoutStrategyRef.current = props.layoutStrategy;
+        if (props.layoutStrategy) {
+          ctrl.setLayoutStrategy(props.layoutStrategy);
+        }
+      }
+
+      if (zoomStrategyChanged) {
+        syncedZoomStrategyRef.current = props.zoomStrategy;
+        ctrl.setZoomStrategy(
+          props.zoomStrategy ??
+            createFreeCameraZoomStrategy<TItem, TTagMeta, TClusterMeta>(),
+        );
+      }
+
+      if (showZoomBreadcrumbsChanged) {
+        syncedShowZoomBreadcrumbsRef.current = props.showZoomBreadcrumbs;
+        ctrl.setZoomUiOptions({
+          showZoomBreadcrumbs: props.showZoomBreadcrumbs,
+        });
+      }
+
+      if (showHullsChanged) {
+        syncedShowHullsRef.current = props.showHulls;
+        if (props.showHulls !== undefined) {
+          ctrl.setShowHulls(props.showHulls);
+        }
+      }
+
+      if (emptyClusterChanged) {
+        syncedEmptyClusterBehaviorRef.current = props.emptyClusterBehavior;
+        if (props.emptyClusterBehavior !== undefined) {
+          ctrl.setEmptyClusterBehavior(props.emptyClusterBehavior);
+        }
+      }
+
+      if (itemFilterChanged) {
+        syncedItemFilterRef.current = props.itemFilter;
+        syncedItemFilterModeRef.current = props.itemFilterMode;
+        ctrl.setItemFilter(props.itemFilter ?? null, {
+          mode: props.itemFilterMode ?? 'dim',
+        });
+      }
+
+      if (timelineChanged) {
+        ctrl.setTimelineOptions(resolveTimelineOption(nextTimeline));
+      }
+
+      if (itemsChanged) {
+        syncedItemsRef.current = props.items;
+        ctrl.setItems(props.items);
+      }
+    });
   }, [
+    props.items,
     props.preset,
     props.theme,
     props.visualResolver,
@@ -877,35 +1156,23 @@ export function SimplexTopicGraph<
     props.shapeOptions?.dimmedOpacity,
     props.shapeOptions?.strokeColor,
     props.shapeOptions?.strokeWidth,
+    props.sizeMultiplier,
+    props.showHulls,
+    props.emptyClusterBehavior,
+    props.itemFilter,
+    props.itemFilterMode,
+    props.meshStrategy,
+    props.clusteringStrategy,
+    props.colorStrategy,
+    props.layoutStrategy,
+    props.zoomStrategy,
+    props.showZoomBreadcrumbs,
+    props.meshOptions,
+    props.layoutOptions,
+    props.triangleView,
+    props.edgeView,
+    props.timeline,
   ]);
-
-  // Sync sizeMultiplier
-  useEffect(() => {
-    if (props.sizeMultiplier !== undefined) {
-      ctrlRef.current?.setSizeMultiplier(props.sizeMultiplier);
-    }
-  }, [props.sizeMultiplier]);
-
-  // Sync showHulls
-  useEffect(() => {
-    if (props.showHulls !== undefined) {
-      ctrlRef.current?.setShowHulls(props.showHulls);
-    }
-  }, [props.showHulls]);
-
-  // Sync emptyClusterBehavior
-  useEffect(() => {
-    if (props.emptyClusterBehavior !== undefined) {
-      ctrlRef.current?.setEmptyClusterBehavior(props.emptyClusterBehavior);
-    }
-  }, [props.emptyClusterBehavior]);
-
-  // Sync itemFilter & itemFilterMode
-  useEffect(() => {
-    ctrlRef.current?.setItemFilter(props.itemFilter ?? null, {
-      mode: props.itemFilterMode ?? 'dim',
-    });
-  }, [props.itemFilter, props.itemFilterMode]);
 
   // Sync touchScrollLockPx & clickTolerancePx
   useEffect(() => {
@@ -920,155 +1187,10 @@ export function SimplexTopicGraph<
     }
   }, [props.clickTolerancePx]);
 
-  // Sync pluggable core algorithm strategies when props change after mount
-  useEffect(() => {
-    if (syncedMeshStrategyRef.current === props.meshStrategy) return;
-    syncedMeshStrategyRef.current = props.meshStrategy;
-    if (props.meshStrategy) {
-      ctrlRef.current?.setMeshStrategy(props.meshStrategy);
-    }
-  }, [props.meshStrategy]);
-
-  useEffect(() => {
-    if (syncedClusteringStrategyRef.current === props.clusteringStrategy) return;
-    syncedClusteringStrategyRef.current = props.clusteringStrategy;
-    if (props.clusteringStrategy) {
-      ctrlRef.current?.setClusteringStrategy(props.clusteringStrategy);
-    }
-  }, [props.clusteringStrategy]);
-
-  useEffect(() => {
-    if (syncedColorStrategyRef.current === props.colorStrategy) return;
-    syncedColorStrategyRef.current = props.colorStrategy;
-    if (props.colorStrategy) {
-      ctrlRef.current?.setColorStrategy(props.colorStrategy);
-    }
-  }, [props.colorStrategy]);
-
-  useEffect(() => {
-    if (syncedLayoutStrategyRef.current === props.layoutStrategy) return;
-    syncedLayoutStrategyRef.current = props.layoutStrategy;
-    if (props.layoutStrategy) {
-      ctrlRef.current?.setLayoutStrategy(props.layoutStrategy);
-    }
-  }, [props.layoutStrategy]);
-
-  useEffect(() => {
-    if (syncedZoomStrategyRef.current === props.zoomStrategy) return;
-    syncedZoomStrategyRef.current = props.zoomStrategy;
-    ctrlRef.current?.setZoomStrategy(
-      props.zoomStrategy ??
-        createFreeCameraZoomStrategy<TItem, TTagMeta, TClusterMeta>(),
-    );
-  }, [props.zoomStrategy]);
-
-  useEffect(() => {
-    ctrlRef.current?.setZoomUiOptions({
-      showZoomBreadcrumbs: props.showZoomBreadcrumbs,
-    });
-  }, [props.showZoomBreadcrumbs]);
-
-  // Sync timeline option changes after mount
-  useEffect(() => {
-    const prev = syncedTimelineRef.current;
-    const next = props.timeline;
-    if (prev === next) return;
-    if (
-      typeof prev === 'object' &&
-      prev !== null &&
-      typeof next === 'object' &&
-      next !== null &&
-      prev.showControls === next.showControls &&
-      prev.position === next.position &&
-      prev.autoFinalSeed === next.autoFinalSeed &&
-      prev.autoFinalSeedLayout === next.autoFinalSeedLayout &&
-      prev.emptyClusterBehavior === next.emptyClusterBehavior &&
-      prev.stepIntervalMs === next.stepIntervalMs &&
-      prev.speed === next.speed &&
-      prev.loop === next.loop &&
-      prev.autoPlay === next.autoPlay &&
-      prev.initialStep === next.initialStep &&
-      prev.includeEmptyStart === next.includeEmptyStart &&
-      prev.baselineLabel === next.baselineLabel &&
-      prev.emptyStartLabel === next.emptyStartLabel &&
-      Boolean(prev.getTimestamp) === Boolean(next.getTimestamp) &&
-      Boolean(prev.getFrameKey) === Boolean(next.getFrameKey) &&
-      Boolean(prev.formatFrameLabel) === Boolean(next.formatFrameLabel) &&
-      Boolean(prev.compareFrameKeys) === Boolean(next.compareFrameKeys)
-    ) {
-      syncedTimelineRef.current = next;
-      return;
-    }
-    syncedTimelineRef.current = next;
-    ctrlRef.current?.setTimelineOptions(resolveTimelineOption(next));
-  }, [props.timeline]);
-
   // Sync wheel policy so `'none'`, `'pan-vertical'`, `'zoom-to-cursor'`, and custom callbacks stay live
   useEffect(() => {
     ctrlRef.current?.setInteractions(buildReactInteractions(props.onWheel));
   }, [props.onWheel]);
-
-  // Sync meshOptions & layoutOptions when values change after mount
-  useEffect(() => {
-    const prev = syncedMeshOptionsRef.current;
-    const next = props.meshOptions;
-    if (prev === next) return;
-    if (
-      prev &&
-      next &&
-      prev.innerPadding === next.innerPadding &&
-      prev.sideLength === next.sideLength &&
-      prev.minSideLength === next.minSideLength &&
-      prev.maxSideLength === next.maxSideLength &&
-      prev.maxClusters === next.maxClusters
-    ) {
-      syncedMeshOptionsRef.current = next;
-      return;
-    }
-    syncedMeshOptionsRef.current = next;
-    ctrlRef.current?.setMeshOptions(next ?? {});
-  }, [props.meshOptions]);
-
-  useEffect(() => {
-    const prev = syncedLayoutOptionsRef.current;
-    const next = props.layoutOptions;
-    if (prev === next) return;
-    if (
-      prev &&
-      next &&
-      prev.clusterGapPx === next.clusterGapPx &&
-      prev.itemGapPx === next.itemGapPx &&
-      prev.minContentScale === next.minContentScale &&
-      prev.relaxationIterations === next.relaxationIterations &&
-      prev.sizeMultiplier === next.sizeMultiplier &&
-      prev.seed === next.seed
-    ) {
-      syncedLayoutOptionsRef.current = next;
-      return;
-    }
-    syncedLayoutOptionsRef.current = next;
-    ctrlRef.current?.setLayoutOptions(
-      props.sizeMultiplier !== undefined
-        ? { ...next, sizeMultiplier: props.sizeMultiplier }
-        : (next ?? {}),
-    );
-  }, [props.layoutOptions, props.sizeMultiplier]);
-
-  // Sync pluggable triangle face & edge views independently (instant re-render, no layout recompute)
-  useEffect(() => {
-    if (
-      syncedTriangleViewRef.current === props.triangleView &&
-      syncedEdgeViewRef.current === props.edgeView
-    ) {
-      return;
-    }
-    syncedTriangleViewRef.current = props.triangleView;
-    syncedEdgeViewRef.current = props.edgeView;
-    ctrlRef.current?.setViews({
-      triangleView: props.triangleView,
-      edgeView: props.edgeView,
-    });
-  }, [props.triangleView, props.edgeView]);
 
   // Sync pinned / highlighted / focused cluster / focused triangle
   useEffect(() => {

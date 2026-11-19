@@ -16,6 +16,7 @@ import type {
 } from '@simplex-viz/core';
 import type {
   SimplexSvgController,
+  SimplexSvgUpdateOptions,
   SvgEdgeView,
   SvgTriangleView,
 } from '@simplex-viz/svg';
@@ -53,6 +54,16 @@ export interface SimplexGraphHandle<
   getZoomState(): SimplexZoomState | null;
   resetCamera(): void;
   zoomBy(factor: number): void;
+  batch<TResult>(fn: () => TResult): TResult | undefined;
+  setOptions(
+    options: SimplexSvgUpdateOptions<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): void;
   setItemFilter(
     predicate: ItemFilterPredicate<TItem> | null,
     options?: ItemFilterOptions,
@@ -207,6 +218,25 @@ export function useSimplexGraphController<
     cam.zoomToCursor(width / 2, height / 2, factor);
   }, []);
 
+  const batch = useCallback(<TResult,>(fn: () => TResult): TResult | undefined => {
+    return controllerRef.current?.batch(fn);
+  }, []);
+
+  const setOptions = useCallback(
+    (
+      options: SimplexSvgUpdateOptions<
+        TItem,
+        TContentVisual,
+        TClusterVisual,
+        TTagMeta,
+        TClusterMeta
+      >,
+    ) => {
+      controllerRef.current?.setOptions(options);
+    },
+    [],
+  );
+
   const setItemFilter = useCallback(
     (
       predicate: ItemFilterPredicate<TItem> | null,
@@ -264,6 +294,8 @@ export function useSimplexGraphController<
       getZoomState,
       resetCamera,
       zoomBy,
+      batch,
+      setOptions,
       setItemFilter,
       getItemFilter,
       relayout,
