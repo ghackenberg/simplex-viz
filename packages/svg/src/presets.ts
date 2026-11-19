@@ -18,6 +18,7 @@ import {
   GeometricShapeSvgView,
   resolveGeometricShapeSpec,
   type GeometricShapeSpec,
+  type GeometricShapeSvgViewOptions,
   type GeometricShapeVisual,
 } from './views/GeometricShapeSvgView.js';
 import {
@@ -130,16 +131,27 @@ export function extractDefaultItemLabel<TItem>(
 }
 
 /**
+ * Optional view-level styling/configuration hooks forwarded by `createPresetViews()`.
+ */
+export interface PresetViewsOptions {
+  /** Lightweight shape, hover, dimming, and stroke options forwarded to `GeometricShapeSvgView` (`'geometric'` / `'badges'` presets). */
+  readonly shapeOptions?: GeometricShapeSvgViewOptions;
+}
+
+/**
  * Creates the matching `SvgNodeView` pair for a given built-in preset.
  */
-export function createPresetViews(preset: SimplexVisualPreset): {
+export function createPresetViews(
+  preset: SimplexVisualPreset,
+  options?: PresetViewsOptions,
+): {
   readonly contentView: SvgNodeView<DefaultContentPresetVisual>;
   readonly clusterView: SvgNodeView<DefaultClusterPresetVisual>;
 } {
   const contentView = (
     preset === 'glyphs'
       ? new MultiSectorGlyphSvgView()
-      : new GeometricShapeSvgView()
+      : new GeometricShapeSvgView(options?.shapeOptions)
   ) as unknown as SvgNodeView<DefaultContentPresetVisual>;
 
   const clusterView = (

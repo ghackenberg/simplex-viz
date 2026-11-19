@@ -745,6 +745,84 @@ describe('@simplex-viz/react integration', () => {
 
     unmount();
   });
+
+  it('forwards and dynamically updates shapeOptions on SimplexTopicGraph (Issue #14)', () => {
+    const items = [
+      { id: 's1', tags: ['alpha'] },
+      { id: 's2', tags: ['beta'] },
+      { id: 's3', tags: ['gamma'] },
+    ];
+    const controllerRef = {
+      current: null as import('@simplex-viz/svg').SimplexSvgController<
+        (typeof items)[number],
+        unknown,
+        unknown
+      > | null,
+    };
+
+    const { container, rerender, unmount } = render(
+      <div style={{ width: 640, height: 420 }}>
+        <SimplexTopicGraph
+          controllerRef={controllerRef}
+          items={items}
+          preset="geometric"
+          shapeOptions={{
+            strokeColor: '#123456',
+            strokeWidth: 2.4,
+            hoverScale: 1.35,
+            hoverRingColor: '#ff3399',
+            dimmedOpacity: 0.2,
+          }}
+        />
+      </div>,
+    );
+
+    const ctrl = controllerRef.current!;
+    for (let i = 0; i < 30; i++) ctrl.stepForTest(20);
+
+    const firstShape = container.querySelector('g.sv-node-item path.sv-geom-shape')!;
+    expect(firstShape.getAttribute('stroke')).toBe('#123456');
+    expect(firstShape.getAttribute('stroke-width')).toBe('2.4');
+
+    // Highlight item 's1' and update shapeOptions dynamically
+    rerender(
+      <div style={{ width: 640, height: 420 }}>
+        <SimplexTopicGraph
+          controllerRef={controllerRef}
+          items={items}
+          preset="geometric"
+          highlightedIds={['s1']}
+          shapeOptions={{
+            strokeColor: '#abcdef',
+            strokeWidth: 1.9,
+            hoverScale: 1.5,
+            hoverRingColor: '#00ffaa',
+            dimmedOpacity: 0.2,
+          }}
+        />
+      </div>,
+    );
+    for (let i = 0; i < 15; i++) ctrl.stepForTest(20);
+
+    const updatedShape = container.querySelector('g.sv-node-item path.sv-geom-shape')!;
+    expect(updatedShape.getAttribute('stroke')).toBe('#abcdef');
+    expect(updatedShape.getAttribute('stroke-width')).toBe('1.9');
+
+    let checkedDimmed = false;
+    for (const gEl of container.querySelectorAll('g.sv-node-item')) {
+      const id = gEl.getAttribute('data-node-id')!;
+      const op = parseFloat(gEl.getAttribute('opacity') ?? '1');
+      if (id === 's1') {
+        expect(op).toBeCloseTo(1, 2);
+      } else {
+        checkedDimmed = true;
+        expect(op).toBeCloseTo(0.2, 2);
+      }
+    }
+    expect(checkedDimmed).toBe(true);
+
+    unmount();
+  });
 });
 
 

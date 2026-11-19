@@ -640,16 +640,34 @@ export class SvgRendererAdapter<
         tracked.rootGroup.removeAttribute('data-neighbor-id');
       }
 
+      const styleView = node.transition
+        ? (viewByKey.get(node.transition.toCacheKey) ?? activeView)
+        : (viewByKey.get(node.cacheKey) ?? activeView);
+      const dimmedFactor =
+        styleView.dimmedOpacity !== undefined && Number.isFinite(styleView.dimmedOpacity)
+          ? Math.max(0, Math.min(1, styleView.dimmedOpacity))
+          : 0.34;
+      const hoverScaleFactor =
+        !node.isContext &&
+        !node.isPassThrough &&
+        node.interaction.isHovered &&
+        styleView.hoverScale !== undefined &&
+        Number.isFinite(styleView.hoverScale) &&
+        styleView.hoverScale > 0
+          ? styleView.hoverScale
+          : 1;
+      const effectiveScale = node.scale * hoverScaleFactor;
       const effectiveOpacity = node.isContext
         ? node.interaction.isHovered
           ? Math.max(node.opacity, 0.72)
           : node.opacity
         : node.interaction.isDimmed
-          ? node.opacity * (node.interaction.isHovered ? 0.72 : 0.34)
+          ? node.opacity *
+            (node.interaction.isHovered ? Math.max(dimmedFactor, 0.72) : dimmedFactor)
           : node.opacity;
       tracked.rootGroup.setAttribute(
         'transform',
-        `translate(${node.x.toFixed(2)}, ${node.y.toFixed(2)}) scale(${node.scale.toFixed(4)})`,
+        `translate(${node.x.toFixed(2)}, ${node.y.toFixed(2)}) scale(${effectiveScale.toFixed(4)})`,
       );
       tracked.rootGroup.setAttribute('opacity', effectiveOpacity.toFixed(3));
 

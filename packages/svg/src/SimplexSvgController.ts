@@ -46,6 +46,10 @@ import {
 } from './presets.js';
 import { SvgRendererAdapter, type SvgRendererOptions } from './SvgRendererAdapter.js';
 import type { SvgEdgeView, SvgNodeView, SvgTriangleView } from './types.js';
+import {
+  GeometricShapeSvgView,
+  type GeometricShapeSvgViewOptions,
+} from './views/GeometricShapeSvgView.js';
 
 export type SimplexTooltipFormatter<
   TItem = DefaultTaggedItem,
@@ -182,6 +186,8 @@ export interface SimplexSvgControllerResolvedOptions<
   readonly badgeOptions?: PresetBadgeClusterOptions<TItem, TTagMeta, TClusterMeta>;
   /** Fixed shape or per-item shape resolver overriding topological rank shapes in `GeometricShapeSvgView` (`'geometric'` / `'badges'` presets). */
   readonly getShape?: PresetContentShapeOption<TItem, TTagMeta, TClusterMeta>;
+  /** Lightweight hover, dimming, and stroke styling hooks forwarded to `GeometricShapeSvgView` (`'geometric'` / `'badges'` presets). */
+  readonly shapeOptions?: GeometricShapeSvgViewOptions;
   readonly meshOptions?: MeshOptions;
   readonly layoutOptions?: LayoutSolverOptions;
   readonly meshStrategy?: SimplexMeshStrategy<TItem>;
@@ -345,6 +351,8 @@ export class SimplexSvgController<
   private readonly formatTagLabelFn?: (tag: string) => string;
   private readonly badgeOptions?: PresetBadgeClusterOptions<TItem, TTagMeta, TClusterMeta>;
   private readonly getShapeOption?: PresetContentShapeOption<TItem, TTagMeta, TClusterMeta>;
+  private shapeOptions?: GeometricShapeSvgViewOptions;
+  private readonly usesCustomContentView: boolean;
   private tooltipOption:
     | boolean
     | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
@@ -450,6 +458,8 @@ export class SimplexSvgController<
     this.formatTagLabelFn = options.formatTagLabel;
     this.badgeOptions = options.badgeOptions;
     this.getShapeOption = options.getShape;
+    this.shapeOptions = options.shapeOptions;
+    this.usesCustomContentView = options.contentView !== undefined;
     this.tooltipOption = options.tooltip ?? false;
     this.getIdExtractor =
       options.getId ??
@@ -461,7 +471,9 @@ export class SimplexSvgController<
     this.currentPreset = options.preset ?? 'geometric';
     this.currentTheme = options.theme ?? 'dark';
     this.usesCustomVisualResolver = options.visualResolver !== undefined;
-    const presetViews = createPresetViews(this.currentPreset);
+    const presetViews = createPresetViews(this.currentPreset, {
+      shapeOptions: this.shapeOptions,
+    });
     const contentView = (options.contentView ??
       presetViews.contentView) as SvgNodeView<TContentVisual>;
     const clusterView = (options.clusterView ??
@@ -1260,7 +1272,7 @@ export class SimplexSvgController<
     if (getLabel !== undefined) {
       this.getLabelExtractor = getLabel;
     }
-    const views = createPresetViews(preset);
+    const views = createPresetViews(preset, { shapeOptions: this.shapeOptions });
     const resolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(preset, {
       getLabel: this.getLabelExtractor,
       theme: this.currentTheme,
@@ -1282,6 +1294,24 @@ export class SimplexSvgController<
       >,
     );
     this.ensureLoopRunning();
+  }
+
+  /**
+   * Updates lightweight hover, dimming, and stroke styling options on the built-in
+   * `GeometricShapeSvgView` (applies to `'geometric'` and `'badges'` presets when no
+   * custom `contentView` is provided).
+   */
+  setShapeOptions(shapeOptions?: GeometricShapeSvgViewOptions): void {
+    this.shapeOptions = shapeOptions;
+    if (!this.usesCustomContentView && this.currentPreset !== 'glyphs') {
+      const contentView = new GeometricShapeSvgView(
+        this.shapeOptions,
+      ) as unknown as SvgNodeView<TContentVisual>;
+      this.adapter.setViews({ contentView });
+      this.adapter.invalidateHulls();
+      this.engine.relayout();
+      this.ensureLoopRunning();
+    }
   }
 
   /**

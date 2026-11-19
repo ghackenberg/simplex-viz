@@ -36,6 +36,7 @@ import {
   type DefaultClusterPresetVisual,
   type DefaultContentPresetVisual,
   type DeferInitialLayoutOptions,
+  type GeometricShapeSvgViewOptions,
   type PresetBadgeClusterOptions,
   type PresetContentShapeOption,
   type SimplexTheme,
@@ -198,6 +199,8 @@ export type SimplexTopicGraphProps<
     readonly badgeOptions?: PresetBadgeClusterOptions<TItem, TTagMeta, TClusterMeta>;
     /** Fixed shape or per-item shape resolver overriding topological rank shapes in `GeometricShapeSvgView` (`"geometric"` / `"badges"` presets). */
     readonly getShape?: PresetContentShapeOption<TItem, TTagMeta, TClusterMeta>;
+    /** Lightweight hover, dimming, and stroke styling hooks forwarded to `GeometricShapeSvgView` (`"geometric"` / `"badges"` presets). */
+    readonly shapeOptions?: GeometricShapeSvgViewOptions;
     readonly meshOptions?: MeshOptions;
     readonly layoutOptions?: LayoutSolverOptions;
     /** Optional custom mesh/triangulation strategy. */
@@ -591,7 +594,9 @@ export function SimplexTopicGraph<
     clusterView: SvgNodeView<TClusterVisual>;
   } => {
     const p = latestPropsRef.current;
-    const presetViews = createPresetViews(p.preset ?? 'geometric');
+    const presetViews = createPresetViews(p.preset ?? 'geometric', {
+      shapeOptions: p.shapeOptions,
+    });
 
     let contentView: SvgNodeView<TContentVisual>;
     if (p.renderContentNode) {
@@ -779,6 +784,7 @@ export function SimplexTopicGraph<
       resolveTagMeta: p.resolveTagMeta,
       badgeOptions: p.badgeOptions,
       getShape: p.getShape,
+      shapeOptions: p.shapeOptions,
       meshOptions: p.meshOptions,
       layoutOptions: {
         ...p.layoutOptions,
@@ -849,6 +855,14 @@ export function SimplexTopicGraph<
     props.badgeOptions?.maxTitleChars,
     props.badgeOptions?.formatTitle,
     props.getShape,
+    props.shapeOptions?.shape,
+    props.shapeOptions?.sides,
+    props.shapeOptions?.rotationRad,
+    props.shapeOptions?.hoverScale,
+    props.shapeOptions?.hoverRingColor,
+    props.shapeOptions?.dimmedOpacity,
+    props.shapeOptions?.strokeColor,
+    props.shapeOptions?.strokeWidth,
   ]);
 
   // Sync sizeMultiplier

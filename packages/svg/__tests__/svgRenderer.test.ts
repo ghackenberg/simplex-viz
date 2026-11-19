@@ -2466,6 +2466,199 @@ describe('@simplex-viz/svg integration', () => {
     freeContainer.remove();
     drillContainer.remove();
   });
+
+  it('supports lightweight hover, dimming, and stroke styling hooks via GeometricShapeSvgView shapeOptions (Issue #14)', () => {
+    // 1) Direct GeometricShapeSvgView unit assertions
+    const styledView = new GeometricShapeSvgView({
+      hoverScale: 1.42,
+      hoverRingColor: '#ff00aa',
+      dimmedOpacity: 0.16,
+      strokeColor: '#112233',
+      strokeWidth: 3.2,
+    });
+    expect(styledView.hoverScale).toBe(1.42);
+    expect(styledView.dimmedOpacity).toBe(0.16);
+
+    const visual = {
+      shape: 'circle' as const,
+      radius: 10,
+      fillHex: '#38bdf8',
+      strokeHex: '#ffffff',
+      strokeWidth: 1.4,
+      theme: 'dark' as const,
+    };
+    const hull = styledView.measureConvexHull(visual);
+    expect(hull.kind).toBe('circle');
+    if (hull.kind === 'circle') {
+      expect(hull.radius).toBeCloseTo(13.2, 5);
+    }
+
+    const baseState = {
+      id: 'n1',
+      x: 0,
+      y: 0,
+      scale: 1,
+      opacity: 1,
+      visual,
+      hull,
+      cacheKey: 'k1',
+      interaction: {
+        isHovered: false,
+        isFocused: false,
+        isHighlighted: false,
+        isPinned: false,
+        isDimmed: false,
+      },
+    };
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    styledView.mountOrUpdate(g, visual, baseState);
+    const shapePath = g.querySelector('path.sv-geom-shape')!;
+    const ringPath = g.querySelector('path.sv-geom-ring')!;
+    expect(shapePath.getAttribute('stroke')).toBe('#112233');
+    expect(shapePath.getAttribute('stroke-width')).toBe('3.2');
+    expect(ringPath.getAttribute('d')).toBe('');
+
+    // Hover state preserves wider strokeWidth (>= 2.2) and applies custom hoverRingColor
+    styledView.mountOrUpdate(g, visual, {
+      ...baseState,
+      interaction: { ...baseState.interaction, isHovered: true },
+    });
+    expect(shapePath.getAttribute('stroke-width')).toBe('3.2');
+    expect(ringPath.getAttribute('stroke')).toBe('#ff00aa');
+    expect((ringPath.getAttribute('d') ?? '').length).toBeGreaterThan(0);
+
+    // Morph also preserves custom strokeColor & strokeWidth
+    styledView.morph(g, visual, visual, 0.5, baseState);
+    expect(shapePath.getAttribute('stroke')).toBe('#112233');
+    expect(shapePath.getAttribute('stroke-width')).toBe('3.2');
+
+    // 2) End-to-end via createSimplexSvg with shapeOptions + hover + focus dimming + runtime update
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+    });
+    document.body.appendChild(container);
+
+    const items: DefaultTaggedItem[] = [
+      { id: 'a1', tags: ['alpha', 'beta'] },
+      { id: 'a2', tags: ['alpha', 'beta'] },
+      { id: 'b1', tags: ['beta', 'gamma'] },
+      { id: 'b2', tags: ['gamma', 'delta'] },
+      { id: 'd1', tags: ['delta', 'epsilon'] },
+      { id: 'e1', tags: ['epsilon', 'zeta'] },
+      { id: 'z1', tags: ['zeta', 'alpha'] },
+    ];
+
+    const controller = createSimplexSvg(container, {
+      items,
+      preset: 'geometric',
+      shapeOptions: {
+        hoverScale: 1.42,
+        hoverRingColor: '#ff00aa',
+        dimmedOpacity: 0.16,
+        strokeColor: '#112233',
+        strokeWidth: 2.5,
+      },
+      layoutOptions: { seed: 42 },
+    });
+    for (let i = 0; i < 40; i++) controller.stepForTest(20);
+
+    expect(controller.getMetrics().overlapCount).toBe(0);
+    const svg = controller.getSvgElement();
+    Object.defineProperty(svg, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+    });
+
+    const parseTransform = (el: Element): { x: number; y: number; scale: number } => {
+      const t = el.getAttribute('transform') ?? '';
+      const m = /translate\(([-\d.]+),\s*([-\d.]+)\)\s*scale\(([-\d.]+)\)/.exec(t);
+      expect(m).not.toBeNull();
+      return {
+        x: parseFloat(m![1]!),
+        y: parseFloat(m![2]!),
+        scale: parseFloat(m![3]!),
+      };
+    };
+
+    const firstItemGroup = svg.querySelector('g.sv-node-item')!;
+    const firstItemShape = firstItemGroup.querySelector('path.sv-geom-shape')!;
+    expect(firstItemShape.getAttribute('stroke')).toBe('#112233');
+    expect(firstItemShape.getAttribute('stroke-width')).toBe('2.5');
+
+    const restPos = parseTransform(firstItemGroup);
+
+    // Hover the item: scale is multiplied by hoverScale (1.42x) and hoverRingColor is applied
+    svg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: restPos.x,
+        clientY: restPos.y,
+        bubbles: true,
+      }),
+    );
+    controller.stepForTest(16);
+
+    const hoveredPos = parseTransform(firstItemGroup);
+    expect(hoveredPos.scale / restPos.scale).toBeCloseTo(1.42, 2);
+    expect(firstItemGroup.querySelector('path.sv-geom-ring')?.getAttribute('stroke')).toBe(
+      '#ff00aa',
+    );
+
+    // Move pointer away to clear hover
+    svg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: 4,
+        clientY: 4,
+        bubbles: true,
+      }),
+    );
+    controller.stepForTest(16);
+    expect(parseTransform(firstItemGroup).scale).toBeCloseTo(restPos.scale, 3);
+
+    // Highlight one item so all other items become dimmed with exact dimmedOpacity (no double-dimming!)
+    controller.setHighlightedIds(['a1']);
+    controller.stepForTest(16);
+
+    let sawDimmed = false;
+    let sawHighlighted = false;
+    for (const gEl of svg.querySelectorAll('g.sv-node-item')) {
+      const id = gEl.getAttribute('data-node-id')!;
+      const op = parseFloat(gEl.getAttribute('opacity') ?? '1');
+      if (id === 'a1') {
+        sawHighlighted = true;
+        expect(op).toBeCloseTo(1, 2);
+      } else {
+        sawDimmed = true;
+        expect(op).toBeCloseTo(0.16, 2);
+      }
+    }
+    expect(sawDimmed).toBe(true);
+    expect(sawHighlighted).toBe(true);
+
+    // Runtime update via setShapeOptions updates strokeColor, strokeWidth, and dimmedOpacity immediately
+    controller.setShapeOptions({
+      strokeColor: '#44aa88',
+      strokeWidth: 1.8,
+      dimmedOpacity: 0.25,
+    });
+    for (let i = 0; i < 10; i++) controller.stepForTest(16);
+
+    const updatedItemShape = svg.querySelector('g.sv-node-item path.sv-geom-shape')!;
+    expect(updatedItemShape.getAttribute('stroke')).toBe('#44aa88');
+    expect(updatedItemShape.getAttribute('stroke-width')).toBe('1.8');
+    for (const gEl of svg.querySelectorAll('g.sv-node-item')) {
+      const id = gEl.getAttribute('data-node-id')!;
+      if (id !== 'a1') {
+        expect(parseFloat(gEl.getAttribute('opacity') ?? '1')).toBeCloseTo(0.25, 2);
+      }
+    }
+
+    controller.destroy();
+    container.remove();
+  });
 });
 
 

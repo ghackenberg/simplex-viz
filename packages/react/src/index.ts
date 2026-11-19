@@ -49,6 +49,7 @@ export {
   type PrecisionRailEdgeViewOptions,
   type PresetBadgeClusterOptions,
   type PresetContentShapeOption,
+  type PresetViewsOptions,
   type PresetVisualResolverOptions,
   type SimplexSvgControllerOptions,
   type SimplexTheme,

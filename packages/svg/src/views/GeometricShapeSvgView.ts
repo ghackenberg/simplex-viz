@@ -50,6 +50,30 @@ export interface GeometricShapeSvgViewOptions {
   readonly sides?: number;
   /** Optional default rotation angle in radians for regular N-gons. */
   readonly rotationRad?: number;
+  /**
+   * Optional hover scale multiplier applied on the outer node `<g>` when hovered
+   * (for example `1.42`). Does not alter collision hulls or trigger layout reflow. Default: `1`.
+   */
+  readonly hoverScale?: number;
+  /**
+   * Optional stroke color for the outer hover/highlight ring (`path.sv-geom-ring`).
+   * Defaults to the active theme accent (`#22d3ee` dark / `#0891b2` light).
+   */
+  readonly hoverRingColor?: string;
+  /**
+   * Optional opacity multiplier in `[0, 1]` applied on the outer node `<g>` when dimmed
+   * (and not hovered). Defaults to `0.34`.
+   */
+  readonly dimmedOpacity?: number;
+  /**
+   * Optional base outline stroke color overriding `visual.strokeHex` and theme defaults at rest.
+   */
+  readonly strokeColor?: string;
+  /**
+   * Optional base outline stroke width (in SVG px) overriding `visual.strokeWidth` and default `1.4`.
+   * Automatically factored into `measureConvexHull()` so wider strokes remain overlap-free.
+   */
+  readonly strokeWidth?: number;
 }
 
 /**
@@ -318,13 +342,21 @@ function lerpHex(fromHex: string, toHex: string, t: number): string {
  */
 export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> {
   private readonly options: GeometricShapeSvgViewOptions;
+  readonly hoverScale?: number;
+  readonly dimmedOpacity?: number;
 
   constructor(options: GeometricShapeSvgViewOptions = {}) {
     this.options = options;
+    this.hoverScale = options.hoverScale;
+    this.dimmedOpacity = options.dimmedOpacity;
   }
 
   measureConvexHull(visual: GeometricShapeVisual): ConvexGeometry {
-    const r = visual.radius + (visual.strokeWidth ?? 1.5);
+    const baseStrokeWidth =
+      this.options.strokeWidth !== undefined && Number.isFinite(this.options.strokeWidth)
+        ? Math.max(0, this.options.strokeWidth)
+        : (visual.strokeWidth ?? 1.5);
+    const r = visual.radius + baseStrokeWidth;
     const resolved = resolveEffectiveGeometry(visual, this.options);
     if (resolved.kind === 'circle') {
       return { kind: 'circle', radius: r };
@@ -382,8 +414,14 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
     const d = pointsToSvgPath(pts);
     const isLight = visual.theme === 'light';
     const defaultStroke = isLight ? 'rgba(15, 23, 42, 0.25)' : 'rgba(15, 23, 42, 0.8)';
+    const restStroke = this.options.strokeColor ?? visual.strokeHex ?? defaultStroke;
     const hoverStroke = isLight ? '#0f172a' : '#f8fafc';
-    const accentRing = isLight ? '#0891b2' : '#22d3ee';
+    const accentRing = this.options.hoverRingColor ?? (isLight ? '#0891b2' : '#22d3ee');
+    const baseStrokeWidth =
+      this.options.strokeWidth !== undefined && Number.isFinite(this.options.strokeWidth)
+        ? Math.max(0, this.options.strokeWidth)
+        : (visual.strokeWidth ?? 1.4);
+    const activeStrokeWidth = Math.max(2.2, baseStrokeWidth);
 
     pathEl.setAttribute('d', d);
     pathEl.setAttribute('fill', visual.fillHex);
@@ -393,11 +431,15 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
         ? '#f59e0b'
         : state.interaction.isHovered
           ? hoverStroke
-          : (visual.strokeHex ?? defaultStroke),
+          : restStroke,
     );
     pathEl.setAttribute(
       'stroke-width',
-      String(state.interaction.isHovered || state.interaction.isPinned ? 2.2 : (visual.strokeWidth ?? 1.4)),
+      String(
+        state.interaction.isHovered || state.interaction.isPinned
+          ? activeStrokeWidth
+          : baseStrokeWidth,
+      ),
     );
 
     if (state.interaction.isHovered || state.interaction.isPinned || state.interaction.isHighlighted) {
@@ -437,15 +479,23 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
       });
     }
     const isLight = to.theme === 'light';
+    const restStroke =
+      this.options.strokeColor ??
+      to.strokeHex ??
+      (isLight ? 'rgba(15, 23, 42, 0.25)' : 'rgba(15, 23, 42, 0.8)');
+    const baseStrokeWidth =
+      this.options.strokeWidth !== undefined && Number.isFinite(this.options.strokeWidth)
+        ? Math.max(0, this.options.strokeWidth)
+        : (to.strokeWidth ?? 1.4);
     pathEl.setAttribute('d', pointsToSvgPath(morphed));
     pathEl.setAttribute('fill', lerpHex(from.fillHex, to.fillHex, progress));
     pathEl.setAttribute(
       'stroke',
       state.interaction.isHovered
         ? (isLight ? '#0f172a' : '#f8fafc')
-        : (to.strokeHex ?? (isLight ? 'rgba(15, 23, 42, 0.25)' : 'rgba(15, 23, 42, 0.8)')),
+        : restStroke,
     );
-    pathEl.setAttribute('stroke-width', String(to.strokeWidth ?? 1.4));
+    pathEl.setAttribute('stroke-width', String(baseStrokeWidth));
     ringEl.setAttribute('d', '');
     return true;
   }

@@ -14,6 +14,18 @@ import type {
  */
 export interface SvgNodeView<TVisual> {
   /**
+   * Optional hover scale multiplier applied on the outer node `<g>` when hovered
+   * (without altering collision hulls or triggering layout reflow). Defaults to `1`.
+   */
+  readonly hoverScale?: number;
+
+  /**
+   * Optional opacity multiplier in `[0, 1]` applied on the outer node `<g>` when dimmed
+   * (and not hovered). Defaults to `0.34`.
+   */
+  readonly dimmedOpacity?: number;
+
+  /**
    * Optional analytical convex hull at scale `1.0` centered around `(0, 0)`.
    *
    * When omitted, `@simplex-viz/svg` automatically mounts the visual inside a hidden
