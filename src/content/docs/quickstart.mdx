@@ -109,4 +109,6 @@ Every pipeline stage ships with a named deterministic default strategy out of th
 | `zoomStrategy` | **Continuous Free Camera** | `createFreeCameraZoomStrategy()` — Continuous cursor wheel zoom, drag-to-pan, and 2-finger touch pinch. |
 | `timeline` | **Disabled (`false`)** | Opt-in `true \| TimelinePlayerOptions` — Built-in Play/Pause/Step/Scrubber HUD with `autoFinalSeed`, `autoFinalSeedLayout` (`false \| 'pinned' \| 'adaptive'`), and `emptyClusterBehavior`. |
 | `emptyClusterBehavior` | **Normal (`'normal'`)** | `'normal' \| 'dim' \| 'hide'` — Controls how `0`-item clusters render (e.g., future clusters during chronological playback). |
-| `preset` / `theme` | **Geometric Preset (Dark)** | `'geometric'` / `'dark'` — Morphing geometric SVG content shapes + cluster badges on dark canvas. |
+| `deferInitialLayout` | **Auto-Recover (`false`)** | Automatically recovers from `0×0` mounts on the first non-zero `ResizeObserver` entry (zero spring jump); set `true` or `{ fallbackTimeoutMs }` to skip provisional `960×620` solving until visible. |
+| `touchScrollLockPx` / `clickTolerancePx` | **`8 px` / `12 px`** | Mobile touch direction-locking (`touch-action: pan-y`; set `0` for `touch-action: none`) and peak-displacement drag-vs-click click suppression across `free-camera` and `drill-down` modes. |
+| `preset` / `theme` | **Geometric Preset (Dark)** | `'geometric'` / `'dark'` — Morphing geometric SVG content shapes (customizable via `getShape` & `shapeOptions`) + cluster anchors/badges on dark canvas. |

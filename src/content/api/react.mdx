@@ -1,7 +1,7 @@
 ---
 title: "@simplex-viz/react API Reference"
 packageName: "@simplex-viz/react"
-version: "0.7.0"
+version: "0.9.0"
 layerLabel: "Type-Safe React 18 & 19 Bindings"
 description: "Declarative <SimplexTopicGraph /> component, JSX custom node measurement, and imperative useSimplexGraphController() hook re-exporting all SVG and Core utilities."
 order: 3
@@ -16,7 +16,7 @@ exportsTable:
       >
         {...props}
       />
-    summary: "Primary responsive React component supporting presets, custom JSX node renderers, strategy props, and drill-down."
+    summary: "Primary responsive React component supporting presets, shapeOptions, getShape, badgeOptions, timeline playback, deferInitialLayout, mobile touchScrollLockPx/clickTolerancePx, JSX node renderers, and drill-down."
   - symbol: "useSimplexGraphController"
     kind: "Hook"
     signature: |-
@@ -26,7 +26,14 @@ exportsTable:
         controllerRef: RefObject<SimplexSvgController<...> | null>;
         handle: SimplexGraphControllerHandle<TItem>;
       }
-    summary: "Provides stable imperative access to live item mutations, camera resets, and drillDown / drillUp actions."
+    summary: "Provides stable imperative access to live item mutations, camera resets, relayout(), timeline access, and drillDown / drillUp actions."
+  - symbol: "useSimplexTimeline"
+    kind: "Hook"
+    signature: |-
+      useSimplexTimeline<TItem>(
+        target: RefObject<SimplexSvgController<TItem, ...> | null> | SimplexTimelineController<TItem> | null,
+      ): UseSimplexTimelineResult<TItem>
+    summary: "Reactive React hook subscribing to chronological timeline state with play, pause, toggle, stepBy, seek, and speed controls."
   - symbol: "SimplexTopicGraphProps"
     kind: "Interface"
     signature: |-

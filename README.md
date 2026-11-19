@@ -110,7 +110,7 @@ Every setting has a deterministic zero-config default out of the box—you only 
 | `getId` | `(item) => item.id` | Auto-extracts `.id` (required by TypeScript only if `TItem` has no `id: string`). |
 | `getTags` | `(item) => item.tags` | Auto-extracts `.tags` (optional when passing an embedding/similarity `clusteringStrategy`). |
 | `getLabel` | Heuristic (`label \| title \| headline \| name \| id`) | Used by built-in presets and hover tooltips when `getLabel` is omitted. |
-| `preset` | `'geometric'` | Renders `GeometricShapeSvgView` content nodes + `BadgeClusterSvgView` cluster badges (`'glyphs'` and `'badges'` also built in). |
+| `preset` | `'geometric'` | Renders `GeometricShapeSvgView` content nodes + `ClusterAnchorSvgView` anchors (`'glyphs'` and `'badges'` also built in); customize shapes via `getShape` and lightweight hover/dimming/stroke styling via `shapeOptions`. |
 | `theme` | `'dark'` | Dark canvas styling for presets, tooltips, breadcrumbs, and theme-adaptive colors (`'light'` supported). |
 | `triangleView` | `OklabTintTriangleSvgView` | Subtle OKLab-blended triangle fills with hover/focus perimeter highlights. |
 | `edgeView` | `DashedMeshEdgeSvgView` | Dashed 60° lattice edges (also used 1:1 for internal `1:4` drillable triangle previews). |
@@ -122,6 +122,8 @@ Every setting has a deterministic zero-config default out of the box—you only 
 | `showZoomBreadcrumbs` | `true` | Automatically displays clickable navigation breadcrumbs whenever drilled into a sub-level (`depth > 0`). |
 | `timeline` | `false` | Opt-in chronological frame stepping & playback (`boolean \| TimelinePlayerOptions`) with built-in HUD bar, `autoFinalSeed`, `autoFinalSeedLayout` (`false \| 'pinned' \| 'adaptive'`), and `emptyClusterBehavior`. |
 | `emptyClusterBehavior` | `'normal'` | `'normal' \| 'dim' \| 'hide'` — Controls how clusters with `0` active items render (e.g., future clusters during chronological playback). |
+| `deferInitialLayout` | `false` | Automatically recovers from `0×0` mounts on the first non-zero `ResizeObserver` entry (zero spring jump); pass `true` or `{ fallbackTimeoutMs }` to skip provisional `960×620` solving until visible. |
+| `touchScrollLockPx` / `clickTolerancePx` | `8` / `12` | Embedded mobile ergonomics: vertical single-finger swipes yield to page scrolling (`touch-action: pan-y`; set `0` for `touch-action: none`), and gestures exceeding `clickTolerancePx` suppress trailing clicks. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Clicking a cluster or triangle isolates its neighborhood in `free-camera` mode (clicking background clears). |
 | `tooltip` | `true` in `createSimplexSvg(el, items)`, `false` in options/React | Floating hover tooltip for `'content'`, `'cluster'`, and `'triangle'` targets (accepts `boolean` or custom formatter). |
 

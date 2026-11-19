@@ -1,7 +1,7 @@
 ---
 title: "@simplex-viz/svg API Reference"
 packageName: "@simplex-viz/svg"
-version: "0.7.0"
+version: "0.9.0"
 layerLabel: "Framework-Agnostic SVG Scene Graph & Controller"
 description: "Portable SVG renderer, offscreen getBBox() hull measurement, root pointer hit-testing, 1:4 subdivision previews, and breadcrumbs for Vanilla TS, Vue, Svelte, or Angular."
 order: 2
@@ -23,24 +23,18 @@ exportsTable:
       new SimplexSvgController<
         TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta
       >(options: SimplexSvgOptions<...>)
-    summary: "Manages ResizeObserver, requestAnimationFrame loop, pointer/wheel/pinch gestures, tooltips, and zoom breadcrumbs."
+    summary: "Manages ResizeObserver (with 0x0 auto-recovery & deferInitialLayout), rAF loop, mobile touch-scroll direction-locking (touchScrollLockPx), click tolerance (clickTolerancePx), timeline HUD, tooltips, and breadcrumbs."
   - symbol: "SvgRendererAdapter"
     kind: "Class"
     signature: "new SvgRendererAdapter(options: SvgRendererAdapterOptions)"
-    summary: "Low-level SimplexRendererAdapter reconciling SVG layers, dual-layer crossfades, and internal 1:4 drillable edges."
+    summary: "Low-level SimplexRendererAdapter reconciling SVG layers, view-level hoverScale/dimmedOpacity hooks, dual-layer crossfades, and internal 1:4 drillable edges."
   - symbol: "GeometricShapeSvgView"
     kind: "View Plugin"
-    signature: |-
-      new GeometricShapeSvgView<
-        TItem, TTagMeta, TClusterMeta
-      >()
-    summary: "Morphs content nodes across circle, rounded-square, diamond, hexagon, and triangle shapes."
+    signature: "new GeometricShapeSvgView(options?: GeometricShapeSvgViewOptions)"
+    summary: "Renders and morphs circles, diamonds, stars, and arbitrary regular N-gons (sides >= 3) with exact convex SAT hulls plus lightweight shapeOptions (hoverScale, hoverRingColor, dimmedOpacity, strokeColor, strokeWidth)."
   - symbol: "MultiSectorGlyphSvgView"
     kind: "View Plugin"
-    signature: |-
-      new MultiSectorGlyphSvgView<
-        TItem, TTagMeta, TClusterMeta
-      >()
+    signature: "new MultiSectorGlyphSvgView()"
     summary: "Renders multi-arc donut glyphs proportional to an item's barycentric cluster weights."
   - symbol: "OklabTintTriangleSvgView"
     kind: "View Plugin"
@@ -48,8 +42,8 @@ exportsTable:
     summary: "Default triangle face view with subtle OKLab fills, hover/focus perimeter strokes, and dimmed neighbor context."
   - symbol: "BadgeClusterSvgView"
     kind: "View Plugin"
-    signature: "new BadgeClusterSvgView()"
-    summary: "WCAG-AA saturated OKLab cluster view rendering full-round capsules for primary clusters and chamfered hexagonal plaques (with optional two-line parentContextLabel) for intermediate sub-clusters."
+    signature: "new BadgeClusterSvgView(options?: BadgeClusterSvgViewOptions)"
+    summary: "WCAG-AA saturated OKLab cluster view rendering full-round capsules (configurable via showCode, maxTitleChars, formatTitle) and chamfered hexagonal plaques for intermediate sub-clusters."
   - symbol: "DashedMeshEdgeSvgView"
     kind: "View Plugin"
     signature: "new DashedMeshEdgeSvgView(options?: DashedMeshEdgeOptions)"

@@ -1,6 +1,6 @@
 {
   "name": "@simplex-viz/svg",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Framework-agnostic SVG rendering engine, hierarchical 1:4 zoom/drill-down navigation, chronological timeline playback, offscreen getBBox() hull measurer, and pluggable SvgNodeView / SvgTriangleView / SvgEdgeView system for @simplex-viz/core.",
   "license": "MIT",
   "type": "module",

@@ -1,5 +1,11 @@
 # @simplex-viz/core
 
+## 0.9.0
+
+### Minor Changes
+
+- Add `deferInitialSolve` engine option and `engine.reinitializeViewport(width, height)` for clean `0×0` container mount recovery with zero spring jump and zero provisional solve overhead (#12).
+
 ## 0.8.0
 
 ### Minor Changes

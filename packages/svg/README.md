@@ -65,6 +65,7 @@ const controller = createSimplexSvg('#graph', items);
 | `preset` | `'geometric'` | Built-in preset (`'geometric' \| 'glyphs' \| 'badges'`). |
 | `badgeOptions` | `{ showCode: true }` | Built-in cluster badge formatting: `{ showCode?, maxTitleChars?, formatTitle? }` (also accepted directly by `new BadgeClusterSvgView(options)`). |
 | `getShape` | Auto (by unit cluster count) | Fixed or per-item shape (`'circle' \| 'triangle' \| 'square' \| 'diamond' \| 'pentagon' \| 'hexagon' \| 'heptagon' \| 'octagon' \| 'star'`, side count `>= 3`, `{ sides, rotationRad? }`, or `(item, ctx) => GeometricShapeSpec`). |
+| `shapeOptions` | `{}` | Lightweight styling hooks for `GeometricShapeSvgView`: `{ hoverScale?, hoverRingColor?, dimmedOpacity?, strokeColor?, strokeWidth?, shape?, sides?, rotationRad? }`. |
 | `theme` | `'dark'` | Color theme (`'dark' \| 'light'`) for presets, tooltips, and breadcrumbs. |
 | `triangleView` | `OklabTintTriangleSvgView` | Default triangulation face renderer. |
 | `edgeView` | `DashedMeshEdgeSvgView` | Default mesh edge renderer (also renders internal `1:4` subdivision edges on drillable triangles). |
@@ -77,6 +78,8 @@ const controller = createSimplexSvg('#graph', items);
 | `timeline` | `false` | Opt-in chronological frame stepping & playback (`true` or `TimelinePlayerOptions`) with floating Play/Pause/Step/Scrubber HUD, `autoFinalSeed`, `autoFinalSeedLayout` (`false \| 'pinned' \| 'adaptive'`), and `emptyClusterBehavior`. |
 | `emptyClusterBehavior` | `'normal'` | `'normal' \| 'dim' \| 'hide'` — Controls how clusters with `0` active items render (e.g., future clusters during timeline replay). |
 | `relayoutOnFontLoad` | `true` | Automatically clears SVG hull caches and re-solves layout after `document.fonts.ready` / `loadingdone`. |
+| `deferInitialLayout` | `false` | Auto-recovers from `0×0` mounts on first non-zero `ResizeObserver` entry (zero spring jump); set `true` or `{ fallbackTimeoutMs }` to skip provisional `960×620` solving until visible. |
+| `touchScrollLockPx` / `clickTolerancePx` | `8` / `12` | Mobile touch direction-locking (`touch-action: pan-y`; set `0` for `touch-action: none`) and peak-displacement drag-vs-click tolerance in CSS px. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode unless consumed (`return true`) by a click handler. |
 | `tooltip` | `true` for `createSimplexSvg(el, items)`, `false` in options | Floating DOM hover tooltip (`boolean` or custom `(target) => string` formatter). |
 
@@ -108,6 +111,13 @@ const controller = new SimplexSvgController('#graph', {
     formatTitle: (title) => title,
   },
   getShape: (a) => (a.topics.includes('tutorial') ? 'pentagon' : { sides: 3 }),
+  shapeOptions: {
+    hoverScale: 1.35,
+    hoverRingColor: '#38bdf8',
+    dimmedOpacity: 0.2,
+    strokeColor: '#0f172a',
+    strokeWidth: 1.6,
+  },
   theme: 'dark',       // 'dark' | 'light'
   tooltip: (target) => {
     if (target.kind === 'content') {
@@ -339,6 +349,7 @@ controller.timeline?.seek(0);
 | `formatTagLabel` | Decouples canonical tag IDs from display labels across cluster badges, breadcrumbs, semantic zoom subclusters, and default tooltips. |
 | `badgeOptions` | Configures built-in `BadgeClusterSvgView` capsules (`showCode`, `maxTitleChars`, `formatTitle`). |
 | `getShape` | Fixes content item polygons globally or per-item (`GeometricShapeSpec` or `(item, ctx) => GeometricShapeSpec`, including arbitrary regular N-gons `sides >= 3` with exact convex SAT hulls). |
+| `shapeOptions` / `setShapeOptions(opts)` | Configures lightweight hover, dimming, and stroke styling hooks (`hoverScale`, `hoverRingColor`, `dimmedOpacity`, `strokeColor`, `strokeWidth`) on `GeometricShapeSvgView` without altering SAT hulls or double-dimming. |
 | `theme` / `setTheme(theme)` | Switches `'dark'` / `'light'` presets and notifies theme-aware color strategies. |
 | `meshStrategy` / `setMeshStrategy(strategy)` | Swaps `SimplexMeshStrategy` (`createAdaptiveHexMeshStrategy`, `createFixedLatticeMeshStrategy`, or custom). |
 | `clusteringStrategy` / `setClusteringStrategy(strategy)` | Swaps `SimplexClusteringStrategy` (Jaccard, Soft-Simplex Tags/Embeddings, Embeddings, Pairwise Similarity, Incremental, `createFinalSeededClusteringStrategy`, or custom). |
@@ -361,6 +372,9 @@ controller.timeline?.seek(0);
 | `setSizeMultiplier(multiplier)` / `setShowHulls(show)` | Uniformly scales node sizes or toggles convex hull wireframes. |
 | `setPinnedIds(ids)` / `setHighlightedIds(ids)` | Controls pinned and highlighted visual emphasis states. |
 | `setFocusedClusterUid(uid \| null)` / `setFocusedTriangleIndex(i \| null)` | Isolates a cluster or triangle face in `free-camera` mode. |
+| `deferInitialLayout` | `boolean \| { fallbackTimeoutMs?: number }` — Skips provisional `960×620` layout when mounted at `0×0` until the first non-zero `ResizeObserver` entry (auto-recovery on `0×0` mount is always active even when `false`). |
+| `touchScrollLockPx` / `setTouchScrollLockPx(px)` | Touch direction-locking threshold in CSS px (`8` default; `touch-action: pan-y`, vertical swipes scroll the page, horizontal/pinch lock onto canvas; `0` restores `touch-action: none`). |
+| `clickTolerancePx` / `setClickTolerancePx(px)` | Peak pointer displacement tolerance in CSS px (`12` default) above which trailing clicks are suppressed in both `free-camera` and `drill-down` modes. |
 | `relayout()` | Clears cached SVG hull measurements and re-solves the current layout frame cleanly (called automatically when `relayoutOnFontLoad` is `true`). |
 | `camera` | Exposes `CameraController` (`zoomToCursor`, `panBy`, `reset`, `getState`, `setState`). |
 | `getMetrics()` / `getClusters()` / `getItems()` | Reads live solver telemetry, clusters, and items. |

@@ -1,5 +1,16 @@
 # @simplex-viz/svg
 
+## 0.9.0
+
+### Minor Changes
+
+- Add automatic `0×0` container mount recovery and opt-in `deferInitialLayout` (`DeferInitialLayoutOptions`) (#12), add mobile touch-scroll direction-locking (`touchScrollLockPx`, `setTouchScrollLockPx()`) and peak-displacement drag-vs-click suppression (`clickTolerancePx`, `setClickTolerancePx()`) across `free-camera` and `drill-down` modes (#13), and add lightweight hover, dimming, and stroke styling hooks (`shapeOptions`: `hoverScale`, `hoverRingColor`, `dimmedOpacity`, `strokeColor`, `strokeWidth`, view-level `SvgNodeView.hoverScale`/`dimmedOpacity`, `PresetViewsOptions`, and `setShapeOptions()`) on `GeometricShapeSvgView` and `SimplexSvgController` (#14).
+
+### Patch Changes
+
+- Updated dependencies
+  - @simplex-viz/core@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes

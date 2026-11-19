@@ -2,6 +2,20 @@
 
 All notable changes to **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`, and the documentation/showcase site) are documented in this file following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), coordinated with per-package release notes via `@changesets/cli`.
 
+## [0.9.0] - 2026-11-19
+
+### Added / Fixed
+- **`@simplex-viz/core`**:
+  - **Deferred `0×0` Mount Initialization & Clean Re-Initialization ([#12](https://github.com/ghackenberg/simplex-viz/issues/12))**: Added `deferInitialSolve?: boolean` on `SimplexGraphEngineConfig` and `engine.reinitializeViewport(width, height)` so graphs mounted inside hidden tabs, modals, or before async CSS loads can either defer clustering/layout completely until a real viewport size arrives or perform a fresh `'initial'` solve with zero spring jump and zero stale `0×0` hull measurements.
+- **`@simplex-viz/svg`**:
+  - **Zero-Size Container Mount Recovery & `deferInitialLayout` ([#12](https://github.com/ghackenberg/simplex-viz/issues/12))**: Automatically detects `0×0` container mounts at construction, invalidates cached `getBBox()` hulls on the first non-zero `ResizeObserver` entry, and re-initializes the viewport cleanly with zero spring jump; added opt-in `deferInitialLayout?: boolean | DeferInitialLayoutOptions` (`{ fallbackTimeoutMs?: number }`) to skip the provisional `960×620` solve entirely until the container becomes visible.
+  - **Mobile Touch-Scroll Direction-Locking & Peak-Displacement Click Tolerance ([#13](https://github.com/ghackenberg/simplex-viz/issues/13))**: Added `touchScrollLockPx` (default `8`) and `clickTolerancePx` (default `12`) together with runtime setters `setTouchScrollLockPx()` and `setClickTolerancePx()`. Sets `touch-action: pan-y` when `touchScrollLockPx > 0` so vertical single-finger swipes yield cleanly to native page scrolling while horizontal swipes and two-finger pinches lock onto the canvas, and suppresses trailing clicks whenever peak pointer displacement exceeds `clickTolerancePx` across both `free-camera` and `drill-down` modes.
+  - **Lightweight `shapeOptions` Styling Hooks on `GeometricShapeSvgView` ([#14](https://github.com/ghackenberg/simplex-viz/issues/14))**: Added optional view-level `hoverScale` and `dimmedOpacity` hooks on `SvgNodeView` (applied cleanly in `SvgRendererAdapter` without altering SAT hulls or double-dimming), extended `GeometricShapeSvgViewOptions` with `hoverScale`, `hoverRingColor`, `dimmedOpacity`, `strokeColor`, and `strokeWidth` (factored into `measureConvexHull()` and preserved during `morph()`), forwarded `shapeOptions` through `createPresetViews(preset, { shapeOptions })` (`PresetViewsOptions`) and `SimplexSvgController`, and added `setShapeOptions()`.
+- **`@simplex-viz/react`**:
+  - **Production Embedding & Styling Props ([#12](https://github.com/ghackenberg/simplex-viz/issues/12), [#13](https://github.com/ghackenberg/simplex-viz/issues/13), [#14](https://github.com/ghackenberg/simplex-viz/issues/14))**: Added `deferInitialLayout`, `touchScrollLockPx`, `clickTolerancePx`, and `shapeOptions` props on `<SimplexTopicGraph />` with dynamic `useEffect` synchronization, and re-exported `DeferInitialLayoutOptions` and `PresetViewsOptions`.
+- **Documentation & READMEs**:
+  - Updated all four `README.md` files, Astro documentation guides (`quickstart`, `customization`), and package API references (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`) for `0.9.0`.
+
 ## [0.8.0] - 2026-11-19
 
 ### Added / Changed

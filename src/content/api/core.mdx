@@ -1,7 +1,7 @@
 ---
 title: "@simplex-viz/core API Reference"
 packageName: "@simplex-viz/core"
-version: "0.7.0"
+version: "0.9.0"
 layerLabel: "Headless Geometry, Clustering, OKLab & SAT Engine"
 description: "Pure ES2022 TypeScript engine with zero runtime dependencies and zero DOM globals for browsers, Node.js, Bun, Deno, and Web Workers."
 order: 1
@@ -22,7 +22,7 @@ exportsTable:
       new SimplexGraphEngine<
         TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta
       >(config: SimplexEngineConfig<...>)
-    summary: "Stateful 60 fps engine with live mutations, spring transitions, convex/triangle hit-testing, and conformal 1:4 drill-down."
+    summary: "Stateful 60 fps engine with live mutations, spring transitions, deferred 0x0 viewport re-initialization, convex/triangle hit-testing, and conformal 1:4 drill-down."
   - symbol: "createAdaptiveHexMeshStrategy"
     kind: "Function"
     signature: |-
@@ -108,6 +108,29 @@ exportsTable:
         options: DiscriminativeClusterLabelOptions<TItem>,
       ): string
     summary: "Convenience helper for deriveClusterMeta that resolves a cluster's base-rate-aware, collision-free label using ctx.peerClusters and ctx.allItems."
+  - symbol: "createFinalSeededClusteringStrategy"
+    kind: "Function"
+    signature: |-
+      createFinalSeededClusteringStrategy<TItem, TTagMeta>(
+        baseStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>,
+        options?: FinalSeededClusteringOptions<TItem>,
+      ): SimplexClusteringStrategy<TItem, TTagMeta>
+    summary: "Pins canonical full-corpus clusters, vertex positions, UIDs, and OKLab hues across chronological timeline frames or filtered subsets."
+  - symbol: "createFinalSeededLayoutStrategy"
+    kind: "Function"
+    signature: |-
+      createFinalSeededLayoutStrategy(
+        baseStrategy?: SimplexLayoutStrategy,
+        options?: FinalSeededLayoutOptions,
+      ): SimplexLayoutStrategy
+    summary: "Freezes canonical full-corpus (x, y) item coordinates across timeline frames with scaleMode: 'pinned' | 'adaptive' and exact SAT overlap verification."
+  - symbol: "createSimplexTimeline"
+    kind: "Function"
+    signature: |-
+      createSimplexTimeline<TItem>(
+        options?: SimplexTimelineOptions<TItem>,
+      ): SimplexTimelineController<TItem>
+    summary: "Zero-DOM headless chronological frame grouper and playback controller with play/pause/step/seek/speed APIs."
 ---
 
 ## Overview & Runtime Guarantees

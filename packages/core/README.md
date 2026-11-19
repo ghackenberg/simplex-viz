@@ -124,6 +124,7 @@ const snapshot = solveSimplexSnapshot(samples as readonly AudioSample[], {
 | `layoutStrategy` | `createPbdUniformLayoutStrategy()` | `createPbdUniformLayoutStrategy()` |
 | `zoomStrategy` | *(N/A — stateless single-frame solver)* | `createFreeCameraZoomStrategy()` |
 | `emptyClusterBehavior` | *(N/A)* | `'normal'` (`'normal' \| 'dim' \| 'hide'` for `0`-item clusters) |
+| `deferInitialSolve` | *(N/A)* | `false` (set `true` to skip initial clustering/layout until `reinitializeViewport(w, h)` is called) |
 | `onWheel` | *(N/A)* | `'zoom-to-cursor'` (blocked automatically when `zoomStrategy.mode === 'drill-down'`) |
 
 ---
@@ -338,7 +339,7 @@ Or compose custom layout pipelines via `createComposedLayoutStrategy(options)` /
 - `createSubspaceZoomStrategy(options?)` (`mode: 'drill-down'`):
   - Representation-agnostic `6`-vertex local subspace refinement across embeddings, pairwise similarity kernels, and tags (`clusterZoomMode: 'incident-star'`, `stopWhenFullScale: true`, `fullScaleThreshold: 0.75`, `leafTriangleFocus: true`, `minItemsForRecluster: 6`, `blendFactor: 0.35`).
 - **Imperative Zoom, Timeline & Layout Methods on `SimplexGraphEngine`**:
-  `setZoomStrategy(strategy)`, `getZoomStrategy()`, `getZoomState()`, `drillDownTriangle(index)`, `drillDownCluster(uid)`, `drillToNeighbor(neighborId)`, `drillUp()`, `drillToDepth(depth)`, `drillToRoot()`, `getEmptyClusterBehavior()`, `setEmptyClusterBehavior(mode)`, `setCanonicalSeedItems(items)`, `relayout()`.
+  `setZoomStrategy(strategy)`, `getZoomStrategy()`, `getZoomState()`, `drillDownTriangle(index)`, `drillDownCluster(uid)`, `drillToNeighbor(neighborId)`, `drillUp()`, `drillToDepth(depth)`, `drillToRoot()`, `getEmptyClusterBehavior()`, `setEmptyClusterBehavior(mode)`, `setCanonicalSeedItems(items)`, `reinitializeViewport(width, height)`, `relayout()`.
 
 ---
 

@@ -48,8 +48,8 @@ import { SimplexTopicGraph } from '@simplex-viz/react';
 
 Both `@simplex-viz/svg` and `@simplex-viz/react` accept reusable view classes for background triangles and lattice edges:
 
-- **Built-in Triangle Views**: `OklabTintTriangleSvgView` *(default)*, `GradientTriangleSvgView`, `FlatMeshTriangleSvgView`
-- **Built-in Edge Views**: `DashedMeshEdgeSvgView` *(default)*, `SolidMeshEdgeSvgView`, `ClusterTintedEdgeSvgView`
+- **Built-in Triangle Views**: `OklabTintTriangleSvgView` *(default)*, `GradientTriangleSvgView`, `BarycentricSectorTriangleSvgView`, `BlueprintInsetTriangleSvgView`, `DensityHeatmapTriangleSvgView`
+- **Built-in Edge Views**: `DashedMeshEdgeSvgView` *(default)*, `ClusterTintedEdgeSvgView`, `PrecisionRailEdgeSvgView`, `MinimalHighlightEdgeSvgView`
 
 Whenever `triangle.isDrillable` is `true`, `SvgRendererAdapter` automatically renders the 3 internal `1:4` midpoint edges through your active `edgeView`, keeping outer and inner triangulation visually unified.
 
@@ -72,22 +72,27 @@ const snapshot = solveSimplexSnapshot(records, {
 console.assert(snapshot.metrics.overlapCount === 0);
 ```
 
-## 4. Composable Interactions & Webfont Auto-Relayout
+## 4. Composable Interactions, Mobile Touch-Scroll & Zero-Size Mount Recovery
 
 Every interaction handler across `@simplex-viz/core`, `@simplex-viz/svg`, and `@simplex-viz/react` (`onContentClick`, `onClusterClick`, `onTriangleClick`, `onBackgroundClick`, `onLeftClick`, `onRightClick`, `onContentHover`, `onClusterHover`, `onTriangleHover`, and custom `onWheel`) follows one uniform contract:
 
 - Return `void` or `false` to **compose** with built-in behavior (drill-down navigation, focus toggles, hover tooltips, or cursor zoom).
 - Return `true` to **consume** the event and suppress the built-in default for that interaction.
 
-When webfonts finish loading asynchronously in production (`document.fonts.ready` / `loadingdone`), `SimplexSvgController` and `<SimplexTopicGraph />` automatically invalidate cached SVG `getBBox()` hulls and re-solve the current layout (`relayoutOnFontLoad: true` by default; call `controller.relayout()` manually anytime).
+For embedded production pages, `@simplex-viz/svg` and `@simplex-viz/react` also handle three common browser edge cases out of the box:
 
-## 5. Tag Display Labels, Cluster Badge Options & Fixed/Item-Driven Polygons
+- **Mobile Touch-Scroll Direction-Locking (`touchScrollLockPx`, default `8`)**: Sets `touch-action: pan-y` on the SVG so vertical single-finger swipes yield smoothly to native page scrolling while horizontal swipes and two-finger pinches lock onto the canvas. Pass `touchScrollLockPx={0}` to restore `touch-action: none` for full 2D touch panning.
+- **Drag-vs-Click Peak-Displacement Tolerance (`clickTolerancePx`, default `12`)**: Tracks peak pointer displacement from `pointerdown` across the entire gesture and suppresses trailing clicks whenever movement exceeds `clickTolerancePx`—in both `free-camera` and `drill-down` modes.
+- **Zero-Size (`0×0`) Container Mounts & Webfont Auto-Relayout (`deferInitialLayout`, `relayoutOnFontLoad`)**: If a graph mounts inside a hidden tab, modal, or before async CSS applies, `SimplexSvgController` automatically invalidates cached hulls and performs a clean `'initial'` viewport re-initialization (with zero spring jump) on the first non-zero `ResizeObserver` entry. Pass `deferInitialLayout` (`true` or `{ fallbackTimeoutMs }`) to skip the provisional `960×620` solve entirely until the container becomes visible. Once webfonts finish loading (`document.fonts.ready` / `loadingdone`), `relayoutOnFontLoad: true` automatically re-measures hulls and re-solves layout.
 
-You can tailor built-in presets without writing a custom `VisualResolver` or `SvgNodeView`:
+## 5. Tag Display Labels, Cluster Badge Options & Geometric Shape Styling (`getShape`, `shapeOptions`)
+
+You can tailor built-in presets to match your host design system without writing a custom `VisualResolver` or `SvgNodeView`:
 
 - **Decoupled Tag Display Labels (`formatTagLabel`)**: Pass `formatTagLabel: (tag) => displayName` to keep canonical slugs (e.g. `'autonomous-driving'`) strictly for clustering/matching while rendering human-readable labels (`'Autonomous Driving'`) in cluster badges, breadcrumbs, semantic zoom subclusters, and tooltips.
 - **Cluster Badge Formatting (`badgeOptions`)**: Hide internal `T1`/`T2` prefix codes (`showCode: false`), apply word-aware truncation (`maxTitleChars: 18`), or transform titles (`formatTitle: (title, { variant, cluster }) => ...`)—or pass the same options directly to `new BadgeClusterSvgView(options)`.
 - **Category-Driven & N-gon Shapes (`getShape`)**: Bind items to fixed or data-driven shapes (`'circle'`, `'triangle'`, `'square'`, `'diamond'`, `'pentagon'`, `'hexagon'`, `'heptagon'`, `'octagon'`, `'star'`, an arbitrary side count `>= 3`, or `{ sides, rotationRad }`) so shapes stay invariant across hierarchical `1:4` drill-down levels with exact convex SAT hulls.
+- **Lightweight Hover, Dimming & Stroke Hooks (`shapeOptions`)**: Customize `GeometricShapeSvgView` with `{ hoverScale, hoverRingColor, dimmedOpacity, strokeColor, strokeWidth }` (or call `controller.setShapeOptions(...)` at runtime). `hoverScale` scales the outer `<g>` on hover without altering collision hulls, `dimmedOpacity` replaces the default `0.34` dimming factor once with zero double-dimming, and `strokeWidth` is automatically factored into `measureConvexHull()` so wider strokes remain strictly overlap-free.
 
 ```tsx
 <SimplexTopicGraph
@@ -96,6 +101,14 @@ You can tailor built-in presets without writing a custom `VisualResolver` or `Sv
   formatTagLabel={(slug) => TOPIC_LABELS[slug] ?? slug}
   badgeOptions={{ showCode: false, maxTitleChars: 18 }}
   getShape={(pub) => (pub.kind === 'paper' ? 'hexagon' : pub.kind === 'talk' ? 'triangle' : 'pentagon')}
+  shapeOptions={{
+    hoverScale: 1.38,
+    hoverRingColor: '#38bdf8',
+    dimmedOpacity: 0.18,
+    strokeColor: '#0f172a',
+    strokeWidth: 1.8,
+  }}
+  deferInitialLayout
   tooltip
 />
 ```

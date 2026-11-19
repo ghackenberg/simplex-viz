@@ -70,6 +70,7 @@ export function QuickTopicMap() {
 | `preset` | `'geometric'` | Renders `GeometricShapeSvgView` + `ClusterAnchorSvgView` (`'glyphs'` & `'badges'` with `BadgeClusterSvgView` also built in). |
 | `badgeOptions` | `{ showCode: true }` | Formats built-in cluster badges (`showCode`, `maxTitleChars`, `formatTitle`). |
 | `getShape` | Auto (by unit cluster count) | Fixed or item-driven content polygon (`'circle' \| 'triangle' \| 'square' \| 'diamond' \| 'pentagon' \| 'hexagon' \| 'heptagon' \| 'octagon' \| 'star'`, side count `>= 3`, `{ sides, rotationRad? }`, or `(item, ctx) => GeometricShapeSpec`). |
+| `shapeOptions` | `{}` | Lightweight styling hooks for `GeometricShapeSvgView` (`hoverScale`, `hoverRingColor`, `dimmedOpacity`, `strokeColor`, `strokeWidth`). |
 | `theme` | `'dark'` | Dark styling for presets, React tooltip overlay, and breadcrumbs (`'light'` supported). |
 | `triangleView` / `edgeView` | `OklabTintTriangleSvgView` / `DashedMeshEdgeSvgView` | Default triangulation face & edge views (edge view also renders internal `1:4` drillable previews). |
 | `meshStrategy` | `createAdaptiveHexMeshStrategy()` | Aspect-aligned 60° equilateral lattice (adaptive `innerPadding: 32–48`, `minSideLength: 130`, `maxClusters: 14`). |
@@ -81,6 +82,8 @@ export function QuickTopicMap() {
 | `timeline` | `false` | Opt-in chronological frame stepping & playback (`boolean \| TimelinePlayerOptions`) with Play/Pause/Step/Scrubber HUD, `autoFinalSeed`, `autoFinalSeedLayout`, and `emptyClusterBehavior`. |
 | `emptyClusterBehavior` | `'normal'` | `'normal' \| 'dim' \| 'hide'` — Controls how clusters with `0` active items render (e.g., future clusters during timeline playback). |
 | `relayoutOnFontLoad` | `true` | Automatically clears SVG hull caches and re-solves layout once webfonts finish loading. |
+| `deferInitialLayout` | `false` | Auto-recovers from `0×0` mounts on first non-zero `ResizeObserver` entry (zero spring jump); set `true` or `{ fallbackTimeoutMs }` to skip provisional `960×620` solving until visible. |
+| `touchScrollLockPx` / `clickTolerancePx` | `8` / `12` | Embedded mobile touch direction-locking (`touch-action: pan-y`; `0` disables) and peak-displacement click suppression in CSS px. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode when `focused*` is uncontrolled and click is not consumed (`return true`). |
 | `tooltip` | `false` | Set `tooltip` (`true`) or pass `(target) => ReactNode` to render a floating tooltip overlay. |
 
@@ -100,6 +103,7 @@ export function QuickTopicMap() {
   preset="badges"
   badgeOptions={{ showCode: false, maxTitleChars: 20 }}
   getShape={(a) => (a.readingMinutes > 10 ? 'hexagon' : 'triangle')}
+  shapeOptions={{ hoverScale: 1.35, hoverRingColor: '#38bdf8', dimmedOpacity: 0.2 }}
   theme="dark"
   tooltip={(target) => {
     if (target.kind === 'content') {
@@ -397,6 +401,7 @@ export function TimelineAtlas({ items }: { items: readonly { id: string; tags: s
 | `preset` | `'geometric'` | Built-in visual preset (`'geometric' \| 'glyphs' \| 'badges'`) used when custom views or `visualResolver` are omitted. |
 | `badgeOptions` | `{ showCode: true }` | `{ showCode?, maxTitleChars?, formatTitle? }` — Customizes built-in `BadgeClusterSvgView` cluster badges (hide `T1`/`T2` prefix codes, truncate cleanly with `…`, or format titles). |
 | `getShape` | Auto | `GeometricShapeSpec \| ((item, ctx) => GeometricShapeSpec)` — Binds a fixed or category-driven shape (`'triangle'`, `'square'`, `'pentagon'`, `'hexagon'`, `'heptagon'`, `'octagon'`, or `{ sides: N, rotationRad? }`) with exact convex SAT hulls. |
+| `shapeOptions` | `{}` | `GeometricShapeSvgViewOptions` — Lightweight hover, dimming, and stroke styling hooks (`hoverScale`, `hoverRingColor`, `dimmedOpacity`, `strokeColor`, `strokeWidth`) applied to `GeometricShapeSvgView` without altering SAT hulls or double-dimming. |
 | `theme` | `'dark'` | Color theme (`'dark' \| 'light'`) applied to presets, tooltips, breadcrumbs, and theme-adaptive color strategies. |
 | `visualResolver` | Built-in preset resolver | Optional `VisualResolver` mapping items and clusters to custom descriptors and cache keys. |
 | `renderContentNode` | — | Declarative React JSX renderer `(item, ctx, state) => ReactNode` (auto-measured via `getBBox()`). |
@@ -419,6 +424,7 @@ export function TimelineAtlas({ items }: { items: readonly { id: string; tags: s
 | `showZoomBreadcrumbs` | `true` | Renders clickable top breadcrumb navigation in drill-down mode when `depth > 0`. |
 | `timeline` | `false` | `boolean \| TimelinePlayerOptions<TItem>` — Opt-in chronological frame stepping & playback (`getTimestamp`, `getFrameKey`, `stepIntervalMs`, `showControls`, `position`, `autoFinalSeed`, `autoFinalSeedLayout`, `emptyClusterBehavior`). |
 | `relayoutOnFontLoad` | `true` | Automatically re-measures SVG hulls and re-solves layout after `document.fonts.ready` / `loadingdone`. |
+| `deferInitialLayout` | `false` | `boolean \| DeferInitialLayoutOptions` — Skips provisional `960×620` layout when mounted at `0×0` until the first non-zero `ResizeObserver` entry (automatic `0×0` mount recovery always runs when `false`). |
 | `sizeMultiplier` | `1.0` | Uniform node size multiplier (`0.35` – `3.0`). |
 | `showHulls` | `false` | Renders convex bounding hull wireframes over nodes. |
 | `emptyClusterBehavior` | `'normal'` | `'normal' \| 'dim' \| 'hide'` — Controls how clusters with `0` active member items render (e.g. future clusters during timeline playback). |
@@ -434,6 +440,7 @@ export function TimelineAtlas({ items }: { items: readonly { id: string; tags: s
 | `onContentHover` / `onClusterHover` / `onTriangleHover` | — | Hover callbacks returning `boolean \| void` (`true` suppresses the built-in tooltip for that hover target). |
 | `onContentClick` / `onClusterClick` / `onTriangleClick` / `onBackgroundClick` | — | Target-specific left-click callbacks returning `boolean \| void` (`true` consumes the click and skips `onLeftClick` and built-in defaults). |
 | `onLeftClick` / `onRightClick` | — | General pointer click callbacks returning `boolean \| void` (`true` consumes built-in drill-down/focus or suppresses the browser context menu; `void`/`false` composes). |
+| `touchScrollLockPx` / `clickTolerancePx` | `8` / `12` | Mobile touch direction-locking threshold (`touch-action: pan-y`; set `0` for `touch-action: none`) and peak-displacement drag-vs-click suppression tolerance in CSS px. |
 | `onWheel` | `'zoom-to-cursor'` | `'zoom-to-cursor' \| 'pan-vertical' \| 'none' \| ((event, camera) => boolean \| void)` (`true` consumes built-in cursor zoom; automatically inactive in `drill-down` mode). |
 | `onMetricsChange` | — | `(metrics: LayoutMetrics) => void` |
 | `onClustersChange` | — | `(clusters: readonly ClusterDescriptor[]) => void` |

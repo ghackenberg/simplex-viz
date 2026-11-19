@@ -1,5 +1,18 @@
 # @simplex-viz/react
 
+## 0.9.0
+
+### Minor Changes
+
+- Add `deferInitialLayout` (#12), `touchScrollLockPx` and `clickTolerancePx` (#13), and `shapeOptions` (#14) props to `<SimplexTopicGraph />` with dynamic prop synchronization, and re-export `DeferInitialLayoutOptions` and `PresetViewsOptions` from `@simplex-viz/svg`.
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @simplex-viz/core@0.9.0
+  - @simplex-viz/svg@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes
