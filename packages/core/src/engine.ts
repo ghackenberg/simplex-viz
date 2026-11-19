@@ -1233,7 +1233,15 @@ export class SimplexGraphEngine<
     const targetClusterCount = this.clusteringStrategy.estimateClusterCount?.({
       items: identifiedItems,
       normalizedItems: normalized,
+      itemCount: activeNextIds.length,
       meshOptions: this.meshOptions,
+      viewportWidth: this.viewportWidth,
+      viewportHeight: this.viewportHeight,
+      previousMesh: this.previousMesh,
+      reason,
+      getId: this.getIdFn,
+      getTags: effectiveGetTags,
+      normalizeTag: effectiveNormalizeTag,
     });
     const prevMesh = this.currentMesh;
     const mesh = this.meshStrategy.buildMesh({
@@ -1308,6 +1316,9 @@ export class SimplexGraphEngine<
       mesh,
       previousMesh: this.previousMesh,
       previousClusters: prevClusterSnapshots,
+      viewportWidth: this.viewportWidth,
+      viewportHeight: this.viewportHeight,
+      getId: this.getIdFn,
       getTags: effectiveGetTags,
       normalizeTag: effectiveNormalizeTag,
       formatTagLabel: this.formatTagLabelFn,
@@ -1321,7 +1332,10 @@ export class SimplexGraphEngine<
     };
 
     const clusteringOutput =
-      reason === 'initial' || prevClusterSnapshots.length === 0 || !this.clusteringStrategy.update
+      reason === 'initial' ||
+      reason === 'strategy' ||
+      prevClusterSnapshots.length === 0 ||
+      !this.clusteringStrategy.update
         ? this.clusteringStrategy.initialize(clusteringCtx)
         : this.clusteringStrategy.update(clusteringCtx);
 

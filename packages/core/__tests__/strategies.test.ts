@@ -14,6 +14,7 @@ import {
   createCollisionDrivenLayoutStrategy,
   createComposedLayoutStrategy,
   createEmbeddingClusteringStrategy,
+  createFinalSeededClusteringStrategy,
   createFixedLatticeMeshStrategy,
   createIncrementalAnchorClusteringStrategy,
   createJaccardAnnealingClusteringStrategy,
@@ -25,6 +26,7 @@ import {
   createSoftSimplexTagClusteringStrategy,
   createThemeAdaptiveOklabColorStrategy,
   createWarmStartPbdLayoutStrategy,
+  type EstimateClusterCountContext,
   type SimplexClusteringStrategy,
 } from '../src/strategies';
 import { hexToOklab } from '../src/oklab';
@@ -687,5 +689,191 @@ describe('Pluggable Core Strategies', () => {
     );
     expect(engine.getMetrics().overlapCount).toBe(0);
     engine.destroy();
+  });
+
+  it('passes explicit reason, viewport dimensions, and itemCount to estimateClusterCount and ClusteringStrategyContext, and restores cluster count on viewport upscale (Issue #6)', () => {
+    const estimateCalls: EstimateClusterCountContext<DefaultTaggedItem>[] = [];
+    const initReasons: string[] = [];
+    const updateReasons: string[] = [];
+
+    const inner = createIncrementalAnchorClusteringStrategy<DefaultTaggedItem>();
+    const instrumented: SimplexClusteringStrategy<DefaultTaggedItem> = {
+      name: 'instrumented-incremental',
+      requiresTags: true,
+      estimateClusterCount: (ctx) => {
+        estimateCalls.push(ctx);
+        return inner.estimateClusterCount?.(ctx);
+      },
+      initialize: (ctx) => {
+        initReasons.push(ctx.reason);
+        expect(ctx.viewportWidth).toBeGreaterThan(0);
+        expect(ctx.viewportHeight).toBeGreaterThan(0);
+        return inner.initialize(ctx);
+      },
+      update: (ctx) => {
+        updateReasons.push(ctx.reason);
+        expect(ctx.viewportWidth).toBeGreaterThan(0);
+        expect(ctx.viewportHeight).toBeGreaterThan(0);
+        return inner.update!(ctx);
+      },
+    };
+
+    const engine = new SimplexGraphEngine({
+      items: TEST_ITEMS,
+      visualResolver: HEADLESS_RESOLVER,
+      renderer: createHeadlessRenderer(),
+      viewportWidth: 1120,
+      viewportHeight: 680,
+      clusteringStrategy: instrumented,
+      layoutOptions: { seed: 42 },
+    });
+
+    const initialClusterCount = engine.getClusters().length;
+    expect(initialClusterCount).toBeGreaterThanOrEqual(7);
+    expect(estimateCalls[0]?.reason).toBe('initial');
+    expect(estimateCalls[0]?.itemCount).toBe(TEST_ITEMS.length);
+    expect(estimateCalls[0]?.viewportWidth).toBe(1120);
+    expect(initReasons).toEqual(['initial']);
+
+    // Shrink viewport drastically -> cluster count shrinks to fit small viewport
+    engine.setViewport(360, 260);
+    const shrunkClusterCount = engine.getClusters().length;
+    expect(shrunkClusterCount).toBeLessThan(initialClusterCount);
+    expect(estimateCalls.at(-1)?.reason).toBe('viewport');
+    expect(estimateCalls.at(-1)?.viewportWidth).toBe(360);
+    expect(updateReasons.at(-1)).toBe('viewport');
+
+    // Upscale viewport back to original size -> must cleanly restore full cluster count
+    engine.setViewport(1120, 680);
+    expect(engine.getClusters().length).toBe(initialClusterCount);
+    expect(estimateCalls.at(-1)?.reason).toBe('viewport');
+    expect(estimateCalls.at(-1)?.viewportWidth).toBe(1120);
+
+    // Item update passes reason: 'items'
+    engine.setItems(TEST_ITEMS.slice(0, 7));
+    expect(estimateCalls.at(-1)?.reason).toBe('items');
+    expect(estimateCalls.at(-1)?.itemCount).toBe(7);
+    expect(updateReasons.at(-1)).toBe('items');
+
+    // Swapping clusteringStrategy calls initialize() with reason: 'strategy'
+    const swapInitReasons: string[] = [];
+    const swappedBase = createJaccardAnnealingClusteringStrategy<DefaultTaggedItem>();
+    engine.setClusteringStrategy({
+      ...swappedBase,
+      initialize: (ctx) => {
+        swapInitReasons.push(ctx.reason);
+        return swappedBase.initialize(ctx);
+      },
+    });
+    expect(swapInitReasons).toEqual(['strategy']);
+
+    engine.destroy();
+  });
+
+  it('createFinalSeededClusteringStrategy pins full-corpus clusters across chronological 0..N replay, handles viewport shrink/grow, and supports embeddings (Issue #5)', () => {
+    const engine = new SimplexGraphEngine({
+      items: TEST_ITEMS,
+      visualResolver: HEADLESS_RESOLVER,
+      renderer: createHeadlessRenderer(),
+      viewportWidth: 1080,
+      viewportHeight: 660,
+      clusteringStrategy: createFinalSeededClusteringStrategy(),
+      layoutOptions: { seed: 42 },
+    });
+
+    const snapshotClusterSignature = (clusters: readonly ClusterDescriptor<DefaultTaggedItem>[]) =>
+      clusters.map((c) => ({
+        clusterIndex: c.clusterIndex,
+        clusterUid: c.clusterUid,
+        code: c.code,
+        defaultLabel: c.defaultLabel,
+        colorHex: c.colorHex,
+        coreTags: c.coreTags.map((t) => t.tag),
+        sharedTags: c.sharedTags.map((t) => t.tag),
+        x: Number(c.gridNode.x.toFixed(3)),
+        y: Number(c.gridNode.y.toFixed(3)),
+      }));
+
+    const canonicalFullClusters = snapshotClusterSignature(engine.getClusters());
+    const canonicalFullMembers = engine.getClusters().map((c) => c.members.map((m) => m.itemId));
+    expect(canonicalFullClusters.length).toBeGreaterThanOrEqual(6);
+
+    // Replay chronologically from step 0 (empty) up to N: zero cluster hopping, exact pinned colors & vertices
+    for (let step = 0; step <= TEST_ITEMS.length; step++) {
+      engine.setItems(TEST_ITEMS.slice(0, step));
+      expect(engine.getMetrics().overlapCount).toBe(0);
+      expect(snapshotClusterSignature(engine.getClusters())).toEqual(canonicalFullClusters);
+    }
+
+    // At step N, membership matches the initial full-corpus clustering identically
+    const restoredFullMembers = engine.getClusters().map((c) => c.members.map((m) => m.itemId));
+    expect(restoredFullMembers).toEqual(canonicalFullMembers);
+
+    // Mid-playback viewport shrink -> grow restores the full canonical cluster count cleanly
+    engine.setItems(TEST_ITEMS.slice(0, 4));
+    engine.setViewport(360, 260);
+    expect(engine.getClusters().length).toBeLessThan(canonicalFullClusters.length);
+    engine.setViewport(1080, 660);
+    expect(engine.getClusters().length).toBe(canonicalFullClusters.length);
+    expect(engine.getMetrics().overlapCount).toBe(0);
+    engine.destroy();
+
+    // Explicit seedItems option allows mounting directly at an early subset while pinned to full-corpus clusters
+    const explicitSeedEngine = new SimplexGraphEngine({
+      items: TEST_ITEMS.slice(0, 3),
+      visualResolver: HEADLESS_RESOLVER,
+      renderer: createHeadlessRenderer(),
+      viewportWidth: 1080,
+      viewportHeight: 660,
+      clusteringStrategy: createFinalSeededClusteringStrategy({
+        seedItems: TEST_ITEMS,
+      }),
+      layoutOptions: { seed: 42 },
+    });
+    expect(explicitSeedEngine.getClusters().length).toBe(canonicalFullClusters.length);
+    expect(explicitSeedEngine.getMetrics().overlapCount).toBe(0);
+    explicitSeedEngine.destroy();
+
+    // Works seamlessly with non-tag embedding strategies (requiresTags: false)
+    interface VecItem {
+      readonly id: string;
+      readonly vec: readonly number[];
+    }
+    const vecCorpus: readonly VecItem[] = [
+      { id: 'v1', vec: [1, 0, 0] },
+      { id: 'v2', vec: [0.95, 0.1, 0] },
+      { id: 'v3', vec: [0, 1, 0] },
+      { id: 'v4', vec: [0.1, 0.95, 0] },
+      { id: 'v5', vec: [0, 0, 1] },
+      { id: 'v6', vec: [0.05, 0.1, 0.95] },
+    ];
+    const vecEngine = new SimplexGraphEngine<VecItem, { readonly r: number }, { readonly r: number }>({
+      items: vecCorpus,
+      visualResolver: {
+        resolveContentVisual: () => ({ r: 10 }),
+        resolveClusterVisual: () => ({ r: 22 }),
+        getVisualCacheKey: () => 'v1',
+      },
+      renderer: createHeadlessRenderer(),
+      viewportWidth: 800,
+      viewportHeight: 540,
+      clusteringStrategy: createFinalSeededClusteringStrategy(
+        createEmbeddingClusteringStrategy<VecItem>({
+          getEmbedding: (x) => x.vec,
+          clusterCount: 3,
+        }),
+      ),
+      layoutOptions: { seed: 7 },
+    });
+    const fullVecUids = vecEngine.getClusters().map((c) => `${c.clusterUid}:${c.colorHex}`);
+    vecEngine.setItems(vecCorpus.slice(0, 2));
+    expect(vecEngine.getClusters().map((c) => `${c.clusterUid}:${c.colorHex}`)).toEqual(
+      fullVecUids,
+    );
+    vecEngine.setItems(vecCorpus);
+    expect(vecEngine.getClusters().map((c) => `${c.clusterUid}:${c.colorHex}`)).toEqual(
+      fullVecUids,
+    );
+    vecEngine.destroy();
   });
 });

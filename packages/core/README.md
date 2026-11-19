@@ -285,14 +285,16 @@ Every algorithmic stage of `SimplexGraphEngine` (and stages 1–4 in `solveSimpl
 - `createAdaptiveHexMeshStrategy(defaults?)` *(default)* — Automatically chooses `horizontal` / `vertical` orientation and `wideFirst` parity via `buildSimplexMesh` (respecting optional explicit `MeshOptions.sideLength`).
 - `createFixedLatticeMeshStrategy({ cols, rows, orientation?, wideFirst?, innerPadding?, sideLength? })` — Pins an exact `(cols × rows)` 60° equilateral lattice (`K = cols * rows` vertices) across resizes.
 
-### 2. `SimplexClusteringStrategy` (Soft-Simplex, Embeddings, Similarities & Tags)
+### 2. `SimplexClusteringStrategy` (Soft-Simplex, Embeddings, Similarities, Tags & Final-Seeded Wrapper)
 
-Clustering strategies declare `requiresTags?: boolean` and support `initialize(ctx)` plus optional incremental `update(ctx)`:
+Clustering strategies declare `requiresTags?: boolean`, receive explicit `reason: PipelineUpdateReason` (`'initial' | 'items' | 'viewport' | 'mesh' | 'strategy'`) plus viewport dimensions on both `estimateClusterCount(ctx: EstimateClusterCountContext)` and `initialize(ctx)` / `update(ctx)`, and can be composed freely:
 
+- **Path-Independent Chronological / Subset Wrapper**:
+  - `createFinalSeededClusteringStrategy(baseStrategy?, options?)` — Wraps any clustering strategy (tag, embedding, similarity, or custom) to compute and pin the canonical full-corpus clusters, vertices, UIDs, and colors on initialization (or from explicit `seedItems`), projecting chronological or filtered subsets (`0..N`) with zero cluster hopping while re-seeding cleanly on viewport/mesh resizes.
 - **Tag Specializations (`requiresTags: true`)**:
   - `createJaccardAnnealingClusteringStrategy({ getTags?, normalizeTag?, sharedTagRule?, anchorRule? })` *(default)* — Full Jaccard tag partitioning + Simulated Annealing QAP vertex embedding + Hungarian identity matching.
   - `createSoftSimplexTagClusteringStrategy({ triangleSpread?, getTags?, normalizeTag?, sharedTagRule?, anchorRule? })` — Load-balanced QAP + soft interior spreading (`triangleSpread`, default `0.45`) for multi-cluster items while keeping single-cluster items unconstrained around their vertex.
-  - `createIncrementalAnchorClusteringStrategy({ getTags?, normalizeTag?, sharedTagRule?, anchorRule? })` — Preserves existing vertex topics/UIDs/colors on `update`, attaching new tags incrementally.
+  - `createIncrementalAnchorClusteringStrategy({ getTags?, normalizeTag?, sharedTagRule?, anchorRule? })` — Preserves existing vertex topics/UIDs/colors on incremental item updates and cleanly re-partitions when viewport/mesh resizes change cluster count `K`.
   - **`sharedTagRule`**: `'planar-hitting-set'` *(default)*, `'none'`, or custom function.
   - **`anchorRule`**: `'explaining-away'` *(default)*, `'raw-overlap'`, `'barycentric-all'`, or custom function.
 - **Vector Embeddings (`requiresTags: false`)**:

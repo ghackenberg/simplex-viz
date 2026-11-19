@@ -99,4 +99,25 @@ You can tailor built-in presets without writing a custom `VisualResolver` or `Sv
 />
 ```
 
+## 6. Path-Independent Chronological Replay (`createFinalSeededClusteringStrategy`)
+
+When stepping through a dataset chronologically (`0 → N`) or toggling filters, incremental clustering can drift because early items dictate the initial anchors. Wrap any clustering strategy (Jaccard, Soft-Simplex, Embeddings, or Similarity) with `createFinalSeededClusteringStrategy`:
+
+```ts
+import {
+  createFinalSeededClusteringStrategy,
+  createSoftSimplexTagClusteringStrategy,
+} from '@simplex-viz/core';
+
+const clusteringStrategy = createFinalSeededClusteringStrategy(
+  createSoftSimplexTagClusteringStrategy(),
+  { seedItems: allPublications }, // optional: defaults to the initial `items` array
+);
+```
+
+- Computes and pins the canonical full-corpus clusters, mesh vertices, UIDs, and colors once.
+- Projects chronological subsets onto those pinned anchors with zero cluster hopping and restores the exact full-corpus clustering at step `N`.
+- Because `estimateClusterCount(ctx)` and `ClusteringStrategyContext` both receive explicit `reason` (`'initial' | 'items' | 'viewport' | 'mesh' | 'strategy'`) and viewport dimensions, shrinking and growing the viewport cleanly re-seeds the canonical full corpus and restores the original cluster count.
+
+
 

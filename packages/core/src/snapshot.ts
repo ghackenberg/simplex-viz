@@ -245,7 +245,15 @@ export function solveSimplexSnapshot<
   const targetClusterCount = clusteringStrategy.estimateClusterCount?.({
     items: identifiedItems,
     normalizedItems: normalized,
+    itemCount: activeIds.length,
     meshOptions: opts.meshOptions ?? {},
+    viewportWidth: width,
+    viewportHeight: height,
+    previousMesh: null,
+    reason: 'initial',
+    getId,
+    getTags: effectiveGetTags,
+    normalizeTag: effectiveNormalizeTag,
   });
 
   const mesh = meshStrategy.buildMesh({
@@ -272,6 +280,9 @@ export function solveSimplexSnapshot<
     mesh,
     previousMesh: null,
     previousClusters: [],
+    viewportWidth: width,
+    viewportHeight: height,
+    getId,
     getTags: effectiveGetTags,
     normalizeTag: effectiveNormalizeTag,
     formatTagLabel: opts.formatTagLabel,

@@ -373,7 +373,7 @@ export function FastControlledGraph({
 | `meshOptions` | — | `{ innerPadding, sideLength, minSideLength, maxSideLength, maxClusters }`. |
 | `layoutOptions` | — | `{ clusterGapPx, itemGapPx, minContentScale, relaxationIterations, sizeMultiplier, seed }`. |
 | `meshStrategy` | `createAdaptiveHexMeshStrategy()` | Pluggable `SimplexMeshStrategy<TItem>`. |
-| `clusteringStrategy` | `createJaccardAnnealingClusteringStrategy()` | Pluggable `SimplexClusteringStrategy<TItem, TTagMeta>` (Jaccard, Soft-Simplex Tags/Embeddings, Embeddings, Similarity, Incremental, or custom). |
+| `clusteringStrategy` | `createJaccardAnnealingClusteringStrategy()` | Pluggable `SimplexClusteringStrategy<TItem, TTagMeta>` (Jaccard, Soft-Simplex Tags/Embeddings, Embeddings, Similarity, Incremental, `createFinalSeededClusteringStrategy`, or custom). |
 | `colorStrategy` | `createOklabContrastColorStrategy()` | Pluggable `SimplexColorStrategy<TItem, TTagMeta>`. |
 | `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Pluggable `SimplexLayoutStrategy` (`pbd-uniform`, `pbd-warm-start`, `local-adaptive`, `collision-driven`, `createComposedLayoutStrategy`, or custom). |
 | `zoomStrategy` | `createFreeCameraZoomStrategy()` | Pluggable `SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>` (`createFreeCameraZoomStrategy`, `createBarycentricZoomStrategy`, `createSemanticZoomStrategy`, `createSubspaceZoomStrategy`, or custom). |

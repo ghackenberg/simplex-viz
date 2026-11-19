@@ -5,9 +5,11 @@ import {
   defaultNormalizeTag,
   embedClustersQapAnnealing,
   embedSimilarityMatrixOnMesh,
+  extractIdentifiedItems,
   extractNormalizedItems,
   matchClustersHungarian,
   partitionTagsJaccard,
+  resolveTagDisplayLabel,
   solveHungarianAssignment,
   type AnalyzedTagCorpus,
   type ComputedItemPlacement,
@@ -179,6 +181,21 @@ export interface ClusteringStrategyOutput<TItem = DefaultTaggedItem, TTagMeta = 
   readonly preservedColors?: ReadonlyMap<number, AssignedColor>;
 }
 
+export interface EstimateClusterCountContext<TItem = DefaultTaggedItem> {
+  readonly items: readonly IdentifiedItem<TItem>[];
+  readonly normalizedItems: readonly NormalizedContentItem<TItem>[];
+  /** Active item count (`normalizedItems.length` for tag strategies, `items.length` otherwise). */
+  readonly itemCount: number;
+  readonly meshOptions: MeshOptions;
+  readonly viewportWidth: number;
+  readonly viewportHeight: number;
+  readonly previousMesh: SimplexMesh | null;
+  readonly reason: PipelineUpdateReason;
+  readonly getId?: (item: TItem) => string;
+  readonly getTags?: (item: TItem) => readonly string[];
+  readonly normalizeTag?: (raw: string) => string;
+}
+
 export interface ClusteringStrategyContext<TItem = DefaultTaggedItem, TTagMeta = undefined> {
   /** All identified domain items (including untagged items for general clustering strategies). */
   readonly items: readonly IdentifiedItem<TItem>[];
@@ -192,6 +209,9 @@ export interface ClusteringStrategyContext<TItem = DefaultTaggedItem, TTagMeta =
   readonly mesh: SimplexMesh;
   readonly previousMesh: SimplexMesh | null;
   readonly previousClusters: readonly PreviousClusterSnapshot[];
+  readonly viewportWidth?: number;
+  readonly viewportHeight?: number;
+  readonly getId?: (item: TItem) => string;
   readonly getTags?: (item: TItem) => readonly string[];
   readonly normalizeTag?: (raw: string) => string;
   readonly formatTagLabel?: (tag: string) => string;
@@ -225,11 +245,7 @@ export interface SimplexClusteringStrategy<
    * Optional cluster count hint used by `createAdaptiveHexMeshStrategy` when `uniqueTagCount` is absent
    * or when the strategy prefers a specific number of cluster vertices.
    */
-  estimateClusterCount?(ctx: {
-    readonly items: readonly IdentifiedItem<TItem>[];
-    readonly normalizedItems: readonly NormalizedContentItem<TItem>[];
-    readonly meshOptions: MeshOptions;
-  }): number | undefined;
+  estimateClusterCount?(ctx: EstimateClusterCountContext<TItem>): number | undefined;
   initialize(
     ctx: ClusteringStrategyContext<TItem, TTagMeta>,
   ): ClusteringStrategyOutput<TItem, TTagMeta>;
@@ -825,7 +841,13 @@ export function createIncrementalAnchorClusteringStrategy<
     estimateClusterCount: baseFull.estimateClusterCount,
     initialize: (ctx) => baseFull.initialize(ctx),
     update(ctx) {
-      if (ctx.previousClusters.length === 0) {
+      if (
+        ctx.previousClusters.length === 0 ||
+        ctx.reason === 'initial' ||
+        ctx.reason === 'strategy' ||
+        ((ctx.reason === 'viewport' || ctx.reason === 'mesh') &&
+          ctx.mesh.vertices.length !== ctx.previousClusters.length)
+      ) {
         return baseFull.initialize(ctx);
       }
 
@@ -979,6 +1001,525 @@ export function createIncrementalAnchorClusteringStrategy<
         formatTagLabel: ctx.formatTagLabel,
         resolveTagMeta: ctx.resolveTagMeta,
       });
+    },
+  };
+}
+
+/**
+ * Configuration options for `createFinalSeededClusteringStrategy`.
+ */
+export interface FinalSeededClusteringOptions<
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+> {
+  /**
+   * Underlying clustering strategy used to compute the canonical full-corpus clustering seed.
+   * Defaults to `createJaccardAnnealingClusteringStrategy()`.
+   * Works with any `SimplexClusteringStrategy` (Jaccard, Soft-Simplex Tags, Embeddings,
+   * Soft-Simplex Embeddings, Pairwise Similarity, or custom).
+   */
+  readonly baseStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>;
+  /**
+   * Optional explicit canonical full corpus used to compute the pinned final cluster anchors.
+   * When omitted, the item collection supplied on `initialize()` is captured as the canonical seed.
+   */
+  readonly seedItems?: readonly TItem[];
+  /**
+   * Optional ID extractor used alongside explicit `seedItems` when `TItem` lacks an `id` field.
+   */
+  readonly getId?: (item: TItem) => string;
+  /**
+   * Behavior when `update(ctx)` encounters items whose IDs were not present in the canonical seed:
+   * - `'project'` *(default)*: project unseen items onto the pinned final clusters without moving clusters.
+   * - `'reseed'`: promote the incoming items to a new canonical seed via `baseStrategy.initialize`.
+   */
+  readonly unseenItemPolicy?: 'project' | 'reseed';
+}
+
+function isSimplexClusteringStrategy<TItem, TTagMeta>(
+  value: unknown,
+): value is SimplexClusteringStrategy<TItem, TTagMeta> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'initialize' in value &&
+    typeof (value as { initialize?: unknown }).initialize === 'function'
+  );
+}
+
+function fallbackExtractId<TItem>(item: TItem): string {
+  if (typeof item === 'object' && item !== null && 'id' in item) {
+    const raw = (item as { readonly id: unknown }).id;
+    return typeof raw === 'string' ? raw : String(raw ?? '');
+  }
+  return '';
+}
+
+function fallbackExtractTags<TItem>(item: TItem): readonly string[] {
+  if (typeof item === 'object' && item !== null && 'tags' in item) {
+    const raw = (item as { readonly tags?: unknown }).tags;
+    return Array.isArray(raw) ? (raw as readonly string[]) : [];
+  }
+  return [];
+}
+
+/**
+ * Final-seeded clustering strategy wrapper for path-independent chronological playback and subset filtering:
+ *
+ * 1. Computes and caches the canonical full-corpus clustering on initialization (or from explicit `seedItems`).
+ * 2. Projects chronological or filtered item subsets onto those pinned final cluster anchors,
+ *    mesh vertex indices, UIDs, labels, and colors — with zero cluster hopping.
+ * 3. Re-seeds cleanly from the full canonical corpus on viewport/mesh resizes so shrinking and
+ *    growing the viewport always restores the exact cluster count and balanced topology.
+ * 4. Restores the exact full-corpus clustering at step `N`.
+ */
+export function createFinalSeededClusteringStrategy<
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+>(
+  baseOrOptions?:
+    | SimplexClusteringStrategy<TItem, TTagMeta>
+    | FinalSeededClusteringOptions<TItem, TTagMeta>,
+  extraOptions?: Omit<FinalSeededClusteringOptions<TItem, TTagMeta>, 'baseStrategy'>,
+): SimplexClusteringStrategy<TItem, TTagMeta> {
+  const resolvedOptions: FinalSeededClusteringOptions<TItem, TTagMeta> =
+    isSimplexClusteringStrategy<TItem, TTagMeta>(baseOrOptions)
+      ? { ...extraOptions, baseStrategy: baseOrOptions }
+      : { ...baseOrOptions, ...extraOptions };
+
+  const baseStrategy: SimplexClusteringStrategy<TItem, TTagMeta> =
+    resolvedOptions.baseStrategy ??
+    createJaccardAnnealingClusteringStrategy<TItem, TTagMeta>();
+  const requiresTags = baseStrategy.requiresTags !== false;
+  const unseenItemPolicy = resolvedOptions.unseenItemPolicy ?? 'project';
+
+  let seedIdentifiedItems: readonly IdentifiedItem<TItem>[] | null = null;
+  let seedNormalizedItems: readonly NormalizedContentItem<TItem>[] | null = null;
+  let seedItemIdSet = new Set<string>();
+  let seedOutput: ClusteringStrategyOutput<TItem, TTagMeta> | null = null;
+  let seedItemById = new Map<string, ComputedItemAnchor<TItem, TTagMeta>>();
+  const pinnedColorsByUid = new Map<string, AssignedColor>();
+
+  const materializeExplicitSeed = (
+    getIdFn?: (item: TItem) => string,
+    getTagsFn?: (item: TItem) => readonly string[],
+    normalizeTagFn?: (raw: string) => string,
+  ): {
+    readonly identified: readonly IdentifiedItem<TItem>[];
+    readonly normalized: readonly NormalizedContentItem<TItem>[];
+  } | null => {
+    if (!resolvedOptions.seedItems) return null;
+    const idFn = resolvedOptions.getId ?? getIdFn ?? fallbackExtractId;
+    const tagsFn = baseStrategy.getTags ?? getTagsFn ?? fallbackExtractTags;
+    const normFn = baseStrategy.normalizeTag ?? normalizeTagFn ?? defaultNormalizeTag;
+    const identified = extractIdentifiedItems(resolvedOptions.seedItems, idFn);
+    const normalized = requiresTags
+      ? extractNormalizedItems(resolvedOptions.seedItems, idFn, tagsFn, normFn)
+      : [];
+    return { identified, normalized };
+  };
+
+  const capturePreviousColors = (
+    previousClusters: readonly PreviousClusterSnapshot[],
+  ): void => {
+    for (const prev of previousClusters) {
+      if (prev.clusterUid && prev.colorHex) {
+        pinnedColorsByUid.set(prev.clusterUid, {
+          hex: prev.colorHex,
+          oklab: prev.oklab,
+        });
+      }
+    }
+  };
+
+  const computeCanonicalSeed = (
+    ctx: ClusteringStrategyContext<TItem, TTagMeta>,
+    canonicalIdentified: readonly IdentifiedItem<TItem>[],
+    canonicalNormalized: readonly NormalizedContentItem<TItem>[],
+  ): ClusteringStrategyOutput<TItem, TTagMeta> => {
+    seedIdentifiedItems = canonicalIdentified;
+    seedNormalizedItems = canonicalNormalized;
+    const activeSeedIds = requiresTags
+      ? canonicalNormalized.map((n) => n.id)
+      : canonicalIdentified.map((it) => it.id);
+    seedItemIdSet = new Set(activeSeedIds);
+
+    const seedCtx: ClusteringStrategyContext<TItem, TTagMeta> = {
+      ...ctx,
+      items: canonicalIdentified,
+      previousItems: canonicalIdentified,
+      normalizedItems: canonicalNormalized,
+      previousNormalizedItems: canonicalNormalized,
+      addedItemIds: new Set(activeSeedIds),
+      removedItemIds: new Set<string>(),
+      reason: 'initial',
+    };
+
+    const computed = baseStrategy.initialize(seedCtx);
+    seedOutput = computed;
+    seedItemById = new Map(computed.items.map((anchor) => [anchor.id, anchor]));
+
+    // Retain any preserved colors returned by the base strategy for matching cluster UIDs
+    if (computed.preservedColors) {
+      for (const [vIdx, color] of computed.preservedColors) {
+        const cl = computed.clusters[vIdx];
+        if (cl) {
+          pinnedColorsByUid.set(cl.clusterUid, color);
+        }
+      }
+    }
+
+    return computed;
+  };
+
+  const projectUnseenItem = (
+    id: string,
+    item: TItem,
+    rawTags: readonly string[],
+    canonical: ClusteringStrategyOutput<TItem, TTagMeta>,
+    ctx: ClusteringStrategyContext<TItem, TTagMeta>,
+  ): ComputedItemAnchor<TItem, TTagMeta> => {
+    const K = canonical.clusters.length;
+    const tagDescriptors: TagDescriptor<TTagMeta>[] = rawTags.map((tag) => {
+      const formatted = ctx.formatTagLabel?.(tag)?.trim();
+      const label =
+        formatted && formatted.length > 0 && formatted !== tag ? formatted : undefined;
+      return {
+        tag,
+        ...(label !== undefined ? { label } : {}),
+        frequency: 1,
+        meta: ctx.resolveTagMeta?.(tag),
+      };
+    });
+
+    if (requiresTags && rawTags.length > 0 && K > 0) {
+      const tagSet = new Set(rawTags);
+      const vertexScores: Array<{ readonly clusterIndex: number; readonly score: number }> = [];
+      for (let v = 0; v < K; v++) {
+        const cl = canonical.clusters[v]!;
+        let score = 0;
+        for (const t of cl.coreTags) {
+          if (tagSet.has(t.tag)) score += 1.0;
+        }
+        for (const t of cl.sharedTags) {
+          if (tagSet.has(t.tag)) score += 0.6;
+        }
+        if (score > 0) {
+          vertexScores.push({ clusterIndex: v, score });
+        }
+      }
+
+      if (vertexScores.length > 0) {
+        vertexScores.sort((a, b) => b.score - a.score);
+        // Prefer a valid simplex unit (single vertex, edge, or triangle) in the mesh
+        const top = vertexScores.slice(0, 3);
+        let chosen = [top[0]!];
+        if (top.length >= 2) {
+          const v0 = top[0]!.clusterIndex;
+          const v1 = top[1]!.clusterIndex;
+          const edgeMatch = ctx.mesh.edges.some(
+            (e) =>
+              (e.a === v0 && e.b === v1) || (e.a === v1 && e.b === v0),
+          );
+          if (edgeMatch) {
+            chosen = [top[0]!, top[1]!];
+            if (top.length >= 3) {
+              const v2 = top[2]!.clusterIndex;
+              const triMatch = ctx.mesh.triangles.some((t) => {
+                const s = new Set(t.vertices);
+                return s.has(v0) && s.has(v1) && s.has(v2);
+              });
+              if (triMatch) {
+                chosen = [top[0]!, top[1]!, top[2]!];
+              }
+            }
+          }
+        }
+        const totalScore = chosen.reduce((s, c) => s + c.score, 0) || 1;
+        let anchorX = 0;
+        let anchorY = 0;
+        const unitWeights = chosen.map((c) => {
+          const w = c.score / totalScore;
+          const vtx = ctx.mesh.vertices[c.clusterIndex] ?? canonical.clusters[c.clusterIndex]!.gridNode;
+          anchorX += vtx.x * w;
+          anchorY += vtx.y * w;
+          return {
+            clusterIndex: c.clusterIndex,
+            weight: w,
+            coverage: Math.min(1, c.score / rawTags.length),
+          };
+        });
+        return {
+          id,
+          item,
+          tags: tagDescriptors,
+          anchorX,
+          anchorY,
+          unitVertexIndices: chosen.map((c) => c.clusterIndex),
+          unitWeights,
+        };
+      }
+    }
+
+    const fallbackVertex = ctx.mesh.vertices[0] ?? canonical.clusters[0]?.gridNode ?? { x: 0, y: 0 };
+    return {
+      id,
+      item,
+      tags: tagDescriptors,
+      anchorX: fallbackVertex.x,
+      anchorY: fallbackVertex.y,
+      unitVertexIndices: K > 0 ? [0] : [],
+      unitWeights: K > 0 ? [{ clusterIndex: 0, weight: 1, coverage: 1 }] : [],
+    };
+  };
+
+  const projectOntoCanonicalSeed = (
+    ctx: ClusteringStrategyContext<TItem, TTagMeta>,
+    canonical: ClusteringStrategyOutput<TItem, TTagMeta>,
+  ): ClusteringStrategyOutput<TItem, TTagMeta> => {
+    const K = canonical.clusters.length;
+    const latestItemById = new Map<string, TItem>();
+    for (const entry of ctx.items) {
+      latestItemById.set(entry.id, entry.item);
+    }
+
+    const activeEntries: ReadonlyArray<{
+      readonly id: string;
+      readonly item: TItem;
+      readonly tags: readonly string[];
+    }> = requiresTags
+      ? resolveStrategyNormalizedItems(
+          ctx,
+          baseStrategy.getTags,
+          baseStrategy.normalizeTag,
+        ).map((n) => ({
+          id: n.id,
+          item: latestItemById.get(n.id) ?? n.item,
+          tags: n.tags,
+        }))
+      : ctx.items.map((it) => ({
+          id: it.id,
+          item: it.item,
+          tags: [],
+        }));
+
+    const unseenMemberBuckets: ClusterMemberRef<TItem>[][] = Array.from(
+      { length: K },
+      () => [],
+    );
+    const projectedItems: ComputedItemAnchor<TItem, TTagMeta>[] = [];
+
+    for (const entry of activeEntries) {
+      const seeded = seedItemById.get(entry.id);
+      if (seeded) {
+        let anchorX = 0;
+        let anchorY = 0;
+        let weightSum = 0;
+        for (const uw of seeded.unitWeights) {
+          const vtx = ctx.mesh.vertices[uw.clusterIndex];
+          if (vtx) {
+            anchorX += vtx.x * uw.weight;
+            anchorY += vtx.y * uw.weight;
+            weightSum += uw.weight;
+          }
+        }
+        const resolvedAnchorX = weightSum > 1e-6 ? anchorX / weightSum : seeded.anchorX;
+        const resolvedAnchorY = weightSum > 1e-6 ? anchorY / weightSum : seeded.anchorY;
+        const nextAnchor: ComputedItemAnchor<TItem, TTagMeta> = {
+          ...seeded,
+          item: entry.item,
+          anchorX: resolvedAnchorX,
+          anchorY: resolvedAnchorY,
+        };
+        projectedItems.push(nextAnchor);
+      } else {
+        const projected = projectUnseenItem(
+          entry.id,
+          entry.item,
+          entry.tags,
+          canonical,
+          ctx,
+        );
+        projectedItems.push(projected);
+        const isSingle = projected.unitWeights.length === 1;
+        for (const uw of projected.unitWeights) {
+          unseenMemberBuckets[uw.clusterIndex]?.push({
+            itemId: entry.id,
+            item: entry.item,
+            coverage: uw.coverage,
+            normalizedWeight: uw.weight,
+            isExclusiveVertexMember: isSingle && uw.weight >= 0.999,
+          });
+        }
+      }
+    }
+
+    const activeIdSet = new Set(activeEntries.map((e) => e.id));
+    const preservedColors = new Map<number, AssignedColor>();
+
+    const projectedClusters: ComputedTopicCluster<TItem, TTagMeta>[] =
+      canonical.clusters.map((cl, v) => {
+        const vtx = ctx.mesh.vertices[v];
+        const seededMembers = cl.members
+          .filter((m) => activeIdSet.has(m.itemId))
+          .map((m) => ({
+            ...m,
+            item: latestItemById.get(m.itemId) ?? m.item,
+          }));
+        const members = [...seededMembers, ...(unseenMemberBuckets[v] ?? [])];
+        const repItems = cl.representativeItems
+          ?.filter((r) => activeIdSet.has(r.itemId))
+          .map((r) => ({
+            ...r,
+            item: latestItemById.get(r.itemId) ?? r.item,
+          }));
+
+        const pinnedColor =
+          pinnedColorsByUid.get(cl.clusterUid) ?? canonical.preservedColors?.get(v);
+        if (pinnedColor) {
+          preservedColors.set(v, pinnedColor);
+        }
+
+        // Re-apply formatTagLabel if labels are present on canonical tags
+        const coreTags = cl.coreTags.map((td) => {
+          const display = resolveTagDisplayLabel(td, ctx.formatTagLabel);
+          return display !== td.tag && td.label !== display
+            ? { ...td, label: display }
+            : td;
+        });
+
+        return {
+          ...cl,
+          gridNode: vtx
+            ? { row: vtx.row, col: vtx.col, x: vtx.x, y: vtx.y }
+            : cl.gridNode,
+          coreTags,
+          members,
+          ...(repItems !== undefined ? { representativeItems: repItems } : {}),
+        };
+      });
+
+    return {
+      clusters: projectedClusters,
+      items: projectedItems,
+      uniqueTags: canonical.uniqueTags,
+      ...(preservedColors.size > 0 ? { preservedColors } : {}),
+    };
+  };
+
+  return {
+    name: `final-seeded(${baseStrategy.name})`,
+    requiresTags,
+    getTags: baseStrategy.getTags,
+    normalizeTag: baseStrategy.normalizeTag,
+    estimateClusterCount(ctx) {
+      if (!seedIdentifiedItems && resolvedOptions.seedItems) {
+        const explicit = materializeExplicitSeed(
+          ctx.getId,
+          ctx.getTags,
+          ctx.normalizeTag,
+        );
+        if (explicit) {
+          seedIdentifiedItems = explicit.identified;
+          seedNormalizedItems = explicit.normalized;
+        }
+      }
+
+      if (seedIdentifiedItems) {
+        const canonicalNormalized = seedNormalizedItems ?? [];
+        const canonicalCount = requiresTags
+          ? canonicalNormalized.length
+          : seedIdentifiedItems.length;
+        const estimated = baseStrategy.estimateClusterCount?.({
+          ...ctx,
+          items: seedIdentifiedItems,
+          normalizedItems: canonicalNormalized,
+          itemCount: canonicalCount,
+        });
+        if (estimated !== undefined) return estimated;
+        if (requiresTags) {
+          const uniqueSeedTags = new Set(canonicalNormalized.flatMap((n) => n.tags)).size;
+          if (uniqueSeedTags > 0) return uniqueSeedTags;
+        }
+        return seedOutput?.clusters.length;
+      }
+
+      return baseStrategy.estimateClusterCount?.(ctx);
+    },
+    initialize(ctx) {
+      capturePreviousColors(ctx.previousClusters);
+      const explicit = materializeExplicitSeed(
+        ctx.getId,
+        ctx.getTags,
+        ctx.normalizeTag,
+      );
+      const canonicalIdentified = explicit ? explicit.identified : ctx.items;
+      const canonicalNormalized = explicit
+        ? explicit.normalized
+        : requiresTags
+          ? resolveStrategyNormalizedItems(
+              ctx,
+              baseStrategy.getTags,
+              baseStrategy.normalizeTag,
+            )
+          : [];
+
+      const canonical = computeCanonicalSeed(
+        ctx,
+        canonicalIdentified,
+        canonicalNormalized,
+      );
+
+      // If explicit seedItems were supplied and initial ctx.items is already a subset, project immediately
+      if (explicit) {
+        return projectOntoCanonicalSeed(ctx, canonical);
+      }
+      return canonical;
+    },
+    update(ctx) {
+      capturePreviousColors(ctx.previousClusters);
+      if (!seedOutput || !seedIdentifiedItems) {
+        return this.initialize(ctx);
+      }
+
+      const isGeometryOrStrategyReset =
+        ctx.reason === 'initial' ||
+        ctx.reason === 'viewport' ||
+        ctx.reason === 'mesh' ||
+        ctx.reason === 'strategy' ||
+        ctx.mesh.vertices.length !== seedOutput.clusters.length;
+
+      if (isGeometryOrStrategyReset) {
+        const canonical = computeCanonicalSeed(
+          ctx,
+          seedIdentifiedItems,
+          seedNormalizedItems ?? [],
+        );
+        return projectOntoCanonicalSeed(ctx, canonical);
+      }
+
+      if (unseenItemPolicy === 'reseed') {
+        const activeIds = requiresTags
+          ? resolveStrategyNormalizedItems(
+              ctx,
+              baseStrategy.getTags,
+              baseStrategy.normalizeTag,
+            ).map((n) => n.id)
+          : ctx.items.map((it) => it.id);
+        const hasUnseen = activeIds.some((id) => !seedItemIdSet.has(id));
+        if (hasUnseen) {
+          const nextNormalized = requiresTags
+            ? resolveStrategyNormalizedItems(
+                ctx,
+                baseStrategy.getTags,
+                baseStrategy.normalizeTag,
+              )
+            : [];
+          return computeCanonicalSeed(ctx, ctx.items, nextNormalized);
+        }
+      }
+
+      return projectOntoCanonicalSeed(ctx, seedOutput);
     },
   };
 }
