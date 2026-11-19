@@ -66,7 +66,10 @@ export function QuickTopicMap() {
 | --- | --- | --- |
 | `getId` / `getTags` | `item.id` / `item.tags` | Auto-extracted (`getTags` becomes optional when passing a non-tag `clusteringStrategy`). |
 | `getLabel` | Heuristic (`label \| title \| headline \| name \| id`) | Used by built-in presets and default tooltips. |
-| `preset` | `'geometric'` | Renders `GeometricShapeSvgView` + `BadgeClusterSvgView` (`'glyphs'` & `'badges'` also built in). |
+| `formatTagLabel` | `undefined` | Optional `(tag: string) => string` mapping canonical tag IDs to human-readable labels across clusters, breadcrumbs, semantic subclusters, and tooltips without altering clustering. |
+| `preset` | `'geometric'` | Renders `GeometricShapeSvgView` + `ClusterAnchorSvgView` (`'glyphs'` & `'badges'` with `BadgeClusterSvgView` also built in). |
+| `badgeOptions` | `{ showCode: true }` | Formats built-in cluster badges (`showCode`, `maxTitleChars`, `formatTitle`). |
+| `getShape` | Auto (by unit cluster count) | Fixed or item-driven content polygon (`'circle' \| 'triangle' \| 'square' \| 'diamond' \| 'pentagon' \| 'hexagon' \| 'heptagon' \| 'octagon' \| 'star'`, side count `>= 3`, `{ sides, rotationRad? }`, or `(item, ctx) => GeometricShapeSpec`). |
 | `theme` | `'dark'` | Dark styling for presets, React tooltip overlay, and breadcrumbs (`'light'` supported). |
 | `triangleView` / `edgeView` | `OklabTintTriangleSvgView` / `DashedMeshEdgeSvgView` | Default triangulation face & edge views (edge view also renders internal `1:4` drillable previews). |
 | `meshStrategy` | `createAdaptiveHexMeshStrategy()` | Aspect-aligned 60° equilateral lattice (adaptive `innerPadding: 32–48`, `minSideLength: 130`, `maxClusters: 14`). |
@@ -91,7 +94,10 @@ export function QuickTopicMap() {
   getId={(a) => a.slug}
   getTags={(a) => a.hashtags}
   getLabel={(a) => a.title}
-  preset="glyphs"
+  formatTagLabel={(tag) => tagDisplayNames[tag] ?? tag}
+  preset="badges"
+  badgeOptions={{ showCode: false, maxTitleChars: 20 }}
+  getShape={(a) => (a.readingMinutes > 10 ? 'hexagon' : 'triangle')}
   theme="dark"
   tooltip={(target) => {
     if (target.kind === 'content') {
@@ -342,6 +348,7 @@ export function FastControlledGraph({
 | `getTags` | If `TItem` lacks `tags` and no `clusteringStrategy` is passed | `(item: TItem) => readonly string[]` — Extracts raw tag strings per item (optional when using non-tag clustering strategies). |
 | `getLabel` | No | `(item: TItem) => string` — Optional label extractor used by presets and default hover tooltips. |
 | `normalizeTag` | No | `(rawTag: string) => string` — Custom tag normalizer (defaults to lowercase trim + `#` strip). |
+| `formatTagLabel` | No | `(tag: string) => string` — Maps canonical normalized tag IDs to human-readable labels for cluster titles, breadcrumbs, semantic zoom subclusters, and tooltips without changing clustering. |
 | `resolveTagMeta` | No | `(normalizedTag: string) => TTagMeta \| undefined` — Attaches domain metadata to each tag. |
 | `deriveClusterMeta` | If `TClusterMeta` is defined | `(ctx) => TClusterMeta` — Derives aggregate metadata once per cluster update (`members`, `representativeItems`, `centroid`, `cohesion`, `featureSummary`, `role`, `mixWeights`). |
 
@@ -349,6 +356,8 @@ export function FastControlledGraph({
 | Prop | Default | Description |
 | --- | --- | --- |
 | `preset` | `'geometric'` | Built-in visual preset (`'geometric' \| 'glyphs' \| 'badges'`) used when custom views or `visualResolver` are omitted. |
+| `badgeOptions` | `{ showCode: true }` | `{ showCode?, maxTitleChars?, formatTitle? }` — Customizes built-in `BadgeClusterSvgView` cluster badges (hide `T1`/`T2` prefix codes, truncate cleanly with `…`, or format titles). |
+| `getShape` | Auto | `GeometricShapeSpec \| ((item, ctx) => GeometricShapeSpec)` — Binds a fixed or category-driven shape (`'triangle'`, `'square'`, `'pentagon'`, `'hexagon'`, `'heptagon'`, `'octagon'`, or `{ sides: N, rotationRad? }`) with exact convex SAT hulls. |
 | `theme` | `'dark'` | Color theme (`'dark' \| 'light'`) applied to presets, tooltips, breadcrumbs, and theme-adaptive color strategies. |
 | `visualResolver` | Built-in preset resolver | Optional `VisualResolver` mapping items and clusters to custom descriptors and cache keys. |
 | `renderContentNode` | — | Declarative React JSX renderer `(item, ctx, state) => ReactNode` (auto-measured via `getBBox()`). |

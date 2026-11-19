@@ -2465,5 +2465,71 @@ describe('Pluggable SimplexZoomStrategy', () => {
 
     engine.destroy();
   });
+
+  it('propagates formatTagLabel into semantic zoom subclusters and breadcrumbs while keeping canonical tag IDs intact (Issue #7)', () => {
+    const labelMap: Record<string, string> = {
+      'machine-learning': 'Machine Learning',
+      'computer-vision': 'Computer Vision',
+      'natural-language': 'Natural Language',
+      'robot-control': 'Robot Control',
+      'neural-nets': 'Neural Networks',
+      'edge-inference': 'Edge Inference',
+      'safety-checks': 'Safety Checks',
+    };
+    const items: DefaultTaggedItem[] = Array.from({ length: 30 }, (_, i) => {
+      const combos: readonly (readonly string[])[] = [
+        ['machine-learning', 'computer-vision', 'neural-nets'],
+        ['machine-learning', 'natural-language', 'neural-nets'],
+        ['machine-learning', 'robot-control', 'safety-checks'],
+        ['computer-vision', 'edge-inference', 'safety-checks'],
+        ['natural-language', 'edge-inference', 'robot-control'],
+      ];
+      return {
+        id: `fmt-${i}`,
+        tags: [...combos[i % combos.length]!],
+      };
+    });
+
+    const hr = createHeadlessRenderer();
+    const engine = new SimplexGraphEngine({
+      items,
+      visualResolver: createResolver(28, 22),
+      renderer: hr.adapter,
+      viewportWidth: 560,
+      viewportHeight: 420,
+      layoutOptions: { seed: 42 },
+      formatTagLabel: (tag) => labelMap[tag] ?? tag,
+      zoomStrategy: createSemanticZoomStrategy({ stopWhenFullScale: false }),
+    });
+    stepToSettle(engine);
+
+    for (const c of engine.getClusters()) {
+      expect(c.defaultLabel).not.toMatch(/[a-z]-[a-z]/);
+      for (const td of c.coreTags) {
+        expect(labelMap[td.tag]).toBeDefined();
+        expect(td.label).toBe(labelMap[td.tag]);
+      }
+    }
+
+    const triIdx = engine.getZoomState().drillableTriangleIndices[0]!;
+    expect(engine.drillDownTriangle(triIdx)).toBe(true);
+    stepToSettle(engine);
+
+    const zState = engine.getZoomState();
+    expect(zState.depth).toBe(1);
+    const activeCrumb = zState.breadcrumbs.at(-1)!;
+    expect(activeCrumb.label).not.toMatch(/[a-z]-[a-z]/);
+    for (const sc of engine.getClusters()) {
+      expect(sc.defaultLabel).not.toMatch(/[a-z]-[a-z]/);
+      for (const td of sc.coreTags) {
+        expect(td.tag).toMatch(/^[a-z-]+$/);
+        if (labelMap[td.tag]) {
+          expect(td.label).toBe(labelMap[td.tag]);
+        }
+      }
+    }
+
+    engine.destroy();
+  });
 });
 

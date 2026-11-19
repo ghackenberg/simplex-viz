@@ -194,6 +194,7 @@ export interface ClusteringStrategyContext<TItem = DefaultTaggedItem, TTagMeta =
   readonly previousClusters: readonly PreviousClusterSnapshot[];
   readonly getTags?: (item: TItem) => readonly string[];
   readonly normalizeTag?: (raw: string) => string;
+  readonly formatTagLabel?: (tag: string) => string;
   readonly resolveTagMeta?: (tag: string) => TTagMeta | undefined;
   readonly allocateClusterUid: () => string;
   readonly seed: number;
@@ -409,6 +410,7 @@ function assembleClusteringOutput<TItem, TTagMeta>(params: {
   readonly rawAssignments: readonly RawItemUnitAssignment<TItem>[];
   readonly matchedUids: readonly string[];
   readonly preservedColors: ReadonlyMap<number, AssignedColor>;
+  readonly formatTagLabel?: (tag: string) => string;
   readonly resolveTagMeta?: (tag: string) => TTagMeta | undefined;
 }): ClusteringStrategyOutput<TItem, TTagMeta> {
   const {
@@ -419,6 +421,7 @@ function assembleClusteringOutput<TItem, TTagMeta>(params: {
     rawAssignments,
     matchedUids,
     preservedColors,
+    formatTagLabel,
     resolveTagMeta,
   } = params;
   const K = mesh.vertices.length;
@@ -438,11 +441,15 @@ function assembleClusteringOutput<TItem, TTagMeta>(params: {
     }
   }
 
-  const buildTagDescriptor = (tag: string): TagDescriptor<TTagMeta> => ({
-    tag,
-    frequency: tagFreqMap.get(tag) ?? 0,
-    meta: resolveTagMeta ? resolveTagMeta(tag) : undefined,
-  });
+  const buildTagDescriptor = (tag: string): TagDescriptor<TTagMeta> => {
+    const formatted = formatTagLabel ? formatTagLabel(tag).trim() : '';
+    return {
+      tag,
+      ...(formatted.length > 0 ? { label: formatted } : {}),
+      frequency: tagFreqMap.get(tag) ?? 0,
+      meta: resolveTagMeta ? resolveTagMeta(tag) : undefined,
+    };
+  };
 
   const clusters: ComputedTopicCluster<TItem, TTagMeta>[] = [];
   for (let v = 0; v < K; v++) {
@@ -457,7 +464,7 @@ function assembleClusteringOutput<TItem, TTagMeta>(params: {
     const defaultLabel =
       coreTags
         .slice(0, 2)
-        .map((t) => t.tag)
+        .map((t) => t.label ?? t.tag)
         .join(' · ') || `Cluster ${v + 1}`;
 
     clusters.push({
@@ -750,6 +757,7 @@ export function createJaccardAnnealingClusteringStrategy<
       rawAssignments,
       matchedUids,
       preservedColors,
+      formatTagLabel: ctx.formatTagLabel,
       resolveTagMeta: ctx.resolveTagMeta,
     });
   };
@@ -968,6 +976,7 @@ export function createIncrementalAnchorClusteringStrategy<
         rawAssignments,
         matchedUids,
         preservedColors,
+        formatTagLabel: ctx.formatTagLabel,
         resolveTagMeta: ctx.resolveTagMeta,
       });
     },
@@ -1320,6 +1329,7 @@ export function createSoftSimplexTagClusteringStrategy<
       rawAssignments: spreadAssignments,
       matchedUids,
       preservedColors,
+      formatTagLabel: ctx.formatTagLabel,
       resolveTagMeta: ctx.resolveTagMeta,
     });
   };

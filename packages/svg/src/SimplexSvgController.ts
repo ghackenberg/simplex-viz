@@ -29,6 +29,8 @@ import {
   extractDefaultItemLabel,
   type DefaultClusterPresetVisual,
   type DefaultContentPresetVisual,
+  type PresetBadgeClusterOptions,
+  type PresetContentShapeOption,
   type SimplexTheme,
   type SimplexVisualPreset,
 } from './presets.js';
@@ -109,7 +111,13 @@ export interface SimplexSvgControllerResolvedOptions<
   /** Optional pluggable `SvgEdgeView` for triangulation edges. */
   readonly edgeView?: SvgEdgeView<TItem, TTagMeta, TClusterMeta>;
   readonly normalizeTag?: (rawTag: string) => string;
+  /** Optional formatter converting canonical tag IDs into concise human-readable display labels without altering clustering or equality checks. */
+  readonly formatTagLabel?: (tag: string) => string;
   readonly resolveTagMeta?: (normalizedTag: string) => TTagMeta | undefined;
+  /** Formatting & code-toggle options for `BadgeClusterSvgView` when using `preset: 'badges'`. */
+  readonly badgeOptions?: PresetBadgeClusterOptions<TItem, TTagMeta, TClusterMeta>;
+  /** Fixed shape or per-item shape resolver overriding topological rank shapes in `GeometricShapeSvgView` (`'geometric'` / `'badges'` presets). */
+  readonly getShape?: PresetContentShapeOption<TItem, TTagMeta, TClusterMeta>;
   readonly meshOptions?: MeshOptions;
   readonly layoutOptions?: LayoutSolverOptions;
   readonly meshStrategy?: SimplexMeshStrategy<TItem>;
@@ -230,6 +238,9 @@ export class SimplexSvgController<
   private showZoomBreadcrumbs: boolean;
   private readonly getIdExtractor: (item: TItem) => string;
   private getLabelExtractor?: (item: TItem) => string;
+  private readonly formatTagLabelFn?: (tag: string) => string;
+  private readonly badgeOptions?: PresetBadgeClusterOptions<TItem, TTagMeta, TClusterMeta>;
+  private readonly getShapeOption?: PresetContentShapeOption<TItem, TTagMeta, TClusterMeta>;
   private tooltipOption:
     | boolean
     | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
@@ -289,6 +300,9 @@ export class SimplexSvgController<
     this.focusOnTriangleClick = options.focusOnTriangleClick ?? true;
     this.showZoomBreadcrumbs = options.showZoomBreadcrumbs ?? true;
     this.getLabelExtractor = options.getLabel;
+    this.formatTagLabelFn = options.formatTagLabel;
+    this.badgeOptions = options.badgeOptions;
+    this.getShapeOption = options.getShape;
     this.tooltipOption = options.tooltip ?? false;
     this.getIdExtractor =
       options.getId ??
@@ -306,11 +320,13 @@ export class SimplexSvgController<
     const clusterView = (options.clusterView ??
       presetViews.clusterView) as SvgNodeView<TClusterVisual>;
     const visualResolver = (options.visualResolver ??
-      createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
-        this.currentPreset,
-        this.getLabelExtractor,
-        this.currentTheme,
-      )) as VisualResolver<
+      createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(this.currentPreset, {
+        getLabel: this.getLabelExtractor,
+        theme: this.currentTheme,
+        formatTagLabel: this.formatTagLabelFn,
+        badgeOptions: this.badgeOptions,
+        getShape: this.getShapeOption,
+      })) as VisualResolver<
       TItem,
       TContentVisual,
       TClusterVisual,
@@ -355,6 +371,7 @@ export class SimplexSvgController<
       viewportWidth: initialW,
       viewportHeight: initialH,
       normalizeTag: options.normalizeTag,
+      formatTagLabel: options.formatTagLabel,
       resolveTagMeta: options.resolveTagMeta,
       meshOptions: options.meshOptions,
       layoutOptions: options.layoutOptions,
@@ -659,7 +676,17 @@ export class SimplexSvgController<
       ev.layoutContext.id,
       this.getLabelExtractor,
     );
-    const tagList = ev.layoutContext.tags.map((t) => `#${t.tag}`).slice(0, 5).join(' · ');
+    const tagList = ev.layoutContext.tags
+      .map((t) => {
+        if (t.label) return t.label;
+        if (this.formatTagLabelFn) {
+          const formatted = this.formatTagLabelFn(t.tag).trim();
+          if (formatted.length > 0) return formatted;
+        }
+        return `#${t.tag}`;
+      })
+      .slice(0, 5)
+      .join(' · ');
     const neighborHint = ev.neighborId ? '\nClick to switch to neighbor' : '';
     if (tagList) {
       return `${label}\n${tagList}${neighborHint}`;
@@ -817,11 +844,13 @@ export class SimplexSvgController<
       this.getLabelExtractor = getLabel;
     }
     const views = createPresetViews(preset);
-    const resolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
-      preset,
-      this.getLabelExtractor,
-      this.currentTheme,
-    );
+    const resolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(preset, {
+      getLabel: this.getLabelExtractor,
+      theme: this.currentTheme,
+      formatTagLabel: this.formatTagLabelFn,
+      badgeOptions: this.badgeOptions,
+      getShape: this.getShapeOption,
+    });
     this.adapter.setViews({
       contentView: views.contentView as unknown as SvgNodeView<TContentVisual>,
       clusterView: views.clusterView as unknown as SvgNodeView<TClusterVisual>,
@@ -852,8 +881,13 @@ export class SimplexSvgController<
     if (!this.usesCustomVisualResolver) {
       const resolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
         this.currentPreset,
-        this.getLabelExtractor,
-        theme,
+        {
+          getLabel: this.getLabelExtractor,
+          theme,
+          formatTagLabel: this.formatTagLabelFn,
+          badgeOptions: this.badgeOptions,
+          getShape: this.getShapeOption,
+        },
       );
       this.engine.setVisualResolver(
         resolver as unknown as VisualResolver<

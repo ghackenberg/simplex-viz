@@ -1,4 +1,4 @@
-import type { NodeRenderState } from '@simplex-viz/core';
+import type { ClusterDescriptor, NodeRenderState } from '@simplex-viz/core';
 import { resolveClusterSurfaceColors, roundedRectSvgPath } from '../colorContrast.js';
 import { SVG_NS } from '../hullMeasure.js';
 import type { SvgNodeView } from '../types.js';
@@ -20,6 +20,69 @@ export interface BadgeClusterVisual {
   readonly parentContextLabel?: string;
   /** Optional contributing parent cluster colors for split bridge markers on intermediate nodes. */
   readonly accentColors?: readonly string[];
+  /** Optional per-badge override for showing the cluster index prefix (`T1`–`TK`) on primary capsules. Default: `true`. */
+  readonly showCode?: boolean;
+}
+
+/**
+ * Context passed to `BadgeClusterSvgViewOptions.formatTitle`.
+ */
+export interface BadgeClusterTitleContext<
+  TItem = unknown,
+  TTagMeta = unknown,
+  TClusterMeta = unknown,
+> {
+  readonly variant: 'primary' | 'intermediate';
+  readonly visual: BadgeClusterVisual;
+  /** Present when wired through preset resolvers (`createSimplexSvg` / `<SimplexTopicGraph />`). */
+  readonly cluster?: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>;
+}
+
+/**
+ * Formatting and code-visibility options for `BadgeClusterSvgView`.
+ */
+export interface BadgeClusterSvgViewOptions {
+  /** Whether to render the cluster index prefix (`T1`–`TK`) on primary capsules. Default: `true`. When `false`, the code `<text>` element is omitted and the title is centered. */
+  readonly showCode?: boolean;
+  /** Optional maximum character length for displayed cluster titles (clean word-aware truncation with `…`). */
+  readonly maxTitleChars?: number;
+  /** Optional title formatter invoked before `maxTitleChars` truncation. */
+  readonly formatTitle?: (
+    title: string,
+    context: BadgeClusterTitleContext,
+  ) => string;
+}
+
+/**
+ * Cleanly truncates a cluster badge title to at most `maxChars` characters,
+ * preferring word or separator boundaries (` `, `-`, `/`, `·`) before falling back to a hard cut with `…`.
+ */
+export function truncateBadgeTitle(text: string, maxChars: number): string {
+  const clean = text.trim();
+  const limit = Math.max(1, Math.floor(maxChars));
+  if (clean.length <= limit) return clean;
+  if (limit === 1) return '…';
+
+  const slice = clean.slice(0, limit - 1);
+  if (limit >= 6) {
+    const minBoundaryIdx = Math.floor((limit - 1) * 0.55);
+    let bestBoundary = -1;
+    for (let i = slice.length - 1; i >= minBoundaryIdx; i--) {
+      const ch = slice[i]!;
+      if (ch === ' ' || ch === '-' || ch === '/' || ch === '·') {
+        bestBoundary = i;
+        break;
+      }
+    }
+    if (bestBoundary > 0) {
+      const trimmed = slice.slice(0, bestBoundary).replace(/[\s\-/·]+$/, '');
+      if (trimmed.length > 0) {
+        return `${trimmed}…`;
+      }
+    }
+  }
+
+  return `${slice.replace(/[\s\-/·]+$/, '').trimEnd() || slice}…`;
 }
 
 /**
@@ -29,6 +92,28 @@ export interface BadgeClusterVisual {
  * automatically measured via `getBBox()` for overlap-free layout.
  */
 export class BadgeClusterSvgView implements SvgNodeView<BadgeClusterVisual> {
+  private readonly options: BadgeClusterSvgViewOptions;
+
+  constructor(options: BadgeClusterSvgViewOptions = {}) {
+    this.options = options;
+  }
+
+  private resolveDisplayTitle(
+    rawTitle: string,
+    variant: 'primary' | 'intermediate',
+    visual: BadgeClusterVisual,
+  ): string {
+    const formatted = this.options.formatTitle
+      ? this.options.formatTitle(rawTitle, { variant, visual })
+      : rawTitle;
+    const trimmed = formatted.trim();
+    const maxChars = this.options.maxTitleChars;
+    if (maxChars !== undefined && Number.isFinite(maxChars) && maxChars > 0) {
+      return truncateBadgeTitle(trimmed, maxChars);
+    }
+    return trimmed;
+  }
+
   mountOrUpdate(
     groupEl: SVGGElement,
     visual: BadgeClusterVisual,
@@ -75,7 +160,11 @@ export class BadgeClusterSvgView implements SvgNodeView<BadgeClusterVisual> {
 
       if (hasParentCtx) {
         const upperParent = parentCtx.toUpperCase();
-        const mainText = suffix || visual.code;
+        const mainText = this.resolveDisplayTitle(
+          suffix || visual.code,
+          'intermediate',
+          visual,
+        );
         const topW = upperParent.length * 5.2;
         const botW = mainText.length * 5.9;
         const estWidth = Math.max(66, Math.round(Math.max(topW, botW) + 26));
@@ -151,7 +240,11 @@ export class BadgeClusterSvgView implements SvgNodeView<BadgeClusterVisual> {
         return;
       }
 
-      const displayLine = suffix || visual.code;
+      const displayLine = this.resolveDisplayTitle(
+        suffix || visual.code,
+        'intermediate',
+        visual,
+      );
       const contentW = displayLine.length * 5.8;
       const estWidth = Math.max(52, Math.round(contentW + 24));
       const height = 22;
@@ -217,10 +310,17 @@ export class BadgeClusterSvgView implements SvgNodeView<BadgeClusterVisual> {
       return;
     }
 
-    const codeSpan = Math.max(20, visual.code.length * 6.4 + 6);
-    const headerContentW = codeSpan + visual.title.length * 6.9;
+    const showCode = (visual.showCode ?? this.options.showCode ?? true) && visual.code.trim().length > 0;
+    const displayTitle = this.resolveDisplayTitle(visual.title, 'primary', visual);
+    const codeSpan = showCode ? Math.max(20, visual.code.length * 6.4 + 6) : 0;
+    const headerContentW = codeSpan + displayTitle.length * 6.9;
     const metaW = visual.metaLine.length * 5.9;
-    const estWidth = Math.max(126, Math.round(Math.max(headerContentW + 34, metaW + 34)));
+    const minPrimaryWidth = showCode ? 126 : 96;
+    const padX = showCode ? 34 : 30;
+    const estWidth = Math.max(
+      minPrimaryWidth,
+      Math.round(Math.max(headerContentW + padX, metaW + padX)),
+    );
     const height = 42;
     const halfW = estWidth / 2;
     const halfH = height / 2;
@@ -277,28 +377,42 @@ export class BadgeClusterSvgView implements SvgNodeView<BadgeClusterVisual> {
     bg.setAttribute('stroke-opacity', isActive ? '0.92' : '0.28');
     groupEl.appendChild(bg);
 
-    const startX = -headerContentW / 2;
-    const codeText = doc.createElementNS(SVG_NS, 'text');
-    codeText.setAttribute('x', String(Math.round(startX)));
-    codeText.setAttribute('y', '-3');
-    codeText.setAttribute('fill', '#ffffff');
-    codeText.setAttribute('fill-opacity', '0.86');
-    codeText.setAttribute('font-size', '9.8');
-    codeText.setAttribute('font-weight', '600');
-    codeText.setAttribute('font-family', 'IBM Plex Mono, monospace');
-    codeText.textContent = visual.code;
-    groupEl.appendChild(codeText);
+    if (showCode) {
+      const startX = -headerContentW / 2;
+      const codeText = doc.createElementNS(SVG_NS, 'text');
+      codeText.setAttribute('x', String(Math.round(startX)));
+      codeText.setAttribute('y', '-3');
+      codeText.setAttribute('fill', '#ffffff');
+      codeText.setAttribute('fill-opacity', '0.86');
+      codeText.setAttribute('font-size', '9.8');
+      codeText.setAttribute('font-weight', '600');
+      codeText.setAttribute('font-family', 'IBM Plex Mono, monospace');
+      codeText.textContent = visual.code;
+      groupEl.appendChild(codeText);
 
-    const titleText = doc.createElementNS(SVG_NS, 'text');
-    titleText.setAttribute('x', String(Math.round(startX + codeSpan)));
-    titleText.setAttribute('y', '-3');
-    titleText.setAttribute('fill', '#ffffff');
-    titleText.setAttribute('font-size', '11');
-    titleText.setAttribute('font-weight', '700');
-    titleText.setAttribute('letter-spacing', '0.01em');
-    titleText.setAttribute('font-family', 'Plus Jakarta Sans, sans-serif');
-    titleText.textContent = visual.title;
-    groupEl.appendChild(titleText);
+      const titleText = doc.createElementNS(SVG_NS, 'text');
+      titleText.setAttribute('x', String(Math.round(startX + codeSpan)));
+      titleText.setAttribute('y', '-3');
+      titleText.setAttribute('fill', '#ffffff');
+      titleText.setAttribute('font-size', '11');
+      titleText.setAttribute('font-weight', '700');
+      titleText.setAttribute('letter-spacing', '0.01em');
+      titleText.setAttribute('font-family', 'Plus Jakarta Sans, sans-serif');
+      titleText.textContent = displayTitle;
+      groupEl.appendChild(titleText);
+    } else {
+      const titleText = doc.createElementNS(SVG_NS, 'text');
+      titleText.setAttribute('x', '0');
+      titleText.setAttribute('y', '-3');
+      titleText.setAttribute('text-anchor', 'middle');
+      titleText.setAttribute('fill', '#ffffff');
+      titleText.setAttribute('font-size', '11');
+      titleText.setAttribute('font-weight', '700');
+      titleText.setAttribute('letter-spacing', '0.01em');
+      titleText.setAttribute('font-family', 'Plus Jakarta Sans, sans-serif');
+      titleText.textContent = displayTitle;
+      groupEl.appendChild(titleText);
+    }
 
     const subText = doc.createElementNS(SVG_NS, 'text');
     subText.setAttribute('x', '0');

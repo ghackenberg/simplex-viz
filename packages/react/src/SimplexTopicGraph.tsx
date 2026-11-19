@@ -33,6 +33,8 @@ import {
   extractDefaultItemLabel,
   type DefaultClusterPresetVisual,
   type DefaultContentPresetVisual,
+  type PresetBadgeClusterOptions,
+  type PresetContentShapeOption,
   type SimplexTheme,
   type SimplexVisualPreset,
   type SvgEdgeView,
@@ -185,7 +187,13 @@ export type SimplexTopicGraphProps<
       state: NodeRenderState<TClusterVisual>,
     ) => ReactNode;
     readonly normalizeTag?: (rawTag: string) => string;
+    /** Optional formatter converting canonical tag IDs into concise human-readable display labels without altering clustering or equality checks. */
+    readonly formatTagLabel?: (tag: string) => string;
     readonly resolveTagMeta?: (normalizedTag: string) => TTagMeta | undefined;
+    /** Formatting & code-toggle options for `BadgeClusterSvgView` when using `preset="badges"`. */
+    readonly badgeOptions?: PresetBadgeClusterOptions<TItem, TTagMeta, TClusterMeta>;
+    /** Fixed shape or per-item shape resolver overriding topological rank shapes in `GeometricShapeSvgView` (`"geometric"` / `"badges"` presets). */
+    readonly getShape?: PresetContentShapeOption<TItem, TTagMeta, TClusterMeta>;
     readonly meshOptions?: MeshOptions;
     readonly layoutOptions?: LayoutSolverOptions;
     /** Optional custom mesh/triangulation strategy. */
@@ -402,26 +410,31 @@ export function SimplexTopicGraph<
     const theme: SimplexTheme = p.theme ?? 'dark';
     const presetResolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
       preset,
-      (item) => {
-        const curGetLabel = latestPropsRef.current.getLabel;
-        if (curGetLabel) return curGetLabel(item);
-        if (typeof item === 'object' && item !== null) {
-          if ('label' in item && typeof item.label === 'string' && item.label.length > 0) {
-            return item.label;
+      {
+        getLabel: (item) => {
+          const curGetLabel = latestPropsRef.current.getLabel;
+          if (curGetLabel) return curGetLabel(item);
+          if (typeof item === 'object' && item !== null) {
+            if ('label' in item && typeof item.label === 'string' && item.label.length > 0) {
+              return item.label;
+            }
+            if ('title' in item && typeof item.title === 'string' && item.title.length > 0) {
+              return item.title;
+            }
+            if ('headline' in item && typeof item.headline === 'string' && item.headline.length > 0) {
+              return item.headline;
+            }
+            if ('name' in item && typeof item.name === 'string' && item.name.length > 0) {
+              return item.name;
+            }
           }
-          if ('title' in item && typeof item.title === 'string' && item.title.length > 0) {
-            return item.title;
-          }
-          if ('headline' in item && typeof item.headline === 'string' && item.headline.length > 0) {
-            return item.headline;
-          }
-          if ('name' in item && typeof item.name === 'string' && item.name.length > 0) {
-            return item.name;
-          }
-        }
-        return '';
+          return '';
+        },
+        theme,
+        formatTagLabel: p.formatTagLabel,
+        badgeOptions: p.badgeOptions,
+        getShape: p.getShape,
       },
-      theme,
     );
     const base = p.visualResolver;
 
@@ -675,7 +688,10 @@ export function SimplexTopicGraph<
       triangleView: p.triangleView,
       edgeView: p.edgeView,
       normalizeTag: p.normalizeTag,
+      formatTagLabel: p.formatTagLabel,
       resolveTagMeta: p.resolveTagMeta,
+      badgeOptions: p.badgeOptions,
+      getShape: p.getShape,
       meshOptions: p.meshOptions,
       layoutOptions: {
         ...p.layoutOptions,
@@ -737,6 +753,10 @@ export function SimplexTopicGraph<
     props.clusterView,
     props.renderContentNode,
     props.renderClusterNode,
+    props.badgeOptions?.showCode,
+    props.badgeOptions?.maxTitleChars,
+    props.badgeOptions?.formatTitle,
+    props.getShape,
   ]);
 
   // Sync sizeMultiplier
@@ -932,7 +952,14 @@ export function SimplexTopicGraph<
           {hoveredTarget.layoutContext.tags.length > 0 ? (
             <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
               {hoveredTarget.layoutContext.tags
-                .map((t) => `#${t.tag}`)
+                .map((t) => {
+                  if (t.label) return t.label;
+                  if (props.formatTagLabel) {
+                    const formatted = props.formatTagLabel(t.tag).trim();
+                    if (formatted.length > 0) return formatted;
+                  }
+                  return `#${t.tag}`;
+                })
                 .slice(0, 5)
                 .join(' · ')}
             </div>

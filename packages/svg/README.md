@@ -61,7 +61,10 @@ const controller = createSimplexSvg('#graph', items);
 | --- | --- | --- |
 | `getId` / `getTags` | `item.id` / `item.tags` | Auto-extracted when `TItem` has `id` / `tags` (`getTags` is optional for embedding/similarity strategies). |
 | `getLabel` | Heuristic (`label \| title \| headline \| name \| id`) | Fallback label used by presets and hover tooltips. |
+| `formatTagLabel` | `undefined` | Optional `(tag: string) => string` mapping canonical tag IDs to display labels across clusters, breadcrumbs, semantic zoom subclusters, and tooltips without affecting clustering. |
 | `preset` | `'geometric'` | Built-in preset (`'geometric' \| 'glyphs' \| 'badges'`). |
+| `badgeOptions` | `{ showCode: true }` | Built-in cluster badge formatting: `{ showCode?, maxTitleChars?, formatTitle? }` (also accepted directly by `new BadgeClusterSvgView(options)`). |
+| `getShape` | Auto (by unit cluster count) | Fixed or per-item shape (`'circle' \| 'triangle' \| 'square' \| 'diamond' \| 'pentagon' \| 'hexagon' \| 'heptagon' \| 'octagon' \| 'star'`, side count `>= 3`, `{ sides, rotationRad? }`, or `(item, ctx) => GeometricShapeSpec`). |
 | `theme` | `'dark'` | Color theme (`'dark' \| 'light'`) for presets, tooltips, and breadcrumbs. |
 | `triangleView` | `OklabTintTriangleSvgView` | Default triangulation face renderer. |
 | `edgeView` | `DashedMeshEdgeSvgView` | Default mesh edge renderer (also renders internal `1:4` subdivision edges on drillable triangles). |
@@ -95,8 +98,15 @@ const controller = new SimplexSvgController('#graph', {
   getId: (a) => a.slug,
   getTags: (a) => a.topics,
   getLabel: (a) => a.headline,
-  preset: 'glyphs', // 'geometric' | 'glyphs' | 'badges'
-  theme: 'dark',    // 'dark' | 'light'
+  formatTagLabel: (tag) => tagDisplayNames[tag] ?? tag,
+  preset: 'badges',    // 'geometric' | 'glyphs' | 'badges'
+  badgeOptions: {
+    showCode: false,
+    maxTitleChars: 20,
+    formatTitle: (title) => title,
+  },
+  getShape: (a) => (a.topics.includes('tutorial') ? 'pentagon' : { sides: 3 }),
+  theme: 'dark',       // 'dark' | 'light'
   tooltip: (target) => {
     if (target.kind === 'content') {
       return `${target.item.headline} (${target.layoutContext.tags.length} tags)`;
@@ -293,7 +303,10 @@ controller.setInteractions({
 
 | Method / Option | Description |
 | --- | --- |
-| `preset` / `setPreset(preset, getLabel?)` | Switches between `'geometric'`, `'glyphs'`, and `'badges'` with smooth transitions. |
+| `preset` / `setPreset(preset, getLabel?)` | Switches between `'geometric'`, `'glyphs'`, and `'badges'` with smooth transitions (preserving `formatTagLabel`, `badgeOptions`, and `getShape`). |
+| `formatTagLabel` | Decouples canonical tag IDs from display labels across cluster badges, breadcrumbs, semantic zoom subclusters, and default tooltips. |
+| `badgeOptions` | Configures built-in `BadgeClusterSvgView` capsules (`showCode`, `maxTitleChars`, `formatTitle`). |
+| `getShape` | Fixes content item polygons globally or per-item (`GeometricShapeSpec` or `(item, ctx) => GeometricShapeSpec`, including arbitrary regular N-gons `sides >= 3` with exact convex SAT hulls). |
 | `theme` / `setTheme(theme)` | Switches `'dark'` / `'light'` presets and notifies theme-aware color strategies. |
 | `meshStrategy` / `setMeshStrategy(strategy)` | Swaps `SimplexMeshStrategy` (`createAdaptiveHexMeshStrategy`, `createFixedLatticeMeshStrategy`, or custom). |
 | `clusteringStrategy` / `setClusteringStrategy(strategy)` | Swaps `SimplexClusteringStrategy` (Jaccard, Soft-Simplex Tags/Embeddings, Embeddings, Pairwise Similarity, Incremental, or custom). |

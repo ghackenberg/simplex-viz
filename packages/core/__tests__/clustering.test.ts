@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   computeSimplexClustering,
   extractNormalizedItems,
+  resolveTagDisplayLabel,
   type PreviousClusterSnapshot,
 } from '../src/clustering';
 import { buildSimplexMesh } from '../src/mesh';
+import { solveSimplexSnapshot } from '../src/snapshot';
 
 interface RawArticle {
   readonly slug: string;
@@ -127,5 +129,70 @@ describe('computeSimplexClustering', () => {
     const prevUids = new Set(first.clusters.map((c) => c.clusterUid));
     const preservedCount = second.clusters.filter((c) => prevUids.has(c.clusterUid)).length;
     expect(preservedCount).toBeGreaterThanOrEqual(4);
+  });
+
+  it('decouples canonical tag IDs from human-readable display labels via formatTagLabel (Issue #7)', () => {
+    const slugCorpus = [
+      { id: 'p1', tags: ['autonomous-driving', 'computer-vision'] },
+      { id: 'p2', tags: ['autonomous-driving', 'sensor-fusion'] },
+      { id: 'p3', tags: ['computer-vision', 'sensor-fusion'] },
+      { id: 'p4', tags: ['model-predictive-control', 'sensor-fusion'] },
+      { id: 'p5', tags: ['model-predictive-control', 'autonomous-driving'] },
+      { id: 'p6', tags: ['formal-verification', 'model-predictive-control'] },
+      { id: 'p7', tags: ['formal-verification', 'safety-assurance'] },
+      { id: 'p8', tags: ['safety-assurance', 'autonomous-driving'] },
+    ] as const;
+
+    const tagNames: Record<string, string> = {
+      'autonomous-driving': 'Autonomous Driving',
+      'computer-vision': 'Computer Vision',
+      'sensor-fusion': 'Sensor Fusion',
+      'model-predictive-control': 'Model Predictive Control',
+      'formal-verification': 'Formal Verification',
+      'safety-assurance': 'Safety Assurance',
+    };
+    const formatTagLabel = (tag: string): string => tagNames[tag] ?? tag;
+
+    const baseline = solveSimplexSnapshot(slugCorpus, {
+      width: 900,
+      height: 600,
+      layoutOptions: { seed: 42 },
+    });
+    const formatted = solveSimplexSnapshot(slugCorpus, {
+      width: 900,
+      height: 600,
+      layoutOptions: { seed: 42 },
+      formatTagLabel,
+    });
+
+    // Clustering geometry & canonical tag assignments must be 100% invariant to display formatting
+    expect(formatted.clusters.length).toBe(baseline.clusters.length);
+    for (let i = 0; i < baseline.clusters.length; i++) {
+      const b = baseline.clusters[i]!.cluster;
+      const f = formatted.clusters[i]!.cluster;
+      expect(f.coreTags.map((t) => t.tag)).toEqual(b.coreTags.map((t) => t.tag));
+      expect(f.sharedTags.map((t) => t.tag)).toEqual(b.sharedTags.map((t) => t.tag));
+      expect(f.members.map((m) => m.id)).toEqual(b.members.map((m) => m.id));
+
+      for (const t of f.coreTags) {
+        expect(t.label).toBe(tagNames[t.tag]);
+        expect(resolveTagDisplayLabel(t)).toBe(tagNames[t.tag]);
+      }
+      // Formatted cluster defaultLabel must never leak raw hyphenated slugs
+      expect(f.defaultLabel).not.toMatch(/[a-z]-[a-z]/);
+      expect(Object.values(tagNames).some((name) => f.defaultLabel.includes(name))).toBe(true);
+    }
+
+    // Item tags carry canonical IDs + display labels while coordinates stay identical
+    for (let i = 0; i < baseline.items.length; i++) {
+      const bi = baseline.items[i]!;
+      const fi = formatted.items[i]!;
+      expect(fi.id).toBe(bi.id);
+      expect(fi.x).toBeCloseTo(bi.x, 5);
+      expect(fi.y).toBeCloseTo(bi.y, 5);
+      for (const td of fi.layoutContext.tags) {
+        expect(td.label).toBe(tagNames[td.tag]);
+      }
+    }
   });
 });

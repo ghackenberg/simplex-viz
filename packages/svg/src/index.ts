@@ -19,6 +19,7 @@ export {
   regularPolygon,
   starConvexHull,
   extractIdentifiedItems,
+  resolveTagDisplayLabel,
   embedSimilarityMatrixOnMesh,
   createAdaptiveHexMeshStrategy,
   createFixedLatticeMeshStrategy,

@@ -171,6 +171,24 @@ export function defaultNormalizeTag(raw: string): string {
 }
 
 /**
+ * Resolves the human-readable display label for a tag string or `TagDescriptor`,
+ * falling back cleanly to the canonical `tag` key when no formatter or custom `label` is set.
+ */
+export function resolveTagDisplayLabel(
+  tagOrDescriptor: string | { readonly tag: string; readonly label?: string },
+  formatTagLabel?: (tag: string) => string,
+): string {
+  if (typeof tagOrDescriptor === 'string') {
+    const formatted = formatTagLabel ? formatTagLabel(tagOrDescriptor).trim() : '';
+    return formatted.length > 0 ? formatted : tagOrDescriptor;
+  }
+  const existing = tagOrDescriptor.label?.trim();
+  if (existing && existing.length > 0) return existing;
+  const formatted = formatTagLabel ? formatTagLabel(tagOrDescriptor.tag).trim() : '';
+  return formatted.length > 0 ? formatted : tagOrDescriptor.tag;
+}
+
+/**
  * Extracts unique identified domain items without requiring or filtering on tags.
  * Suitable for embedding, similarity, or arbitrary custom clustering strategies.
  */
@@ -957,6 +975,7 @@ export function assignItemsToSimplexUnits<TItem>(params: {
 export function computeSimplexClustering<TItem, TTagMeta, TClusterMeta>(params: {
   readonly normalizedItems: readonly NormalizedContentItem<TItem>[];
   readonly mesh: SimplexMesh;
+  readonly formatTagLabel?: (tag: string) => string;
   readonly resolveTagMeta?: (tag: string) => TTagMeta | undefined;
   readonly deriveClusterMeta: (
     ctx: ClusterDerivationContext<TItem, TTagMeta>,
@@ -968,6 +987,7 @@ export function computeSimplexClustering<TItem, TTagMeta, TClusterMeta>(params: 
 export function computeSimplexClustering<TItem, TTagMeta, TClusterMeta>(params: {
   readonly normalizedItems: readonly NormalizedContentItem<TItem>[];
   readonly mesh: SimplexMesh;
+  readonly formatTagLabel?: (tag: string) => string;
   readonly resolveTagMeta?: (tag: string) => TTagMeta | undefined;
   readonly deriveClusterMeta?: (
     ctx: ClusterDerivationContext<TItem, TTagMeta>,
@@ -979,6 +999,7 @@ export function computeSimplexClustering<TItem, TTagMeta, TClusterMeta>(params: 
 export function computeSimplexClustering<TItem, TTagMeta, TClusterMeta>(params: {
   readonly normalizedItems: readonly NormalizedContentItem<TItem>[];
   readonly mesh: SimplexMesh;
+  readonly formatTagLabel?: (tag: string) => string;
   readonly resolveTagMeta?: (tag: string) => TTagMeta | undefined;
   readonly deriveClusterMeta?: (
     ctx: ClusterDerivationContext<TItem, TTagMeta>,
@@ -990,6 +1011,7 @@ export function computeSimplexClustering<TItem, TTagMeta, TClusterMeta>(params: 
   const {
     normalizedItems,
     mesh,
+    formatTagLabel,
     resolveTagMeta,
     deriveClusterMeta,
     previousClusters,
@@ -1081,11 +1103,15 @@ export function computeSimplexClustering<TItem, TTagMeta, TClusterMeta>(params: 
     return { ...raw, mixedColor };
   });
 
-  const buildTagDescriptor = (tag: string): TagDescriptor<TTagMeta> => ({
-    tag,
-    frequency: tagFreqMap.get(tag) ?? 0,
-    meta: resolveTagMeta ? resolveTagMeta(tag) : undefined,
-  });
+  const buildTagDescriptor = (tag: string): TagDescriptor<TTagMeta> => {
+    const formatted = formatTagLabel ? formatTagLabel(tag).trim() : '';
+    return {
+      tag,
+      ...(formatted.length > 0 ? { label: formatted } : {}),
+      frequency: tagFreqMap.get(tag) ?? 0,
+      meta: resolveTagMeta ? resolveTagMeta(tag) : undefined,
+    };
+  };
 
   const allItems: readonly TItem[] = rawWithColor.map((r) => r.entry.item);
   const baseContexts: Array<Omit<ClusterDerivationContext<TItem, TTagMeta>, 'allItems' | 'peerClusters'>> = [];
@@ -1102,7 +1128,7 @@ export function computeSimplexClustering<TItem, TTagMeta, TClusterMeta>(params: 
     const defaultLabel =
       coreTags
         .slice(0, 2)
-        .map((t) => t.tag)
+        .map((t) => t.label ?? t.tag)
         .join(' · ') || `Cluster ${v + 1}`;
 
     baseContexts.push({

@@ -344,6 +344,7 @@ export class SimplexGraphEngine<
   private readonly getIdFn: (item: TItem) => string;
   private readonly getTagsFn: (item: TItem) => readonly string[];
   private readonly normalizeTagFn: (raw: string) => string;
+  private readonly formatTagLabelFn?: (tag: string) => string;
   private readonly resolveTagMetaFn?: (tag: string) => TTagMeta | undefined;
   private readonly deriveClusterMetaFn?: (
     ctx: ClusterDerivationContext<TItem, TTagMeta>,
@@ -521,6 +522,7 @@ export class SimplexGraphEngine<
     this.getIdFn = config.getId ?? defaultGetId;
     this.getTagsFn = config.getTags ?? defaultGetTags;
     this.normalizeTagFn = config.normalizeTag ?? defaultNormalizeTag;
+    this.formatTagLabelFn = config.formatTagLabel;
     this.resolveTagMetaFn = config.resolveTagMeta;
     this.deriveClusterMetaFn = config.deriveClusterMeta;
 
@@ -1308,6 +1310,7 @@ export class SimplexGraphEngine<
       previousClusters: prevClusterSnapshots,
       getTags: effectiveGetTags,
       normalizeTag: effectiveNormalizeTag,
+      formatTagLabel: this.formatTagLabelFn,
       resolveTagMeta: this.resolveTagMetaFn,
       allocateClusterUid: () => {
         this.nextClusterUidSeq.value += 1;
@@ -1492,6 +1495,7 @@ export class SimplexGraphEngine<
       rootItems,
       normalizedItems: this.previousNormalizedItems,
       corpus: null,
+      formatTagLabel: this.formatTagLabelFn,
       parentSettledItems,
     };
   }

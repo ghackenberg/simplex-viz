@@ -116,6 +116,7 @@ const snapshot = solveSimplexSnapshot(samples as readonly AudioSample[], {
 | `itemRadius` / `clusterRadius` | `10` px / `24` px (circle hulls) | Measured via `renderer.measureContentHull` / `measureClusterHull` |
 | `getId` / `getTags` | `item.id` / `item.tags` | `item.id` / `item.tags` |
 | `normalizeTag` | Lowercase trim + leading `#` strip | Lowercase trim + leading `#` strip |
+| `formatTagLabel` | `undefined` (falls back to canonical tag) | `undefined` — optional `(tag: string) => string` mapping canonical tag IDs to human-readable labels for clusters, subclusters, and breadcrumbs without altering clustering |
 | `theme` | `'dark'` | `'dark'` |
 | `meshStrategy` | `createAdaptiveHexMeshStrategy()` | `createAdaptiveHexMeshStrategy()` |
 | `clusteringStrategy` | `createJaccardAnnealingClusteringStrategy()` | `createJaccardAnnealingClusteringStrategy()` |
@@ -365,7 +366,7 @@ Or compose custom layout pipelines via `createComposedLayoutStrategy(options)` /
 Every algorithmic building block can also be imported standalone:
 
 - **Mesh & Zoom Geometry**: `buildSimplexMesh`, `buildSimplexLattice`, `resolveDefaultInnerPadding`, `buildSubdividedTriangleMesh`, `buildIncidentStarMesh`, `applyZoomAffine`, `invertZoomAffine`, `composeZoomAffine`
-- **Clustering**: `computeSimplexClustering`, `embedSimilarityMatrixOnMesh`, `extractIdentifiedItems`, `analyzeTagCorpus`, `partitionTagsJaccard`, `computeMeshHopDistances`, `embedClustersQapAnnealing`, `completePlanarSharedTags`, `matchClustersHungarian`, `assignItemsToSimplexUnits`, `assignDiscriminativeClusterLabels`, `resolveDiscriminativeClusterLabel`, `disambiguatePeerClusterTitle`, `extractNormalizedItems`, `defaultNormalizeTag`
+- **Clustering**: `computeSimplexClustering`, `embedSimilarityMatrixOnMesh`, `extractIdentifiedItems`, `analyzeTagCorpus`, `partitionTagsJaccard`, `computeMeshHopDistances`, `embedClustersQapAnnealing`, `completePlanarSharedTags`, `matchClustersHungarian`, `assignItemsToSimplexUnits`, `assignDiscriminativeClusterLabels`, `resolveDiscriminativeClusterLabel`, `disambiguatePeerClusterTitle`, `extractNormalizedItems`, `defaultNormalizeTag`, `resolveTagDisplayLabel`
 - **Layout Solver**: `solveComposedLayout`, `solveTwoPhaseLayout`, `solveLocalAdaptiveLayout`, `solveCollisionDrivenLayout`, `buildItemCoveringTriangles`, `measureLayoutOverlaps`
 - **Geometry & Collision**: `computeConvexHull`, `rectToConvexPolygon`, `regularPolygon`, `starConvexHull`, `isPointInTriangle`, `computeConvexMtv`, `computeCirclePolygonMtv`, `hitTestConvexGeometry`, `UniformSpatialHashGrid`
 - **Color Science**: `hexToOklab`, `oklabToHex`, `mixOklabColors`, `lerpOklabHex`, `generatePerceptualClusterPalette`, `buildDistinctOklabPalette`, `assignMeshClusterColors`, `assignGreedyEdgeContrastColors`

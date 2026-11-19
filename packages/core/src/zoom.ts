@@ -261,6 +261,8 @@ export interface ZoomSharedHelpers<TItem, TTagMeta, TClusterMeta> {
   readonly rootItems: readonly ZoomItemAnchorInput<TItem, TTagMeta>[];
   readonly normalizedItems: readonly NormalizedContentItem<TItem>[];
   readonly corpus: AnalyzedTagCorpus | null;
+  /** Optional formatter converting canonical tag IDs into concise human-readable display labels. */
+  readonly formatTagLabel?: (tag: string) => string;
   /** Settled overlap-free item positions & scales from `parentFrame` used to project dimmed neighborhood content items accurately. */
   readonly parentSettledItems?: ReadonlyMap<
     string,
@@ -4175,10 +4177,14 @@ export function createSemanticZoomStrategy<
 
     const parentCorners = [c0, c1, c2];
     const tagMetaLookup = new Map<string, TTagMeta | undefined>();
+    const tagLabelLookup = new Map<string, string>();
     for (const it of coveredItems) {
       for (const td of it.tags) {
         if (td.meta !== undefined && !tagMetaLookup.has(td.tag)) {
           tagMetaLookup.set(td.tag, td.meta);
+        }
+        if (td.label && !tagLabelLookup.has(td.tag)) {
+          tagLabelLookup.set(td.tag, td.label);
         }
       }
     }
@@ -4188,10 +4194,22 @@ export function createSemanticZoomStrategy<
         if (td.meta !== undefined && !tagMetaLookup.has(td.tag)) {
           tagMetaLookup.set(td.tag, td.meta);
         }
+        if (td.label && !tagLabelLookup.has(td.tag)) {
+          tagLabelLookup.set(td.tag, td.label);
+        }
       }
     }
 
+    const resolveCustomTagLabel = (t: string): string | undefined => {
+      const fromFn = helpers.formatTagLabel ? helpers.formatTagLabel(t).trim() : '';
+      if (fromFn.length > 0) return fromFn;
+      const fromExisting = tagLabelLookup.get(t)?.trim();
+      return fromExisting && fromExisting.length > 0 ? fromExisting : undefined;
+    };
+
     const formatTagDisplay = (t: string): string => {
+      const customLabel = resolveCustomTagLabel(t);
+      if (customLabel) return customLabel;
       const metaObj = tagMetaLookup.get(t);
       if (
         metaObj &&
@@ -4225,11 +4243,15 @@ export function createSemanticZoomStrategy<
       return cleaned;
     };
 
-    const sharedUbiquitousDescs: TagDescriptor<TTagMeta>[] = ubiquitousTags.map((t) => ({
-      tag: t,
-      frequency: allItemTagFreq.get(t) ?? nItems,
-      meta: tagMetaLookup.get(t),
-    }));
+    const sharedUbiquitousDescs: TagDescriptor<TTagMeta>[] = ubiquitousTags.map((t) => {
+      const label = resolveCustomTagLabel(t);
+      return {
+        tag: t,
+        ...(label ? { label } : {}),
+        frequency: allItemTagFreq.get(t) ?? nItems,
+        meta: tagMetaLookup.get(t),
+      };
+    });
 
     const rawAssignedByVertex: readonly (readonly string[])[] = Array.from(
       { length: 6 },
@@ -4533,18 +4555,22 @@ export function createSemanticZoomStrategy<
         }
 
         const rankedTags = rankedTagsByVertex[vIdx]!;
-        const tagDescs: TagDescriptor<TTagMeta>[] = rankedTags.map((t) => ({
-          tag: t,
-          frequency: allItemTagFreq.get(t) ?? helpers.corpus?.tagFreqMap.get(t) ?? 1,
-          meta: tagMetaLookup.get(t),
-        }));
+        const tagDescs: TagDescriptor<TTagMeta>[] = rankedTags.map((t) => {
+          const label = resolveCustomTagLabel(t);
+          return {
+            tag: t,
+            ...(label ? { label } : {}),
+            frequency: allItemTagFreq.get(t) ?? helpers.corpus?.tagFreqMap.get(t) ?? 1,
+            meta: tagMetaLookup.get(t),
+          };
+        });
 
         const fmt = formatMixLabel(vw, helpers.rootClusters);
         const mixWeights = buildMixWeights(vw, helpers.rootClusters);
         const conciseSubLabel = resolvedSubLabels[vIdx]!;
         const tagTitle =
           rankedTags.length > 0
-            ? rankedTags.map((t) => `#${t}`).join(' · ')
+            ? rankedTags.map((t) => formatTagDisplay(t)).join(' · ')
             : conciseSubLabel;
 
         return buildSynthesizedClusterDescriptor({

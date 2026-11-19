@@ -14,6 +14,8 @@ import {
   createSubspaceZoomStrategy,
   getHexRelativeLuminance,
   resolveClusterSurfaceColors,
+  resolveGeometricShapeSpec,
+  truncateBadgeTitle,
   type BadgeClusterVisual,
   type GeometricShapeVisual,
 } from '../src/index';
@@ -1340,6 +1342,280 @@ describe('@simplex-viz/svg integration', () => {
     for (let i = 0; i < 40; i++) controller.stepForTest(20);
     expect(seenClicks.at(-1)).toBe('background');
     expect(controller.getZoomState().depth).toBe(0);
+
+    controller.destroy();
+    container.remove();
+  });
+
+  it('supports showCode, maxTitleChars, and formatTitle on BadgeClusterSvgView and createSimplexSvg badgeOptions (Issue #4)', () => {
+    expect(truncateBadgeTitle('Autonomous Driving Systems', 16)).toBe('Autonomous…');
+    expect(truncateBadgeTitle('Short', 16)).toBe('Short');
+    expect(truncateBadgeTitle('Supercalifragilistic', 10)).toBe('Supercali…');
+
+    // Direct BadgeClusterSvgView with showCode: false omits code <text>, centers title, and narrows capsule
+    const withCodeView = new BadgeClusterSvgView({ showCode: true });
+    const noCodeView = new BadgeClusterSvgView({
+      showCode: false,
+      maxTitleChars: 14,
+      formatTitle: (title) => title.toUpperCase(),
+    });
+
+    const sampleVisual: BadgeClusterVisual = {
+      code: 'T1',
+      title: 'Autonomous Driving Systems',
+      metaLine: '7 items',
+      colorHex: '#60a5fa',
+      theme: 'dark',
+    };
+    const state = {
+      id: 'c1',
+      x: 0,
+      y: 0,
+      scale: 1,
+      opacity: 1,
+      interaction: {
+        isHovered: false,
+        isFocused: false,
+        isHighlighted: false,
+        isPinned: false,
+        isDimmed: false,
+      },
+    };
+
+    const gWithCode = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    const gNoCode = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    withCodeView.mountOrUpdate(gWithCode, sampleVisual, state);
+    noCodeView.mountOrUpdate(gNoCode, sampleVisual, state);
+
+    expect(gWithCode.querySelectorAll('text').length).toBe(3); // code + title + count
+    expect(gNoCode.querySelectorAll('text').length).toBe(2); // title + count only
+    const titleEl = gNoCode.querySelectorAll('text')[0]!;
+    expect(titleEl.getAttribute('text-anchor')).toBe('middle');
+    expect(titleEl.getAttribute('x')).toBe('0');
+    expect(titleEl.textContent).toBe('AUTONOMOUS…');
+    expect(gNoCode.textContent).not.toContain('T1');
+
+    const wWithCode = parseFloat(gWithCode.querySelector('rect')!.getAttribute('width')!);
+    const wNoCode = parseFloat(gNoCode.querySelector('rect')!.getAttribute('width')!);
+    expect(wNoCode).toBeLessThan(wWithCode);
+
+    // End-to-end via createSimplexSvg preset + badgeOptions
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 820, height: 540, right: 820, bottom: 540 }),
+    });
+    document.body.appendChild(container);
+
+    const formattedClusters: string[] = [];
+    const controller = createSimplexSvg(container, {
+      items: [
+        { id: '1', tags: ['autonomous-driving', 'computer-vision'] },
+        { id: '2', tags: ['autonomous-driving', 'sensor-fusion'] },
+        { id: '3', tags: ['computer-vision', 'sensor-fusion'] },
+        { id: '4', tags: ['formal-verification', 'safety-assurance'] },
+        { id: '5', tags: ['formal-verification', 'sensor-fusion'] },
+      ],
+      preset: 'badges',
+      formatTagLabel: (tag) =>
+        tag
+          .split('-')
+          .map((w) => w[0]!.toUpperCase() + w.slice(1))
+          .join(' '),
+      badgeOptions: {
+        showCode: false,
+        maxTitleChars: 15,
+        formatTitle: (title, ctx) => {
+          if (ctx.cluster) formattedClusters.push(ctx.cluster.clusterUid);
+          return `★ ${title}`;
+        },
+      },
+    });
+    for (let i = 0; i < 35; i++) controller.stepForTest(20);
+
+    expect(formattedClusters.length).toBeGreaterThan(0);
+    expect(controller.getMetrics().overlapCount).toBe(0);
+    const clusterGroups = controller.getSvgElement().querySelectorAll('g.sv-node-cluster');
+    expect(clusterGroups.length).toBeGreaterThanOrEqual(3);
+    for (const cg of clusterGroups) {
+      const texts = cg.querySelectorAll('text');
+      expect(texts.length).toBe(2);
+      expect(texts[0]!.textContent?.startsWith('★ ')).toBe(true);
+      expect(texts[0]!.textContent!.length).toBeLessThanOrEqual(15);
+      expect(texts[0]!.getAttribute('text-anchor')).toBe('middle');
+    }
+
+    controller.destroy();
+    container.remove();
+  });
+
+  it('formats cluster titles and hover tooltip tag labels via formatTagLabel while keeping canonical cluster tags (Issue #7)', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+    });
+    document.body.appendChild(container);
+
+    const names: Record<string, string> = {
+      'machine-learning': 'Machine Learning',
+      'robot-control': 'Robot Control',
+      'sensor-fusion': 'Sensor Fusion',
+    };
+    const controller = createSimplexSvg(container, {
+      items: [
+        { id: 'item-1', label: 'Sensor Paper', tags: ['machine-learning', 'sensor-fusion'] },
+        { id: 'item-2', label: 'Control Paper', tags: ['robot-control', 'sensor-fusion'] },
+        { id: 'item-3', label: 'ML Paper', tags: ['machine-learning', 'robot-control'] },
+      ],
+      preset: 'badges',
+      tooltip: true,
+      formatTagLabel: (tag) => names[tag] ?? tag,
+    });
+    for (let i = 0; i < 35; i++) controller.stepForTest(20);
+
+    // Canonical tag IDs stay strictly normalized in cluster descriptors
+    for (const cluster of controller.getClusters()) {
+      for (const td of cluster.coreTags) {
+        expect(names[td.tag]).toBeDefined();
+        expect(td.label).toBe(names[td.tag]);
+      }
+      expect(cluster.defaultLabel).not.toMatch(/[a-z]-[a-z]/);
+    }
+
+    const svg = controller.getSvgElement();
+    Object.defineProperty(svg, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+    });
+    const firstItemGroup = svg.querySelector('g.sv-node-item')!;
+    const transform = firstItemGroup.getAttribute('transform') ?? '';
+    const match = /translate\(([-\d.]+),\s*([-\d.]+)\)/.exec(transform);
+    expect(match).not.toBeNull();
+    svg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: parseFloat(match![1]!),
+        clientY: parseFloat(match![2]!),
+        bubbles: true,
+      }),
+    );
+
+    const tooltip = container.querySelector('.sv-tooltip') as HTMLDivElement | null;
+    expect(tooltip?.style.display).toBe('block');
+    expect(tooltip?.textContent).not.toMatch(/[a-z]-[a-z]/);
+    expect(
+      Object.values(names).some((label) => tooltip?.textContent?.includes(label)),
+    ).toBe(true);
+
+    controller.destroy();
+    container.remove();
+  });
+
+  it('supports fixed and item-driven N-gon shapes with exact convex hulls and drill-down invariance (Issue #11)', () => {
+    expect(resolveGeometricShapeSpec('triangle')).toEqual({
+      shape: 'triangle',
+      sides: 3,
+      rotationRad: -Math.PI / 2,
+    });
+    expect(resolveGeometricShapeSpec('pentagon')).toEqual({
+      shape: 'pentagon',
+      sides: 5,
+      rotationRad: -Math.PI / 2,
+    });
+    expect(resolveGeometricShapeSpec(7)).toEqual({
+      shape: 'polygon',
+      sides: 7,
+      rotationRad: -Math.PI / 2,
+    });
+    expect(resolveGeometricShapeSpec({ sides: 9, rotationRad: 0.25 })).toEqual({
+      shape: 'polygon',
+      sides: 9,
+      rotationRad: 0.25,
+    });
+
+    const fixedPentagonView = new GeometricShapeSvgView({ shape: 'pentagon' });
+    const pentHull = fixedPentagonView.measureConvexHull!({
+      shape: 'circle',
+      radius: 12,
+      fillHex: '#38bdf8',
+      sides: 5,
+    });
+    expect(pentHull.kind).toBe('polygon');
+    if (pentHull.kind === 'polygon') {
+      expect(pentHull.vertices.length).toBe(5);
+    }
+
+    const dynamicView = new GeometricShapeSvgView();
+    const heptHull = dynamicView.measureConvexHull!({
+      shape: 'polygon',
+      sides: 7,
+      radius: 12,
+      fillHex: '#38bdf8',
+    });
+    expect(heptHull.kind).toBe('polygon');
+    if (heptHull.kind === 'polygon') {
+      expect(heptHull.vertices.length).toBe(7);
+    }
+
+    // Per-item shape binding via getShape stays invariant when drilling 1:4 into a triangle
+    interface CategorizedItem {
+      readonly id: string;
+      readonly category: 'paper' | 'talk' | 'demo';
+      readonly tags: readonly string[];
+    }
+    const categorized: readonly CategorizedItem[] = Array.from({ length: 30 }, (_, i) => ({
+      id: `cat-${i}`,
+      category: i % 3 === 0 ? 'paper' : i % 3 === 1 ? 'talk' : 'demo',
+      tags: ['alpha', 'beta', 'gamma', `sub-${i % 4}`],
+    }));
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 640, height: 460, right: 640, bottom: 460 }),
+    });
+    document.body.appendChild(container);
+
+    const shapeByCategory = {
+      paper: 'triangle',
+      talk: 'square',
+      demo: { sides: 6, rotationRad: Math.PI / 6 },
+    } as const;
+
+    const controller = createSimplexSvg<CategorizedItem>(container, {
+      items: categorized,
+      preset: 'geometric',
+      getShape: (item) => shapeByCategory[item.category],
+      zoomStrategy: createBarycentricZoomStrategy({ stopWhenFullScale: false }),
+      layoutOptions: { seed: 42 },
+    });
+    for (let i = 0; i < 40; i++) controller.stepForTest(20);
+
+    expect(controller.getMetrics().overlapCount).toBe(0);
+    const rootItemPaths = new Map<string, string>();
+    for (const g of controller.getSvgElement().querySelectorAll('g.sv-node-item')) {
+      const id = g.getAttribute('data-node-id');
+      const d = g.querySelector('path.sv-geom-shape')?.getAttribute('d');
+      if (id && d) rootItemPaths.set(id, d);
+    }
+    expect(rootItemPaths.size).toBe(categorized.length);
+    // Distinct categories must produce distinct shape paths
+    expect(rootItemPaths.get('cat-0')).not.toBe(rootItemPaths.get('cat-1'));
+    expect(rootItemPaths.get('cat-1')).not.toBe(rootItemPaths.get('cat-2'));
+
+    // Drill down 1:4 and confirm active item shapes remain identical to root shapes
+    const drillTriIdx = controller.getZoomState().drillableTriangleIndices[0]!;
+    expect(controller.drillDownTriangle(drillTriIdx)).toBe(true);
+    for (let i = 0; i < 40; i++) controller.stepForTest(20);
+    expect(controller.getMetrics().overlapCount).toBe(0);
+
+    let checkedActive = 0;
+    for (const g of controller.getSvgElement().querySelectorAll('g.sv-node-item')) {
+      const id = g.getAttribute('data-node-id') ?? '';
+      if (id.startsWith('ctx-it-')) continue;
+      const d = g.querySelector('path.sv-geom-shape')?.getAttribute('d');
+      expect(d).toBe(rootItemPaths.get(id));
+      checkedActive += 1;
+    }
+    expect(checkedActive).toBeGreaterThan(0);
 
     controller.destroy();
     container.remove();

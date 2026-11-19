@@ -85,8 +85,10 @@ export type ClusterMetaConfig<TItem, TTagMeta, TClusterMeta> = [TClusterMeta] ex
  * Normalized tag descriptor enriched with corpus frequency and optional user metadata.
  */
 export interface TagDescriptor<TTagMeta = undefined> {
-  /** Normalized canonical tag key. */
+  /** Normalized canonical tag key used for clustering and equality matching. */
   readonly tag: string;
+  /** Optional human-readable display label produced by `formatTagLabel` (defaults to `tag` when omitted). */
+  readonly label?: string;
   /** Number of active items containing this tag. */
   readonly frequency: number;
   /** Optional domain metadata resolved via `resolveTagMeta`. */
@@ -872,6 +874,8 @@ export interface SimplexEngineResolvedConfig<
   readonly viewportWidth: number;
   readonly viewportHeight: number;
   readonly normalizeTag?: (rawTag: string) => string;
+  /** Optional formatter converting canonical normalized tag IDs into concise human-readable display labels without altering clustering or equality matching. */
+  readonly formatTagLabel?: (tag: string) => string;
   readonly resolveTagMeta?: (normalizedTag: string) => TTagMeta | undefined;
   readonly meshOptions?: MeshOptions;
   readonly layoutOptions?: LayoutSolverOptions;

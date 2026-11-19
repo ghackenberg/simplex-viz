@@ -67,6 +67,8 @@ export type SimplexSnapshotOptions<
     readonly clusterRadius?: number;
     /** Optional tag normalizer (defaults to lowercase trim + leading `#` removal). */
     readonly normalizeTag?: (rawTag: string) => string;
+    /** Optional formatter converting canonical tag IDs into concise human-readable display labels. */
+    readonly formatTagLabel?: (tag: string) => string;
     /** Optional domain metadata lookup per normalized tag. */
     readonly resolveTagMeta?: (normalizedTag: string) => TTagMeta | undefined;
     /** Adaptive 60° simplex mesh configuration. */
@@ -162,6 +164,7 @@ interface SimplexSnapshotResolvedOptions<
   readonly itemRadius?: number;
   readonly clusterRadius?: number;
   readonly normalizeTag?: (rawTag: string) => string;
+  readonly formatTagLabel?: (tag: string) => string;
   readonly resolveTagMeta?: (normalizedTag: string) => TTagMeta | undefined;
   readonly meshOptions?: MeshOptions;
   readonly layoutOptions?: LayoutSolverOptions;
@@ -271,6 +274,7 @@ export function solveSimplexSnapshot<
     previousClusters: [],
     getTags: effectiveGetTags,
     normalizeTag: effectiveNormalizeTag,
+    formatTagLabel: opts.formatTagLabel,
     resolveTagMeta: opts.resolveTagMeta,
     allocateClusterUid: () => {
       seq.value += 1;

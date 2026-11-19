@@ -80,3 +80,23 @@ Every interaction handler across `@simplex-viz/core`, `@simplex-viz/svg`, and `@
 
 When webfonts finish loading asynchronously in production (`document.fonts.ready` / `loadingdone`), `SimplexSvgController` and `<SimplexTopicGraph />` automatically invalidate cached SVG `getBBox()` hulls and re-solve the current layout (`relayoutOnFontLoad: true` by default; call `controller.relayout()` manually anytime).
 
+## 5. Tag Display Labels, Cluster Badge Options & Fixed/Item-Driven Polygons
+
+You can tailor built-in presets without writing a custom `VisualResolver` or `SvgNodeView`:
+
+- **Decoupled Tag Display Labels (`formatTagLabel`)**: Pass `formatTagLabel: (tag) => displayName` to keep canonical slugs (e.g. `'autonomous-driving'`) strictly for clustering/matching while rendering human-readable labels (`'Autonomous Driving'`) in cluster badges, breadcrumbs, semantic zoom subclusters, and tooltips.
+- **Cluster Badge Formatting (`badgeOptions`)**: Hide internal `T1`/`T2` prefix codes (`showCode: false`), apply word-aware truncation (`maxTitleChars: 18`), or transform titles (`formatTitle: (title, { variant, cluster }) => ...`)—or pass the same options directly to `new BadgeClusterSvgView(options)`.
+- **Category-Driven & N-gon Shapes (`getShape`)**: Bind items to fixed or data-driven shapes (`'circle'`, `'triangle'`, `'square'`, `'diamond'`, `'pentagon'`, `'hexagon'`, `'heptagon'`, `'octagon'`, `'star'`, an arbitrary side count `>= 3`, or `{ sides, rotationRad }`) so shapes stay invariant across hierarchical `1:4` drill-down levels with exact convex SAT hulls.
+
+```tsx
+<SimplexTopicGraph
+  items={publications}
+  preset="badges"
+  formatTagLabel={(slug) => TOPIC_LABELS[slug] ?? slug}
+  badgeOptions={{ showCode: false, maxTitleChars: 18 }}
+  getShape={(pub) => (pub.kind === 'paper' ? 'hexagon' : pub.kind === 'talk' ? 'triangle' : 'pentagon')}
+  tooltip
+/>
+```
+
+

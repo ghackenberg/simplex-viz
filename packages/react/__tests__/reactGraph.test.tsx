@@ -326,5 +326,100 @@ describe('@simplex-viz/react integration', () => {
 
     unmountFree();
   });
+
+  it('supports formatTagLabel, badgeOptions, and getShape props on SimplexTopicGraph (Issues #4, #7, #11)', () => {
+    interface TaggedCard {
+      readonly id: string;
+      readonly kind: 'essay' | 'demo';
+      readonly title: string;
+      readonly tags: readonly string[];
+    }
+
+    const items: readonly TaggedCard[] = [
+      { id: 'c1', kind: 'essay', title: 'One', tags: ['autonomous-driving', 'sensor-fusion'] },
+      { id: 'c2', kind: 'demo', title: 'Two', tags: ['sensor-fusion', 'computer-vision'] },
+      { id: 'c3', kind: 'essay', title: 'Three', tags: ['autonomous-driving', 'computer-vision'] },
+      { id: 'c4', kind: 'demo', title: 'Four', tags: ['formal-verification', 'sensor-fusion'] },
+      { id: 'c5', kind: 'essay', title: 'Five', tags: ['formal-verification', 'autonomous-driving'] },
+    ];
+
+    const labelMap: Record<string, string> = {
+      'autonomous-driving': 'Autonomous Driving',
+      'sensor-fusion': 'Sensor Fusion',
+      'computer-vision': 'Computer Vision',
+      'formal-verification': 'Formal Verification',
+    };
+
+    const controllerRef = {
+      current: null as import('@simplex-viz/svg').SimplexSvgController<
+        TaggedCard,
+        unknown,
+        unknown
+      > | null,
+    };
+
+    const { container, rerender, unmount } = render(
+      <div style={{ width: 820, height: 560 }}>
+        <SimplexTopicGraph
+          controllerRef={controllerRef}
+          items={items}
+          getLabel={(x) => x.title}
+          preset="badges"
+          formatTagLabel={(tag) => labelMap[tag] ?? tag}
+          badgeOptions={{
+            showCode: false,
+            maxTitleChars: 14,
+            formatTitle: (t) => `• ${t}`,
+          }}
+          getShape={(item) => (item.kind === 'essay' ? 'pentagon' : { sides: 3 })}
+          tooltip
+        />
+      </div>,
+    );
+
+    const svg = container.querySelector('svg')!;
+    const clusterNodes = svg.querySelectorAll('g.sv-node-cluster');
+    expect(clusterNodes.length).toBeGreaterThanOrEqual(3);
+    for (const cg of clusterNodes) {
+      const texts = cg.querySelectorAll('text');
+      expect(texts.length).toBe(2); // code omitted via showCode: false
+      expect(texts[0]!.textContent?.startsWith('• ')).toBe(true);
+      expect(texts[0]!.textContent).not.toMatch(/[a-z]-[a-z]/);
+      expect(texts[0]!.textContent!.length).toBeLessThanOrEqual(14);
+    }
+
+    const essayPath = svg
+      .querySelector('g.sv-node-item[data-node-id="c1"] path.sv-geom-shape')
+      ?.getAttribute('d');
+    const demoPath = svg
+      .querySelector('g.sv-node-item[data-node-id="c2"] path.sv-geom-shape')
+      ?.getAttribute('d');
+    expect(essayPath).toBeTruthy();
+    expect(demoPath).toBeTruthy();
+    expect(essayPath).not.toBe(demoPath);
+
+    // Live prop toggle: re-enabling showCode crossfades cluster badges to include the code prefix
+    rerender(
+      <div style={{ width: 820, height: 560 }}>
+        <SimplexTopicGraph
+          controllerRef={controllerRef}
+          items={items}
+          getLabel={(x) => x.title}
+          preset="badges"
+          formatTagLabel={(tag) => labelMap[tag] ?? tag}
+          badgeOptions={{ showCode: true }}
+          getShape={(item) => (item.kind === 'essay' ? 'pentagon' : { sides: 3 })}
+          tooltip
+        />
+      </div>,
+    );
+    for (let i = 0; i < 40; i++) controllerRef.current?.stepForTest(20);
+    const updatedClusterNodes = container.querySelectorAll('g.sv-node-cluster');
+    for (const cg of updatedClusterNodes) {
+      expect(cg.querySelectorAll('text').length).toBe(3);
+    }
+
+    unmount();
+  });
 });
 
