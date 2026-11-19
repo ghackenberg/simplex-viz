@@ -1845,7 +1845,299 @@ describe('@simplex-viz/svg integration', () => {
     controller.destroy();
     container.remove();
   });
+
+  it('cleanly re-initializes hulls and layout on first non-zero ResizeObserver entry when mounted at 0x0 (Issue #12)', () => {
+    const items: DefaultTaggedItem[] = Array.from({ length: 14 }, (_, i) => ({
+      id: `hidden-${i}`,
+      tags: [`t-${i % 4}`, `t-${(i + 1) % 4}`],
+    }));
+
+    type RoCallback = (entries: ResizeObserverEntry[]) => void;
+    const observers: Array<{ target: Element; cb: RoCallback }> = [];
+    const OriginalResizeObserver = globalThis.ResizeObserver;
+    class MockResizeObserver {
+      private readonly cb: RoCallback;
+      constructor(cb: RoCallback) {
+        this.cb = cb;
+      }
+      observe(target: Element) {
+        observers.push({ target, cb: this.cb });
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
+
+    const triggerResize = (target: Element, width: number, height: number) => {
+      for (const rec of observers) {
+        if (rec.target === target) {
+          rec.cb([
+            {
+              target,
+              contentRect: {
+                x: 0,
+                y: 0,
+                width,
+                height,
+                top: 0,
+                left: 0,
+                right: width,
+                bottom: height,
+                toJSON: () => ({}),
+              },
+            } as ResizeObserverEntry,
+          ]);
+        }
+      }
+    };
+
+    const parseItemTransforms = (svg: SVGSVGElement): Map<string, string> => {
+      const map = new Map<string, string>();
+      for (const el of svg.querySelectorAll('g.sv-node-item')) {
+        const id = el.getAttribute('data-node-id');
+        const tf = el.getAttribute('transform');
+        if (id && tf) map.set(id, tf);
+      }
+      return map;
+    };
+
+    const visibleContainer = document.createElement('div');
+    Object.defineProperty(visibleContainer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 720, height: 480, right: 720, bottom: 480 }),
+    });
+    document.body.appendChild(visibleContainer);
+
+    const hiddenContainer = document.createElement('div');
+    Object.defineProperty(hiddenContainer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 }),
+    });
+    document.body.appendChild(hiddenContainer);
+
+    const exactFallbackContainer = document.createElement('div');
+    Object.defineProperty(exactFallbackContainer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 }),
+    });
+    document.body.appendChild(exactFallbackContainer);
+
+    try {
+      // 1) Reference controller mounted directly in a visible 720x480 container
+      const visibleCtrl = createSimplexSvg(visibleContainer, {
+        items,
+        preset: 'badges',
+        layoutOptions: { seed: 42 },
+      });
+
+      // 2) Hidden container mounted at 0x0 -> revealed at 720x480
+      const hiddenCtrl = createSimplexSvg(hiddenContainer, {
+        items,
+        preset: 'badges',
+        layoutOptions: { seed: 42 },
+      });
+      // Backwards-compatible synchronous fallback still populates clusters at 960x620
+      expect(hiddenCtrl.getClusters().length).toBeGreaterThanOrEqual(3);
+
+      // Reveal container at 720x480: must settle immediately with zero spring flight and match visible mount
+      triggerResize(hiddenContainer, 720, 480);
+
+      expect(hiddenCtrl.getMetrics().isSettled).toBe(true);
+      expect(hiddenCtrl.getMetrics().overlapCount).toBe(0);
+      expect(hiddenCtrl.getMetrics().meshSideLength).toBeCloseTo(
+        visibleCtrl.getMetrics().meshSideLength,
+        4,
+      );
+      expect(hiddenCtrl.getClusters().map((c) => c.clusterUid)).toEqual(
+        visibleCtrl.getClusters().map((c) => c.clusterUid),
+      );
+      expect(parseItemTransforms(hiddenCtrl.getSvgElement())).toEqual(
+        parseItemTransforms(visibleCtrl.getSvgElement()),
+      );
+
+      // 3) Custom BBox-measured view (without analytic measureConvexHull): even when the real
+      // container size happens to equal fallback 960x620, first resize invalidates cached hulls
+      // and re-runs offscreen __measure__ probes!
+      let measureProbeCalls = 0;
+      const bboxClusterView = {
+        mountOrUpdate: (
+          g: SVGGElement,
+          _visual: unknown,
+          state: { readonly id: string },
+        ) => {
+          if (state.id === '__measure__') {
+            measureProbeCalls += 1;
+          }
+          const rect = g.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          rect.setAttribute('x', '-48');
+          rect.setAttribute('y', '-18');
+          rect.setAttribute('width', '96');
+          rect.setAttribute('height', '36');
+          g.replaceChildren(rect);
+        },
+      };
+      const exactCtrl = createSimplexSvg(exactFallbackContainer, {
+        items,
+        clusterView: bboxClusterView,
+        layoutOptions: { seed: 42 },
+      });
+      expect(measureProbeCalls).toBeGreaterThan(0);
+
+      const probesBeforeReveal = measureProbeCalls;
+      triggerResize(exactFallbackContainer, 960, 620);
+      expect(measureProbeCalls).toBeGreaterThan(probesBeforeReveal);
+      expect(exactCtrl.getMetrics().isSettled).toBe(true);
+      expect(exactCtrl.getMetrics().overlapCount).toBe(0);
+
+      visibleCtrl.destroy();
+      hiddenCtrl.destroy();
+      exactCtrl.destroy();
+    } finally {
+      globalThis.ResizeObserver = OriginalResizeObserver;
+      visibleContainer.remove();
+      hiddenContainer.remove();
+      exactFallbackContainer.remove();
+    }
+  });
+
+  it('defers initial clustering and layout until first non-zero ResizeObserver entry or fallbackTimeoutMs when deferInitialLayout is enabled (Issue #12)', async () => {
+    const items: DefaultTaggedItem[] = Array.from({ length: 12 }, (_, i) => ({
+      id: `defer-${i}`,
+      tags: [`k-${i % 4}`, `k-${(i + 1) % 4}`],
+    }));
+
+    type RoCallback = (entries: ResizeObserverEntry[]) => void;
+    const observers: Array<{ target: Element; cb: RoCallback }> = [];
+    const OriginalResizeObserver = globalThis.ResizeObserver;
+    class MockResizeObserver {
+      private readonly cb: RoCallback;
+      constructor(cb: RoCallback) {
+        this.cb = cb;
+      }
+      observe(target: Element) {
+        observers.push({ target, cb: this.cb });
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
+
+    const triggerResize = (target: Element, width: number, height: number) => {
+      for (const rec of observers) {
+        if (rec.target === target) {
+          rec.cb([
+            {
+              target,
+              contentRect: {
+                x: 0,
+                y: 0,
+                width,
+                height,
+                top: 0,
+                left: 0,
+                right: width,
+                bottom: height,
+                toJSON: () => ({}),
+              },
+            } as ResizeObserverEntry,
+          ]);
+        }
+      }
+    };
+
+    const hiddenContainer = document.createElement('div');
+    Object.defineProperty(hiddenContainer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 }),
+    });
+    document.body.appendChild(hiddenContainer);
+
+    const timeoutContainer = document.createElement('div');
+    Object.defineProperty(timeoutContainer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 }),
+    });
+    document.body.appendChild(timeoutContainer);
+
+    const destroyedContainer = document.createElement('div');
+    Object.defineProperty(destroyedContainer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 }),
+    });
+    document.body.appendChild(destroyedContainer);
+
+    try {
+      // 1) deferInitialLayout: true skips solve completely until first non-zero ResizeObserver
+      let metricsCalls = 0;
+      const deferredCtrl = createSimplexSvg(hiddenContainer, {
+        items: items.slice(0, 8),
+        deferInitialLayout: true,
+        layoutOptions: { seed: 77 },
+        onMetricsChange: () => {
+          metricsCalls += 1;
+        },
+      });
+
+      expect(metricsCalls).toBe(0);
+      expect(deferredCtrl.getClusters().length).toBe(0);
+      expect(deferredCtrl.getMetrics().meshSideLength).toBe(0);
+      expect(deferredCtrl.getSvgElement().querySelectorAll('g.sv-node-item').length).toBe(0);
+
+      // Mutations before container becomes visible stay deferred
+      deferredCtrl.setItems(items);
+      expect(metricsCalls).toBe(0);
+      expect(deferredCtrl.getClusters().length).toBe(0);
+
+      // Zero/tiny ResizeObserver entries are ignored
+      triggerResize(hiddenContainer, 0, 0);
+      triggerResize(hiddenContainer, 24, 24);
+      expect(metricsCalls).toBe(0);
+
+      // First real ResizeObserver entry solves cleanly with all updated items
+      triggerResize(hiddenContainer, 720, 480);
+      expect(metricsCalls).toBe(1);
+      expect(deferredCtrl.getMetrics().isSettled).toBe(true);
+      expect(deferredCtrl.getMetrics().itemCount).toBe(items.length);
+      expect(deferredCtrl.getMetrics().overlapCount).toBe(0);
+      expect(deferredCtrl.getSvgElement().querySelectorAll('g.sv-node-item').length).toBe(
+        items.length,
+      );
+
+      // 2) deferInitialLayout: { fallbackTimeoutMs } initializes after timeout, and still cleanly re-initializes on subsequent real resize
+      const timeoutCtrl = createSimplexSvg(timeoutContainer, {
+        items,
+        deferInitialLayout: { fallbackTimeoutMs: 25 },
+        layoutOptions: { seed: 77 },
+      });
+      expect(timeoutCtrl.getClusters().length).toBe(0);
+
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expect(timeoutCtrl.getClusters().length).toBeGreaterThanOrEqual(3);
+      expect(timeoutCtrl.getMetrics().isSettled).toBe(true);
+
+      // Subsequent real ResizeObserver size still triggers clean initial re-solve
+      triggerResize(timeoutContainer, 640, 420);
+      expect(timeoutCtrl.getMetrics().isSettled).toBe(true);
+      expect(timeoutCtrl.getMetrics().overlapCount).toBe(0);
+
+      // 3) destroy() before fallbackTimeoutMs cancels the timer cleanly
+      let destroyedMetricsCalls = 0;
+      const destroyedCtrl = createSimplexSvg(destroyedContainer, {
+        items,
+        deferInitialLayout: { fallbackTimeoutMs: 25 },
+        onMetricsChange: () => {
+          destroyedMetricsCalls += 1;
+        },
+      });
+      destroyedCtrl.destroy();
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expect(destroyedMetricsCalls).toBe(0);
+
+      deferredCtrl.destroy();
+      timeoutCtrl.destroy();
+    } finally {
+      globalThis.ResizeObserver = OriginalResizeObserver;
+      hiddenContainer.remove();
+      timeoutContainer.remove();
+      destroyedContainer.remove();
+    }
+  });
 });
+
 
 
 

@@ -36,6 +36,7 @@ export {
   type DashedMeshEdgeViewOptions,
   type DefaultClusterPresetVisual,
   type DefaultContentPresetVisual,
+  type DeferInitialLayoutOptions,
   type DensityHeatmapTriangleViewOptions,
   type GeometricShapeKind,
   type GeometricShapeSpec,

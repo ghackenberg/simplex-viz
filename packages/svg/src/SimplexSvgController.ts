@@ -113,6 +113,21 @@ export interface TimelinePlayerOptions<TItem = DefaultTaggedItem>
   readonly onStateChange?: (state: SimplexTimelineState<TItem>) => void;
 }
 
+/**
+ * Options for deferring the initial triangulation, clustering, and layout solve
+ * when the mount container initially measures `0×0` (for example inside hidden tabs,
+ * modals, accordions, or before async CSS loads).
+ */
+export interface DeferInitialLayoutOptions {
+  /**
+   * Optional timeout in milliseconds after which the controller falls back to a
+   * provisional `960×620` layout if `ResizeObserver` has not yet reported a non-zero
+   * container size. Even after the timeout fires, the first subsequent non-zero
+   * `ResizeObserver` entry still performs a clean `'initial'` re-initialization.
+   */
+  readonly fallbackTimeoutMs?: number;
+}
+
 export interface SimplexSvgControllerResolvedOptions<
   TItem = DefaultTaggedItem,
   TContentVisual = DefaultContentPresetVisual,
@@ -194,6 +209,17 @@ export interface SimplexSvgControllerResolvedOptions<
    * in production deployments. Default: `true`.
    */
   readonly relayoutOnFontLoad?: boolean;
+  /**
+   * Controls initial layout behavior when the container mounts at `0×0` (for example inside
+   * a hidden tab, modal, accordion, or before async CSS loads):
+   * - `false` / `undefined` (default): initializes synchronously at a provisional `960×620`
+   *   fallback size for backwards compatibility, and automatically invalidates cached hulls
+   *   and performs a fresh `'initial'` re-initialization (with zero spring jump) on the first
+   *   non-zero `ResizeObserver` entry.
+   * - `true` or `{ fallbackTimeoutMs }`: skips the provisional `960×620` solve entirely until
+   *   `ResizeObserver` reports a real non-zero container size (or until `fallbackTimeoutMs` elapses).
+   */
+  readonly deferInitialLayout?: boolean | DeferInitialLayoutOptions;
   /**
    * Automatically toggles cluster focus when clicking a topic cluster (and clears on background click)
    * unless consumed (`return true`) by a click interaction handler. Default: `true`.
@@ -358,6 +384,8 @@ export class SimplexSvgController<
   private wheelPinchAccum = 0;
   private wheelPinchCooldownUntil = 0;
   private fontLoadCleanup: (() => void) | null = null;
+  private pendingInitialViewport = false;
+  private deferFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     containerEl: HTMLElement | string,
@@ -429,9 +457,29 @@ export class SimplexSvgController<
     this.svgEl.style.userSelect = 'none';
     this.containerEl.appendChild(this.svgEl);
 
-    const rect = this.containerEl.getBoundingClientRect();
-    const initialW = rect.width > 40 ? rect.width : 960;
-    const initialH = rect.height > 40 ? rect.height : 620;
+    const measureContainerSize = (): { width: number; height: number } => {
+      const rect = this.containerEl.getBoundingClientRect();
+      const width = rect.width > 0 ? rect.width : this.containerEl.clientWidth;
+      const height = rect.height > 0 ? rect.height : this.containerEl.clientHeight;
+      return { width, height };
+    };
+    const measured = measureContainerSize();
+    const hasInitialSize = measured.width > 40 && measured.height > 40;
+    const initialW = hasInitialSize ? measured.width : 960;
+    const initialH = hasInitialSize ? measured.height : 620;
+    this.pendingInitialViewport = !hasInitialSize;
+    const canObserveResize = typeof ResizeObserver !== 'undefined';
+    const deferConfig = options.deferInitialLayout;
+    const shouldDeferSolve =
+      !hasInitialSize && Boolean(deferConfig) && canObserveResize;
+    const deferFallbackTimeoutMs =
+      typeof deferConfig === 'object' &&
+      deferConfig !== null &&
+      typeof deferConfig.fallbackTimeoutMs === 'number' &&
+      Number.isFinite(deferConfig.fallbackTimeoutMs) &&
+      deferConfig.fallbackTimeoutMs > 0
+        ? deferConfig.fallbackTimeoutMs
+        : null;
 
     this.adapter = new SvgRendererAdapter<
       TContentVisual,
@@ -509,6 +557,7 @@ export class SimplexSvgController<
       showHulls: options.showHulls,
       emptyClusterBehavior: effectiveEmptyClusterBehavior,
       canonicalSeedItems: this.timelineController ? this.fullCorpusItems : undefined,
+      deferInitialSolve: shouldDeferSolve,
       interactions: this.wrapInteractions(options.interactions),
       onMetricsChange: options.onMetricsChange,
       onClustersChange: options.onClustersChange,
@@ -552,25 +601,53 @@ export class SimplexSvgController<
 
     this.attachSvgListeners();
 
-    if (typeof ResizeObserver !== 'undefined') {
+    if (canObserveResize) {
       this.resizeObserver = new ResizeObserver((entries) => {
         if (this.destroyed) return;
         for (const entry of entries) {
           const { width, height } = entry.contentRect;
-          if (width > 60 && height > 60) {
-            this.engine.setViewport(width, height);
-            this.ensureLoopRunning();
+          if (width > 40 && height > 40) {
+            if (this.pendingInitialViewport) {
+              this.pendingInitialViewport = false;
+              this.clearDeferFallbackTimer();
+              this.adapter.invalidateHulls();
+              this.engine.reinitializeViewport(width, height);
+              this.ensureLoopRunning();
+            } else {
+              this.engine.setViewport(width, height);
+              this.ensureLoopRunning();
+            }
           }
         }
       });
       this.resizeObserver.observe(this.containerEl);
     }
 
+    if (shouldDeferSolve && deferFallbackTimeoutMs !== null) {
+      this.deferFallbackTimer = setTimeout(() => {
+        this.deferFallbackTimer = null;
+        if (this.destroyed || !this.pendingInitialViewport) return;
+        const latest = measureContainerSize();
+        this.adapter.invalidateHulls();
+        if (latest.width > 40 && latest.height > 40) {
+          this.pendingInitialViewport = false;
+          this.engine.reinitializeViewport(latest.width, latest.height);
+        } else {
+          // Run provisional fallback solve while keeping `pendingInitialViewport = true`
+          // so a subsequent real `ResizeObserver` size still cleanly re-initializes.
+          this.engine.reinitializeViewport(960, 620);
+        }
+        this.ensureLoopRunning();
+      }, deferFallbackTimeoutMs);
+    }
+
     if (options.relayoutOnFontLoad !== false) {
       this.attachFontLoadListener();
     }
 
-    this.ensureLoopRunning();
+    if (!shouldDeferSolve) {
+      this.ensureLoopRunning();
+    }
   }
 
   static createFromResolved<
@@ -2354,9 +2431,17 @@ export class SimplexSvgController<
     return this.getIdExtractor(item);
   }
 
+  private clearDeferFallbackTimer(): void {
+    if (this.deferFallbackTimer !== null) {
+      clearTimeout(this.deferFallbackTimer);
+      this.deferFallbackTimer = null;
+    }
+  }
+
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.clearDeferFallbackTimer();
     if (this.rafId !== null && typeof cancelAnimationFrame !== 'undefined') {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;

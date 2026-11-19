@@ -593,5 +593,81 @@ describe('@simplex-viz/react integration', () => {
 
     unmount();
   });
+
+  it('forwards deferInitialLayout on SimplexTopicGraph and initializes cleanly on first non-zero ResizeObserver entry (Issue #12)', () => {
+    type RoCallback = (entries: ResizeObserverEntry[]) => void;
+    const observers: Array<{ target: Element; cb: RoCallback }> = [];
+    const OriginalResizeObserver = globalThis.ResizeObserver;
+    class MockResizeObserver {
+      private readonly cb: RoCallback;
+      constructor(cb: RoCallback) {
+        this.cb = cb;
+      }
+      observe(target: Element) {
+        observers.push({ target, cb: this.cb });
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
+
+    const items = [
+      { id: 'd1', tags: ['alpha', 'beta'] },
+      { id: 'd2', tags: ['beta', 'gamma'] },
+      { id: 'd3', tags: ['alpha', 'gamma'] },
+      { id: 'd4', tags: ['alpha', 'delta'] },
+    ];
+
+    const controllerRef = {
+      current: null as import('@simplex-viz/svg').SimplexSvgController<
+        (typeof items)[number],
+        unknown,
+        unknown
+      > | null,
+    };
+
+    try {
+      const { unmount } = render(
+        <SimplexTopicGraph
+          controllerRef={controllerRef}
+          items={items}
+          deferInitialLayout
+        />,
+      );
+
+      expect(controllerRef.current).not.toBeNull();
+      expect(controllerRef.current!.getClusters().length).toBe(0);
+      expect(controllerRef.current!.getMetrics().meshSideLength).toBe(0);
+
+      // Fire ResizeObserver for the graph container
+      for (const rec of observers) {
+        rec.cb([
+          {
+            target: rec.target,
+            contentRect: {
+              x: 0,
+              y: 0,
+              width: 760,
+              height: 500,
+              top: 0,
+              left: 0,
+              right: 760,
+              bottom: 500,
+              toJSON: () => ({}),
+            },
+          } as ResizeObserverEntry,
+        ]);
+      }
+
+      expect(controllerRef.current!.getClusters().length).toBeGreaterThanOrEqual(3);
+      expect(controllerRef.current!.getMetrics().isSettled).toBe(true);
+      expect(controllerRef.current!.getMetrics().overlapCount).toBe(0);
+
+      unmount();
+    } finally {
+      globalThis.ResizeObserver = OriginalResizeObserver;
+    }
+  });
 });
+
 

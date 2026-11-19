@@ -35,6 +35,7 @@ import {
   extractDefaultItemLabel,
   type DefaultClusterPresetVisual,
   type DefaultContentPresetVisual,
+  type DeferInitialLayoutOptions,
   type PresetBadgeClusterOptions,
   type PresetContentShapeOption,
   type SimplexTheme,
@@ -231,6 +232,12 @@ export type SimplexTopicGraphProps<
      * (`document.fonts.ready` and `loadingdone`). Default: `true`.
      */
     readonly relayoutOnFontLoad?: boolean;
+    /**
+     * Controls initial layout behavior when the container mounts at `0×0` (for example inside
+     * hidden tabs, modals, or accordions). Pass `true` or `{ fallbackTimeoutMs }` to defer
+     * solving until `ResizeObserver` reports a real non-zero container size.
+     */
+    readonly deferInitialLayout?: boolean | DeferInitialLayoutOptions;
     /**
      * Enables built-in cluster focus toggle on click when `focusedClusterUid` is not controlled
      * externally and no click handler consumes the event (`return true`). Default: `true`.
@@ -776,6 +783,7 @@ export function SimplexTopicGraph<
       showZoomBreadcrumbs: p.showZoomBreadcrumbs,
       timeline: resolveTimelineOption(p.timeline),
       relayoutOnFontLoad: p.relayoutOnFontLoad,
+      deferInitialLayout: p.deferInitialLayout,
       focusOnClusterClick: false,
       focusOnTriangleClick: false,
       interactions: buildReactInteractions(p.onWheel),

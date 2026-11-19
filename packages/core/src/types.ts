@@ -906,6 +906,12 @@ export interface SimplexEngineResolvedConfig<
    * when rendering partial subsets (such as early timeline frames or filtered views).
    */
   readonly canonicalSeedItems?: readonly TItem[];
+  /**
+   * When `true`, skips the initial triangulation, clustering, and layout solve in the
+   * constructor until `setViewport(width, height)` or `reinitializeViewport(width, height)`
+   * is called with real viewport dimensions (e.g. from a `ResizeObserver` on a hidden container).
+   */
+  readonly deferInitialSolve?: boolean;
   readonly showHulls?: boolean;
   readonly interactions?: InteractionHandlers<
     TItem,

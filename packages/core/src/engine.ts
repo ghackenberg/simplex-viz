@@ -502,6 +502,7 @@ export class SimplexGraphEngine<
   };
 
   private dirtyRender = true;
+  private awaitingInitialSolve = false;
   private destroyed = false;
 
   constructor(
@@ -560,7 +561,12 @@ export class SimplexGraphEngine<
       this.dirtyRender = true;
     });
 
-    this.recomputePipeline('initial');
+    this.awaitingInitialSolve = Boolean(config.deferInitialSolve);
+    if (!this.awaitingInitialSolve) {
+      this.recomputePipeline('initial');
+    } else {
+      this.dirtyRender = false;
+    }
   }
 
   /**
@@ -649,6 +655,7 @@ export class SimplexGraphEngine<
     }
 
     this.rawItems = next;
+    if (this.awaitingInitialSolve) return;
     this.recomputePipeline('items');
   }
 
@@ -660,24 +667,28 @@ export class SimplexGraphEngine<
     const filtered = this.rawItems.filter((it) => !removeSet.has(this.getIdFn(it).trim()));
     if (filtered.length === this.rawItems.length) return;
     this.rawItems = filtered;
+    if (this.awaitingInitialSolve) return;
     this.recomputePipeline('items');
   }
 
   /** Replaces the entire item collection while smoothly morphing matching clusters & items. */
   setItems(items: readonly TItem[]): void {
     this.rawItems = [...items];
+    if (this.awaitingInitialSolve) return;
     this.recomputePipeline('items');
   }
 
   /** Swaps the mesh/triangulation strategy at runtime and recomputes the graph. */
   setMeshStrategy(strategy: SimplexMeshStrategy<TItem>): void {
     this.meshStrategy = strategy;
+    if (this.awaitingInitialSolve) return;
     this.recomputePipeline('strategy');
   }
 
   /** Swaps the topic clustering & vertex assignment strategy at runtime and recomputes. */
   setClusteringStrategy(strategy: SimplexClusteringStrategy<TItem, TTagMeta>): void {
     this.clusteringStrategy = strategy;
+    if (this.awaitingInitialSolve) return;
     this.recomputePipeline('strategy');
   }
 
@@ -696,6 +707,7 @@ export class SimplexGraphEngine<
   /** Swaps the node positioning & scaling layout strategy at runtime and re-solves cleanly. */
   setLayoutStrategy(strategy: SimplexLayoutStrategy): void {
     this.layoutStrategy = strategy;
+    if (this.awaitingInitialSolve) return;
     this.recomputeLayoutOnly('strategy');
   }
 
@@ -707,6 +719,7 @@ export class SimplexGraphEngine<
     if (strategy.mode === 'drill-down') {
       this.camera.reset();
     }
+    if (this.awaitingInitialSolve) return;
     const rootFrame = this.zoomStack[0];
     if (this.zoomStack.length > 1 && rootFrame) {
       this.executeDrillTransition([rootFrame]);
@@ -1064,12 +1077,14 @@ export class SimplexGraphEngine<
   /** Updates mesh generation options and recomputes triangulation + clustering. */
   setMeshOptions(options: MeshOptions): void {
     this.meshOptions = options;
+    if (this.awaitingInitialSolve) return;
     this.recomputePipeline('mesh');
   }
 
   /** Updates layout solver options and re-solves overlap-free layout. */
   setLayoutOptions(options: LayoutSolverOptions): void {
     this.layoutOptions = options;
+    if (this.awaitingInitialSolve) return;
     this.recomputeLayoutOnly('strategy');
   }
 
@@ -1104,6 +1119,7 @@ export class SimplexGraphEngine<
   ): void {
     this.visualResolver = resolver;
     this.visualResolverRevision += 1;
+    if (this.awaitingInitialSolve) return;
     this.recomputeLayoutOnly('strategy');
   }
 
@@ -1112,17 +1128,69 @@ export class SimplexGraphEngine<
     const clamped = Math.max(0.35, Math.min(3.0, multiplier));
     if (Math.abs((this.layoutOptions.sizeMultiplier ?? 1) - clamped) < 1e-4) return;
     this.layoutOptions = { ...this.layoutOptions, sizeMultiplier: clamped };
+    if (this.awaitingInitialSolve) return;
     this.recomputeLayoutOnly('strategy');
   }
 
   /** Updates viewport dimensions and recomputes mesh + layout cleanly. */
   setViewport(width: number, height: number): void {
+    if (this.awaitingInitialSolve) {
+      this.reinitializeViewport(width, height);
+      return;
+    }
     const w = Math.max(160, Math.round(width));
     const h = Math.max(160, Math.round(height));
     if (w === this.viewportWidth && h === this.viewportHeight) return;
     this.viewportWidth = w;
     this.viewportHeight = h;
     this.recomputePipeline('viewport');
+  }
+
+  /**
+   * Discards any provisional/fallback viewport state and runs a fresh `'initial'`
+   * mesh, clustering, and layout solve at the given viewport dimensions (without
+   * spring-animating from a previous fallback size).
+   */
+  reinitializeViewport(width: number, height: number): void {
+    if (this.destroyed) return;
+    const w = Math.max(160, Math.round(width));
+    const h = Math.max(160, Math.round(height));
+    this.awaitingInitialSolve = false;
+    this.viewportWidth = w;
+    this.viewportHeight = h;
+
+    this.currentMesh = null;
+    this.previousMesh = null;
+    this.previousItems = [];
+    this.previousNormalizedItems = [];
+    this.lastClusteringOutput = null;
+    this.lastPrevClusterSnapshots = [];
+    this.currentClusters = [];
+    this.currentPlacements = [];
+    this.rootMesh = null;
+    this.rootClusters = [];
+    this.rootPlacements = [];
+    this.zoomStack = [];
+    this.lastSolvedScaleRatios = new Map();
+    this.clusterNodes.clear();
+    this.itemNodes.clear();
+    this.triangleStates = [];
+    this.edgeRecords = [];
+    this.contextTriangleStates = [];
+    this.contextEdgeRecords = [];
+    this.contextClusterNodes = [];
+    this.contextItemNodes = [];
+    this.solvedFrameCache.clear();
+    this.activeFlight = null;
+    this.nextClusterUidSeq.value = 0;
+    this.hoveredContentId = null;
+    this.hoveredClusterUid = null;
+    this.hoveredContextClusterId = null;
+    this.hoveredTriangleIndex = null;
+    this.neighborReturnHighlight = null;
+    this.camera.reset();
+
+    this.recomputePipeline('initial');
   }
 
   /**
@@ -1133,6 +1201,7 @@ export class SimplexGraphEngine<
   relayout(): void {
     if (this.destroyed) return;
     this.visualResolverRevision += 1;
+    if (this.awaitingInitialSolve) return;
     this.recomputeLayoutOnly('strategy');
   }
 
@@ -1155,6 +1224,7 @@ export class SimplexGraphEngine<
   setEmptyClusterBehavior(behavior: EmptyClusterBehavior): void {
     if (this.emptyClusterBehavior === behavior) return;
     this.emptyClusterBehavior = behavior;
+    if (this.awaitingInitialSolve) return;
     for (const cNode of this.clusterNodes.values()) {
       if (cNode.status !== 'active') continue;
       const targetOpacity =
@@ -1176,7 +1246,7 @@ export class SimplexGraphEngine<
    */
   setCanonicalSeedItems(items: readonly TItem[] | null): void {
     this.canonicalSeedItems = items ? [...items] : null;
-    if (this.destroyed) return;
+    if (this.destroyed || this.awaitingInitialSolve) return;
     if (this.layoutStrategy.seedCanonicalLayout) {
       this.recomputeLayoutOnly('strategy');
     }
@@ -1237,7 +1307,7 @@ export class SimplexGraphEngine<
 
   /** Forces an immediate frame render using the current snapshot. */
   renderNow(): void {
-    if (this.destroyed) return;
+    if (this.destroyed || this.awaitingInitialSolve) return;
     this.renderer.renderFrame(this.buildFrameSnapshot());
     this.dirtyRender = false;
   }
@@ -1967,7 +2037,7 @@ export class SimplexGraphEngine<
       // 1b. Seed canonical full-corpus layout when a final-seeded layout strategy is active at root level
       if (
         !drillFlight &&
-        this.zoomStack.length === 0 &&
+        this.zoomStack.length <= 1 &&
         this.canonicalSeedItems &&
         this.canonicalSeedItems.length > 0 &&
         this.layoutStrategy.seedCanonicalLayout
@@ -2987,7 +3057,7 @@ export class SimplexGraphEngine<
    * milliseconds, rendering a frame if anything moved or changed. Returns `true` when fully settled.
    */
   step(dtMs: number): boolean {
-    if (this.destroyed) return true;
+    if (this.destroyed || this.awaitingInitialSolve) return true;
     const dtSec = Math.min(0.05, Math.max(0.001, dtMs / 1000));
     let allSettled = true;
 
