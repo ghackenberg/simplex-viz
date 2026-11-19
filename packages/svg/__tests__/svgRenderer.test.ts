@@ -2136,7 +2136,338 @@ describe('@simplex-viz/svg integration', () => {
       destroyedContainer.remove();
     }
   });
+
+  it('enforces touch scroll direction-locking (touchScrollLockPx) and peak displacement click tolerance (clickTolerancePx) across free-camera and drill-down modes (Issue #13)', () => {
+    const items: DefaultTaggedItem[] = Array.from({ length: 18 }, (_, i) => ({
+      id: `touch-${i}`,
+      tags: ['alpha', 'beta', 'gamma', `sub-${i % 3}`],
+    }));
+
+    const makeTouchEvent = (
+      type: 'touchstart' | 'touchmove' | 'touchend' | 'touchcancel',
+      points: Array<{ identifier: number; clientX: number; clientY: number }>,
+    ): TouchEvent => {
+      const ev = new Event(type, { bubbles: true, cancelable: true }) as TouchEvent;
+      Object.defineProperty(ev, 'touches', { value: points });
+      return ev;
+    };
+
+    // 1) Free-camera mode with default touchScrollLockPx (8) and clickTolerancePx (12)
+    const freeContainer = document.createElement('div');
+    Object.defineProperty(freeContainer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 720, height: 480, right: 720, bottom: 480 }),
+    });
+    document.body.appendChild(freeContainer);
+
+    const freeClicks: string[] = [];
+    const freeCtrl = createSimplexSvg(freeContainer, {
+      items,
+      layoutOptions: { seed: 42 },
+      interactions: {
+        onLeftClick: (t) => {
+          freeClicks.push(t.kind);
+        },
+      },
+    });
+    const freeSvg = freeCtrl.getSvgElement();
+    Object.defineProperty(freeSvg, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 720, height: 480, right: 720, bottom: 480 }),
+    });
+
+    // Default sets touch-action: pan-y so vertical page scrolling is never trapped
+    expect(freeSvg.style.touchAction).toBe('pan-y');
+
+    // Vertical single-finger touch swipe (>= 8px, |dy| > |dx|): yields to native scroll (NOT preventDefault), does NOT pan, suppresses trailing click
+    freeSvg.dispatchEvent(makeTouchEvent('touchstart', [{ identifier: 1, clientX: 20, clientY: 20 }]));
+    freeSvg.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 1,
+        pointerType: 'touch',
+        clientX: 20,
+        clientY: 20,
+        bubbles: true,
+      }),
+    );
+    const vMove = makeTouchEvent('touchmove', [{ identifier: 1, clientX: 22, clientY: 31 }]); // |dx|=2, |dy|=11 (>= 8)
+    freeSvg.dispatchEvent(vMove);
+    freeSvg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 1,
+        pointerType: 'touch',
+        clientX: 22,
+        clientY: 31,
+        bubbles: true,
+      }),
+    );
+    freeSvg.dispatchEvent(makeTouchEvent('touchend', []));
+    freeSvg.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerId: 1,
+        pointerType: 'touch',
+        clientX: 22,
+        clientY: 31,
+        bubbles: true,
+      }),
+    );
+    freeSvg.dispatchEvent(
+      new MouseEvent('click', { button: 0, clientX: 22, clientY: 31, bubbles: true }),
+    );
+    expect(vMove.defaultPrevented).toBe(false);
+    expect(freeCtrl.camera.getState().panX).toBe(0);
+    expect(freeCtrl.camera.getState().panY).toBe(0);
+    expect(freeClicks.length).toBe(0);
+
+    // Horizontal single-finger touch swipe (>= 8px, |dx| >= |dy|): locks on canvas (preventDefault), pans camera, suppresses click
+    freeSvg.dispatchEvent(makeTouchEvent('touchstart', [{ identifier: 2, clientX: 20, clientY: 20 }]));
+    freeSvg.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 2,
+        pointerType: 'touch',
+        clientX: 20,
+        clientY: 20,
+        bubbles: true,
+      }),
+    );
+    const hMove = makeTouchEvent('touchmove', [{ identifier: 2, clientX: 44, clientY: 22 }]); // |dx|=24 >= 8
+    freeSvg.dispatchEvent(hMove);
+    freeSvg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 2,
+        pointerType: 'touch',
+        clientX: 44,
+        clientY: 22,
+        bubbles: true,
+      }),
+    );
+    freeSvg.dispatchEvent(makeTouchEvent('touchend', []));
+    freeSvg.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerId: 2,
+        pointerType: 'touch',
+        clientX: 44,
+        clientY: 22,
+        bubbles: true,
+      }),
+    );
+    freeSvg.dispatchEvent(
+      new MouseEvent('click', { button: 0, clientX: 44, clientY: 22, bubbles: true }),
+    );
+    expect(hMove.defaultPrevented).toBe(true);
+    expect(freeCtrl.camera.getState().panX).toBeCloseTo(24, 1);
+    expect(freeClicks.length).toBe(0);
+
+    // Two-finger pinch touchmove is always preventDefault-locked
+    freeSvg.dispatchEvent(
+      makeTouchEvent('touchstart', [
+        { identifier: 3, clientX: 200, clientY: 200 },
+        { identifier: 4, clientX: 300, clientY: 200 },
+      ]),
+    );
+    const pinchMove = makeTouchEvent('touchmove', [
+      { identifier: 3, clientX: 180, clientY: 200 },
+      { identifier: 4, clientX: 320, clientY: 200 },
+    ]);
+    freeSvg.dispatchEvent(pinchMove);
+    freeSvg.dispatchEvent(makeTouchEvent('touchend', []));
+    expect(pinchMove.defaultPrevented).toBe(true);
+
+    // Explicit opt-out: touchScrollLockPx = 0 restores touch-action: none and allows vertical 1-finger touch pan
+    freeCtrl.setTouchScrollLockPx(0);
+    expect(freeSvg.style.touchAction).toBe('none');
+    const panYBefore = freeCtrl.camera.getState().panY;
+    freeSvg.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 5,
+        pointerType: 'touch',
+        clientX: 20,
+        clientY: 20,
+        bubbles: true,
+      }),
+    );
+    freeSvg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 5,
+        pointerType: 'touch',
+        clientX: 20,
+        clientY: 50,
+        bubbles: true,
+      }),
+    );
+    freeSvg.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerId: 5,
+        pointerType: 'touch',
+        clientX: 20,
+        clientY: 50,
+        bubbles: true,
+      }),
+    );
+    expect(freeCtrl.camera.getState().panY).toBeCloseTo(panYBefore + 30, 1);
+
+    // 2) Drill-down mode: peak displacement clickTolerancePx suppresses accidental drill-down on drag (even if returning near origin!)
+    const drillContainer = document.createElement('div');
+    Object.defineProperty(drillContainer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 720, height: 480, right: 720, bottom: 480 }),
+    });
+    document.body.appendChild(drillContainer);
+
+    const drillClicks: string[] = [];
+    const drillCtrl = createSimplexSvg(drillContainer, {
+      items,
+      zoomStrategy: createBarycentricZoomStrategy({ stopWhenFullScale: false }),
+      layoutOptions: { seed: 42 },
+      interactions: {
+        onLeftClick: (t) => {
+          drillClicks.push(t.kind);
+        },
+      },
+    });
+    const drillSvg = drillCtrl.getSvgElement();
+    Object.defineProperty(drillSvg, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 720, height: 480, right: 720, bottom: 480 }),
+    });
+
+    const drillTriIdx = drillCtrl.getZoomState().drillableTriangleIndices[0]!;
+    const triPoly = drillSvg.querySelector(
+      `g.sv-mesh-triangle[data-triangle-index="${drillTriIdx}"] polygon`,
+    )!;
+    const pts = triPoly
+      .getAttribute('points')!
+      .trim()
+      .split(/\s+/)
+      .map((pair) => {
+        const [x, y] = pair.split(',').map(Number);
+        return { x: x!, y: y! };
+      });
+    const cx = (pts[0]!.x + pts[1]!.x + pts[2]!.x) / 3;
+    const cy = (pts[0]!.y + pts[1]!.y + pts[2]!.y) / 3;
+
+    // Drag 20px away (> 12px default) and return to 2px away -> peak displacement suppresses click & drill-down!
+    drillSvg.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 10,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: cx,
+        clientY: cy,
+        bubbles: true,
+      }),
+    );
+    drillSvg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 10,
+        pointerType: 'mouse',
+        clientX: cx + 20,
+        clientY: cy,
+        bubbles: true,
+      }),
+    );
+    drillSvg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 10,
+        pointerType: 'mouse',
+        clientX: cx + 2,
+        clientY: cy,
+        bubbles: true,
+      }),
+    );
+    drillSvg.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerId: 10,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: cx + 2,
+        clientY: cy,
+        bubbles: true,
+      }),
+    );
+    drillSvg.dispatchEvent(
+      new MouseEvent('click', { button: 0, clientX: cx + 2, clientY: cy, bubbles: true }),
+    );
+    expect(drillClicks.length).toBe(0);
+    expect(drillCtrl.getZoomState().depth).toBe(0);
+
+    // Tighter custom clickTolerancePx (5px): a 7px drag suppresses click
+    drillCtrl.setClickTolerancePx(5);
+    drillSvg.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 11,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: cx,
+        clientY: cy,
+        bubbles: true,
+      }),
+    );
+    drillSvg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 11,
+        pointerType: 'mouse',
+        clientX: cx + 7,
+        clientY: cy,
+        bubbles: true,
+      }),
+    );
+    drillSvg.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerId: 11,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: cx + 7,
+        clientY: cy,
+        bubbles: true,
+      }),
+    );
+    drillSvg.dispatchEvent(
+      new MouseEvent('click', { button: 0, clientX: cx + 7, clientY: cy, bubbles: true }),
+    );
+    expect(drillClicks.length).toBe(0);
+    expect(drillCtrl.getZoomState().depth).toBe(0);
+
+    // Tap with 4px jitter (<= 5px tolerance) succeeds and drills down!
+    drillSvg.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 12,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: cx,
+        clientY: cy,
+        bubbles: true,
+      }),
+    );
+    drillSvg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 12,
+        pointerType: 'mouse',
+        clientX: cx + 4,
+        clientY: cy,
+        bubbles: true,
+      }),
+    );
+    drillSvg.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerId: 12,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: cx + 4,
+        clientY: cy,
+        bubbles: true,
+      }),
+    );
+    drillSvg.dispatchEvent(
+      new MouseEvent('click', { button: 0, clientX: cx + 4, clientY: cy, bubbles: true }),
+    );
+    for (let i = 0; i < 45; i++) drillCtrl.stepForTest(20);
+    expect(drillClicks.length).toBe(1);
+    expect(drillCtrl.getZoomState().depth).toBe(1);
+
+    freeCtrl.destroy();
+    drillCtrl.destroy();
+    freeContainer.remove();
+    drillContainer.remove();
+  });
 });
+
 
 
 

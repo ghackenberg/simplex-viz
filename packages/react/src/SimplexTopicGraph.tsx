@@ -239,6 +239,17 @@ export type SimplexTopicGraphProps<
      */
     readonly deferInitialLayout?: boolean | DeferInitialLayoutOptions;
     /**
+     * Touch direction-locking threshold in CSS pixels (default: `8`). Yields vertical single-finger
+     * swipes to native page scrolling (`touch-action: pan-y`) while locking horizontal canvas
+     * gestures and two-finger pinch. Pass `0` to restore `touch-action: none`.
+     */
+    readonly touchScrollLockPx?: number;
+    /**
+     * Maximum pointer displacement in CSS pixels from `pointerdown` that still qualifies as a
+     * click/tap (default: `12`). Suppresses accidental clicks after drag/pan/scroll gestures.
+     */
+    readonly clickTolerancePx?: number;
+    /**
      * Enables built-in cluster focus toggle on click when `focusedClusterUid` is not controlled
      * externally and no click handler consumes the event (`return true`). Default: `true`.
      */
@@ -784,6 +795,8 @@ export function SimplexTopicGraph<
       timeline: resolveTimelineOption(p.timeline),
       relayoutOnFontLoad: p.relayoutOnFontLoad,
       deferInitialLayout: p.deferInitialLayout,
+      touchScrollLockPx: p.touchScrollLockPx,
+      clickTolerancePx: p.clickTolerancePx,
       focusOnClusterClick: false,
       focusOnTriangleClick: false,
       interactions: buildReactInteractions(p.onWheel),
@@ -858,6 +871,19 @@ export function SimplexTopicGraph<
       ctrlRef.current?.setEmptyClusterBehavior(props.emptyClusterBehavior);
     }
   }, [props.emptyClusterBehavior]);
+
+  // Sync touchScrollLockPx & clickTolerancePx
+  useEffect(() => {
+    if (props.touchScrollLockPx !== undefined) {
+      ctrlRef.current?.setTouchScrollLockPx(props.touchScrollLockPx);
+    }
+  }, [props.touchScrollLockPx]);
+
+  useEffect(() => {
+    if (props.clickTolerancePx !== undefined) {
+      ctrlRef.current?.setClickTolerancePx(props.clickTolerancePx);
+    }
+  }, [props.clickTolerancePx]);
 
   // Sync pluggable core algorithm strategies when props change after mount
   useEffect(() => {

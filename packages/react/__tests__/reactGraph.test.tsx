@@ -668,6 +668,84 @@ describe('@simplex-viz/react integration', () => {
       globalThis.ResizeObserver = OriginalResizeObserver;
     }
   });
+
+  it('forwards and dynamically syncs touchScrollLockPx and clickTolerancePx on SimplexTopicGraph (Issue #13)', () => {
+    const items = [
+      { id: 't1', tags: ['alpha', 'beta'] },
+      { id: 't2', tags: ['beta', 'gamma'] },
+      { id: 't3', tags: ['alpha', 'gamma'] },
+    ];
+    const clicks: string[] = [];
+
+    const { container, rerender, unmount } = render(
+      <div style={{ width: 640, height: 420 }}>
+        <SimplexTopicGraph
+          items={items}
+          touchScrollLockPx={0}
+          clickTolerancePx={5}
+          onLeftClick={(t) => {
+            clicks.push(t.kind);
+          }}
+        />
+      </div>,
+    );
+
+    const svg = container.querySelector('svg')!;
+    expect(svg.style.touchAction).toBe('none');
+
+    // Dragging 8px (> 5px tolerance) suppresses onLeftClick
+    svg.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 1,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: 20,
+        clientY: 20,
+        bubbles: true,
+      }),
+    );
+    svg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: 28,
+        clientY: 20,
+        bubbles: true,
+      }),
+    );
+    svg.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerId: 1,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: 28,
+        clientY: 20,
+        bubbles: true,
+      }),
+    );
+    svg.dispatchEvent(
+      new MouseEvent('click', { button: 0, clientX: 28, clientY: 20, bubbles: true }),
+    );
+    expect(clicks.length).toBe(0);
+
+    // Dynamically enabling touchScrollLockPx switches touchAction to pan-y
+    rerender(
+      <div style={{ width: 640, height: 420 }}>
+        <SimplexTopicGraph
+          items={items}
+          touchScrollLockPx={10}
+          clickTolerancePx={20}
+          onLeftClick={(t) => {
+            clicks.push(t.kind);
+          }}
+        />
+      </div>,
+    );
+    expect(svg.style.touchAction).toBe('pan-y');
+
+    unmount();
+  });
 });
+
 
 

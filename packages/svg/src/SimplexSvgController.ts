@@ -221,6 +221,24 @@ export interface SimplexSvgControllerResolvedOptions<
    */
   readonly deferInitialLayout?: boolean | DeferInitialLayoutOptions;
   /**
+   * Touch direction-locking threshold in CSS pixels for embedded mobile/touch canvases.
+   * When `> 0` (default: `8`), sets `touch-action: pan-y` on the SVG and inspects single-finger
+   * touch movement once it reaches `touchScrollLockPx`:
+   * - Vertical swipes (`|dy| > |dx|`) yield cleanly to native page scrolling and suppress clicks.
+   * - Horizontal swipes (`|dx| >= |dy|`) lock onto the canvas (`preventDefault()` on `touchmove`)
+   *   so horizontal panning does not fight browser gestures.
+   * - Two-finger pinch gestures always lock onto the canvas.
+   * Set to `0` to disable scroll-yielding and restore `touch-action: none` (full 2D touch panning).
+   */
+  readonly touchScrollLockPx?: number;
+  /**
+   * Maximum pointer displacement in CSS pixels (measured from `pointerdown` origin across the
+   * entire gesture) that still qualifies as a click/tap. Any gesture whose peak displacement
+   * exceeds `clickTolerancePx` suppresses the trailing `click` callback in both `free-camera`
+   * and `drill-down` modes. Default: `12`.
+   */
+  readonly clickTolerancePx?: number;
+  /**
    * Automatically toggles cluster focus when clicking a topic cluster (and clears on background click)
    * unless consumed (`return true`) by a click interaction handler. Default: `true`.
    */
@@ -371,11 +389,26 @@ export class SimplexSvgController<
   private fpsAccumMs = 0;
   private destroyed = false;
 
-  // Centralized drag-to-pan and multi-touch pinch-zoom state on root <svg>
+  // Centralized drag-to-pan, touch direction-locking, and multi-touch pinch-zoom state on root <svg>
+  private touchScrollLockPx: number;
+  private clickTolerancePx: number;
   private isDraggingPan = false;
+  private panStarted = false;
   private dragStartX = 0;
   private dragStartY = 0;
-  private dragMoved = false;
+  private pointerOriginX = 0;
+  private pointerOriginY = 0;
+  private pointerMaxDisplacement = 0;
+  private hasActiveGestureOrigin = false;
+  private wasMultiTouchGesture = false;
+  private touchScrollAxis: 'undecided' | 'vertical' | 'horizontal' | 'pinch' = 'undecided';
+  private touchOriginX = 0;
+  private touchOriginY = 0;
+  private touchYieldedToScroll = false;
+  private suppressNextClick = false;
+  private suppressClickStartPos: { x: number; y: number } | null = null;
+  private suppressClickEndPos: { x: number; y: number } | null = null;
+  private suppressClickDeadline = 0;
   private readonly activePointers = new Map<number, { x: number; y: number }>();
   private lastPinchDist: number | null = null;
   private pinchStartDist: number | null = null;
@@ -448,12 +481,23 @@ export class SimplexSvgController<
       TClusterMeta
     >;
 
+    this.touchScrollLockPx =
+      typeof options.touchScrollLockPx === 'number' &&
+      Number.isFinite(options.touchScrollLockPx)
+        ? Math.max(0, options.touchScrollLockPx)
+        : 8;
+    this.clickTolerancePx =
+      typeof options.clickTolerancePx === 'number' &&
+      Number.isFinite(options.clickTolerancePx)
+        ? Math.max(0, options.clickTolerancePx)
+        : 12;
+
     const doc = this.containerEl.ownerDocument;
     this.svgEl = doc.createElementNS(SVG_NS, 'svg');
     this.svgEl.setAttribute('width', '100%');
     this.svgEl.setAttribute('height', '100%');
     this.svgEl.style.display = 'block';
-    this.svgEl.style.touchAction = 'none';
+    this.syncSvgTouchAction();
     this.svgEl.style.userSelect = 'none';
     this.containerEl.appendChild(this.svgEl);
 
@@ -1508,6 +1552,17 @@ export class SimplexSvgController<
     this.ensureLoopRunning();
   }
 
+  /** Updates the touch direction-locking threshold in CSS pixels (`0` disables scroll-yielding). */
+  setTouchScrollLockPx(px: number): void {
+    this.touchScrollLockPx = Number.isFinite(px) ? Math.max(0, px) : 8;
+    this.syncSvgTouchAction();
+  }
+
+  /** Updates the maximum drag-vs-click pointer displacement tolerance in CSS pixels. */
+  setClickTolerancePx(px: number): void {
+    this.clickTolerancePx = Number.isFinite(px) ? Math.max(0, px) : 12;
+  }
+
   /**
    * Clears cached SVG hull measurements, re-measures all active nodes, and re-solves
    * the current layout frame cleanly (for example after late webfont loading).
@@ -2100,14 +2155,98 @@ export class SimplexSvgController<
     refs.countEl.style.color = isLight ? '#64748b' : '#94a3b8';
   }
 
+  private syncSvgTouchAction(): void {
+    this.svgEl.style.touchAction = this.touchScrollLockPx > 0 ? 'pan-y' : 'none';
+  }
+
+  private readonly onTouchStart = (e: TouchEvent): void => {
+    if (e.touches.length >= 2) {
+      this.touchScrollAxis = 'pinch';
+      this.wasMultiTouchGesture = true;
+      this.isDraggingPan = false;
+      this.panStarted = false;
+      return;
+    }
+    if (e.touches.length === 1) {
+      const t = e.touches[0]!;
+      this.touchOriginX = t.clientX;
+      this.touchOriginY = t.clientY;
+      this.touchScrollAxis = 'undecided';
+      this.touchYieldedToScroll = false;
+    }
+  };
+
+  private readonly onTouchMove = (e: TouchEvent): void => {
+    if (e.touches.length >= 2) {
+      this.touchScrollAxis = 'pinch';
+      this.wasMultiTouchGesture = true;
+      e.preventDefault();
+      return;
+    }
+    if (e.touches.length !== 1 || this.touchScrollLockPx <= 0) {
+      return;
+    }
+    const t = e.touches[0]!;
+    if (this.touchScrollAxis === 'undecided') {
+      const absDx = Math.abs(t.clientX - this.touchOriginX);
+      const absDy = Math.abs(t.clientY - this.touchOriginY);
+      if (absDx >= this.touchScrollLockPx || absDy >= this.touchScrollLockPx) {
+        if (absDy > absDx) {
+          this.touchScrollAxis = 'vertical';
+          this.touchYieldedToScroll = true;
+          this.isDraggingPan = false;
+          this.panStarted = false;
+        } else {
+          this.touchScrollAxis = 'horizontal';
+        }
+      }
+    }
+    if (this.touchScrollAxis === 'horizontal') {
+      e.preventDefault();
+    }
+  };
+
+  private readonly onTouchEnd = (e: TouchEvent): void => {
+    if (e.touches.length === 0) {
+      this.touchScrollAxis = 'undecided';
+    }
+  };
+
+  private readonly onTouchCancel = (e: TouchEvent): void => {
+    if (e.touches.length === 0) {
+      this.touchScrollAxis = 'undecided';
+      this.touchYieldedToScroll = false;
+    }
+  };
+
   private readonly onPointerDown = (e: PointerEvent): void => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const { x, y } = this.toLocalCoords(e.clientX, e.clientY);
     this.activePointers.set(e.pointerId, { x, y });
 
+    if (this.activePointers.size === 1) {
+      this.pointerOriginX = e.clientX;
+      this.pointerOriginY = e.clientY;
+      this.pointerMaxDisplacement = 0;
+      this.hasActiveGestureOrigin = true;
+      this.wasMultiTouchGesture = false;
+      this.panStarted = false;
+      this.suppressNextClick = false;
+      this.suppressClickStartPos = null;
+      this.suppressClickEndPos = null;
+      if (e.pointerType === 'touch') {
+        this.touchOriginX = e.clientX;
+        this.touchOriginY = e.clientY;
+        this.touchScrollAxis = 'undecided';
+        this.touchYieldedToScroll = false;
+      }
+    }
+
     if (this.activePointers.size >= 2) {
       this.isDraggingPan = false;
-      this.dragMoved = true;
+      this.panStarted = false;
+      this.wasMultiTouchGesture = true;
+      this.touchScrollAxis = 'pinch';
       const pts = [...this.activePointers.values()];
       const p0 = pts[0]!;
       const p1 = pts[1]!;
@@ -2122,7 +2261,6 @@ export class SimplexSvgController<
 
     if (this.engine.getZoomStrategy().mode === 'drill-down') {
       this.isDraggingPan = false;
-      this.dragMoved = false;
       return;
     }
 
@@ -2131,13 +2269,11 @@ export class SimplexSvgController<
       this.isDraggingPan = true;
       this.dragStartX = e.clientX;
       this.dragStartY = e.clientY;
-      this.dragMoved = false;
       if (hit.kind === 'background') {
         this.svgEl.style.cursor = 'grabbing';
       }
     } else {
       this.isDraggingPan = false;
-      this.dragMoved = false;
     }
   };
 
@@ -2145,6 +2281,16 @@ export class SimplexSvgController<
     const { x, y } = this.toLocalCoords(e.clientX, e.clientY);
     if (this.activePointers.has(e.pointerId)) {
       this.activePointers.set(e.pointerId, { x, y });
+    }
+
+    if (this.hasActiveGestureOrigin && this.activePointers.has(e.pointerId)) {
+      const disp = Math.hypot(
+        e.clientX - this.pointerOriginX,
+        e.clientY - this.pointerOriginY,
+      );
+      if (disp > this.pointerMaxDisplacement) {
+        this.pointerMaxDisplacement = disp;
+      }
     }
 
     const zoomMode = this.engine.getZoomStrategy().mode;
@@ -2172,7 +2318,7 @@ export class SimplexSvgController<
             this.drillUp();
           }
         }
-        this.dragMoved = true;
+        this.wasMultiTouchGesture = true;
         this.lastPinchDist = dist;
         this.lastPinchMid = mid;
         this.hideTooltip();
@@ -2185,7 +2331,7 @@ export class SimplexSvgController<
         const zoomFactor = dist / this.lastPinchDist;
         this.engine.camera.panBy(dx, dy);
         this.engine.camera.zoomToCursor(mid.x, mid.y, zoomFactor);
-        this.dragMoved = true;
+        this.wasMultiTouchGesture = true;
         this.hideTooltip();
         this.engine.renderNow();
       }
@@ -2194,14 +2340,42 @@ export class SimplexSvgController<
       return;
     }
 
+    if (
+      e.pointerType === 'touch' &&
+      this.activePointers.size === 1 &&
+      this.touchScrollLockPx > 0 &&
+      this.touchScrollAxis === 'undecided'
+    ) {
+      const absDx = Math.abs(e.clientX - this.pointerOriginX);
+      const absDy = Math.abs(e.clientY - this.pointerOriginY);
+      if (absDx >= this.touchScrollLockPx || absDy >= this.touchScrollLockPx) {
+        if (absDy > absDx) {
+          this.touchScrollAxis = 'vertical';
+          this.touchYieldedToScroll = true;
+          this.isDraggingPan = false;
+          this.panStarted = false;
+        } else {
+          this.touchScrollAxis = 'horizontal';
+        }
+      }
+    }
+
     if (this.isDraggingPan && zoomMode === 'free-camera') {
+      if (
+        e.pointerType === 'touch' &&
+        this.touchScrollLockPx > 0 &&
+        this.touchScrollAxis !== 'horizontal'
+      ) {
+        return;
+      }
       const dx = e.clientX - this.dragStartX;
       const dy = e.clientY - this.dragStartY;
-      const dragThreshold = e.pointerType === 'touch' ? 6 : 3;
-      if (Math.hypot(dx, dy) > dragThreshold) {
-        this.dragMoved = true;
+      const panThreshold =
+        e.pointerType === 'touch' ? (this.touchScrollLockPx > 0 ? 0 : 6) : 3;
+      if (!this.panStarted && Math.hypot(dx, dy) > panThreshold) {
+        this.panStarted = true;
       }
-      if (this.dragMoved) {
+      if (this.panStarted) {
         this.svgEl.style.cursor = 'grabbing';
         this.dragStartX = e.clientX;
         this.dragStartY = e.clientY;
@@ -2267,13 +2441,33 @@ export class SimplexSvgController<
       this.resetTouchPinchState();
     }
     if (this.activePointers.size === 0) {
+      const shouldSuppress =
+        this.pointerMaxDisplacement > this.clickTolerancePx ||
+        this.touchYieldedToScroll ||
+        this.wasMultiTouchGesture;
+      if (shouldSuppress) {
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        this.suppressNextClick = true;
+        this.suppressClickStartPos = this.wasMultiTouchGesture
+          ? null
+          : { x: this.pointerOriginX, y: this.pointerOriginY };
+        this.suppressClickEndPos = { x: e.clientX, y: e.clientY };
+        this.suppressClickDeadline = now + 400;
+      } else {
+        this.suppressNextClick = false;
+        this.suppressClickStartPos = null;
+        this.suppressClickEndPos = null;
+      }
       if (this.isDraggingPan) {
         this.isDraggingPan = false;
         this.svgEl.style.cursor =
           this.engine.getZoomStrategy().mode === 'drill-down' ? 'default' : 'grab';
-      } else {
-        this.dragMoved = false;
       }
+      this.panStarted = false;
+      this.hasActiveGestureOrigin = false;
+      this.wasMultiTouchGesture = false;
+      this.touchYieldedToScroll = false;
+      this.touchScrollAxis = 'undecided';
     }
   };
 
@@ -2284,7 +2478,14 @@ export class SimplexSvgController<
     }
     if (this.activePointers.size === 0) {
       this.isDraggingPan = false;
-      this.dragMoved = false;
+      this.panStarted = false;
+      this.hasActiveGestureOrigin = false;
+      this.wasMultiTouchGesture = false;
+      this.touchYieldedToScroll = false;
+      this.touchScrollAxis = 'undecided';
+      this.suppressNextClick = false;
+      this.suppressClickStartPos = null;
+      this.suppressClickEndPos = null;
       this.svgEl.style.cursor =
         this.engine.getZoomStrategy().mode === 'drill-down' ? 'default' : 'grab';
     }
@@ -2297,6 +2498,7 @@ export class SimplexSvgController<
     }
     if (this.activePointers.size === 0) {
       this.isDraggingPan = false;
+      this.panStarted = false;
     }
     this.hideTooltip();
     this.engine.handlePointerLeave();
@@ -2304,9 +2506,27 @@ export class SimplexSvgController<
   };
 
   private readonly onClick = (e: MouseEvent): void => {
-    if (this.dragMoved) {
-      this.dragMoved = false;
-      return;
+    if (this.suppressNextClick) {
+      this.suppressNextClick = false;
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      const matchTol = Math.max(24, this.clickTolerancePx * 2);
+      const matchesEnd =
+        this.suppressClickEndPos !== null &&
+        Math.hypot(
+          e.clientX - this.suppressClickEndPos.x,
+          e.clientY - this.suppressClickEndPos.y,
+        ) <= matchTol;
+      const matchesStart =
+        this.suppressClickStartPos !== null &&
+        Math.hypot(
+          e.clientX - this.suppressClickStartPos.x,
+          e.clientY - this.suppressClickStartPos.y,
+        ) <= matchTol;
+      this.suppressClickStartPos = null;
+      this.suppressClickEndPos = null;
+      if (now <= this.suppressClickDeadline && (matchesEnd || matchesStart)) {
+        return;
+      }
     }
     const { x, y } = this.toLocalCoords(e.clientX, e.clientY);
     this.engine.handleLeftClick({
@@ -2372,6 +2592,10 @@ export class SimplexSvgController<
   };
 
   private attachSvgListeners(): void {
+    this.svgEl.addEventListener('touchstart', this.onTouchStart, { passive: true });
+    this.svgEl.addEventListener('touchmove', this.onTouchMove, { passive: false });
+    this.svgEl.addEventListener('touchend', this.onTouchEnd, { passive: true });
+    this.svgEl.addEventListener('touchcancel', this.onTouchCancel, { passive: true });
     this.svgEl.addEventListener('pointerdown', this.onPointerDown);
     this.svgEl.addEventListener('pointermove', this.onPointerMove);
     this.svgEl.addEventListener('pointerup', this.onPointerUp);
@@ -2383,6 +2607,10 @@ export class SimplexSvgController<
   }
 
   private detachSvgListeners(): void {
+    this.svgEl.removeEventListener('touchstart', this.onTouchStart);
+    this.svgEl.removeEventListener('touchmove', this.onTouchMove);
+    this.svgEl.removeEventListener('touchend', this.onTouchEnd);
+    this.svgEl.removeEventListener('touchcancel', this.onTouchCancel);
     this.svgEl.removeEventListener('pointerdown', this.onPointerDown);
     this.svgEl.removeEventListener('pointermove', this.onPointerMove);
     this.svgEl.removeEventListener('pointerup', this.onPointerUp);
