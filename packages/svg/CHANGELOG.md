@@ -1,5 +1,16 @@
 # @simplex-viz/svg
 
+## 0.8.0
+
+### Minor Changes
+
+- Add opt-in chronological timeline playback (`timeline`, `controller.timeline`, `getTimeline()`, `setTimelineOptions()`, `subscribeTimeline()`) with a theme-adaptive Play/Pause/Step/Scrubber HUD, automatic `createFinalSeededClusteringStrategy` wrapping (`autoFinalSeed`), optional `createFinalSeededLayoutStrategy` wrapping (`autoFinalSeedLayout: false | 'pinned' | 'adaptive'`), and configurable `emptyClusterBehavior` (`'normal' | 'dim' | 'hide'`, `setEmptyClusterBehavior()`, #8); add `badgeOptions` (`showCode`, `maxTitleChars`, `formatTitle`, `truncateBadgeTitle`, #4), fixed and item-driven N-gon `getShape` / `resolveGeometricShapeSpec` with exact convex hulls (#11), `formatTagLabel` across badges/tooltips/breadcrumbs (#7), automatic webfont relayout (`relayoutOnFontLoad: true` + `relayout()`, #9), composable click/hover/wheel handlers (#3), and re-export all new `@simplex-viz/core` APIs.
+
+### Patch Changes
+
+- Updated dependencies
+  - @simplex-viz/core@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes

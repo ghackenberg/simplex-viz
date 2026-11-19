@@ -1,0 +1,39 @@
+---
+title: "SimplexViz 0.8: Chronological Timeline Playback, Final-Seeded Layouts & Preset Controls"
+description: Releasing v0.8.0 with opt-in chronological timeline playback, path-independent final-seeded clustering and layout strategies, empty-cluster dimming, decoupled tag display labels, N-gon shapes, and webfont auto-relayout.
+publishedDate: "2026-11-19"
+author: Dr. Georg Hackenberg
+authorRole: Creator of SimplexViz
+category: Release
+featured: true
+summaryPoints:
+  - Added chronological timeline playback across @simplex-viz/core, @simplex-viz/svg, and @simplex-viz/react with built-in HUD controls and useSimplexTimeline().
+  - Introduced createFinalSeededClusteringStrategy, createFinalSeededLayoutStrategy (pinned and adaptive scaling), and configurable emptyClusterBehavior ('normal' | 'dim' | 'hide').
+  - Added formatTagLabel, badgeOptions, item-driven N-gon getShape, composable click/hover/wheel handlers, viewport-aware cluster count restoration, and automatic webfont relayout.
+---
+
+SimplexViz **0.8.0** is now ready across `@simplex-viz/core`, `@simplex-viz/svg`, and `@simplex-viz/react`. This release brings first-class **chronological timeline playback** with path-independent cluster and layout stability, alongside a wave of ergonomic preset, typography, and interaction upgrades driven by Issues `#3`–`#11`.
+
+## Chronological Timeline Playback & Three Independent Stability Axes ([#5](https://github.com/ghackenberg/simplex-viz/issues/5), [#8](https://github.com/ghackenberg/simplex-viz/issues/8))
+
+Timestamped datasets—publication corpora, software releases, or decades of film history—can now be stepped and replayed directly on the 60° simplex mesh via a single `timeline` option (`SimplexSvgController` and `<SimplexTopicGraph />`) or headlessly through `SimplexTimelineController` / `createSimplexTimeline()` and the React `useSimplexTimeline()` hook:
+
+- **Cluster Stability (`autoFinalSeed` / `createFinalSeededClusteringStrategy`)**: Enabled by default (`autoFinalSeed: true`), pinning the canonical full-corpus clusters, mesh vertices, UIDs, and OKLab hues across frames `0..N` while still re-seeding cleanly on viewport resizes.
+- **Item Position & Scale Stability (`autoFinalSeedLayout` / `createFinalSeededLayoutStrategy`)**: Choose `false` for dynamic per-frame layout, `'pinned'` to lock every item's canonical full-corpus `(x, y)` coordinate and final scale with zero drift, or `'adaptive'` to keep canonical coordinates pinned while symmetrically expanding sparse early-frame items up to `1.0x` under exact SAT `0.0 px` overlap checks.
+- **Future / Empty Cluster Visibility (`emptyClusterBehavior`)**: Configure `'normal'`, `'dim'`, or `'hide'` for `0`-item clusters—both inside `timeline` and standalone via `emptyClusterBehavior` / `setEmptyClusterBehavior()`.
+
+You can explore this live on the **Vega Cinema (1928–1976)** example (configured with `autoFinalSeedLayout: 'adaptive'` and `emptyClusterBehavior: 'dim'`) as well as in the **Interactive Playground**, which now exposes live toggles for every timeline, layout, and cluster visibility option.
+
+## Preset Ergonomics: `formatTagLabel`, `badgeOptions` & N-Gon `getShape` ([#4](https://github.com/ghackenberg/simplex-viz/issues/4), [#7](https://github.com/ghackenberg/simplex-viz/issues/7), [#11](https://github.com/ghackenberg/simplex-viz/issues/11))
+
+Built-in presets can now be tailored deeply without writing a custom `VisualResolver` or `SvgNodeView`:
+
+- **Decoupled Tag Display Labels (`formatTagLabel`)**: Keep canonical slug IDs for clustering and matching while rendering human-readable labels across cluster badges, breadcrumbs, semantic zoom subclusters, and hover tooltips.
+- **Cluster Badge Formatting (`badgeOptions`)**: Hide internal `T1`/`T2` prefix codes (`showCode: false`), apply word-aware truncation (`maxTitleChars`), or supply a custom `formatTitle` callback.
+- **Fixed & Item-Driven N-Gon Shapes (`getShape`)**: Bind items globally or per category to named polygons or arbitrary regular N-gons (`sides >= 3`, `{ sides, rotationRad }`) with exact convex SAT hulls that remain invariant across `1:4` drill-down levels.
+
+## Composable Interactions, Viewport Resize Restoration & Webfont Relayout ([#3](https://github.com/ghackenberg/simplex-viz/issues/3), [#6](https://github.com/ghackenberg/simplex-viz/issues/6), [#9](https://github.com/ghackenberg/simplex-viz/issues/9))
+
+- **Uniform Compose-vs-Consume Handlers**: Target-specific click callbacks (`onContentClick`, `onClusterClick`, `onTriangleClick`, `onBackgroundClick`), `onLeftClick`, `onRightClick`, hover handlers, and custom `onWheel` all compose with built-in drill-down/focus/tooltips when returning `void`/`false`, and suppress built-in defaults when returning `true` (`onWheel="none"` no longer calls `preventDefault()`).
+- **Viewport-Aware Cluster Count Restoration**: `estimateClusterCount(ctx)` and `ClusteringStrategyContext` now receive explicit `reason` (`'initial' | 'items' | 'viewport' | 'mesh' | 'strategy'`) and viewport dimensions so shrinking and expanding a container restores the expected cluster count cleanly.
+- **Automatic Webfont Relayout (`relayoutOnFontLoad`)**: `@simplex-viz/svg` and `@simplex-viz/react` automatically invalidate cached SVG `getBBox()` hulls and re-solve layout once webfonts finish loading (`document.fonts.ready` / `loadingdone`), with an imperative `relayout()` method available across all three packages.

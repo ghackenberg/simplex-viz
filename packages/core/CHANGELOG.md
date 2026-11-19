@@ -1,5 +1,11 @@
 # @simplex-viz/core
 
+## 0.8.0
+
+### Minor Changes
+
+- Add zero-DOM chronological timeline controller (`SimplexTimelineController`, `createSimplexTimeline`, #8), add `createFinalSeededClusteringStrategy` (#5) and `createFinalSeededLayoutStrategy` (`scaleMode: 'pinned' | 'adaptive'`, `unseenItemPolicy: 'fallback' | 'reseed'`, `canonicalSeedItems`, #8) for path-independent chronological replay, add configurable `emptyClusterBehavior` (`'normal' | 'dim' | 'hide'`, `getEmptyClusterBehavior()`, `setEmptyClusterBehavior()`, #8), thread explicit `PipelineUpdateReason` and viewport dimensions into `estimateClusterCount` and `ClusteringStrategyContext` (#6), add `formatTagLabel` / `resolveTagDisplayLabel` to decouple canonical tag IDs from display labels (#7), standardize composable target-specific click/hover/wheel return-`true` consumption (#3), and add `engine.relayout()` (#9).
+
 ## 0.7.0
 
 ### Minor Changes

@@ -1,7 +1,7 @@
 {
   "name": "@simplex-viz/react",
-  "version": "0.7.0",
-  "description": "End-to-end type-safe React bindings, declarative JSX node renderers, hierarchical 1:4 zoom/drill-down support, and imperative controller hooks for @simplex-viz/core and @simplex-viz/svg.",
+  "version": "0.8.0",
+  "description": "End-to-end type-safe React bindings, declarative JSX node renderers, hierarchical 1:4 zoom/drill-down, chronological timeline playback, and imperative controller hooks for @simplex-viz/core and @simplex-viz/svg.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
@@ -38,6 +38,7 @@
     "visualization",
     "zoom",
     "drill-down",
+    "timeline",
     "typescript"
   ],
   "homepage": "https://hackenberg.tech/simplex-viz/",

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <!-- Left Panel: Early Timeline Frame t1 (Pinned Vertices, Dimmed Future Cluster, Adaptive Scale) -->
+  <g>
+    <polygon class="sv-edge" points="215,92 105,282 325,282" fill="#06B6D4" fill-opacity="0.08" stroke="#24324A" stroke-width="1.6"/>
+    <line class="sv-edge" x1="215" y1="92" x2="215" y2="218" stroke="#334155" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="4 4"/>
+
+    <!-- Active Items at Canonical Coordinates (Adaptive 1.0x Scale) -->
+    <circle class="sv-cutout" cx="190" cy="186" r="15" fill="#06B6D4" stroke="#07090E" stroke-width="2.4"/>
+    <polygon class="sv-cutout" points="168,236 182,246 177,262 159,262 154,246" fill="#F59E0B" stroke="#07090E" stroke-width="2.2"/>
+
+    <!-- Active Pinned Cluster Vertices -->
+    <circle class="sv-panel" cx="215" cy="92" r="20" fill="#0B111E" stroke="#06B6D4" stroke-width="2.6"/>
+    <text class="sv-ink" x="215" y="97" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="12" font-weight="700" fill="#F8FAFC">C1</text>
+
+    <circle class="sv-panel" cx="105" cy="282" r="20" fill="#0B111E" stroke="#F59E0B" stroke-width="2.6"/>
+    <text class="sv-ink" x="105" y="287" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="12" font-weight="700" fill="#F8FAFC">C2</text>
+
+    <!-- Dimmed Future Cluster (emptyClusterBehavior: 'dim') -->
+    <g opacity="0.32">
+      <circle class="sv-panel" cx="325" cy="282" r="20" fill="#0B111E" stroke="#D946EF" stroke-width="2.2" stroke-dasharray="4 3"/>
+      <text class="sv-ink" x="325" y="287" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="12" font-weight="700" fill="#F8FAFC">C3</text>
+    </g>
+
+    <text class="sv-text-cyan" x="215" y="54" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="12" font-weight="600" fill="#22D3EE">t₁ · ADAPTIVE + DIM</text>
+  </g>
+
+  <!-- Center Chronological Flow Arrow -->
+  <g>
+    <line class="sv-stroke-cyan" x1="358" y1="204" x2="438" y2="204" stroke="#22D3EE" stroke-width="2.2" stroke-dasharray="5 4"/>
+    <polygon points="444,204 432,197 432,211" fill="#22D3EE"/>
+    <text class="sv-ink" x="400" y="186" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11" font-weight="600" fill="#94A3B8" opacity="0.85">0 → N</text>
+  </g>
+
+  <!-- Right Panel: Final Frame tN (Same Pinned Coordinates, All Clusters Active, 0.0 px Overlap) -->
+  <g>
+    <polygon class="sv-stroke-cyan" points="585,92 475,282 695,282" fill="#06B6D4" fill-opacity="0.14" stroke="#22D3EE" stroke-width="2.2"/>
+
+    <!-- Earlier Items Stay Anchored at Exact Canonical Positions -->
+    <circle class="sv-cutout" cx="560" cy="186" r="12" fill="#06B6D4" stroke="#07090E" stroke-width="2.2"/>
+    <polygon class="sv-cutout" points="538,240 549,248 545,261 531,261 527,248" fill="#F59E0B" stroke="#07090E" stroke-width="2"/>
+
+    <!-- Newly Arrived Items Across All Three Sectors -->
+    <circle class="sv-cutout" cx="595" cy="164" r="11" fill="#22D3EE" stroke="#07090E" stroke-width="2"/>
+    <polygon class="sv-cutout" points="585,204 596,215 585,226 574,215" fill="#A855F7" stroke="#07090E" stroke-width="2"/>
+    <circle class="sv-cutout" cx="622" cy="222" r="12" fill="#D946EF" stroke="#07090E" stroke-width="2.2"/>
+    <polygon class="sv-cutout" points="642,254 654,261 642,268 630,261" fill="#EC4899" stroke="#07090E" stroke-width="2"/>
+    <circle class="sv-cutout" cx="582" cy="256" r="11" fill="#F59E0B" stroke="#07090E" stroke-width="2"/>
+
+    <!-- All Three Pinned Cluster Vertices Active -->
+    <circle class="sv-panel" cx="585" cy="92" r="20" fill="#0B111E" stroke="#06B6D4" stroke-width="2.6"/>
+    <text class="sv-ink" x="585" y="97" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="12" font-weight="700" fill="#F8FAFC">C1</text>
+
+    <circle class="sv-panel" cx="475" cy="282" r="20" fill="#0B111E" stroke="#F59E0B" stroke-width="2.6"/>
+    <text class="sv-ink" x="475" y="287" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="12" font-weight="700" fill="#F8FAFC">C2</text>
+
+    <circle class="sv-panel" cx="695" cy="282" r="20" fill="#0B111E" stroke="#D946EF" stroke-width="2.6"/>
+    <text class="sv-ink" x="695" y="287" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="12" font-weight="700" fill="#F8FAFC">C3</text>
+
+    <text class="sv-text-cyan" x="585" y="54" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="12" font-weight="600" fill="#22D3EE">tₙ · FULL CORPUS</text>
+  </g>
+
+  <!-- Floating Timeline Player HUD Bar -->
+  <g>
+    <rect class="sv-panel sv-panel-stroke" x="140" y="346" width="520" height="54" rx="14" fill="#0B0F17" stroke="#1E293B" stroke-width="1.6"/>
+
+    <!-- Play Button Circle -->
+    <circle cx="174" cy="373" r="15" fill="#06B6D4"/>
+    <polygon points="170,366 182,373 170,380" fill="#07090E"/>
+
+    <!-- Scrubber Track & Progress -->
+    <rect x="208" y="370" width="320" height="6" rx="3" fill="#1E293B"/>
+    <rect x="208" y="370" width="214" height="6" rx="3" fill="#22D3EE"/>
+    <circle cx="422" cy="373" r="8" fill="#F8FAFC" stroke="#06B6D4" stroke-width="2.5"/>
+
+    <!-- Frame Counter Label -->
+    <text class="sv-text-cyan" x="594" y="377" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="12" font-weight="600" fill="#22D3EE">0.8.0 · TIMELINE</text>
+  </g>
+</svg>

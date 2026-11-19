@@ -1,5 +1,18 @@
 # @simplex-viz/react
 
+## 0.8.0
+
+### Minor Changes
+
+- Add `timeline`, `emptyClusterBehavior`, and `onTimelineStateChange` props to `<SimplexTopicGraph />` alongside the reactive `useSimplexTimeline()` hook and `handle.getTimeline()` / `handle.relayout()` on `useSimplexGraphController()` (#8, #9); add `formatTagLabel` (#7), `badgeOptions` (#4), `getShape` (#11), `relayoutOnFontLoad` (#9), and composable target-specific click props (`onContentClick`, `onClusterClick`, `onTriangleClick`, `onBackgroundClick`, #3); re-export all new `@simplex-viz/svg` and `@simplex-viz/core` strategies, helpers, and types.
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @simplex-viz/core@0.8.0
+  - @simplex-viz/svg@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes
