@@ -1,7 +1,7 @@
 ---
 title: "@simplex-viz/svg API Reference"
 packageName: "@simplex-viz/svg"
-version: "0.9.0"
+version: "0.10.0"
 layerLabel: "Framework-Agnostic SVG Scene Graph & Controller"
 description: "Portable SVG renderer, offscreen getBBox() hull measurement, root pointer hit-testing, 1:4 subdivision previews, and breadcrumbs for Vanilla TS, Vue, Svelte, or Angular."
 order: 2
@@ -23,11 +23,11 @@ exportsTable:
       new SimplexSvgController<
         TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta
       >(options: SimplexSvgOptions<...>)
-    summary: "Manages ResizeObserver (with 0x0 auto-recovery & deferInitialLayout), rAF loop, mobile touch-scroll direction-locking (touchScrollLockPx), click tolerance (clickTolerancePx), timeline HUD, tooltips, and breadcrumbs."
+    summary: "Manages ResizeObserver (with 0x0 auto-recovery & deferInitialLayout), rAF loop, zero-relayout itemFilter, re-entrant batch()/setOptions(), WCAG 2.1 AA keyboard navigation & aria-live announcements, mobile touchScrollLockPx/clickTolerancePx, timeline HUD, tooltips, and breadcrumbs."
   - symbol: "SvgRendererAdapter"
     kind: "Class"
     signature: "new SvgRendererAdapter(options: SvgRendererAdapterOptions)"
-    summary: "Low-level SimplexRendererAdapter reconciling SVG layers, view-level hoverScale/dimmedOpacity hooks, dual-layer crossfades, and internal 1:4 drillable edges."
+    summary: "Low-level SimplexRendererAdapter reconciling SVG layers, view-level hoverScale/dimmedOpacity hooks, semantic ARIA metadata (ariaIdPrefix), zoom-adaptive double-halo focus rings, dual-layer crossfades, and internal 1:4 drillable edges."
   - symbol: "GeometricShapeSvgView"
     kind: "View Plugin"
     signature: "new GeometricShapeSvgView(options?: GeometricShapeSvgViewOptions)"
@@ -70,7 +70,17 @@ const controller = createSimplexSvg('#atlas', {
   edgeView: new ClusterTintedEdgeSvgView({ strokeWidth: 1.35 }),
   zoomStrategy: createSubspaceZoomStrategy(),
   showZoomBreadcrumbs: true,
+  itemFilter: (item) => item.tags.includes('geometry'),
+  itemFilterMode: 'dim',
+  ariaLabel: 'Interactive knowledge simplex atlas',
+  keyboardNavigation: true,
   tooltip: true,
+});
+
+// Coalesce multi-property runtime updates into a single recomputation:
+controller.setOptions({
+  theme: 'light',
+  itemFilterMode: 'hide',
 });
 
 // Clean up on unmount:

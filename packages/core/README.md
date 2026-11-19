@@ -34,7 +34,7 @@ Before diving into the TypeScript API, the schematic diagram below traces a sing
   - **Tag clustering specialization** (`createJaccardAnnealingClusteringStrategy`, `createIncrementalAnchorClusteringStrategy`): Regularized Jaccard partitioning, Simulated Annealing QAP, Weighted Hitting-Set planar completion, and backward tag pruning.
 - **Composable Layout (`Seeder × Relaxer × ScaleController`) & `0.0 px` SAT overlap**: Mix any `LayoutSeeder` (`phyllotaxis`, `mesh-inward-fan`, `warm-start`), `PositionRelaxer` (`barycentric-pbd`, `space-filling-pbd`), and `ScaleController` (`uniform-scale`, `collision-local-scale`, `density-prior-scale`, `fixed-scale`) via `createComposedLayoutStrategy()` / `solveComposedLayout()` with covering-triangle containment and zero convex overlap.
 - **Conformal `1:4` Hierarchical Zoom & Drill-Down**: `createBarycentricZoomStrategy`, `createSemanticZoomStrategy`, and `createSubspaceZoomStrategy` subdivide triangles `1:4` while preserving exact `▲/▼/▶/◀` orientation, synthesize `'intermediate'` midpoint clusters, focus non-subdividable leaf triangles cleanly as single triangles (`'triangle-focus'`, `leafTriangleFocus: true`) while keeping content items directly clickable, resolve both primary and intermediate clusters as uniform 1-ring `'incident-star'` meshes with barycentric simplex-distance item dimming, animate affine camera flights (`ZoomAffineTransform`), and project dimmed clickable neighborhood context.
-- **Interruptible C1-continuous animation & mathematical hit-testing**: Critically damped scalar springs, retargetable dual-layer transition state machines, and exact world-coordinate convex-hull + barycentric triangle-face hit-testing (`isPointInTriangle`).
+- **Interruptible C1-continuous animation, zero-relayout filtering, batching & hit-testing**: Critically damped scalar springs, retargetable dual-layer transition state machines, zero-relayout `setItemFilter()` (`'dim' | 'hide'`), re-entrant `engine.batch(fn)` update coalescing, deterministic keyboard focus/activation targets (`getInteractiveTargets()`, `hoverInteractiveTarget()`, `activateInteractiveTarget()`), and exact world-coordinate convex-hull + barycentric triangle-face hit-testing (`isPointInTriangle`).
 
 ## Installation
 
@@ -124,6 +124,7 @@ const snapshot = solveSimplexSnapshot(samples as readonly AudioSample[], {
 | `layoutStrategy` | `createPbdUniformLayoutStrategy()` | `createPbdUniformLayoutStrategy()` |
 | `zoomStrategy` | *(N/A — stateless single-frame solver)* | `createFreeCameraZoomStrategy()` |
 | `emptyClusterBehavior` | *(N/A)* | `'normal'` (`'normal' \| 'dim' \| 'hide'` for `0`-item clusters) |
+| `itemFilter` / `itemFilterMode` | *(N/A)* | `null` / `'dim'` (zero-relayout visual filtering via `setItemFilter(predicate, { mode })`) |
 | `deferInitialSolve` | *(N/A)* | `false` (set `true` to skip initial clustering/layout until `reinitializeViewport(w, h)` is called) |
 | `onWheel` | *(N/A)* | `'zoom-to-cursor'` (blocked automatically when `zoomStrategy.mode === 'drill-down'`) |
 
@@ -338,8 +339,8 @@ Or compose custom layout pipelines via `createComposedLayoutStrategy(options)` /
   - Re-partitions a focused triangle's discriminative tags across all `6` sub-vertices (`clusterZoomMode: 'incident-star'`, `stopWhenFullScale: true`, `fullScaleThreshold: 0.75`, `leafTriangleFocus: true`, `barycentricFallback: true`).
 - `createSubspaceZoomStrategy(options?)` (`mode: 'drill-down'`):
   - Representation-agnostic `6`-vertex local subspace refinement across embeddings, pairwise similarity kernels, and tags (`clusterZoomMode: 'incident-star'`, `stopWhenFullScale: true`, `fullScaleThreshold: 0.75`, `leafTriangleFocus: true`, `minItemsForRecluster: 6`, `blendFactor: 0.35`).
-- **Imperative Zoom, Timeline & Layout Methods on `SimplexGraphEngine`**:
-  `setZoomStrategy(strategy)`, `getZoomStrategy()`, `getZoomState()`, `drillDownTriangle(index)`, `drillDownCluster(uid)`, `drillToNeighbor(neighborId)`, `drillUp()`, `drillToDepth(depth)`, `drillToRoot()`, `getEmptyClusterBehavior()`, `setEmptyClusterBehavior(mode)`, `setCanonicalSeedItems(items)`, `reinitializeViewport(width, height)`, `relayout()`.
+- **Imperative Zoom, Filtering, Batching, Accessibility & Layout Methods on `SimplexGraphEngine`**:
+  `setZoomStrategy(strategy)`, `getZoomStrategy()`, `getZoomState()`, `drillDownTriangle(index)`, `drillDownCluster(uid)`, `drillToNeighbor(neighborId)`, `drillUp()`, `drillToDepth(depth)`, `drillToRoot()`, `getEmptyClusterBehavior()`, `setEmptyClusterBehavior(mode)`, `setItemFilter(predicate, options?)`, `getItemFilter()`, `batch(fn)`, `getInteractiveTargets()`, `hoverInteractiveTarget(target)`, `activateInteractiveTarget(target)`, `getClusterByUid(uid)`, `getItemLayoutById(id)`, `setCanonicalSeedItems(items)`, `reinitializeViewport(width, height)`, `relayout()`.
 
 ---
 

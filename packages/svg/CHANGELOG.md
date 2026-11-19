@@ -1,5 +1,16 @@
 # @simplex-viz/svg
 
+## 0.10.0
+
+### Minor Changes
+
+- Add zero-relayout item filtering (`itemFilter`, `itemFilterMode`, `setItemFilter()`, `getItemFilter()`, #15), add re-entrant `batch(fn)` and atomic `setOptions(opts)` (`SimplexSvgUpdateOptions`) with internal batching for `setTheme()` and `setTimelineOptions()` (#16), and add WCAG 2.1 AA keyboard navigation & screen-reader accessibility (`ariaLabel`, `keyboardNavigation`, `setAriaLabel()`, `setKeyboardNavigation()`, `getKeyboardFocusTarget()`, `clearKeyboardFocus()`, `getInteractiveTargets()`, single-tabstop `role="application"` + `aria-activedescendant` arrow/Enter/Space/Escape traversal, double-halo zoom-adaptive SVG focus ring `g.sv-a11y-focus-ring`, collision-free semantic ARIA metadata via `SvgAriaAttributes` / `SvgAriaMetadataResolver` / `ariaIdPrefix`, and polite live-region announcements via `div.sv-sr-announcer`, #17).
+
+### Patch Changes
+
+- Updated dependencies
+  - @simplex-viz/core@0.10.0
+
 ## 0.9.0
 
 ### Minor Changes

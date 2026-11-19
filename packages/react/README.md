@@ -28,7 +28,7 @@ In React, `<SimplexTopicGraph />` lets you drop custom JSX directly into cluster
   2. **Portable `Svg*View` Plugins** (`contentView`, `clusterView`, `triangleView`, `edgeView` from `@simplex-viz/svg`): Direct SVG DOM updates with zero React reconciliation overhead per animation frame.
 - **5 Pluggable Strategy Axes (`Mesh`, `Clustering`, `Color`, `Layout`, `Zoom`)**: Swap tag clustering, soft-simplex clustering, multi-modal embeddings, pairwise similarity, composable layout (`Seeder × Relaxer × ScaleController`), and conformal **`1:4` hierarchical drill-down** (`zoomStrategy`) via declarative props.
 - **Full generic type inference**: Infers `<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>` end-to-end across `items`, `getId`, `getTags`, `deriveClusterMeta`, `visualResolver`, `renderContentNode`, `renderClusterNode`, tooltips, hover events, and click targets.
-- **Chronological Timeline Playback & Imperative Hooks**: Opt-in `timeline` prop with built-in floating Play/Pause/Step/Scrubber HUD, automatic full-corpus cluster/layout pinning (`autoFinalSeed`, `autoFinalSeedLayout: 'pinned' | 'adaptive'`), configurable `emptyClusterBehavior` (`'normal' | 'dim' | 'hide'`), and reactive `useSimplexTimeline()` alongside `useSimplexGraphController()`.
+- **Chronological Timeline Playback, Zero-Relayout Filtering & Batched Sync**: Opt-in `timeline` prop with built-in floating Play/Pause/Step/Scrubber HUD, zero-relayout `itemFilter` / `itemFilterMode` (`'dim' | 'hide'`), unified batched React prop synchronization (`controller.batch(...)` per render commit), built-in WCAG 2.1 AA keyboard navigation & screen-reader announcements (`ariaLabel`, `keyboardNavigation`), and reactive `useSimplexTimeline()` alongside `useSimplexGraphController()`.
 
 ## Installation
 
@@ -81,9 +81,11 @@ export function QuickTopicMap() {
 | `showZoomBreadcrumbs` | `true` | Displays clickable top breadcrumbs whenever drilled into a sub-level (`depth > 0`). |
 | `timeline` | `false` | Opt-in chronological frame stepping & playback (`boolean \| TimelinePlayerOptions`) with Play/Pause/Step/Scrubber HUD, `autoFinalSeed`, `autoFinalSeedLayout`, and `emptyClusterBehavior`. |
 | `emptyClusterBehavior` | `'normal'` | `'normal' \| 'dim' \| 'hide'` — Controls how clusters with `0` active items render (e.g., future clusters during timeline playback). |
+| `itemFilter` / `itemFilterMode` | `null` / `'dim'` | Zero-relayout item filtering (`(item) => boolean`, `'dim' \| 'hide'`) that dims or hides non-matching items without re-clustering or moving SAT nodes. |
 | `relayoutOnFontLoad` | `true` | Automatically clears SVG hull caches and re-solves layout once webfonts finish loading. |
 | `deferInitialLayout` | `false` | Auto-recovers from `0×0` mounts on first non-zero `ResizeObserver` entry (zero spring jump); set `true` or `{ fallbackTimeoutMs }` to skip provisional `960×620` solving until visible. |
 | `touchScrollLockPx` / `clickTolerancePx` | `8` / `12` | Embedded mobile touch direction-locking (`touch-action: pan-y`; `0` disables) and peak-displacement click suppression in CSS px. |
+| `ariaLabel` / `keyboardNavigation` | `'Interactive simplex topic graph'` / `true` | WCAG 2.1 AA single-tabstop keyboard traversal (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Escape`), high-contrast double-halo SVG focus ring, semantic ARIA labels, and `aria-live="polite"` announcements. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode when `focused*` is uncontrolled and click is not consumed (`return true`). |
 | `tooltip` | `false` | Set `tooltip` (`true`) or pass `(target) => ReactNode` to render a floating tooltip overlay. |
 
@@ -379,6 +381,22 @@ export function TimelineAtlas({ items }: { items: readonly { id: string; tags: s
 }
 ```
 
+### Step 8 — Zero-Relayout Item Filtering, Batched Updates & Keyboard Accessibility
+
+Filter items visually without re-clustering or shifting any SAT positions (`itemFilter`, `itemFilterMode`), rely on automatic single-batch prop synchronization across simultaneous React prop updates (or call `handle.batch(...)` / `handle.setOptions(...)` imperatively), and provide descriptive screen-reader labels via `ariaLabel`:
+
+```tsx
+<SimplexTopicGraph
+  controllerRef={controllerRef}
+  items={items}
+  itemFilter={(item) => item.year >= minYear}
+  itemFilterMode="dim" // 'dim' | 'hide' — zero relayout
+  ariaLabel="Interactive publication topic graph"
+  keyboardNavigation
+  tooltip
+/>
+```
+
 ---
 
 ## `<SimplexTopicGraph />` Props Reference
@@ -428,6 +446,8 @@ export function TimelineAtlas({ items }: { items: readonly { id: string; tags: s
 | `sizeMultiplier` | `1.0` | Uniform node size multiplier (`0.35` – `3.0`). |
 | `showHulls` | `false` | Renders convex bounding hull wireframes over nodes. |
 | `emptyClusterBehavior` | `'normal'` | `'normal' \| 'dim' \| 'hide'` — Controls how clusters with `0` active member items render (e.g. future clusters during timeline playback). |
+| `itemFilter` | `null` | `((item: TItem) => boolean) \| null` — Zero-relayout visual item filter predicate preserving exact SAT node positions. |
+| `itemFilterMode` | `'dim'` | `'dim' \| 'hide'` — Controls whether filtered-out items dim in place or hide completely (suppressing hit-testing and keyboard traversal). |
 | `pinnedIds` / `highlightedIds` | — | `ReadonlySet<string> \| readonly string[]` of pinned or highlighted item IDs. |
 | `focusedClusterUid` / `focusedTriangleIndex` | `null` | Controlled cluster UID or triangle index isolation in `free-camera` mode. |
 | `className` / `style` | — | Styling forwarded to the outer container `<div>` (`width: 100%; height: 100%`). |
@@ -441,6 +461,7 @@ export function TimelineAtlas({ items }: { items: readonly { id: string; tags: s
 | `onContentClick` / `onClusterClick` / `onTriangleClick` / `onBackgroundClick` | — | Target-specific left-click callbacks returning `boolean \| void` (`true` consumes the click and skips `onLeftClick` and built-in defaults). |
 | `onLeftClick` / `onRightClick` | — | General pointer click callbacks returning `boolean \| void` (`true` consumes built-in drill-down/focus or suppresses the browser context menu; `void`/`false` composes). |
 | `touchScrollLockPx` / `clickTolerancePx` | `8` / `12` | Mobile touch direction-locking threshold (`touch-action: pan-y`; set `0` for `touch-action: none`) and peak-displacement drag-vs-click suppression tolerance in CSS px. |
+| `ariaLabel` / `keyboardNavigation` | `'Interactive simplex topic graph'` / `true` | WCAG 2.1 AA accessible `<svg>` label and built-in single-tabstop keyboard traversal (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Escape`), high-contrast focus ring, and `aria-live="polite"` announcements. |
 | `onWheel` | `'zoom-to-cursor'` | `'zoom-to-cursor' \| 'pan-vertical' \| 'none' \| ((event, camera) => boolean \| void)` (`true` consumes built-in cursor zoom; automatically inactive in `drill-down` mode). |
 | `onMetricsChange` | — | `(metrics: LayoutMetrics) => void` |
 | `onClustersChange` | — | `(clusters: readonly ClusterDescriptor[]) => void` |
@@ -454,9 +475,12 @@ export function TimelineAtlas({ items }: { items: readonly { id: string; tags: s
 `useSimplexGraphController()` returns `{ controllerRef, handle }`:
 
 - `handle.addItems(items)` / `handle.removeItems(ids)` / `handle.setItems(items)` — Live dataset mutations.
+- `handle.setItemFilter(predicate, options?)` / `handle.getItemFilter()` — Zero-relayout item filtering (`'dim' | 'hide'`).
+- `handle.batch(fn)` / `handle.setOptions(options)` — Coalesces multiple imperative updates into a single minimal pipeline recomputation.
 - `handle.setMeshStrategy(s)` / `handle.setClusteringStrategy(s)` / `handle.setColorStrategy(s)` / `handle.setLayoutStrategy(s)` / `handle.setZoomStrategy(s)` — Hot-swaps any of the 5 pipeline stages imperatively.
 - `handle.drillDownTriangle(index)` / `handle.drillDownCluster(uid)` / `handle.drillToNeighbor(neighborId)` / `handle.drillUp()` / `handle.drillToDepth(depth)` / `handle.drillToRoot()` / `handle.getZoomState()` — Programmatic drill-down navigation and state inspection.
 - `handle.setTriangleView(view)` / `handle.setEdgeView(view)` / `handle.setFocusedTriangleIndex(index)` — Hot-swaps mesh triangle/edge renderers or updates triangle focus.
+- `handle.getKeyboardFocusTarget()` / `handle.clearKeyboardFocus()` — Inspects or clears the active keyboard focus target.
 - `handle.zoomBy(factor)` / `handle.resetCamera()` / `handle.relayout()` — Camera zoom/reset and manual hull re-measurement + relayout.
 - `handle.getMetrics()` / `handle.getClusters()` / `handle.getTimeline()` / `handle.getRawController()` — Live solver telemetry, active timeline controller, and raw controller access.
 

@@ -1,7 +1,7 @@
 ---
 title: "@simplex-viz/core API Reference"
 packageName: "@simplex-viz/core"
-version: "0.9.0"
+version: "0.10.0"
 layerLabel: "Headless Geometry, Clustering, OKLab & SAT Engine"
 description: "Pure ES2022 TypeScript engine with zero runtime dependencies and zero DOM globals for browsers, Node.js, Bun, Deno, and Web Workers."
 order: 1
@@ -22,7 +22,7 @@ exportsTable:
       new SimplexGraphEngine<
         TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta
       >(config: SimplexEngineConfig<...>)
-    summary: "Stateful 60 fps engine with live mutations, spring transitions, deferred 0x0 viewport re-initialization, convex/triangle hit-testing, and conformal 1:4 drill-down."
+    summary: "Stateful 60 fps engine with live mutations, zero-relayout item filtering (setItemFilter), re-entrant batch() coalescing, spring transitions, deferred 0x0 viewport re-initialization, keyboard target traversal, convex/triangle hit-testing, and conformal 1:4 drill-down."
   - symbol: "createAdaptiveHexMeshStrategy"
     kind: "Function"
     signature: |-
@@ -161,15 +161,21 @@ engine.addItems(newItems);
 engine.updateItems(modifiedItems);
 engine.removeItems(['id-1']);
 
-// Swap any pipeline stage at runtime:
-engine.setMeshOptions({ sideLength: 210 });
-engine.setZoomStrategy(createSubspaceZoomStrategy({ clusterZoomMode: 'spotlight' }));
+// Coalesce multiple updates into a single minimal recomputation:
+engine.batch(() => {
+  engine.setMeshOptions({ sideLength: 210 });
+  engine.setZoomStrategy(createSubspaceZoomStrategy({ clusterZoomMode: 'spotlight' }));
+});
 
-// Navigate hierarchical drill-down programmatically:
+// Zero-relayout visual filtering ('dim' | 'hide') without moving SAT coordinates:
+engine.setItemFilter((item) => item.tags.includes('geometry'), { mode: 'dim' });
+
+// Navigate hierarchical drill-down or deterministic interactive targets programmatically:
 engine.drillDownTriangle(0);
 engine.drillDownCluster(clusterUid);
 engine.drillUp();
 engine.drillToRoot();
+const targets = engine.getInteractiveTargets();
 ```
 
 ## Low-Level Pure Math Primitives

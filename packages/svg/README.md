@@ -28,6 +28,7 @@ While `@simplex-viz/core` computes pure spatial coordinates, `@simplex-viz/svg` 
 - **Automatic offscreen `getBBox()` hull measurement**: Omit `measureConvexHull` on any `SvgNodeView` and `@simplex-viz/svg` automatically renders it in a hidden measurement bin, reads `getBBox()`, and caches a tight convex polygon for `0.0 px` overlap layout.
 - **Smooth 60 fps transitions**: Critically damped spring motion + specialized parametric `morph()` or automatic dual-layer crossfade when switching visual presets, drilling into sub-levels, or mutating items.
 - **Primary & `'intermediate'` bridge cluster styling**: `BadgeClusterSvgView` and `ClusterAnchorSvgView` automatically render compact chamfered bridge badges/anchors for synthesized zoom midpoints (`cluster.role === 'intermediate'`).
+- **Zero-relayout filtering, atomic `batch()`/`setOptions()` & WCAG 2.1 AA accessibility**: Dim or hide non-matching items without moving any SAT node (`itemFilter`, `itemFilterMode`, `setItemFilter()`), coalesce multi-property updates into a single recomputation (`batch()`, `setOptions()`), and navigate clusters, items, and triangles via single-tabstop keyboard traversal (`role="application"`, `aria-activedescendant`, zoom-adaptive double-halo SVG focus ring, semantic ARIA labels, and polite `aria-live` announcements).
 
 ## Installation
 
@@ -77,9 +78,11 @@ const controller = createSimplexSvg('#graph', items);
 | `showZoomBreadcrumbs` | `true` | Displays clickable navigation breadcrumbs automatically when `depth > 0` in drill-down mode. |
 | `timeline` | `false` | Opt-in chronological frame stepping & playback (`true` or `TimelinePlayerOptions`) with floating Play/Pause/Step/Scrubber HUD, `autoFinalSeed`, `autoFinalSeedLayout` (`false \| 'pinned' \| 'adaptive'`), and `emptyClusterBehavior`. |
 | `emptyClusterBehavior` | `'normal'` | `'normal' \| 'dim' \| 'hide'` — Controls how clusters with `0` active items render (e.g., future clusters during timeline replay). |
+| `itemFilter` / `itemFilterMode` | `null` / `'dim'` | Zero-relayout item filtering (`(item) => boolean`, `'dim' \| 'hide'`) that dims or hides non-matching items without re-clustering or moving SAT coordinates. |
 | `relayoutOnFontLoad` | `true` | Automatically clears SVG hull caches and re-solves layout after `document.fonts.ready` / `loadingdone`. |
 | `deferInitialLayout` | `false` | Auto-recovers from `0×0` mounts on first non-zero `ResizeObserver` entry (zero spring jump); set `true` or `{ fallbackTimeoutMs }` to skip provisional `960×620` solving until visible. |
 | `touchScrollLockPx` / `clickTolerancePx` | `8` / `12` | Mobile touch direction-locking (`touch-action: pan-y`; set `0` for `touch-action: none`) and peak-displacement drag-vs-click tolerance in CSS px. |
+| `ariaLabel` / `keyboardNavigation` | `'Interactive simplex topic graph'` / `true` | WCAG 2.1 AA root `<svg>` label and built-in single-tabstop keyboard traversal (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Escape`), focus ring, and `aria-live="polite"` announcements. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode unless consumed (`return true`) by a click handler. |
 | `tooltip` | `true` for `createSimplexSvg(el, items)`, `false` in options | Floating DOM hover tooltip (`boolean` or custom `(target) => string` formatter). |
 
@@ -339,6 +342,31 @@ controller.timeline?.play();
 controller.timeline?.seek(0);
 ```
 
+### Step 8 — Zero-Relayout Filtering, Atomic `batch()` / `setOptions()` & Keyboard Accessibility
+
+Filter items in place without re-clustering or moving coordinates (`setItemFilter`), batch multiple runtime updates into one pipeline solve (`batch()` / `setOptions()`), and configure WCAG 2.1 AA keyboard navigation & screen-reader announcements (`ariaLabel`, `keyboardNavigation`):
+
+```ts
+// Zero-relayout item filtering ('dim' or 'hide'):
+controller.setItemFilter((article) => article.topics.includes('geometry'), { mode: 'dim' });
+
+// Coalesce multiple runtime changes into a single minimal recomputation:
+controller.setOptions({
+  theme: 'light',
+  preset: 'badges',
+  itemFilter: (article) => article.topics.includes('geometry'),
+  itemFilterMode: 'hide',
+  ariaLabel: 'Geometry articles topic map',
+});
+
+// Or batch arbitrary imperative calls:
+controller.batch(() => {
+  controller.setMeshOptions({ sideLength: 200 });
+  controller.setLayoutOptions({ itemGapPx: 6 });
+  controller.setKeyboardNavigation(true);
+});
+```
+
 ---
 
 ## API Reference (`createSimplexSvg` & `SimplexSvgController`)
@@ -371,6 +399,11 @@ controller.timeline?.seek(0);
 | `addItems(items)` / `removeItems(ids)` / `setItems(items)` | Mutates the dataset live with interruptible spring transitions. |
 | `setSizeMultiplier(multiplier)` / `setShowHulls(show)` | Uniformly scales node sizes or toggles convex hull wireframes. |
 | `setPinnedIds(ids)` / `setHighlightedIds(ids)` | Controls pinned and highlighted visual emphasis states. |
+| `itemFilter` / `itemFilterMode` / `setItemFilter(predicate, options?)` / `getItemFilter()` | Zero-relayout item filtering (`'dim' \| 'hide'`); `'hide'` suppresses visuals, hit-testing, and keyboard traversal while preserving exact SAT node positions. |
+| `batch(fn)` / `setOptions(opts)` | Coalesces multiple runtime option or strategy updates (`SimplexSvgUpdateOptions`) into a single minimal pipeline recomputation (re-entrant). |
+| `ariaLabel` / `setAriaLabel(label)` | Sets the accessible `aria-label` on the root `<svg role="application">` element. |
+| `keyboardNavigation` / `setKeyboardNavigation(enabled)` | Enables/disables single-tabstop keyboard traversal (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Escape`), high-contrast double-halo SVG focus ring, and `aria-live="polite"` announcements (`default: true`). |
+| `getKeyboardFocusTarget()` / `clearKeyboardFocus()` / `getInteractiveTargets()` | Inspects or clears the active keyboard focus target (`SimplexKeyboardFocusTarget`) or lists deterministic navigable targets. |
 | `setFocusedClusterUid(uid \| null)` / `setFocusedTriangleIndex(i \| null)` | Isolates a cluster or triangle face in `free-camera` mode. |
 | `deferInitialLayout` | `boolean \| { fallbackTimeoutMs?: number }` — Skips provisional `960×620` layout when mounted at `0×0` until the first non-zero `ResizeObserver` entry (auto-recovery on `0×0` mount is always active even when `false`). |
 | `touchScrollLockPx` / `setTouchScrollLockPx(px)` | Touch direction-locking threshold in CSS px (`8` default; `touch-action: pan-y`, vertical swipes scroll the page, horizontal/pinch lock onto canvas; `0` restores `touch-action: none`). |

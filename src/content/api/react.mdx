@@ -1,7 +1,7 @@
 ---
 title: "@simplex-viz/react API Reference"
 packageName: "@simplex-viz/react"
-version: "0.9.0"
+version: "0.10.0"
 layerLabel: "Type-Safe React 18 & 19 Bindings"
 description: "Declarative <SimplexTopicGraph /> component, JSX custom node measurement, and imperative useSimplexGraphController() hook re-exporting all SVG and Core utilities."
 order: 3
@@ -16,7 +16,7 @@ exportsTable:
       >
         {...props}
       />
-    summary: "Primary responsive React component supporting presets, shapeOptions, getShape, badgeOptions, timeline playback, deferInitialLayout, mobile touchScrollLockPx/clickTolerancePx, JSX node renderers, and drill-down."
+    summary: "Primary responsive React component supporting presets, shapeOptions, getShape, badgeOptions, zero-relayout itemFilter/itemFilterMode, batched prop sync, WCAG 2.1 AA ariaLabel/keyboardNavigation, timeline playback, deferInitialLayout, mobile touchScrollLockPx/clickTolerancePx, JSX node renderers, and drill-down."
   - symbol: "useSimplexGraphController"
     kind: "Hook"
     signature: |-
@@ -26,7 +26,7 @@ exportsTable:
         controllerRef: RefObject<SimplexSvgController<...> | null>;
         handle: SimplexGraphControllerHandle<TItem>;
       }
-    summary: "Provides stable imperative access to live item mutations, camera resets, relayout(), timeline access, and drillDown / drillUp actions."
+    summary: "Provides stable imperative access to live item mutations, setItemFilter(), batch()/setOptions(), keyboard focus helpers, camera resets, relayout(), timeline access, and drillDown / drillUp actions."
   - symbol: "useSimplexTimeline"
     kind: "Hook"
     signature: |-
@@ -73,6 +73,10 @@ export function InteractiveAtlas({ articles }: { readonly articles: readonly Art
         layoutStrategy={createCollisionDrivenLayoutStrategy()}
         zoomStrategy={createSubspaceZoomStrategy()}
         showZoomBreadcrumbs
+        itemFilter={(a) => a.tags.length > 0}
+        itemFilterMode="dim"
+        ariaLabel="Interactive research articles atlas"
+        keyboardNavigation
         tooltip
         onZoomStateChange={(state) => {
           console.log('Current drill depth:', state.depth);
@@ -87,6 +91,7 @@ export function InteractiveAtlas({ articles }: { readonly articles: readonly Art
 
 Returned by `useSimplexGraphController()`:
 
-- **Live Corpus Mutations**: `handle.addItems(items)`, `handle.updateItems(items)`, `handle.removeItems(ids)`, `handle.replaceItems(items)`
+- **Live Corpus Mutations & Filtering**: `handle.addItems(items)`, `handle.removeItems(ids)`, `handle.setItems(items)`, `handle.setItemFilter(predicate, options?)`, `handle.getItemFilter()`
+- **Atomic Batching & Options**: `handle.batch(fn)`, `handle.setOptions(options)`
 - **Hierarchical Drill-Down**: `handle.drillDownTriangle(index)`, `handle.drillDownCluster(uid)`, `handle.drillToNeighbor(neighborId)`, `handle.drillUp()`, `handle.drillToDepth(depth)`, `handle.drillToRoot()`, `handle.getZoomState()`
-- **Focus & Camera**: `handle.focusCluster(uid | null)`, `handle.focusTriangle(index | null)`, `handle.highlightItems(ids)`, `handle.pinItems(ids)`, `handle.resetCamera()`, `handle.getMetrics()`
+- **Focus, Accessibility, Camera & Telemetry**: `handle.setFocusedTriangleIndex(index | null)`, `handle.getKeyboardFocusTarget()`, `handle.clearKeyboardFocus()`, `handle.zoomBy(factor)`, `handle.resetCamera()`, `handle.relayout()`, `handle.getMetrics()`, `handle.getClusters()`, `handle.getTimeline()`

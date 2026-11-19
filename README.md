@@ -122,8 +122,10 @@ Every setting has a deterministic zero-config default out of the box—you only 
 | `showZoomBreadcrumbs` | `true` | Automatically displays clickable navigation breadcrumbs whenever drilled into a sub-level (`depth > 0`). |
 | `timeline` | `false` | Opt-in chronological frame stepping & playback (`boolean \| TimelinePlayerOptions`) with built-in HUD bar, `autoFinalSeed`, `autoFinalSeedLayout` (`false \| 'pinned' \| 'adaptive'`), and `emptyClusterBehavior`. |
 | `emptyClusterBehavior` | `'normal'` | `'normal' \| 'dim' \| 'hide'` — Controls how clusters with `0` active items render (e.g., future clusters during chronological playback). |
+| `itemFilter` / `itemFilterMode` | `null` / `'dim'` | Zero-relayout item filtering (`(item) => boolean`, `'dim' \| 'hide'`) that dims or hides non-matching items without re-clustering or shifting any SAT coordinates. |
 | `deferInitialLayout` | `false` | Automatically recovers from `0×0` mounts on the first non-zero `ResizeObserver` entry (zero spring jump); pass `true` or `{ fallbackTimeoutMs }` to skip provisional `960×620` solving until visible. |
 | `touchScrollLockPx` / `clickTolerancePx` | `8` / `12` | Embedded mobile ergonomics: vertical single-finger swipes yield to page scrolling (`touch-action: pan-y`; set `0` for `touch-action: none`), and gestures exceeding `clickTolerancePx` suppress trailing clicks. |
+| `ariaLabel` / `keyboardNavigation` | `'Interactive simplex topic graph'` / `true` | WCAG 2.1 AA single-tabstop keyboard navigation (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Escape`), high-contrast double-halo SVG focus ring, semantic ARIA labels, and polite `aria-live` announcements. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Clicking a cluster or triangle isolates its neighborhood in `free-camera` mode (clicking background clears). |
 | `tooltip` | `true` in `createSimplexSvg(el, items)`, `false` in options/React | Floating hover tooltip for `'content'`, `'cluster'`, and `'triangle'` targets (accepts `boolean` or custom formatter). |
 
@@ -433,6 +435,34 @@ export function ChronologicalAtlas({ papers }: { papers: readonly (ResearchPaper
     />
   );
 }
+```
+
+### Step 11 — Zero-Relayout Item Filtering, Batched Updates & Keyboard Accessibility
+
+Filter items visually without re-clustering or shifting any layout positions (`itemFilter`, `itemFilterMode: 'dim' | 'hide'`), coalesce multi-option updates into a single recomputation (`batch()`, `setOptions()`, plus automatic batched prop sync in `<SimplexTopicGraph />`), and customize WCAG 2.1 AA keyboard navigation & screen-reader labels (`ariaLabel`, `keyboardNavigation`):
+
+```tsx
+<SimplexTopicGraph
+  items={papers}
+  getId={(p) => p.doi}
+  getTags={(p) => p.topics}
+  itemFilter={(p) => p.citations >= minCitations}
+  itemFilterMode="dim" // 'dim' | 'hide' — zero relayout or spring jump
+  ariaLabel="Research papers topic map"
+  keyboardNavigation
+  tooltip
+/>
+```
+
+```ts
+// Imperative atomic multi-option updates in @simplex-viz/svg (or via handle.batch / handle.setOptions):
+controller.setOptions({
+  theme: 'light',
+  preset: 'badges',
+  itemFilter: (p) => p.citations >= 50,
+  itemFilterMode: 'hide',
+  ariaLabel: 'Highly cited papers map',
+});
 ```
 
 ### Headless One-Shot Layout (`solveSimplexSnapshot`)

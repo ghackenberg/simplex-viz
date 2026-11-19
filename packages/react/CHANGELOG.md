@@ -1,5 +1,18 @@
 # @simplex-viz/react
 
+## 0.10.0
+
+### Minor Changes
+
+- Add zero-relayout filtering props (`itemFilter`, `itemFilterMode`, #15), unify dynamic `<SimplexTopicGraph />` prop synchronization inside a single batched `controller.batch(...)` effect per commit (#16), add WCAG 2.1 AA accessibility props (`ariaLabel`, `keyboardNavigation`, #17), expose `setItemFilter`, `getItemFilter`, `batch`, `setOptions`, `getKeyboardFocusTarget`, and `clearKeyboardFocus` on `useSimplexGraphController()`, and re-export all new `@simplex-viz/core` and `@simplex-viz/svg` types.
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @simplex-viz/core@0.10.0
+  - @simplex-viz/svg@0.10.0
+
 ## 0.9.0
 
 ### Minor Changes

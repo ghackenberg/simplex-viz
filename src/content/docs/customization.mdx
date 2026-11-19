@@ -165,6 +165,21 @@ export function PublicationTimeline({ publications }: { publications: readonly P
 
 Because `estimateClusterCount(ctx)` and `ClusteringStrategyContext` receive explicit `reason` (`'initial' | 'items' | 'viewport' | 'mesh' | 'strategy'`) and viewport dimensions, resizing the canvas cleanly re-seeds both final-seeded clustering and final-seeded layout against the canonical full corpus.
 
+## 7. Zero-Relayout Item Filtering, Batched Updates & WCAG 2.1 AA Accessibility
 
+Three production ergonomics features keep interactive dashboards responsive, deterministic, and accessible out of the box:
 
+- **Zero-Relayout Item Filtering (`itemFilter`, `itemFilterMode`, `setItemFilter()`)**: Filter content items visually in `'dim'` (default) or `'hide'` mode without re-clustering or re-solving the SAT layout. Every node preserves its exact `(x, y)` coordinate so toggling search queries or facet filters produces zero spring jumps. In `'hide'` mode, filtered-out items are non-interactive (`pointer-events: none`) and automatically excluded from both pointer hit-testing and keyboard navigation.
+- **Re-entrant `batch()` & Atomic `setOptions()`**: Wrap multiple imperative updates inside `engine.batch(fn)` or `controller.batch(fn)`, or pass a partial update object to `controller.setOptions(opts)` (`SimplexSvgUpdateOptions`), to coalesce changes (such as `theme`, `preset`, `meshOptions`, `layoutOptions`, `itemFilter`, and strategies) into a single minimal pipeline recomputation. In `@simplex-viz/react`, `<SimplexTopicGraph />` automatically batches all dynamic prop changes per render commit inside one `controller.batch(...)` pass.
+- **WCAG 2.1 AA Keyboard Navigation & Screen-Reader Support (`ariaLabel`, `keyboardNavigation`)**: Enabled by default (`keyboardNavigation: true`), the root `<svg>` exposes a single tabstop (`role="application"`, `tabindex="0"`, `aria-activedescendant`) with full keyboard traversal (`ArrowRight`/`ArrowDown` next, `ArrowLeft`/`ArrowUp` previous, `Home`/`End` first/last, `Enter`/`Space` activate/drill/focus, `Escape` clear focus or drill up), a zoom- and theme-adaptive high-contrast double-halo SVG focus ring (`g.sv-a11y-focus-ring`), collision-free instance-scoped ARIA IDs and roles on clusters/items/triangles/breadcrumbs, and polite screen-reader announcements (`div.sv-sr-announcer[role="status"][aria-live="polite"]`).
 
+```tsx
+<SimplexTopicGraph
+  items={publications}
+  itemFilter={(p) => p.year >= minYear}
+  itemFilterMode="dim"
+  ariaLabel="Interactive research publications topic map"
+  keyboardNavigation
+  tooltip
+/>
+```

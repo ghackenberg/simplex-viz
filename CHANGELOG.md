@@ -2,6 +2,22 @@
 
 All notable changes to **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`, and the documentation/showcase site) are documented in this file following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), coordinated with per-package release notes via `@changesets/cli`.
 
+## [0.10.0] - 2026-11-19
+
+### Added
+- **`@simplex-viz/core`**:
+  - **Zero-Relayout Item Filtering ([#15](https://github.com/ghackenberg/simplex-viz/issues/15))**: Added `ItemFilterMode` (`'dim' | 'hide'`), `ItemFilterPredicate`, `ItemFilterOptions`, `ItemFilterState`, `NodeRenderState.isFilteredOut`, `itemFilter` / `itemFilterMode` on `SimplexGraphEngineConfig`, and `engine.setItemFilter(predicate, options?)` / `engine.getItemFilter()`. Filters items visually without re-clustering or re-solving SAT layout so node coordinates remain completely stable while `'hide'` items suppress hit-testing and visual presence cleanly.
+  - **Re-entrant `batch()` Coalescing ([#16](https://github.com/ghackenberg/simplex-viz/issues/16))**: Added `engine.batch(fn)` to defer intermediate clustering, layout, and rendering passes across nested or sequential engine mutations and flush a single minimal pipeline recomputation when the outermost batch exits.
+  - **Keyboard Navigation & Interactive Target Primitives ([#17](https://github.com/ghackenberg/simplex-viz/issues/17))**: Added `SimplexKeyboardFocusTarget`, `SimplexInteractiveTarget`, `engine.getInteractiveTargets()`, `engine.hoverInteractiveTarget()`, `engine.activateInteractiveTarget()`, `engine.getClusterByUid()`, and `engine.getItemLayoutById()` to support deterministic focus traversal and activation across clusters, content items, and triangles.
+- **`@simplex-viz/svg`**:
+  - **Zero-Relayout Item Filtering ([#15](https://github.com/ghackenberg/simplex-viz/issues/15))**: Added `itemFilter` / `itemFilterMode` options and `setItemFilter()` / `getItemFilter()` on `SimplexSvgController`, applied cleanly in `SvgRendererAdapter` without double-dimming or altering SAT hulls, and re-exported filter types.
+  - **Atomic `batch()` & `setOptions()` Updates ([#16](https://github.com/ghackenberg/simplex-viz/issues/16))**: Added `SimplexSvgUpdateOptions`, `controller.batch(fn)`, and `controller.setOptions(opts)` to coalesce multi-property runtime updates (e.g. `theme`, `preset`, `layoutOptions`, `itemFilter`, strategies) into one recomputation, and internally batched `setTheme()` and `setTimelineOptions()`.
+  - **WCAG 2.1 AA Keyboard Navigation & Screen-Reader Accessibility ([#17](https://github.com/ghackenberg/simplex-viz/issues/17))**: Added `ariaLabel` and `keyboardNavigation` (default `true`) options with runtime setters (`setAriaLabel()`, `setKeyboardNavigation()`, `getKeyboardFocusTarget()`, `clearKeyboardFocus()`, `getInteractiveTargets()`), single-tabstop `role="application"` + `tabindex="0"` + `aria-activedescendant` keyboard traversal (`ArrowRight`/`ArrowDown`/`ArrowLeft`/`ArrowUp`/`Home`/`End`/`Enter`/`Space`/`Escape`), collision-free instance-scoped SVG DOM IDs and semantic ARIA roles/labels (`SvgAriaAttributes`, `SvgAriaMetadataResolver`, `ariaIdPrefix`), a zoom- and theme-adaptive high-contrast double-halo SVG focus ring (`g.sv-a11y-focus-ring`), and a polite screen-reader live region (`div.sv-sr-announcer[role="status"][aria-live="polite"]`).
+- **`@simplex-viz/react`**:
+  - **Filtering, Batched Prop Sync & Accessibility ([#15](https://github.com/ghackenberg/simplex-viz/issues/15), [#16](https://github.com/ghackenberg/simplex-viz/issues/16), [#17](https://github.com/ghackenberg/simplex-viz/issues/17))**: Added `itemFilter`, `itemFilterMode`, `ariaLabel`, and `keyboardNavigation` props on `<SimplexTopicGraph />`; unified dynamic prop synchronization into a single batched `controller.batch(...)` effect per render commit; exposed `setItemFilter`, `getItemFilter`, `batch`, `setOptions`, `getKeyboardFocusTarget`, and `clearKeyboardFocus` on `useSimplexGraphController()`; and re-exported all new core and SVG types.
+- **Documentation & READMEs**:
+  - Updated all four `README.md` files, Astro documentation guides (`quickstart`, `customization`), and package API references (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`) for `0.10.0`.
+
 ## [0.9.0] - 2026-11-19
 
 ### Added / Fixed

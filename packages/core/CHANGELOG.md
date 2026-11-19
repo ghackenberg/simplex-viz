@@ -1,5 +1,11 @@
 # @simplex-viz/core
 
+## 0.10.0
+
+### Minor Changes
+
+- Add zero-relayout item filtering (`ItemFilterMode`, `ItemFilterPredicate`, `ItemFilterOptions`, `ItemFilterState`, `NodeRenderState.isFilteredOut`, `itemFilter` / `itemFilterMode` config options, `engine.setItemFilter()`, `engine.getItemFilter()`, #15), add re-entrant `engine.batch(fn)` to coalesce multi-property updates into a single minimal pipeline recomputation (#16), and add headless keyboard focus & interactive target primitives (`SimplexKeyboardFocusTarget`, `SimplexInteractiveTarget`, `getInteractiveTargets()`, `hoverInteractiveTarget()`, `activateInteractiveTarget()`, `getClusterByUid()`, `getItemLayoutById()`, #17).
+
 ## 0.9.0
 
 ### Minor Changes
