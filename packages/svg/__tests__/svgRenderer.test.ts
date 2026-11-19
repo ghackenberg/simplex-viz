@@ -2659,6 +2659,240 @@ describe('@simplex-viz/svg integration', () => {
     controller.destroy();
     container.remove();
   });
+
+  it('supports first-class setItemFilter with dim/hide modes, zero layout re-solve, hitTest exclusion, hover cleanup, and timeline compatibility (Issue #15)', () => {
+    interface TypedDoc {
+      readonly id: string;
+      readonly kind: 'post' | 'note' | 'paper';
+      readonly title: string;
+      readonly tags: readonly string[];
+      readonly year: number;
+    }
+
+    const items: readonly TypedDoc[] = [
+      { id: 'p1', kind: 'post', title: 'Alpha Post', tags: ['alpha', 'beta'], year: 2021 },
+      { id: 'p2', kind: 'post', title: 'Beta Post', tags: ['beta', 'gamma'], year: 2021 },
+      { id: 'n1', kind: 'note', title: 'Alpha Note', tags: ['alpha'], year: 2022 },
+      { id: 'n2', kind: 'note', title: 'Gamma Note', tags: ['gamma', 'delta'], year: 2022 },
+      { id: 'r1', kind: 'paper', title: 'Delta Paper', tags: ['delta', 'alpha'], year: 2023 },
+      { id: 'r2', kind: 'paper', title: 'Gamma Paper', tags: ['gamma'], year: 2023 },
+    ];
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+    });
+    document.body.appendChild(container);
+
+    let metricsCalls = 0;
+    const hoveredIds: Array<string | null> = [];
+    const clickedIds: string[] = [];
+
+    const controller = createSimplexSvg<TypedDoc>(container, {
+      items,
+      preset: 'geometric',
+      shapeOptions: { dimmedOpacity: 0.22 },
+      layoutOptions: { seed: 42 },
+      interactions: {
+        onContentHover: (ev) => {
+          hoveredIds.push(ev ? ev.item.id : null);
+        },
+        onContentClick: (ev) => {
+          clickedIds.push(ev.item.id);
+        },
+      },
+      onMetricsChange: () => {
+        metricsCalls += 1;
+      },
+    });
+    for (let i = 0; i < 30; i++) controller.stepForTest(20);
+
+    const svg = controller.getSvgElement();
+    Object.defineProperty(svg, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+    });
+
+    const snapshotTransforms = (): Map<string, string> => {
+      const map = new Map<string, string>();
+      for (const el of svg.querySelectorAll('g.sv-node-item, g.sv-node-cluster')) {
+        const id = el.getAttribute('data-node-id');
+        const tf = el.getAttribute('transform');
+        if (id && tf) map.set(id, tf);
+      }
+      return map;
+    };
+
+    const parseTranslate = (el: Element): { x: number; y: number } => {
+      const m = el
+        .getAttribute('transform')
+        ?.match(/translate\(\s*([0-9.-]+)[,\s]+([0-9.-]+)/);
+      return { x: parseFloat(m![1]!), y: parseFloat(m![2]!) };
+    };
+
+    const baselineTransforms = snapshotTransforms();
+    const baselineMetricsCalls = metricsCalls;
+    const baselineClusters = controller.getClusters().map((c) => c.clusterUid);
+
+    expect(controller.getItemFilter()).toEqual({ predicate: null, mode: 'dim' });
+
+    // 1) Default mode: 'dim' — freezes all positions & clusters, dims non-matching items to shapeOptions.dimmedOpacity
+    controller.setItemFilter((item) => item.kind === 'post');
+    expect(controller.getItemFilter().mode).toBe('dim');
+    expect(metricsCalls).toBe(baselineMetricsCalls);
+    expect(controller.getClusters().map((c) => c.clusterUid)).toEqual(baselineClusters);
+    expect(snapshotTransforms()).toEqual(baselineTransforms);
+
+    for (const el of svg.querySelectorAll('g.sv-node-item')) {
+      const id = el.getAttribute('data-node-id')!;
+      const op = parseFloat(el.getAttribute('opacity') ?? '1');
+      if (id === 'p1' || id === 'p2') {
+        expect(op).toBeCloseTo(1, 2);
+        expect(el.getAttribute('data-filtered-out')).toBeNull();
+        expect(el.getAttribute('pointer-events')).toBeNull();
+      } else {
+        expect(op).toBeCloseTo(0.22, 2);
+        expect(el.getAttribute('data-filtered-out')).toBe('true');
+        expect(el.getAttribute('pointer-events')).toBeNull();
+      }
+    }
+
+    // Hover a dimmed non-matching item ('n1') — hover still works in 'dim' mode
+    const n1El = svg.querySelector('g.sv-node-item[data-node-id="n1"]')!;
+    const n1Pos = parseTranslate(n1El);
+    svg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: n1Pos.x,
+        clientY: n1Pos.y,
+        bubbles: true,
+      }),
+    );
+    controller.stepForTest(16);
+    expect(hoveredIds.at(-1)).toBe('n1');
+
+    // 2) Switch to mode: 'hide' — clears active hover on newly hidden item, sets opacity 0 & pointer-events none, skips hitTest, ZERO layout re-solve
+    controller.setItemFilter((item) => item.kind === 'post', { mode: 'hide' });
+    expect(controller.getItemFilter().mode).toBe('hide');
+    expect(metricsCalls).toBe(baselineMetricsCalls);
+    expect(hoveredIds.at(-1)).toBeNull();
+    expect(snapshotTransforms()).toEqual(baselineTransforms);
+
+    for (const el of svg.querySelectorAll('g.sv-node-item')) {
+      const id = el.getAttribute('data-node-id')!;
+      const op = parseFloat(el.getAttribute('opacity') ?? '1');
+      if (id === 'p1' || id === 'p2') {
+        expect(op).toBeCloseTo(1, 2);
+        expect(el.getAttribute('data-filtered-out')).toBeNull();
+        expect(el.getAttribute('pointer-events')).toBeNull();
+      } else {
+        expect(op).toBeCloseTo(0, 3);
+        expect(el.getAttribute('data-filtered-out')).toBe('true');
+        expect(el.getAttribute('pointer-events')).toBe('none');
+      }
+    }
+
+    // Clicking coordinates of hidden item 'n1' must NOT fire onContentClick for 'n1'
+    svg.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 2,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: n1Pos.x,
+        clientY: n1Pos.y,
+        bubbles: true,
+      }),
+    );
+    svg.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerId: 2,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: n1Pos.x,
+        clientY: n1Pos.y,
+        bubbles: true,
+      }),
+    );
+    svg.dispatchEvent(
+      new MouseEvent('click', { button: 0, clientX: n1Pos.x, clientY: n1Pos.y, bubbles: true }),
+    );
+    expect(clickedIds).not.toContain('n1');
+
+    // Clicking a visible matching item ('p1') still works normally
+    const p1Pos = parseTranslate(svg.querySelector('g.sv-node-item[data-node-id="p1"]')!);
+    svg.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 3,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: p1Pos.x,
+        clientY: p1Pos.y,
+        bubbles: true,
+      }),
+    );
+    svg.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerId: 3,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: p1Pos.x,
+        clientY: p1Pos.y,
+        bubbles: true,
+      }),
+    );
+    svg.dispatchEvent(
+      new MouseEvent('click', { button: 0, clientX: p1Pos.x, clientY: p1Pos.y, bubbles: true }),
+    );
+    expect(clickedIds).toContain('p1');
+
+    // 3) Clearing filter with null restores all items immediately with zero layout re-solve
+    controller.setItemFilter(null);
+    expect(metricsCalls).toBe(baselineMetricsCalls);
+    expect(snapshotTransforms()).toEqual(baselineTransforms);
+    for (const el of svg.querySelectorAll('g.sv-node-item')) {
+      expect(parseFloat(el.getAttribute('opacity') ?? '0')).toBeCloseTo(1, 2);
+      expect(el.getAttribute('data-filtered-out')).toBeNull();
+      expect(el.getAttribute('pointer-events')).toBeNull();
+    }
+
+    // 4) Initial itemFilter + timeline stepping: newly entering items are evaluated against active filter immediately
+    const tlContainer = document.createElement('div');
+    Object.defineProperty(tlContainer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+    });
+    document.body.appendChild(tlContainer);
+
+    const tlCtrl = createSimplexSvg<TypedDoc>(tlContainer, {
+      items,
+      layoutOptions: { seed: 42 },
+      itemFilter: (item) => item.kind !== 'note',
+      itemFilterMode: 'hide',
+      timeline: {
+        getTimestamp: (item) => item.year,
+        initialStep: 0,
+      },
+    });
+    for (let i = 0; i < 30; i++) tlCtrl.stepForTest(20);
+    // Step 1 adds year 2022 ('n1', 'n2' — both kind: 'note') -> must stay hidden immediately
+    tlCtrl.timeline!.seek(1);
+    for (let i = 0; i < 30; i++) tlCtrl.stepForTest(20);
+    const tlSvg = tlCtrl.getSvgElement();
+    const n1Tl = tlSvg.querySelector('g.sv-node-item[data-node-id="n1"]')!;
+    expect(parseFloat(n1Tl.getAttribute('opacity') ?? '1')).toBeCloseTo(0, 3);
+    expect(n1Tl.getAttribute('pointer-events')).toBe('none');
+
+    // Step 2 adds year 2023 ('r1', 'r2' — kind: 'paper') -> visible!
+    tlCtrl.timeline!.seek(2);
+    for (let i = 0; i < 30; i++) tlCtrl.stepForTest(20);
+    const r1Tl = tlSvg.querySelector('g.sv-node-item[data-node-id="r1"]')!;
+    expect(parseFloat(r1Tl.getAttribute('opacity') ?? '0')).toBeGreaterThan(0.95);
+    expect(r1Tl.getAttribute('pointer-events')).toBeNull();
+
+    tlCtrl.destroy();
+    tlContainer.remove();
+    controller.destroy();
+    container.remove();
+  });
 });
 
 

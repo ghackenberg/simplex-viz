@@ -629,6 +629,11 @@ export class SvgRendererAdapter<
       } else {
         tracked.rootGroup.removeAttribute('data-pass-through');
       }
+      if (node.isFilteredOut && !isGhostNode) {
+        tracked.rootGroup.setAttribute('data-filtered-out', 'true');
+      } else {
+        tracked.rootGroup.removeAttribute('data-filtered-out');
+      }
       if (node.isContext && !isGhostNode) {
         tracked.rootGroup.setAttribute('data-context', 'true');
       } else {

@@ -44,6 +44,10 @@ import type {
   HitTarget,
   IdentifiedItem,
   InteractionHandlers,
+  ItemFilterMode,
+  ItemFilterOptions,
+  ItemFilterPredicate,
+  ItemFilterState,
   LayoutMetrics,
   LayoutSolverOptions,
   MeshEdgeRenderState,
@@ -378,6 +382,9 @@ export class SimplexGraphEngine<
   private previousTheme: SimplexColorTheme | undefined;
   private showHulls: boolean;
   private emptyClusterBehavior: EmptyClusterBehavior = 'normal';
+  private itemFilterPredicate: ItemFilterPredicate<TItem> | null = null;
+  private itemFilterMode: ItemFilterMode = 'dim';
+  private readonly filteredOutItemIds = new Set<string>();
   private canonicalSeedItems: readonly TItem[] | null = null;
   private visualResolverRevision = 0;
   private interactions: InteractionHandlers<
@@ -548,6 +555,8 @@ export class SimplexGraphEngine<
       createFreeCameraZoomStrategy<TItem, TTagMeta, TClusterMeta>();
     this.theme = config.theme ?? 'dark';
     this.emptyClusterBehavior = config.emptyClusterBehavior ?? 'normal';
+    this.itemFilterPredicate = config.itemFilter ?? null;
+    this.itemFilterMode = config.itemFilterMode ?? 'dim';
     this.canonicalSeedItems = config.canonicalSeedItems
       ? [...config.canonicalSeedItems]
       : null;
@@ -1238,6 +1247,82 @@ export class SimplexGraphEngine<
     }
     this.dirtyRender = true;
     this.renderNow();
+  }
+
+  /** Returns the currently active item filter predicate and mode (`'dim' | 'hide'`). */
+  getItemFilter(): ItemFilterState<TItem> {
+    return {
+      predicate: this.itemFilterPredicate,
+      mode: this.itemFilterMode,
+    };
+  }
+
+  /**
+   * Filters content items visually and interactively without re-running clustering or layout.
+   * All anchors, clusters, and item positions stay 100% frozen across rapid filter changes.
+   *
+   * - `mode: 'dim'` (default): Softly dims non-matching items cleanly (`interaction.isDimmed = true`).
+   * - `mode: 'hide'`: Hides non-matching items (`opacity: 0`, `pointer-events: none`, excluded from `hitTest()`).
+   * - Pass `null` as `predicate` to clear the active filter and restore all items.
+   */
+  setItemFilter(
+    predicate: ItemFilterPredicate<TItem> | null,
+    options?: ItemFilterOptions,
+  ): void {
+    const nextMode: ItemFilterMode = options?.mode ?? 'dim';
+    const prevMode = this.itemFilterMode;
+    this.itemFilterPredicate = predicate;
+    this.itemFilterMode = nextMode;
+    const filteredChanged = this.refreshItemFilterCache();
+
+    if (
+      this.hoveredContentId !== null &&
+      this.itemFilterPredicate !== null &&
+      this.itemFilterMode === 'hide' &&
+      this.filteredOutItemIds.has(this.hoveredContentId)
+    ) {
+      this.hoveredContentId = null;
+      this.interactions.onContentHover?.(null);
+    }
+
+    if (this.destroyed || this.awaitingInitialSolve) return;
+    if (!filteredChanged && prevMode === nextMode) return;
+    this.dirtyRender = true;
+    this.renderNow();
+  }
+
+  private refreshItemFilterCache(): boolean {
+    const predicate = this.itemFilterPredicate;
+    if (predicate === null) {
+      if (this.filteredOutItemIds.size === 0) return false;
+      this.filteredOutItemIds.clear();
+      return true;
+    }
+
+    const nextFiltered = new Set<string>();
+    for (const [id, node] of this.itemNodes) {
+      if (!predicate(node.domain.item)) {
+        nextFiltered.add(id);
+      }
+    }
+
+    let changed = nextFiltered.size !== this.filteredOutItemIds.size;
+    if (!changed) {
+      for (const id of nextFiltered) {
+        if (!this.filteredOutItemIds.has(id)) {
+          changed = true;
+          break;
+        }
+      }
+    }
+
+    if (changed) {
+      this.filteredOutItemIds.clear();
+      for (const id of nextFiltered) {
+        this.filteredOutItemIds.add(id);
+      }
+    }
+    return changed;
   }
 
   /**
@@ -2839,6 +2924,17 @@ export class SimplexGraphEngine<
       }
     }
 
+    this.refreshItemFilterCache();
+    if (
+      this.hoveredContentId !== null &&
+      this.itemFilterPredicate !== null &&
+      this.itemFilterMode === 'hide' &&
+      this.filteredOutItemIds.has(this.hoveredContentId)
+    ) {
+      this.hoveredContentId = null;
+      this.interactions.onContentHover?.(null);
+    }
+
     if (
       this.hoveredTriangleIndex !== null &&
       (this.hoveredTriangleIndex < 0
@@ -3538,13 +3634,18 @@ export class SimplexGraphEngine<
         : null;
 
     for (const iNode of this.itemNodes.values()) {
+      const isFilteredOut =
+        this.itemFilterPredicate !== null && this.filteredOutItemIds.has(iNode.id);
+      const isHiddenByFilter = isFilteredOut && this.itemFilterMode === 'hide';
+      const isDimmedByFilter = isFilteredOut && this.itemFilterMode === 'dim';
       const isPassThrough =
-        drillableTriSetForItems !== null &&
-        this.resolveDrillableTriangleForActiveItem(
-          iNode,
-          { x: iNode.x.value, y: iNode.y.value },
-          drillableTriSetForItems,
-        ) !== null;
+        isHiddenByFilter ||
+        (drillableTriSetForItems !== null &&
+          this.resolveDrillableTriangleForActiveItem(
+            iNode,
+            { x: iNode.x.value, y: iNode.y.value },
+            drillableTriSetForItems,
+          ) !== null);
       const isHovered = !isPassThrough && this.hoveredContentId === iNode.id;
       const isPinned = this.pinnedIds.has(iNode.id);
       const belongsToFocusedCluster =
@@ -3560,17 +3661,23 @@ export class SimplexGraphEngine<
           focusedTriVertSet.has(uc.cluster.clusterIndex),
         );
       const isHighlighted =
-        this.highlightedIds.has(iNode.id) ||
-        belongsToFocusedCluster ||
-        belongsToFocusedTriangle;
-      const isDimmed = hasHighlightFocus && !isHighlighted && !isHovered && !isPinned;
-      const effectiveItemOpacity = !this.activeFlight
-        ? isPinned || this.highlightedIds.has(iNode.id)
-          ? Math.max(iNode.opacity.value, 1)
-          : isHovered
-            ? Math.max(iNode.opacity.value, 0.92)
-            : iNode.opacity.value
-        : iNode.opacity.value;
+        !isHiddenByFilter &&
+        (this.highlightedIds.has(iNode.id) ||
+          belongsToFocusedCluster ||
+          belongsToFocusedTriangle);
+      const isDimmed =
+        !isHiddenByFilter &&
+        ((hasHighlightFocus && !isHighlighted && !isHovered && !isPinned) ||
+          isDimmedByFilter);
+      const effectiveItemOpacity = isHiddenByFilter
+        ? 0
+        : !this.activeFlight
+          ? isPinned || this.highlightedIds.has(iNode.id)
+            ? Math.max(iNode.opacity.value, 1)
+            : isHovered
+              ? Math.max(iNode.opacity.value, 0.92)
+              : iNode.opacity.value
+          : iNode.opacity.value;
 
       items.push({
         id: iNode.id,
@@ -3582,6 +3689,7 @@ export class SimplexGraphEngine<
         hull: iNode.hull,
         cacheKey: iNode.cacheKey,
         isPassThrough: isPassThrough || undefined,
+        isFilteredOut: isFilteredOut || undefined,
         interaction: {
           isHovered,
           isPinned,
@@ -3907,7 +4015,15 @@ export class SimplexGraphEngine<
     const itemList = [...this.itemNodes.values()];
     for (let i = itemList.length - 1; i >= 0; i--) {
       const node = itemList[i]!;
-      if (node.status !== 'active' || node.opacity.value < 0.15) continue;
+      if (
+        node.status !== 'active' ||
+        node.opacity.value < 0.15 ||
+        (this.itemFilterPredicate !== null &&
+          this.itemFilterMode === 'hide' &&
+          this.filteredOutItemIds.has(node.id))
+      ) {
+        continue;
+      }
       if (
         hitTestConvexGeometry(
           node.hull,

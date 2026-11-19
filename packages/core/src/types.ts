@@ -278,6 +278,35 @@ export interface VisualResolver<
  */
 export type EmptyClusterBehavior = 'normal' | 'dim' | 'hide';
 
+/**
+ * Visual & interaction mode for non-matching items when an item filter predicate is active:
+ * - `'dim'` (default): Keeps all positions and clusters frozen while dimming non-matching items cleanly.
+ * - `'hide'`: Hides non-matching items (`opacity: 0`, `pointer-events: none`, excluded from `hitTest()`)
+ *   without triggering a layout re-solve.
+ */
+export type ItemFilterMode = 'dim' | 'hide';
+
+/**
+ * Predicate returning `true` for items that match the active filter and `false` for filtered-out items.
+ */
+export type ItemFilterPredicate<TItem = DefaultTaggedItem> = (item: TItem) => boolean;
+
+/**
+ * Options accepted by `setItemFilter(predicate, options)`.
+ */
+export interface ItemFilterOptions {
+  /** How non-matching items are treated. Default: `'dim'`. */
+  readonly mode?: ItemFilterMode;
+}
+
+/**
+ * Snapshot of the active item filter predicate and mode.
+ */
+export interface ItemFilterState<TItem = DefaultTaggedItem> {
+  readonly predicate: ItemFilterPredicate<TItem> | null;
+  readonly mode: ItemFilterMode;
+}
+
 export interface Point2D {
   readonly x: number;
   readonly y: number;
@@ -390,6 +419,8 @@ export interface NodeRenderState<TVisual> {
   readonly isContext?: boolean;
   /** True when this node belongs to a drillable triangle and passes hover & click through to that triangle. */
   readonly isPassThrough?: boolean;
+  /** True when this content item is currently excluded by an active `setItemFilter(...)` predicate. */
+  readonly isFilteredOut?: boolean;
   /** Neighbor navigation ID (`tri:<index>` or `cluster:<index>`) when clicking a dimmed context node switches to it. */
   readonly neighborId?: string;
   readonly interaction: {
@@ -901,6 +932,16 @@ export interface SimplexEngineResolvedConfig<
    * - `'hide'`: Fade empty clusters to opacity `0` and disable pointer hit-testing until their first member arrives.
    */
   readonly emptyClusterBehavior?: EmptyClusterBehavior;
+  /**
+   * Optional initial item filter predicate. Returning `false` dims or hides the item
+   * (depending on `itemFilterMode`) without re-running clustering or layout.
+   */
+  readonly itemFilter?: ItemFilterPredicate<TItem> | null;
+  /**
+   * Visual & hit-testing mode for items rejected by `itemFilter` (`'dim'` or `'hide'`).
+   * Default: `'dim'`.
+   */
+  readonly itemFilterMode?: ItemFilterMode;
   /**
    * Optional full canonical item corpus used to seed `createFinalSeededLayoutStrategy`
    * when rendering partial subsets (such as early timeline frames or filtered views).

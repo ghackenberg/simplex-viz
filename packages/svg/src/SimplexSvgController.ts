@@ -17,6 +17,10 @@ import {
   type EmptyClusterBehavior,
   type FinalSeededLayoutScaleMode,
   type InteractionHandlers,
+  type ItemFilterMode,
+  type ItemFilterOptions,
+  type ItemFilterPredicate,
+  type ItemFilterState,
   type LayoutMetrics,
   type LayoutSolverOptions,
   type MeshOptions,
@@ -201,6 +205,16 @@ export interface SimplexSvgControllerResolvedOptions<
    * Especially useful during chronological timeline playback with final-seeded clusters. Default: `'normal'`.
    */
   readonly emptyClusterBehavior?: EmptyClusterBehavior;
+  /**
+   * Optional initial item filter predicate. Returning `false` dims or hides the item
+   * (depending on `itemFilterMode`) without re-running clustering or layout.
+   */
+  readonly itemFilter?: ItemFilterPredicate<TItem> | null;
+  /**
+   * Visual & hit-testing mode for items rejected by `itemFilter` (`'dim'` or `'hide'`).
+   * Default: `'dim'`.
+   */
+  readonly itemFilterMode?: ItemFilterMode;
   /** Renders the built-in breadcrumb bar when drilled into sub-levels. Default: `true`. */
   readonly showZoomBreadcrumbs?: boolean;
   /**
@@ -612,6 +626,8 @@ export class SimplexSvgController<
       theme: this.currentTheme,
       showHulls: options.showHulls,
       emptyClusterBehavior: effectiveEmptyClusterBehavior,
+      itemFilter: options.itemFilter,
+      itemFilterMode: options.itemFilterMode,
       canonicalSeedItems: this.timelineController ? this.fullCorpusItems : undefined,
       deferInitialSolve: shouldDeferSolve,
       interactions: this.wrapInteractions(options.interactions),
@@ -1544,6 +1560,27 @@ export class SimplexSvgController<
   setEmptyClusterBehavior(behavior: EmptyClusterBehavior): void {
     this.baseEmptyClusterBehavior = behavior;
     this.engine.setEmptyClusterBehavior(behavior);
+    this.ensureLoopRunning();
+  }
+
+  /** Returns the currently active item filter predicate and mode (`'dim' | 'hide'`). */
+  getItemFilter(): ItemFilterState<TItem> {
+    return this.engine.getItemFilter();
+  }
+
+  /**
+   * Filters content items visually and interactively without triggering a layout re-solve.
+   * All anchors, clusters, and item positions remain frozen across rapid filter changes.
+   *
+   * - `mode: 'dim'` (default): Softly dims non-matching items cleanly.
+   * - `mode: 'hide'`: Hides non-matching items (`opacity: 0`, `pointer-events: none`, excluded from `hitTest()`).
+   * - Pass `null` to clear the filter and restore all items.
+   */
+  setItemFilter(
+    predicate: ItemFilterPredicate<TItem> | null,
+    options?: ItemFilterOptions,
+  ): void {
+    this.engine.setItemFilter(predicate, options);
     this.ensureLoopRunning();
   }
 

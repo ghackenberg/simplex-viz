@@ -2,6 +2,9 @@ import type {
   CameraController,
   ClusterDescriptor,
   DefaultTaggedItem,
+  ItemFilterOptions,
+  ItemFilterPredicate,
+  ItemFilterState,
   LayoutMetrics,
   SimplexClusteringStrategy,
   SimplexColorStrategy,
@@ -50,6 +53,11 @@ export interface SimplexGraphHandle<
   getZoomState(): SimplexZoomState | null;
   resetCamera(): void;
   zoomBy(factor: number): void;
+  setItemFilter(
+    predicate: ItemFilterPredicate<TItem> | null,
+    options?: ItemFilterOptions,
+  ): void;
+  getItemFilter(): ItemFilterState<TItem> | null;
   relayout(): void;
   getMetrics(): LayoutMetrics | null;
   getClusters(): readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[];
@@ -199,6 +207,20 @@ export function useSimplexGraphController<
     cam.zoomToCursor(width / 2, height / 2, factor);
   }, []);
 
+  const setItemFilter = useCallback(
+    (
+      predicate: ItemFilterPredicate<TItem> | null,
+      options?: ItemFilterOptions,
+    ) => {
+      controllerRef.current?.setItemFilter(predicate, options);
+    },
+    [],
+  );
+
+  const getItemFilter = useCallback(() => {
+    return controllerRef.current?.getItemFilter() ?? null;
+  }, []);
+
   const relayout = useCallback(() => {
     controllerRef.current?.relayout();
   }, []);
@@ -242,6 +264,8 @@ export function useSimplexGraphController<
       getZoomState,
       resetCamera,
       zoomBy,
+      setItemFilter,
+      getItemFilter,
       relayout,
       getMetrics,
       getClusters,

@@ -823,6 +823,112 @@ describe('@simplex-viz/react integration', () => {
 
     unmount();
   });
+
+  it('forwards and dynamically syncs itemFilter / itemFilterMode props and imperative handle.setItemFilter without layout re-solve (Issue #15)', () => {
+    interface TaggedDoc {
+      readonly id: string;
+      readonly category: 'a' | 'b';
+      readonly tags: readonly string[];
+    }
+    const items: readonly TaggedDoc[] = [
+      { id: 'doc-a1', category: 'a', tags: ['alpha', 'beta'] },
+      { id: 'doc-a2', category: 'a', tags: ['beta', 'gamma'] },
+      { id: 'doc-b1', category: 'b', tags: ['alpha', 'gamma'] },
+      { id: 'doc-b2', category: 'b', tags: ['gamma', 'delta'] },
+    ];
+
+    const controllerRef = {
+      current: null as import('@simplex-viz/svg').SimplexSvgController<
+        TaggedDoc,
+        unknown,
+        unknown
+      > | null,
+    };
+    let metricsCalls = 0;
+
+    const onlyA = (item: TaggedDoc) => item.category === 'a';
+
+    const { container, rerender, unmount } = render(
+      <div style={{ width: 640, height: 420 }}>
+        <SimplexTopicGraph
+          controllerRef={controllerRef}
+          items={items}
+          preset="geometric"
+          shapeOptions={{ dimmedOpacity: 0.25 }}
+          itemFilter={onlyA}
+          itemFilterMode="dim"
+          onMetricsChange={() => {
+            metricsCalls += 1;
+          }}
+        />
+      </div>,
+    );
+
+    const ctrl = controllerRef.current!;
+    for (let i = 0; i < 20; i++) ctrl.stepForTest(20);
+    const baselineMetrics = metricsCalls;
+
+    const getOpacity = (id: string) =>
+      parseFloat(
+        container
+          .querySelector(`g.sv-node-item[data-node-id="${id}"]`)!
+          .getAttribute('opacity') ?? '1',
+      );
+
+    expect(getOpacity('doc-a1')).toBeCloseTo(1, 2);
+    expect(getOpacity('doc-b1')).toBeCloseTo(0.25, 2);
+
+    // Switch itemFilterMode to 'hide' via prop rerender: zero layout re-solve
+    rerender(
+      <div style={{ width: 640, height: 420 }}>
+        <SimplexTopicGraph
+          controllerRef={controllerRef}
+          items={items}
+          preset="geometric"
+          shapeOptions={{ dimmedOpacity: 0.25 }}
+          itemFilter={onlyA}
+          itemFilterMode="hide"
+          onMetricsChange={() => {
+            metricsCalls += 1;
+          }}
+        />
+      </div>,
+    );
+    expect(metricsCalls).toBe(baselineMetrics);
+    expect(getOpacity('doc-a1')).toBeCloseTo(1, 2);
+    expect(getOpacity('doc-b1')).toBeCloseTo(0, 3);
+    expect(
+      container
+        .querySelector('g.sv-node-item[data-node-id="doc-b1"]')!
+        .getAttribute('pointer-events'),
+    ).toBe('none');
+
+    // Clear filter via itemFilter={null}
+    rerender(
+      <div style={{ width: 640, height: 420 }}>
+        <SimplexTopicGraph
+          controllerRef={controllerRef}
+          items={items}
+          preset="geometric"
+          shapeOptions={{ dimmedOpacity: 0.25 }}
+          itemFilter={null}
+          itemFilterMode="hide"
+          onMetricsChange={() => {
+            metricsCalls += 1;
+          }}
+        />
+      </div>,
+    );
+    expect(metricsCalls).toBe(baselineMetrics);
+    expect(getOpacity('doc-b1')).toBeCloseTo(1, 2);
+    expect(
+      container
+        .querySelector('g.sv-node-item[data-node-id="doc-b1"]')!
+        .getAttribute('pointer-events'),
+    ).toBeNull();
+
+    unmount();
+  });
 });
 
 

@@ -11,6 +11,8 @@ import {
   type EmptyClusterBehavior,
   type HitTarget,
   type InteractionHandlers,
+  type ItemFilterMode,
+  type ItemFilterPredicate,
   type LayoutMetrics,
   type LayoutSolverOptions,
   type MeshOptions,
@@ -226,6 +228,16 @@ export type SimplexTopicGraphProps<
      * Especially useful during timeline playback with final-seeded clusters. Default: `'normal'`.
      */
     readonly emptyClusterBehavior?: EmptyClusterBehavior;
+    /**
+     * Optional item filter predicate. Returning `false` dims or hides the item
+     * (depending on `itemFilterMode`) without triggering a layout re-solve.
+     */
+    readonly itemFilter?: ItemFilterPredicate<TItem> | null;
+    /**
+     * Visual & hit-testing mode for items rejected by `itemFilter` (`'dim'` or `'hide'`).
+     * Default: `'dim'`.
+     */
+    readonly itemFilterMode?: ItemFilterMode;
     readonly pinnedIds?: ReadonlySet<string> | readonly string[];
     readonly highlightedIds?: ReadonlySet<string> | readonly string[];
     readonly focusedClusterUid?: string | null;
@@ -797,6 +809,8 @@ export function SimplexTopicGraph<
       zoomStrategy: p.zoomStrategy,
       showHulls: p.showHulls,
       emptyClusterBehavior: p.emptyClusterBehavior,
+      itemFilter: p.itemFilter,
+      itemFilterMode: p.itemFilterMode,
       showZoomBreadcrumbs: p.showZoomBreadcrumbs,
       timeline: resolveTimelineOption(p.timeline),
       relayoutOnFontLoad: p.relayoutOnFontLoad,
@@ -885,6 +899,13 @@ export function SimplexTopicGraph<
       ctrlRef.current?.setEmptyClusterBehavior(props.emptyClusterBehavior);
     }
   }, [props.emptyClusterBehavior]);
+
+  // Sync itemFilter & itemFilterMode
+  useEffect(() => {
+    ctrlRef.current?.setItemFilter(props.itemFilter ?? null, {
+      mode: props.itemFilterMode ?? 'dim',
+    });
+  }, [props.itemFilter, props.itemFilterMode]);
 
   // Sync touchScrollLockPx & clickTolerancePx
   useEffect(() => {
