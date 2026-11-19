@@ -4,6 +4,7 @@ import { isPointInTriangle } from '../src/geometry';
 import {
   createBarycentricPbdRelaxer,
   createCollisionLocalScaleController,
+  createFixedScaleController,
   createMeshInwardFanSeeder,
 } from '../src/layout';
 import {
@@ -12,6 +13,7 @@ import {
   createSimilarityClusteringStrategy,
 } from '../src/strategies';
 import {
+  DEFAULT_FULL_SCALE_THRESHOLD,
   buildSubdividedTriangleMesh,
   createBarycentricZoomStrategy,
   createFreeCameraZoomStrategy,
@@ -291,6 +293,7 @@ describe('Pluggable SimplexZoomStrategy', () => {
       zoomStrategy: createBarycentricZoomStrategy({
         adaptiveContrastStretch: true,
         stopWhenFullScale: true,
+        fullScaleThreshold: 0.995,
       }),
     });
     stepToSettle(engine);
@@ -374,6 +377,7 @@ describe('Pluggable SimplexZoomStrategy', () => {
       viewportHeight: 400,
       zoomStrategy: createBarycentricZoomStrategy({
         clusterZoomMode: 'spotlight',
+        fullScaleThreshold: 0.995,
       }),
     });
     stepToSettle(spotEngine);
@@ -611,7 +615,7 @@ describe('Pluggable SimplexZoomStrategy', () => {
           orientation: meshOrientation,
         }),
         layoutOptions: { seed: 17 },
-        zoomStrategy: createBarycentricZoomStrategy(),
+        zoomStrategy: createBarycentricZoomStrategy({ fullScaleThreshold: 0.995 }),
       });
       stepToSettle(engine);
 
@@ -1715,6 +1719,7 @@ describe('Pluggable SimplexZoomStrategy', () => {
       ],
       getSimilarity: gowerSim,
       clusterZoomMode: 'spotlight',
+      fullScaleThreshold: 0.995,
     });
 
     const engine = new SimplexGraphEngine({
@@ -1944,7 +1949,7 @@ describe('Pluggable SimplexZoomStrategy', () => {
       viewportWidth: 640,
       viewportHeight: 460,
       layoutOptions: { seed: 42 },
-      zoomStrategy: createSemanticZoomStrategy(),
+      zoomStrategy: createSemanticZoomStrategy({ fullScaleThreshold: 0.995 }),
     });
 
     for (let i = 0; i < 45; i++) engine.step(20);
@@ -2052,6 +2057,7 @@ describe('Pluggable SimplexZoomStrategy', () => {
       viewportHeight: 500,
       zoomStrategy: createSemanticZoomStrategy({
         clusterZoomMode: 'incident-star',
+        fullScaleThreshold: 0.995,
       }),
     });
     stepToSettle(engine);
@@ -2277,6 +2283,185 @@ describe('Pluggable SimplexZoomStrategy', () => {
           .every((c) => c.interaction.isHighlighted),
       ).toBe(true);
     }
+
+    engine.destroy();
+  });
+
+  it('uses DEFAULT_FULL_SCALE_THRESHOLD (0.75) across all zoom strategies while honoring explicit overrides (Issue #10)', () => {
+    expect(DEFAULT_FULL_SCALE_THRESHOLD).toBe(0.75);
+
+    const items: DefaultTaggedItem[] = Array.from({ length: 18 }, (_, i) => ({
+      id: `th-${i}`,
+      tags: ['alpha', 'beta', 'gamma'],
+    }));
+    const hr = createHeadlessRenderer();
+
+    // Force a deterministic uniform scale of 0.85 (between 0.75 default and 0.995 strict override)
+    const fixed085Layout = createComposedLayoutStrategy({
+      name: 'fixed-085',
+      seeder: createMeshInwardFanSeeder(),
+      relaxer: createBarycentricPbdRelaxer(),
+      scaleController: createFixedScaleController({ scale: 0.85 }),
+    });
+
+    // At 0.85 scale, all 3 drill-down strategies treat the triangle as a legible leaf by default (>= 0.75)
+    for (const strategy of [
+      createBarycentricZoomStrategy(),
+      createSemanticZoomStrategy(),
+      createSubspaceZoomStrategy(),
+    ]) {
+      const engine = new SimplexGraphEngine({
+        items,
+        visualResolver: createResolver(10, 14),
+        renderer: hr.adapter,
+        viewportWidth: 640,
+        viewportHeight: 460,
+        layoutStrategy: fixed085Layout,
+        zoomStrategy: strategy,
+      });
+      stepToSettle(engine);
+      expect(engine.getZoomState().drillableTriangleIndices.length).toBe(0);
+      expect(engine.getZoomState().fullScaleItemRatio).toBe(1);
+      engine.destroy();
+    }
+
+    // Free-camera diagnostic also uses DEFAULT_FULL_SCALE_THRESHOLD (0.75)
+    const freeEngine = new SimplexGraphEngine({
+      items,
+      visualResolver: createResolver(10, 14),
+      renderer: hr.adapter,
+      viewportWidth: 640,
+      viewportHeight: 460,
+      layoutStrategy: fixed085Layout,
+      zoomStrategy: createFreeCameraZoomStrategy(),
+    });
+    stepToSettle(freeEngine);
+    expect(freeEngine.getZoomState().fullScaleItemRatio).toBe(1);
+    freeEngine.destroy();
+
+    // Passing explicit fullScaleThreshold: 0.995 restores strict full-scale drilling at 0.85
+    const strictEngine = new SimplexGraphEngine({
+      items,
+      visualResolver: createResolver(10, 14),
+      renderer: hr.adapter,
+      viewportWidth: 640,
+      viewportHeight: 460,
+      layoutStrategy: fixed085Layout,
+      zoomStrategy: createBarycentricZoomStrategy({ fullScaleThreshold: 0.995 }),
+    });
+    stepToSettle(strictEngine);
+    expect(strictEngine.getZoomState().drillableTriangleIndices.length).toBeGreaterThan(0);
+    expect(strictEngine.getZoomState().fullScaleItemRatio).toBe(0);
+    strictEngine.destroy();
+  });
+
+  it('dispatches target-specific click handlers before onLeftClick and supports composable vs consumed onWheel and relayout() (Issues #3 & #9)', () => {
+    const hr = createHeadlessRenderer();
+    const order: string[] = [];
+    let consumeSpecific = false;
+    let consumeWheel = false;
+    let measureCount = 0;
+
+    const baseAdapter = hr.adapter;
+    const countingAdapter: SimplexRendererAdapter<{ readonly r: number }, { readonly r: number }> = {
+      ...baseAdapter,
+      measureContentHull: (visual, key) => {
+        measureCount += 1;
+        return baseAdapter.measureContentHull(visual, key);
+      },
+    };
+
+    const engine = new SimplexGraphEngine({
+      items: RICH_ITEMS,
+      visualResolver: createResolver(12, 16),
+      renderer: countingAdapter,
+      viewportWidth: 720,
+      viewportHeight: 520,
+      zoomStrategy: createFreeCameraZoomStrategy(),
+      interactions: {
+        onBackgroundClick: () => {
+          order.push('background');
+          return consumeSpecific;
+        },
+        onLeftClick: (target) => {
+          order.push(`left:${target.kind}`);
+          return true;
+        },
+        onWheel: (_ev, cam) => {
+          order.push('wheel');
+          if (consumeWheel) {
+            cam.panBy(25, 0);
+            return true;
+          }
+          return false;
+        },
+      },
+    });
+    stepToSettle(engine);
+
+    // Background click at (4, 4): when specific handler returns false, onLeftClick runs too
+    const consumed1 = engine.handleLeftClick({
+      screenX: 4,
+      screenY: 4,
+      button: 0,
+      shiftKey: false,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+    });
+    expect(consumed1).toBe(true);
+    expect(order).toEqual(['background', 'left:background']);
+
+    // When specific handler returns true, onLeftClick is skipped
+    order.length = 0;
+    consumeSpecific = true;
+    const consumed2 = engine.handleLeftClick({
+      screenX: 4,
+      screenY: 4,
+      button: 0,
+      shiftKey: false,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+    });
+    expect(consumed2).toBe(true);
+    expect(order).toEqual(['background']);
+
+    // Wheel returning false composes with built-in zoom-to-cursor
+    order.length = 0;
+    const w1 = engine.handleWheel({
+      screenX: 360,
+      screenY: 260,
+      deltaX: 0,
+      deltaY: -120,
+      ctrlKey: false,
+      shiftKey: false,
+    });
+    expect(w1).toBe(true);
+    expect(order).toEqual(['wheel']);
+    expect(engine.camera.getState().zoom).toBeGreaterThan(1);
+
+    // Wheel returning true consumes and suppresses built-in zoom-to-cursor
+    engine.camera.reset();
+    order.length = 0;
+    consumeWheel = true;
+    const w2 = engine.handleWheel({
+      screenX: 360,
+      screenY: 260,
+      deltaX: 0,
+      deltaY: -120,
+      ctrlKey: false,
+      shiftKey: false,
+    });
+    expect(w2).toBe(true);
+    expect(order).toEqual(['wheel']);
+    expect(engine.camera.getState().zoom).toBe(1);
+    expect(engine.camera.getState().panX).toBe(25);
+
+    // engine.relayout() re-measures all content hulls without re-running clustering
+    const beforeRelayout = measureCount;
+    engine.relayout();
+    expect(measureCount).toBeGreaterThan(beforeRelayout);
 
     engine.destroy();
   });

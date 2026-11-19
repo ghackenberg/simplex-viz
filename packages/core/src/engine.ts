@@ -1114,6 +1114,16 @@ export class SimplexGraphEngine<
     this.recomputePipeline('viewport');
   }
 
+  /**
+   * Re-measures content & cluster hulls via the renderer adapter and re-solves the
+   * current layout frame without re-running clustering or triangulation (e.g. after
+   * late webfont loading updates text `getBBox()` metrics).
+   */
+  relayout(): void {
+    if (this.destroyed) return;
+    this.recomputeLayoutOnly('strategy');
+  }
+
   /** Toggles convex hull debug wireframe rendering. */
   setShowHulls(show: boolean): void {
     if (this.showHulls === show) return;
@@ -3876,8 +3886,13 @@ export class SimplexGraphEngine<
     }
   }
 
-  /** Dispatches left-click interaction using mathematical convex-hull hit-testing. */
-  handleLeftClick(raw: Omit<NormalizedPointerEvent, 'worldX' | 'worldY'>): void {
+  /**
+   * Dispatches left-click interaction using mathematical convex-hull hit-testing.
+   * Runs target-specific handlers (`onContentClick`, `onClusterClick`, `onTriangleClick`,
+   * `onBackgroundClick`) first, then `onLeftClick` unless consumed (`return true`).
+   * Returns `true` when any handler consumed the click.
+   */
+  handleLeftClick(raw: Omit<NormalizedPointerEvent, 'worldX' | 'worldY'>): boolean {
     if (this.neighborReturnHighlight !== null) {
       this.neighborReturnHighlight = null;
       this.dirtyRender = true;
@@ -3888,7 +3903,24 @@ export class SimplexGraphEngine<
       worldX: target.worldPosition.x,
       worldY: target.worldPosition.y,
     };
-    this.interactions.onLeftClick?.(target, fullEvent);
+    if (target.kind === 'content' && !target.neighborId) {
+      if (this.interactions.onContentClick?.(target, fullEvent) === true) {
+        return true;
+      }
+    } else if (target.kind === 'cluster') {
+      if (this.interactions.onClusterClick?.(target, fullEvent) === true) {
+        return true;
+      }
+    } else if (target.kind === 'triangle') {
+      if (this.interactions.onTriangleClick?.(target, fullEvent) === true) {
+        return true;
+      }
+    } else if (target.kind === 'background') {
+      if (this.interactions.onBackgroundClick?.(fullEvent) === true) {
+        return true;
+      }
+    }
+    return this.interactions.onLeftClick?.(target, fullEvent) === true;
   }
 
   /**
@@ -3918,14 +3950,16 @@ export class SimplexGraphEngine<
     const policy = this.interactions.onWheel ?? 'zoom-to-cursor';
     if (policy === 'none') return false;
     if (typeof policy === 'function') {
-      policy(event, this.camera);
-      return true;
+      const consumed = policy(event, this.camera);
+      if (consumed === true) {
+        return true;
+      }
     }
     if (policy === 'pan-vertical') {
       this.camera.panBy(-event.deltaX, -event.deltaY);
       return true;
     }
-    // Default: 'zoom-to-cursor'
+    // Default (or composable custom wheel callback): 'zoom-to-cursor'
     const factor = Math.exp(-event.deltaY * 0.0014);
     this.camera.zoomToCursor(event.screenX, event.screenY, factor);
     return true;

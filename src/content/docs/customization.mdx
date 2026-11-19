@@ -70,3 +70,13 @@ const snapshot = solveSimplexSnapshot(records, {
 // Zero overlaps guaranteed:
 console.assert(snapshot.metrics.overlapCount === 0);
 ```
+
+## 4. Composable Interactions & Webfont Auto-Relayout
+
+Every interaction handler across `@simplex-viz/core`, `@simplex-viz/svg`, and `@simplex-viz/react` (`onContentClick`, `onClusterClick`, `onTriangleClick`, `onBackgroundClick`, `onLeftClick`, `onRightClick`, `onContentHover`, `onClusterHover`, `onTriangleHover`, and custom `onWheel`) follows one uniform contract:
+
+- Return `void` or `false` to **compose** with built-in behavior (drill-down navigation, focus toggles, hover tooltips, or cursor zoom).
+- Return `true` to **consume** the event and suppress the built-in default for that interaction.
+
+When webfonts finish loading asynchronously in production (`document.fonts.ready` / `loadingdone`), `SimplexSvgController` and `<SimplexTopicGraph />` automatically invalidate cached SVG `getBBox()` hulls and re-solve the current layout (`relayoutOnFontLoad: true` by default; call `controller.relayout()` manually anytime).
+

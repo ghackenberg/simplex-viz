@@ -238,5 +238,93 @@ describe('@simplex-viz/react integration', () => {
 
     unmount();
   });
+
+  it('composes onLeftClick and target-specific handlers with built-in drill-down and respects onWheel="none" without preventDefault (Issue #3)', () => {
+    const items = Array.from({ length: 36 }, (_, i) => ({
+      id: `rc-${i}`,
+      tags: ['alpha', 'beta', 'gamma', `sub-${i % 3}`],
+    }));
+
+    const events: string[] = [];
+    let consumeClick = false;
+    let latestDepth = 0;
+
+    const { container, unmount } = render(
+      <div style={{ width: 720, height: 500 }}>
+        <SimplexTopicGraph
+          items={items}
+          zoomStrategy={createBarycentricZoomStrategy({ stopWhenFullScale: false })}
+          layoutOptions={{ seed: 19 }}
+          onWheel="none"
+          onTriangleClick={() => {
+            events.push('triangle-specific');
+            return consumeClick;
+          }}
+          onLeftClick={(target) => {
+            events.push(`left:${target.kind}`);
+          }}
+          onZoomStateChange={(z) => {
+            latestDepth = z.depth;
+          }}
+        />
+      </div>,
+    );
+
+    const svg = container.querySelector('svg')!;
+    Object.defineProperty(svg, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 720, height: 500, right: 720, bottom: 500 }),
+    });
+
+    const drillTri = svg.querySelector('g.sv-mesh-triangle[data-drillable="true"] polygon');
+    expect(drillTri).not.toBeNull();
+    const pts = drillTri!
+      .getAttribute('points')!
+      .trim()
+      .split(/\s+/)
+      .map((pair) => {
+        const [x, y] = pair.split(',').map(Number);
+        return { x: x!, y: y! };
+      });
+    const cx = (pts[0]!.x + pts[1]!.x + pts[2]!.x) / 3;
+    const cy = (pts[0]!.y + pts[1]!.y + pts[2]!.y) / 3;
+
+    // Consuming in onTriangleClick suppresses both onLeftClick and built-in drill-down
+    consumeClick = true;
+    svg.dispatchEvent(
+      new MouseEvent('click', { button: 0, clientX: cx, clientY: cy, bubbles: true }),
+    );
+    expect(events).toEqual(['triangle-specific']);
+    expect(latestDepth).toBe(0);
+
+    // Returning false composes onTriangleClick -> onLeftClick -> built-in drill-down
+    events.length = 0;
+    consumeClick = false;
+    svg.dispatchEvent(
+      new MouseEvent('click', { button: 0, clientX: cx, clientY: cy, bubbles: true }),
+    );
+    expect(events).toEqual(['triangle-specific', 'left:triangle']);
+    expect(latestDepth).toBe(1);
+
+    unmount();
+
+    // Separate free-camera mount with onWheel="none" must NOT call preventDefault()
+    const { container: freeContainer, unmount: unmountFree } = render(
+      <div style={{ width: 640, height: 480 }}>
+        <SimplexTopicGraph items={items.slice(0, 12)} onWheel="none" />
+      </div>,
+    );
+    const freeSvg = freeContainer.querySelector('svg')!;
+    const wheelEvent = new WheelEvent('wheel', {
+      deltaY: -120,
+      clientX: 300,
+      clientY: 200,
+      cancelable: true,
+      bubbles: true,
+    });
+    freeSvg.dispatchEvent(wheelEvent);
+    expect(wheelEvent.defaultPrevented).toBe(false);
+
+    unmountFree();
+  });
 });
 

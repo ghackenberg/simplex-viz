@@ -378,6 +378,21 @@ export class SvgRendererAdapter<
     }
   }
 
+  /**
+   * Clears cached convex-hull measurements and forces mounted node views to re-sync on
+   * the next frame (for example after late webfont loading updates text `getBBox()` metrics).
+   */
+  invalidateHulls(): void {
+    this.contentHullCache.clear();
+    this.clusterHullCache.clear();
+    for (const tracked of this.clusterDomMap.values()) {
+      tracked.lastMainKey = null;
+    }
+    for (const tracked of this.itemDomMap.values()) {
+      tracked.lastMainKey = null;
+    }
+  }
+
   measureContentHull(visual: TContentVisual, cacheKey: string): ConvexGeometry {
     this.contentViewByKey.set(cacheKey, this.contentView);
     return measureVisualWithSvgView(

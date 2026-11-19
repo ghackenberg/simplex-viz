@@ -121,13 +121,19 @@ export interface SimplexSvgControllerResolvedOptions<
   /** Renders the built-in breadcrumb bar when drilled into sub-levels. Default: `true`. */
   readonly showZoomBreadcrumbs?: boolean;
   /**
+   * Automatically re-measures SVG hulls and re-solves layout once webfonts finish loading
+   * (`document.fonts.ready` and `loadingdone`). Prevents stale fallback-font text measurements
+   * in production deployments. Default: `true`.
+   */
+  readonly relayoutOnFontLoad?: boolean;
+  /**
    * Automatically toggles cluster focus when clicking a topic cluster (and clears on background click)
-   * unless a custom `interactions.onLeftClick` handler is provided. Default: `true`.
+   * unless consumed (`return true`) by a click interaction handler. Default: `true`.
    */
   readonly focusOnClusterClick?: boolean;
   /**
    * Automatically toggles triangle face focus when clicking a triangle face (and clears on background click)
-   * unless a custom `interactions.onLeftClick` handler is provided. Default: `true`.
+   * unless consumed (`return true`) by a click interaction handler. Default: `true`.
    */
   readonly focusOnTriangleClick?: boolean;
   /** Enables a built-in floating DOM hover tooltip (or supply a custom text formatter). Default: `false`. */
@@ -254,6 +260,7 @@ export class SimplexSvgController<
   private lastPinchMid: { x: number; y: number } | null = null;
   private wheelPinchAccum = 0;
   private wheelPinchCooldownUntil = 0;
+  private fontLoadCleanup: (() => void) | null = null;
 
   constructor(
     containerEl: HTMLElement | string,
@@ -412,6 +419,10 @@ export class SimplexSvgController<
       this.resizeObserver.observe(this.containerEl);
     }
 
+    if (options.relayoutOnFontLoad !== false) {
+      this.attachFontLoadListener();
+    }
+
     this.ensureLoopRunning();
   }
 
@@ -472,8 +483,8 @@ export class SimplexSvgController<
   > {
     return {
       onContentHover: (ev) => {
-        userInteractions?.onContentHover?.(ev);
-        if (ev) {
+        const consumed = userInteractions?.onContentHover?.(ev);
+        if (ev && consumed !== true) {
           this.showTooltip(
             ev.screenPosition.x,
             ev.screenPosition.y,
@@ -482,10 +493,11 @@ export class SimplexSvgController<
         } else {
           this.hideTooltip();
         }
+        return consumed;
       },
       onClusterHover: (ev) => {
-        userInteractions?.onClusterHover?.(ev);
-        if (ev) {
+        const consumed = userInteractions?.onClusterHover?.(ev);
+        if (ev && consumed !== true) {
           this.showTooltip(
             ev.screenPosition.x,
             ev.screenPosition.y,
@@ -494,10 +506,11 @@ export class SimplexSvgController<
         } else {
           this.hideTooltip();
         }
+        return consumed;
       },
       onTriangleHover: (ev) => {
-        userInteractions?.onTriangleHover?.(ev);
-        if (ev) {
+        const consumed = userInteractions?.onTriangleHover?.(ev);
+        if (ev && consumed !== true) {
           this.showTooltip(
             ev.screenPosition.x,
             ev.screenPosition.y,
@@ -506,17 +519,34 @@ export class SimplexSvgController<
         } else {
           this.hideTooltip();
         }
+        return consumed;
       },
       onLeftClick: (target, rawEvent) => {
-        if (userInteractions?.onLeftClick) {
-          userInteractions.onLeftClick(target, rawEvent);
-          return;
+        if (target.kind === 'content' && !target.neighborId) {
+          if (userInteractions?.onContentClick?.(target, rawEvent) === true) {
+            return true;
+          }
+        } else if (target.kind === 'cluster') {
+          if (userInteractions?.onClusterClick?.(target, rawEvent) === true) {
+            return true;
+          }
+        } else if (target.kind === 'triangle') {
+          if (userInteractions?.onTriangleClick?.(target, rawEvent) === true) {
+            return true;
+          }
+        } else if (target.kind === 'background') {
+          if (userInteractions?.onBackgroundClick?.(rawEvent) === true) {
+            return true;
+          }
+        }
+        if (userInteractions?.onLeftClick?.(target, rawEvent) === true) {
+          return true;
         }
         if (this.engine.getZoomStrategy().mode === 'drill-down') {
           if (target.kind === 'triangle') {
             if (target.triangle.neighborId) {
               this.drillToNeighbor(target.triangle.neighborId);
-            } else {
+            } else if (!target.triangle.isContext) {
               this.drillDownTriangle(target.triangle.index);
             }
           } else if (target.kind === 'cluster') {
@@ -530,7 +560,7 @@ export class SimplexSvgController<
           } else if (target.kind === 'background') {
             this.drillUp();
           }
-          return;
+          return false;
         }
         if (target.kind === 'cluster' && this.focusOnClusterClick) {
           if (this.focusedTriangleIndexState !== null) {
@@ -558,9 +588,63 @@ export class SimplexSvgController<
             this.setFocusedTriangleIndex(null);
           }
         }
+        return false;
       },
       onRightClick: userInteractions?.onRightClick,
       onWheel: userInteractions?.onWheel ?? 'zoom-to-cursor',
+    };
+  }
+
+  private attachFontLoadListener(): void {
+    const doc = this.containerEl.ownerDocument;
+    const fontSet = doc?.fonts;
+    if (!fontSet) return;
+
+    let readyTriggeredByEvent = false;
+    let readyTimedOut = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const onLoadingDone = (): void => {
+      if (this.destroyed) return;
+      readyTriggeredByEvent = true;
+      this.relayout();
+    };
+
+    if (typeof fontSet.addEventListener === 'function') {
+      fontSet.addEventListener('loadingdone', onLoadingDone);
+    }
+
+    if (fontSet.status !== 'loaded' && fontSet.ready && typeof fontSet.ready.then === 'function') {
+      timeoutId = setTimeout(() => {
+        readyTimedOut = true;
+        timeoutId = null;
+      }, 2000);
+      fontSet.ready.then(
+        () => {
+          if (timeoutId !== null) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
+          if (this.destroyed || readyTimedOut || readyTriggeredByEvent) return;
+          this.relayout();
+        },
+        () => {
+          if (timeoutId !== null) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
+        },
+      );
+    }
+
+    this.fontLoadCleanup = () => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      if (typeof fontSet.removeEventListener === 'function') {
+        fontSet.removeEventListener('loadingdone', onLoadingDone);
+      }
     };
   }
 
@@ -993,6 +1077,17 @@ export class SimplexSvgController<
   setFocusedTriangleIndex(triangleIndex: number | null): void {
     this.focusedTriangleIndexState = triangleIndex;
     this.engine.setFocusedTriangleIndex(triangleIndex);
+    this.ensureLoopRunning();
+  }
+
+  /**
+   * Clears cached SVG hull measurements, re-measures all active nodes, and re-solves
+   * the current layout frame cleanly (for example after late webfont loading).
+   */
+  relayout(): void {
+    if (this.destroyed) return;
+    this.adapter.invalidateHulls();
+    this.engine.relayout();
     this.ensureLoopRunning();
   }
 
@@ -1558,6 +1653,8 @@ export class SimplexSvgController<
       this.rafId = null;
     }
     this.resizeObserver?.disconnect();
+    this.fontLoadCleanup?.();
+    this.fontLoadCleanup = null;
     this.detachSvgListeners();
     this.engine.destroy();
     if (this.tooltipEl && this.tooltipEl.parentElement === this.containerEl) {

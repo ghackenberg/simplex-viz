@@ -19,6 +19,18 @@ import type {
 } from './types.js';
 
 export type ZoomStrategyMode = 'free-camera' | 'drill-down';
+
+/**
+ * Default full-scale ratio threshold (`placed.scale / sizeMultiplier`) at which a triangle
+ * or cluster is treated as comfortably legible/clickable without requiring another `1:4`
+ * drill-down subdivision.
+ *
+ * Derived from the default `CollisionLocalScaleController` shrink ladder (`0.85^k`: `1.00`,
+ * `0.85`, `0.7225`, …) and the `2x` linear (`4x` area) gain of `1:4` conformal subdivision:
+ * `0.75` sits cleanly above `√0.5 ≈ 0.707` (50% target area) and strictly between one minor
+ * shrink round (`0.85`, leaf reached) and two shrink rounds (`0.7225`, worth subdividing).
+ */
+export const DEFAULT_FULL_SCALE_THRESHOLD = 0.75;
 export type ZoomFrameKind =
   | 'root'
   | 'triangle'
@@ -318,6 +330,7 @@ export interface BarycentricZoomStrategyOptions {
   readonly adaptiveContrastStretch?: boolean;
   readonly enableSectorFallback?: boolean;
   readonly stopWhenFullScale?: boolean;
+  /** Full-scale ratio threshold (`placed.scale / sizeMultiplier`). Default: `0.75` (`DEFAULT_FULL_SCALE_THRESHOLD`). */
   readonly fullScaleThreshold?: number;
   /** Focuses leaf / non-subdividable triangles in multi-triangle meshes as single un-subdivided triangles. Default: `true`. */
   readonly leafTriangleFocus?: boolean;
@@ -326,6 +339,7 @@ export interface BarycentricZoomStrategyOptions {
 export interface SemanticZoomStrategyOptions {
   readonly clusterZoomMode?: BarycentricClusterZoomMode;
   readonly stopWhenFullScale?: boolean;
+  /** Full-scale ratio threshold (`placed.scale / sizeMultiplier`). Default: `0.75` (`DEFAULT_FULL_SCALE_THRESHOLD`). */
   readonly fullScaleThreshold?: number;
   readonly barycentricFallback?: boolean;
   /** Focuses leaf / non-subdividable triangles in multi-triangle meshes as single un-subdivided triangles. Default: `true`. */
@@ -411,7 +425,7 @@ export interface SubspaceZoomStrategyOptions<TItem = unknown> {
   readonly clusterZoomMode?: BarycentricClusterZoomMode;
   /** Terminates subdivision automatically once all covered items reach `fullScaleThreshold`. Default: `true`. */
   readonly stopWhenFullScale?: boolean;
-  /** Full-scale ratio threshold (`placed.scale / sizeMultiplier`). Default: `0.995`. */
+  /** Full-scale ratio threshold (`placed.scale / sizeMultiplier`). Default: `0.75` (`DEFAULT_FULL_SCALE_THRESHOLD`). */
   readonly fullScaleThreshold?: number;
   /** Focuses leaf / non-subdividable triangles in multi-triangle meshes as single un-subdivided triangles. Default: `true`. */
   readonly leafTriangleFocus?: boolean;
@@ -2931,7 +2945,7 @@ export function createBarycentricZoomStrategy<
   const adaptiveContrastStretch = options?.adaptiveContrastStretch ?? true;
   const enableSectorFallback = options?.enableSectorFallback ?? true;
   const stopWhenFullScale = options?.stopWhenFullScale ?? true;
-  const fullScaleThreshold = options?.fullScaleThreshold ?? 0.995;
+  const fullScaleThreshold = options?.fullScaleThreshold ?? DEFAULT_FULL_SCALE_THRESHOLD;
   const leafTriangleFocus = options?.leafTriangleFocus ?? true;
   const allowClusterDrill = clusterZoomMode !== 'none';
 
@@ -3733,7 +3747,7 @@ export function createSemanticZoomStrategy<
 ): SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta> {
   const clusterZoomMode = options?.clusterZoomMode ?? 'incident-star';
   const stopWhenFullScale = options?.stopWhenFullScale ?? true;
-  const fullScaleThreshold = options?.fullScaleThreshold ?? 0.995;
+  const fullScaleThreshold = options?.fullScaleThreshold ?? DEFAULT_FULL_SCALE_THRESHOLD;
   const barycentricFallback = options?.barycentricFallback ?? true;
   const leafTriangleFocus = options?.leafTriangleFocus ?? true;
   const allowClusterDrill = clusterZoomMode !== 'none';
@@ -5976,7 +5990,7 @@ export function createSubspaceZoomStrategy<
 ): SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta> {
   const clusterZoomMode = options?.clusterZoomMode ?? 'incident-star';
   const stopWhenFullScale = options?.stopWhenFullScale ?? true;
-  const fullScaleThreshold = options?.fullScaleThreshold ?? 0.995;
+  const fullScaleThreshold = options?.fullScaleThreshold ?? DEFAULT_FULL_SCALE_THRESHOLD;
   const leafTriangleFocus = options?.leafTriangleFocus ?? true;
   const allowClusterDrill = clusterZoomMode !== 'none';
 
@@ -6639,7 +6653,7 @@ export function createFreeCameraZoomStrategy<
       const ids = ctx.frame.items.map((it) => it.id);
       let full = 0;
       for (const id of ids) {
-        if ((ctx.itemScaleRatios.get(id) ?? 1) >= 0.995) full++;
+        if ((ctx.itemScaleRatios.get(id) ?? 1) >= DEFAULT_FULL_SCALE_THRESHOLD) full++;
       }
       return {
         drillableTriangleIndices: [],

@@ -49,6 +49,7 @@ export interface SimplexGraphHandle<
   getZoomState(): SimplexZoomState | null;
   resetCamera(): void;
   zoomBy(factor: number): void;
+  relayout(): void;
   getMetrics(): LayoutMetrics | null;
   getClusters(): readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[];
   getRawController(): SimplexSvgController<
@@ -196,6 +197,10 @@ export function useSimplexGraphController<
     cam.zoomToCursor(width / 2, height / 2, factor);
   }, []);
 
+  const relayout = useCallback(() => {
+    controllerRef.current?.relayout();
+  }, []);
+
   const getMetrics = useCallback(() => {
     return controllerRef.current?.getMetrics() ?? null;
   }, []);
@@ -231,6 +236,7 @@ export function useSimplexGraphController<
       getZoomState,
       resetCamera,
       zoomBy,
+      relayout,
       getMetrics,
       getClusters,
       getRawController,

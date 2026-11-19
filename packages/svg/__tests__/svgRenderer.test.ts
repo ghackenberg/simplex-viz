@@ -552,7 +552,7 @@ describe('@simplex-viz/svg integration', () => {
       },
       contentView: new GeometricShapeSvgView(),
       clusterView: new BadgeClusterSvgView(),
-      zoomStrategy: createBarycentricZoomStrategy(),
+      zoomStrategy: createBarycentricZoomStrategy({ fullScaleThreshold: 0.995 }),
       onZoomStateChange: (state) => {
         depths.push(state.depth);
       },
@@ -1142,6 +1142,204 @@ describe('@simplex-viz/svg integration', () => {
     expect(crumbButtons[1]!.textContent).toMatch(/genre-\d|sub-\d/);
     expect(crumbButtons[1]!.textContent).not.toMatch(/^C\d+·C\d+·C\d+$/);
     expect(crumbButtons[1]!.querySelectorAll('span').length).toBeGreaterThanOrEqual(6);
+
+    controller.destroy();
+    container.remove();
+  });
+
+  it('auto-relayouts on document.fonts.ready and loadingdone, respects relayoutOnFontLoad: false, and cleans up on destroy (Issue #9)', async () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 760, height: 520, right: 760, bottom: 520 }),
+    });
+    document.body.appendChild(container);
+
+    let resolveFontsReady!: () => void;
+    const readyPromise = new Promise<void>((res) => {
+      resolveFontsReady = res;
+    });
+    const listeners = new Map<string, Set<EventListener>>();
+    const mockFonts = {
+      status: 'loading',
+      ready: readyPromise,
+      addEventListener: (type: string, fn: EventListener) => {
+        if (!listeners.has(type)) listeners.set(type, new Set());
+        listeners.get(type)!.add(fn);
+      },
+      removeEventListener: (type: string, fn: EventListener) => {
+        listeners.get(type)?.delete(fn);
+      },
+      dispatchLoadingDone: () => {
+        for (const fn of listeners.get('loadingdone') ?? []) {
+          fn(new Event('loadingdone'));
+        }
+      },
+    };
+
+    const originalFonts = Object.getOwnPropertyDescriptor(document, 'fonts');
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: mockFonts,
+    });
+
+    try {
+      let mountCalls = 0;
+      const items: DefaultTaggedItem[] = Array.from({ length: 12 }, (_, i) => ({
+        id: `font-${i}`,
+        tags: [`t-${i % 3}`, `t-${(i + 1) % 3}`],
+      }));
+
+      // 1) relayoutOnFontLoad: false does not subscribe to loadingdone
+      const disabledCtrl = createSimplexSvg(container, {
+        items,
+        relayoutOnFontLoad: false,
+      });
+      expect(listeners.get('loadingdone')?.size ?? 0).toBe(0);
+      disabledCtrl.destroy();
+
+      // 2) Default relayoutOnFontLoad: true re-measures hulls on ready and loadingdone
+      const controller = new SimplexSvgController(container, {
+        items,
+        contentView: {
+          mountOrUpdate: (g) => {
+            mountCalls += 1;
+            const c = g.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            c.setAttribute('r', '9');
+            g.replaceChildren(c);
+          },
+        },
+      });
+      for (let i = 0; i < 20; i++) controller.stepForTest(20);
+      expect(listeners.get('loadingdone')?.size).toBe(1);
+
+      const mountsBeforeReady = mountCalls;
+      resolveFontsReady();
+      await Promise.resolve();
+      await Promise.resolve();
+      for (let i = 0; i < 5; i++) controller.stepForTest(20);
+      expect(mountCalls).toBeGreaterThan(mountsBeforeReady);
+
+      const mountsBeforeEvent = mountCalls;
+      mockFonts.dispatchLoadingDone();
+      for (let i = 0; i < 5; i++) controller.stepForTest(20);
+      expect(mountCalls).toBeGreaterThan(mountsBeforeEvent);
+
+      // 3) destroy() detaches the loadingdone listener cleanly
+      controller.destroy();
+      expect(listeners.get('loadingdone')?.size ?? 0).toBe(0);
+    } finally {
+      if (originalFonts) {
+        Object.defineProperty(document, 'fonts', originalFonts);
+      } else {
+        delete (document as unknown as Record<string, unknown>).fonts;
+      }
+      container.remove();
+    }
+  });
+
+  it('composes interactions.onLeftClick and hover handlers with built-in drill-down and tooltips unless returning true (Issue #3)', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 720, height: 500, right: 720, bottom: 500 }),
+    });
+    document.body.appendChild(container);
+
+    const items: DefaultTaggedItem[] = Array.from({ length: 42 }, (_, i) => ({
+      id: `comp-${i}`,
+      tags: ['alpha', 'beta', 'gamma', `sub-${i % 4}`],
+    }));
+
+    const seenClicks: string[] = [];
+    let consumeClick = false;
+    let suppressTooltip = false;
+
+    const controller = createSimplexSvg(container, {
+      items,
+      tooltip: true,
+      zoomStrategy: createBarycentricZoomStrategy(),
+      layoutOptions: { seed: 42, sizeMultiplier: 1.8 },
+      interactions: {
+        onTriangleHover: () => suppressTooltip,
+        onLeftClick: (target) => {
+          seenClicks.push(target.kind);
+          return consumeClick;
+        },
+      },
+    });
+    for (let i = 0; i < 40; i++) controller.stepForTest(20);
+
+    const svg = controller.getSvgElement();
+    Object.defineProperty(svg, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 720, height: 500, right: 720, bottom: 500 }),
+    });
+
+    const drillTriIdx = controller.getZoomState().drillableTriangleIndices[0]!;
+    const triPoly = svg.querySelector(
+      `g.sv-mesh-triangle[data-triangle-index="${drillTriIdx}"] polygon`,
+    )!;
+    const pts = triPoly
+      .getAttribute('points')!
+      .trim()
+      .split(/\s+/)
+      .map((pair) => {
+        const [x, y] = pair.split(',').map(Number);
+        return { x: x!, y: y! };
+      });
+    const cx = (pts[0]!.x + pts[1]!.x + pts[2]!.x) / 3;
+    const cy = (pts[0]!.y + pts[1]!.y + pts[2]!.y) / 3;
+
+    // Hovering with suppressTooltip = true hides built-in DOM tooltip
+    suppressTooltip = true;
+    svg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: cx,
+        clientY: cy,
+        bubbles: true,
+      }),
+    );
+    const tooltipEl1 = container.querySelector('.sv-tooltip') as HTMLDivElement | null;
+    expect(tooltipEl1 === null || tooltipEl1.style.display === 'none').toBe(true);
+
+    // Hovering with suppressTooltip = false shows built-in DOM tooltip
+    suppressTooltip = false;
+    svg.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: cx,
+        clientY: cy,
+        bubbles: true,
+      }),
+    );
+    const tooltipEl2 = container.querySelector('.sv-tooltip') as HTMLDivElement | null;
+    expect(tooltipEl2?.style.display).toBe('block');
+
+    // Clicking with consumeClick = true intercepts click and prevents drill-down
+    consumeClick = true;
+    svg.dispatchEvent(
+      new MouseEvent('click', { button: 0, clientX: cx, clientY: cy, bubbles: true }),
+    );
+    expect(seenClicks.at(-1)).toBe('triangle');
+    expect(controller.getZoomState().depth).toBe(0);
+
+    // Clicking with consumeClick = false runs user handler AND composes with built-in drill-down
+    consumeClick = false;
+    svg.dispatchEvent(
+      new MouseEvent('click', { button: 0, clientX: cx, clientY: cy, bubbles: true }),
+    );
+    for (let i = 0; i < 40; i++) controller.stepForTest(20);
+    expect(seenClicks.at(-1)).toBe('triangle');
+    expect(controller.getZoomState().depth).toBe(1);
+
+    // Clicking empty background (4, 4) with consumeClick = false composes with built-in drillUp
+    svg.dispatchEvent(
+      new MouseEvent('click', { button: 0, clientX: 4, clientY: 4, bubbles: true }),
+    );
+    for (let i = 0; i < 40; i++) controller.stepForTest(20);
+    expect(seenClicks.at(-1)).toBe('background');
+    expect(controller.getZoomState().depth).toBe(0);
 
     controller.destroy();
     container.remove();

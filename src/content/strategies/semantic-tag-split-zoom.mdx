@@ -14,11 +14,11 @@ optionsTable:
   - name: stopWhenFullScale
     type: boolean
     defaultValue: "true"
-    description: Terminates subdivision automatically once every covered item reaches fullScaleThreshold (0.995).
+    description: Terminates subdivision automatically once every covered item reaches fullScaleThreshold (0.75).
   - name: fullScaleThreshold
     type: number
-    defaultValue: "0.995"
-    description: Scale ratio in (0, 1] above which items count as full-scale leaf nodes.
+    defaultValue: "0.75"
+    description: Scale ratio in (0, 1] above which items count as legible leaf nodes (exported as DEFAULT_FULL_SCALE_THRESHOLD).
   - name: barycentricFallback
     type: boolean
     defaultValue: "true"

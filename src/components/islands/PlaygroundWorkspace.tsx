@@ -1,4 +1,5 @@
 import {
+  DEFAULT_FULL_SCALE_THRESHOLD,
   SimplexTopicGraph,
   createAdaptiveHexMeshStrategy,
   createBarycentricZoomStrategy,
@@ -354,7 +355,9 @@ export function PlaygroundWorkspace() {
   const [clusterZoomMode, setClusterZoomMode] =
     useState<BarycentricClusterZoomMode>('incident-star');
   const [zoomStopWhenFullScale, setZoomStopWhenFullScale] = useState<boolean>(true);
-  const [zoomFullScaleThreshold, setZoomFullScaleThreshold] = useState<number>(0.99);
+  const [zoomFullScaleThreshold, setZoomFullScaleThreshold] = useState<number>(
+    DEFAULT_FULL_SCALE_THRESHOLD,
+  );
   const [semanticBarycentricFallback, setSemanticBarycentricFallback] =
     useState<boolean>(true);
   const [barycentricContrastStretch, setBarycentricContrastStretch] =
@@ -674,7 +677,7 @@ export function PlaygroundWorkspace() {
       zoomId !== 'semantic-tag-split-zoom' ||
       clusterZoomMode !== 'incident-star' ||
       !zoomStopWhenFullScale ||
-      Math.abs(zoomFullScaleThreshold - 0.99) > 1e-4 ||
+      Math.abs(zoomFullScaleThreshold - DEFAULT_FULL_SCALE_THRESHOLD) > 1e-4 ||
       !semanticBarycentricFallback ||
       !barycentricContrastStretch ||
       !barycentricSectorFallback ||
@@ -760,7 +763,7 @@ export function PlaygroundWorkspace() {
     setZoomId('semantic-tag-split-zoom');
     setClusterZoomMode('incident-star');
     setZoomStopWhenFullScale(true);
-    setZoomFullScaleThreshold(0.99);
+    setZoomFullScaleThreshold(DEFAULT_FULL_SCALE_THRESHOLD);
     setSemanticBarycentricFallback(true);
     setBarycentricContrastStretch(true);
     setBarycentricSectorFallback(true);
@@ -2373,7 +2376,7 @@ export function PlaygroundWorkspace() {
                         </span>
                         <input
                           type="range"
-                          min={0.7}
+                          min={0.5}
                           max={1}
                           step={0.01}
                           value={zoomFullScaleThreshold}

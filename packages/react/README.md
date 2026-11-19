@@ -75,7 +75,8 @@ export function QuickTopicMap() {
 | `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Mesh-inward fan seeding + space-filling PBD dispersion + global uniform scale search (`0.0 px` overlap). |
 | `zoomStrategy` | `createFreeCameraZoomStrategy()` | Continuous cursor wheel zoom (`onWheel="zoom-to-cursor"`), 2-finger pinch, and drag-to-pan. |
 | `showZoomBreadcrumbs` | `true` | Displays clickable top breadcrumbs whenever drilled into a sub-level (`depth > 0`). |
-| `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode when `focused*` and `onLeftClick` are omitted. |
+| `relayoutOnFontLoad` | `true` | Automatically clears SVG hull caches and re-solves layout once webfonts finish loading. |
+| `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode when `focused*` is uncontrolled and click is not consumed (`return true`). |
 | `tooltip` | `false` | Set `tooltip` (`true`) or pass `(target) => ReactNode` to render a floating tooltip overlay. |
 
 ---
@@ -368,6 +369,7 @@ export function FastControlledGraph({
 | `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Pluggable `SimplexLayoutStrategy` (`pbd-uniform`, `pbd-warm-start`, `local-adaptive`, `collision-driven`, `createComposedLayoutStrategy`, or custom). |
 | `zoomStrategy` | `createFreeCameraZoomStrategy()` | Pluggable `SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>` (`createFreeCameraZoomStrategy`, `createBarycentricZoomStrategy`, `createSemanticZoomStrategy`, `createSubspaceZoomStrategy`, or custom). |
 | `showZoomBreadcrumbs` | `true` | Renders clickable top breadcrumb navigation in drill-down mode when `depth > 0`. |
+| `relayoutOnFontLoad` | `true` | Automatically re-measures SVG hulls and re-solves layout after `document.fonts.ready` / `loadingdone`. |
 | `sizeMultiplier` | `1.0` | Uniform node size multiplier (`0.35` – `3.0`). |
 | `showHulls` | `false` | Renders convex bounding hull wireframes over nodes. |
 | `pinnedIds` / `highlightedIds` | — | `ReadonlySet<string> \| readonly string[]` of pinned or highlighted item IDs. |
@@ -379,9 +381,10 @@ export function FastControlledGraph({
 | --- | --- | --- |
 | `tooltip` | `false` | `boolean \| ((target: SimplexReactTooltipTarget) => ReactNode)` — Floating React `role="tooltip"` overlay for `'content'`, `'cluster'`, and `'triangle'`. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Automatically toggles cluster or triangle focus on click in `free-camera` mode when uncontrolled. |
-| `onContentHover` / `onClusterHover` / `onTriangleHover` | — | Hover callbacks for items, clusters, and triangles. |
-| `onLeftClick` / `onRightClick` | — | Pointer click callbacks (`onRightClick` returning `true` suppresses the browser context menu). |
-| `onWheel` | `'zoom-to-cursor'` | `'zoom-to-cursor' \| 'pan-vertical' \| 'none' \| ((event, camera) => void)` (automatically inactive in `drill-down` mode). |
+| `onContentHover` / `onClusterHover` / `onTriangleHover` | — | Hover callbacks returning `boolean \| void` (`true` suppresses the built-in tooltip for that hover target). |
+| `onContentClick` / `onClusterClick` / `onTriangleClick` / `onBackgroundClick` | — | Target-specific left-click callbacks returning `boolean \| void` (`true` consumes the click and skips `onLeftClick` and built-in defaults). |
+| `onLeftClick` / `onRightClick` | — | General pointer click callbacks returning `boolean \| void` (`true` consumes built-in drill-down/focus or suppresses the browser context menu; `void`/`false` composes). |
+| `onWheel` | `'zoom-to-cursor'` | `'zoom-to-cursor' \| 'pan-vertical' \| 'none' \| ((event, camera) => boolean \| void)` (`true` consumes built-in cursor zoom; automatically inactive in `drill-down` mode). |
 | `onMetricsChange` | — | `(metrics: LayoutMetrics) => void` |
 | `onClustersChange` | — | `(clusters: readonly ClusterDescriptor[]) => void` |
 | `onZoomStateChange` | — | `(state: SimplexZoomState) => void` — Emits `depth`, `activeFrameKind`, `breadcrumbs`, `drillableTriangleIndices`, `focusableTriangleIndices`, `drillableClusterUids`, `isLeafReached`. |
@@ -396,7 +399,7 @@ Returns `{ controllerRef, handle }`:
 - `handle.setMeshStrategy(s)` / `handle.setClusteringStrategy(s)` / `handle.setColorStrategy(s)` / `handle.setLayoutStrategy(s)` / `handle.setZoomStrategy(s)` — Hot-swaps any of the 5 pipeline stages imperatively.
 - `handle.drillDownTriangle(index)` / `handle.drillDownCluster(uid)` / `handle.drillToNeighbor(neighborId)` / `handle.drillUp()` / `handle.drillToDepth(depth)` / `handle.drillToRoot()` / `handle.getZoomState()` — Programmatic drill-down navigation and state inspection.
 - `handle.setTriangleView(view)` / `handle.setEdgeView(view)` / `handle.setFocusedTriangleIndex(index)` — Hot-swaps mesh triangle/edge renderers or updates triangle focus.
-- `handle.zoomBy(factor)` / `handle.resetCamera()` — Camera zoom & reset controls.
+- `handle.zoomBy(factor)` / `handle.resetCamera()` / `handle.relayout()` — Camera zoom/reset and manual hull re-measurement + relayout.
 - `handle.getMetrics()` / `handle.getClusters()` / `handle.getRawController()` — Live solver telemetry and raw controller access.
 
 ## License

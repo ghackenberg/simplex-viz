@@ -679,16 +679,64 @@ export interface TriangleHoverEvent<
 }
 
 /**
- * Wheel interaction policy.
+ * Narrowed `HitTarget` payload for left-clicks on a content item.
+ */
+export type ContentClickEvent<
+  TItem,
+  TContentVisual,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> = Extract<
+  HitTarget<TItem, TContentVisual, never, TTagMeta, TClusterMeta>,
+  { readonly kind: 'content' }
+>;
+
+/**
+ * Narrowed `HitTarget` payload for left-clicks on a topic cluster anchor.
+ */
+export type ClusterClickEvent<
+  TItem,
+  TClusterVisual,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> = Extract<
+  HitTarget<TItem, never, TClusterVisual, TTagMeta, TClusterMeta>,
+  { readonly kind: 'cluster' }
+>;
+
+/**
+ * Narrowed `HitTarget` payload for left-clicks on a mesh triangle face.
+ */
+export type TriangleClickEvent<
+  TItem,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> = Extract<
+  HitTarget<TItem, never, never, TTagMeta, TClusterMeta>,
+  { readonly kind: 'triangle' }
+>;
+
+/**
+ * Wheel interaction policy (active in `free-camera` mode).
+ *
+ * When a custom callback is supplied, return `true` to mark the wheel event as consumed
+ * (suppressing built-in `'zoom-to-cursor'` while still preventing default page scroll);
+ * return `void` or `false` to let built-in `'zoom-to-cursor'` compose afterward.
  */
 export type WheelBehavior =
   | 'zoom-to-cursor'
   | 'pan-vertical'
   | 'none'
-  | ((event: NormalizedWheelEvent, camera: CameraController) => void);
+  | ((event: NormalizedWheelEvent, camera: CameraController) => boolean | void);
 
 /**
  * Configurable renderer-independent interaction callbacks.
+ *
+ * Every callback follows one consistent composable convention:
+ * - Return `true` to consume the event and suppress built-in default behavior
+ *   (built-in drill-down/focus for click handlers, built-in tooltip for hover handlers,
+ *   browser context menu for `onRightClick`, or built-in cursor zoom for custom `onWheel`).
+ * - Return `void` / `undefined` / `false` to compose with built-in default behavior.
  */
 export interface InteractionHandlers<
   TItem,
@@ -697,19 +745,62 @@ export interface InteractionHandlers<
   TTagMeta = undefined,
   TClusterMeta = undefined,
 > {
+  /** Return `true` to suppress the built-in hover tooltip for this content node. */
   readonly onContentHover?: (
     event: ContentHoverEvent<TItem, TContentVisual, TTagMeta, TClusterMeta> | null,
-  ) => void;
+  ) => boolean | void;
+  /** Return `true` to suppress the built-in hover tooltip for this cluster node. */
   readonly onClusterHover?: (
     event: ClusterHoverEvent<TItem, TClusterVisual, TTagMeta, TClusterMeta> | null,
-  ) => void;
+  ) => boolean | void;
+  /** Return `true` to suppress the built-in hover tooltip for this triangle face. */
   readonly onTriangleHover?: (
     event: TriangleHoverEvent<TItem, TTagMeta, TClusterMeta> | null,
-  ) => void;
+  ) => boolean | void;
+  /**
+   * Invoked on active (non-neighbor) content node left-click before `onLeftClick`.
+   * Return `true` to consume the click and skip `onLeftClick` and built-in defaults.
+   */
+  readonly onContentClick?: (
+    target: ContentClickEvent<TItem, TContentVisual, TTagMeta, TClusterMeta>,
+    rawEvent: NormalizedPointerEvent,
+  ) => boolean | void;
+  /**
+   * Invoked on cluster anchor left-click before `onLeftClick`.
+   * Return `true` to consume the click and suppress built-in cluster drill-down or focus toggle.
+   */
+  readonly onClusterClick?: (
+    target: ClusterClickEvent<TItem, TClusterVisual, TTagMeta, TClusterMeta>,
+    rawEvent: NormalizedPointerEvent,
+  ) => boolean | void;
+  /**
+   * Invoked on triangle face left-click before `onLeftClick`.
+   * Return `true` to consume the click and suppress built-in triangle drill-down or focus toggle.
+   */
+  readonly onTriangleClick?: (
+    target: TriangleClickEvent<TItem, TTagMeta, TClusterMeta>,
+    rawEvent: NormalizedPointerEvent,
+  ) => boolean | void;
+  /**
+   * Invoked on empty canvas background left-click before `onLeftClick`.
+   * Return `true` to consume the click and suppress built-in drill-up or focus clearing.
+   */
+  readonly onBackgroundClick?: (
+    rawEvent: NormalizedPointerEvent,
+  ) => boolean | void;
+  /**
+   * Invoked on any left-click not consumed by a target-specific click handler.
+   * Return `true` to consume the click and suppress built-in drill-down / focus behavior;
+   * return `void` or `false` to compose with built-in navigation and focus toggles.
+   */
   readonly onLeftClick?: (
     target: HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
     rawEvent: NormalizedPointerEvent,
-  ) => void;
+  ) => boolean | void;
+  /**
+   * Invoked on right-click (`contextmenu`).
+   * Return `true` to suppress the browser's default context menu.
+   */
   readonly onRightClick?: (
     target: HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
     rawEvent: NormalizedPointerEvent,

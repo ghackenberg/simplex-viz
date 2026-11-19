@@ -22,11 +22,11 @@ optionsTable:
   - name: stopWhenFullScale
     type: boolean
     defaultValue: "true"
-    description: Stops marking sub-triangles as drillable once all covered items reach fullScaleThreshold (0.995).
+    description: Stops marking sub-triangles as drillable once all covered items reach fullScaleThreshold (0.75).
   - name: fullScaleThreshold
     type: number
-    defaultValue: "0.995"
-    description: Scale ratio in (0, 1] at which content items count as full-size leaf nodes.
+    defaultValue: "0.75"
+    description: Scale ratio in (0, 1] at which content items count as legible leaf nodes (exported as DEFAULT_FULL_SCALE_THRESHOLD).
   - name: leafTriangleFocus
     type: boolean
     defaultValue: "true"

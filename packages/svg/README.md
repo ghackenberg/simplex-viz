@@ -71,7 +71,8 @@ const controller = createSimplexSvg('#graph', items);
 | `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Mesh-inward fan seeding + space-filling PBD dispersion + global uniform scale search (`0.0 px` overlap). |
 | `zoomStrategy` | `createFreeCameraZoomStrategy()` | Continuous cursor wheel zoom (`onWheel: 'zoom-to-cursor'`), 2-finger pinch, and drag-to-pan. |
 | `showZoomBreadcrumbs` | `true` | Displays clickable navigation breadcrumbs automatically when `depth > 0` in drill-down mode. |
-| `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode when `interactions.onLeftClick` is omitted. |
+| `relayoutOnFontLoad` | `true` | Automatically clears SVG hull caches and re-solves layout after `document.fonts.ready` / `loadingdone`. |
+| `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode unless consumed (`return true`) by a click handler. |
 | `tooltip` | `true` for `createSimplexSvg(el, items)`, `false` in options | Floating DOM hover tooltip (`boolean` or custom `(target) => string` formatter). |
 
 ---
@@ -258,16 +259,24 @@ export const CustomCardSvgView: SvgNodeView<CardVisual> = {
 };
 ```
 
-### Step 6 — Custom Hover, Click & Wheel Interactions
+### Step 6 — Composable Hover, Click & Wheel Interactions
+
+Every interaction callback follows one consistent convention: return `void` / `false` to compose with built-in behavior (drill-down, focus toggles, tooltips, cursor zoom), or return `true` to consume the event and suppress the built-in default:
 
 ```ts
 controller.setInteractions({
   onContentHover: (ev) => {
     if (ev) console.log('Hovered item:', ev.item, ev.screenPosition);
+    // Return true to suppress the built-in tooltip for this hover target
+  },
+  onContentClick: (target) => {
+    console.log('Clicked item:', target.item);
+    // Built-in triangle/cluster drill-down and focus toggles keep working
   },
   onLeftClick: (target) => {
-    if (target.kind === 'content') {
-      console.log('Clicked item:', target.item);
+    if (target.kind === 'cluster') {
+      console.log('Intercepted cluster click:', target.cluster.clusterUid);
+      return true; // Consume click and suppress built-in cluster drill/focus
     }
   },
   onRightClick: (target) => {
@@ -305,9 +314,10 @@ controller.setInteractions({
 | `setSizeMultiplier(multiplier)` / `setShowHulls(show)` | Uniformly scales node sizes or toggles convex hull wireframes. |
 | `setPinnedIds(ids)` / `setHighlightedIds(ids)` | Controls pinned and highlighted visual emphasis states. |
 | `setFocusedClusterUid(uid \| null)` / `setFocusedTriangleIndex(i \| null)` | Isolates a cluster or triangle face in `free-camera` mode. |
+| `relayout()` | Clears cached SVG hull measurements and re-solves the current layout frame cleanly (called automatically when `relayoutOnFontLoad` is `true`). |
 | `camera` | Exposes `CameraController` (`zoomToCursor`, `panBy`, `reset`, `getState`, `setState`). |
 | `getMetrics()` / `getClusters()` / `getItems()` | Reads live solver telemetry, clusters, and items. |
-| `destroy()` | Cancels `requestAnimationFrame`, disconnects `ResizeObserver`, and removes DOM overlays & `<svg>`. |
+| `destroy()` | Cancels `requestAnimationFrame`, disconnects `ResizeObserver` & font listeners, and removes DOM overlays & `<svg>`. |
 
 ## License
 

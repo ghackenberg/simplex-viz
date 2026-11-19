@@ -1,12 +1,15 @@
 import {
   createFreeCameraZoomStrategy,
+  type ClusterClickEvent,
   type ClusterDescriptor,
   type ClusterHoverEvent,
   type ClusterMetaConfig,
+  type ContentClickEvent,
   type ContentHoverEvent,
   type ContentLayoutContext,
   type DefaultTaggedItem,
   type HitTarget,
+  type InteractionHandlers,
   type LayoutMetrics,
   type LayoutSolverOptions,
   type MeshOptions,
@@ -18,6 +21,7 @@ import {
   type SimplexZoomState,
   type SimplexZoomStrategy,
   type StrategyItemIdentityConfig,
+  type TriangleClickEvent,
   type TriangleHoverEvent,
   type VisualResolver,
   type WheelBehavior,
@@ -88,6 +92,34 @@ export type SimplexContentClickEvent<
 > = Extract<
   HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
   { readonly kind: 'content' }
+>;
+
+/**
+ * Payload passed to `onClusterClick` when a topic cluster anchor is clicked.
+ */
+export type SimplexClusterClickEvent<
+  TItem = DefaultTaggedItem,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> = Extract<
+  HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
+  { readonly kind: 'cluster' }
+>;
+
+/**
+ * Payload passed to `onTriangleClick` when a mesh triangle face is clicked.
+ */
+export type SimplexTriangleClickEvent<
+  TItem = DefaultTaggedItem,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> = Extract<
+  HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
+  { readonly kind: 'triangle' }
 >;
 
 /**
@@ -173,13 +205,18 @@ export type SimplexTopicGraphProps<
     readonly focusedClusterUid?: string | null;
     readonly focusedTriangleIndex?: number | null;
     /**
-     * Enables built-in cluster focus toggle on click when `focusedClusterUid` and `onLeftClick`
-     * are not controlled externally. Default: `true`.
+     * Automatically re-measures SVG hulls and re-solves layout once webfonts finish loading
+     * (`document.fonts.ready` and `loadingdone`). Default: `true`.
+     */
+    readonly relayoutOnFontLoad?: boolean;
+    /**
+     * Enables built-in cluster focus toggle on click when `focusedClusterUid` is not controlled
+     * externally and no click handler consumes the event (`return true`). Default: `true`.
      */
     readonly focusOnClusterClick?: boolean;
     /**
-     * Enables built-in triangle face focus toggle on click when `focusedTriangleIndex` and `onLeftClick`
-     * are not controlled externally. Default: `true`.
+     * Enables built-in triangle face focus toggle on click when `focusedTriangleIndex` is not
+     * controlled externally and no click handler consumes the event (`return true`). Default: `true`.
      */
     readonly focusOnTriangleClick?: boolean;
     /**
@@ -197,40 +234,61 @@ export type SimplexTopicGraphProps<
             TClusterMeta
           >,
         ) => ReactNode);
+    /** Return `true` to suppress the built-in hover tooltip for this content node. */
     readonly onContentHover?: (
       event: ContentHoverEvent<TItem, TContentVisual, TTagMeta, TClusterMeta> | null,
-    ) => void;
+    ) => boolean | void;
+    /** Return `true` to suppress the built-in hover tooltip for this cluster node. */
     readonly onClusterHover?: (
       event: ClusterHoverEvent<TItem, TClusterVisual, TTagMeta, TClusterMeta> | null,
-    ) => void;
+    ) => boolean | void;
+    /** Return `true` to suppress the built-in hover tooltip for this triangle face. */
     readonly onTriangleHover?: (
       event: TriangleHoverEvent<TItem, TTagMeta, TClusterMeta> | null,
-    ) => void;
+    ) => boolean | void;
     /**
-     * Invoked when an active (non-context) content node is clicked, while preserving
-     * built-in cluster/triangle drill-down and focus toggles.
+     * Invoked when an active (non-neighbor) content node is clicked, before `onLeftClick`.
+     * Return `true` to consume the click and skip `onLeftClick` and built-in defaults.
      */
     readonly onContentClick?: (
-      event: SimplexContentClickEvent<
-        TItem,
-        TContentVisual,
-        TClusterVisual,
-        TTagMeta,
-        TClusterMeta
-      >,
+      event: ContentClickEvent<TItem, TContentVisual, TTagMeta, TClusterMeta>,
       rawEvent: NormalizedPointerEvent,
-    ) => void;
+    ) => boolean | void;
     /**
-     * Invoked when empty canvas background is clicked. Return `true` to consume the click
-     * (e.g. to dismiss an open inspector card before triggering drill-up).
+     * Invoked when a topic cluster anchor is clicked, before `onLeftClick`.
+     * Return `true` to consume the click and suppress built-in cluster drill-down or focus toggle.
+     */
+    readonly onClusterClick?: (
+      event: ClusterClickEvent<TItem, TClusterVisual, TTagMeta, TClusterMeta>,
+      rawEvent: NormalizedPointerEvent,
+    ) => boolean | void;
+    /**
+     * Invoked when a mesh triangle face is clicked, before `onLeftClick`.
+     * Return `true` to consume the click and suppress built-in triangle drill-down or focus toggle.
+     */
+    readonly onTriangleClick?: (
+      event: TriangleClickEvent<TItem, TTagMeta, TClusterMeta>,
+      rawEvent: NormalizedPointerEvent,
+    ) => boolean | void;
+    /**
+     * Invoked when empty canvas background is clicked, before `onLeftClick`.
+     * Return `true` to consume the click (e.g. to dismiss an open inspector card before triggering drill-up).
      */
     readonly onBackgroundClick?: (
       rawEvent: NormalizedPointerEvent,
     ) => boolean | void;
+    /**
+     * Invoked on any left-click not consumed by a target-specific click handler.
+     * Return `true` to consume the click and suppress built-in drill-down / focus toggles;
+     * return `void` or `false` to compose with built-in navigation and focus behavior.
+     */
     readonly onLeftClick?: (
       target: HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
       rawEvent: NormalizedPointerEvent,
-    ) => void;
+    ) => boolean | void;
+    /**
+     * Invoked on right-click (`contextmenu`). Return `true` to suppress the browser's context menu.
+     */
     readonly onRightClick?: (
       target: HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
       rawEvent: NormalizedPointerEvent,
@@ -486,6 +544,114 @@ export function SimplexTopicGraph<
     return { contentView, clusterView };
   };
 
+  const buildReactInteractions = (
+    wheelPolicy?: WheelBehavior,
+  ): InteractionHandlers<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  > => ({
+    onContentHover: (ev) => {
+      const consumed = latestPropsRef.current.onContentHover?.(ev);
+      if (latestPropsRef.current.tooltip) {
+        setHoveredTarget(ev && consumed !== true ? { kind: 'content', ...ev } : null);
+      }
+      // React renders its own JSX tooltip; suppress SimplexSvgController's built-in DOM tooltip.
+      return true;
+    },
+    onClusterHover: (ev) => {
+      const consumed = latestPropsRef.current.onClusterHover?.(ev);
+      if (latestPropsRef.current.tooltip) {
+        setHoveredTarget(ev && consumed !== true ? { kind: 'cluster', ...ev } : null);
+      }
+      return true;
+    },
+    onTriangleHover: (ev) => {
+      const consumed = latestPropsRef.current.onTriangleHover?.(ev);
+      if (latestPropsRef.current.tooltip) {
+        setHoveredTarget(ev && consumed !== true ? { kind: 'triangle', ...ev } : null);
+      }
+      return true;
+    },
+    onContentClick: (target, raw) =>
+      latestPropsRef.current.onContentClick?.(target, raw),
+    onClusterClick: (target, raw) =>
+      latestPropsRef.current.onClusterClick?.(target, raw),
+    onTriangleClick: (target, raw) =>
+      latestPropsRef.current.onTriangleClick?.(target, raw),
+    onBackgroundClick: (raw) =>
+      latestPropsRef.current.onBackgroundClick?.(raw),
+    onLeftClick: (target, raw) => {
+      const cur = latestPropsRef.current;
+      if (cur.onLeftClick?.(target, raw) === true) {
+        return true;
+      }
+      // In drill-down mode, return false so SimplexSvgController runs built-in drill/neighbor/up defaults.
+      if (ctrlRef.current?.getZoomStrategy().mode === 'drill-down') {
+        return false;
+      }
+      // In free-camera mode, handle React-aware controlled/uncontrolled focus toggle and consume
+      // so SimplexSvgController does not double-toggle uncontrolled focus state.
+      if (
+        target.kind === 'cluster' &&
+        cur.focusedClusterUid === undefined &&
+        (cur.focusOnClusterClick ?? true)
+      ) {
+        if (
+          cur.focusedTriangleIndex === undefined &&
+          internalFocusedTriangleRef.current !== null
+        ) {
+          internalFocusedTriangleRef.current = null;
+          ctrlRef.current?.setFocusedTriangleIndex(null);
+        }
+        const next =
+          internalFocusedUidRef.current === target.cluster.clusterUid
+            ? null
+            : target.cluster.clusterUid;
+        internalFocusedUidRef.current = next;
+        ctrlRef.current?.setFocusedClusterUid(next);
+      } else if (
+        target.kind === 'triangle' &&
+        cur.focusedTriangleIndex === undefined &&
+        (cur.focusOnTriangleClick ?? true)
+      ) {
+        if (
+          cur.focusedClusterUid === undefined &&
+          internalFocusedUidRef.current !== null
+        ) {
+          internalFocusedUidRef.current = null;
+          ctrlRef.current?.setFocusedClusterUid(null);
+        }
+        const next =
+          internalFocusedTriangleRef.current === target.triangle.index
+            ? null
+            : target.triangle.index;
+        internalFocusedTriangleRef.current = next;
+        ctrlRef.current?.setFocusedTriangleIndex(next);
+      } else if (target.kind === 'background') {
+        if (
+          cur.focusedClusterUid === undefined &&
+          internalFocusedUidRef.current !== null
+        ) {
+          internalFocusedUidRef.current = null;
+          ctrlRef.current?.setFocusedClusterUid(null);
+        }
+        if (
+          cur.focusedTriangleIndex === undefined &&
+          internalFocusedTriangleRef.current !== null
+        ) {
+          internalFocusedTriangleRef.current = null;
+          ctrlRef.current?.setFocusedTriangleIndex(null);
+        }
+      }
+      return true;
+    },
+    onRightClick: (t, raw) => latestPropsRef.current.onRightClick?.(t, raw),
+    onWheel: wheelPolicy,
+  });
+
   // Mount controller once on container
   useEffect(() => {
     const el = containerRef.current;
@@ -522,133 +688,10 @@ export function SimplexTopicGraph<
       zoomStrategy: p.zoomStrategy,
       showHulls: p.showHulls,
       showZoomBreadcrumbs: p.showZoomBreadcrumbs,
+      relayoutOnFontLoad: p.relayoutOnFontLoad,
       focusOnClusterClick: false,
       focusOnTriangleClick: false,
-      interactions: {
-        onContentHover: (ev) => {
-          latestPropsRef.current.onContentHover?.(ev);
-          if (latestPropsRef.current.tooltip) {
-            setHoveredTarget(ev ? { kind: 'content', ...ev } : null);
-          }
-        },
-        onClusterHover: (ev) => {
-          latestPropsRef.current.onClusterHover?.(ev);
-          if (latestPropsRef.current.tooltip) {
-            setHoveredTarget(ev ? { kind: 'cluster', ...ev } : null);
-          }
-        },
-        onTriangleHover: (ev) => {
-          latestPropsRef.current.onTriangleHover?.(ev);
-          if (latestPropsRef.current.tooltip) {
-            setHoveredTarget(ev ? { kind: 'triangle', ...ev } : null);
-          }
-        },
-        onLeftClick: (target, raw) => {
-          const cur = latestPropsRef.current;
-          if (cur.onLeftClick) {
-            cur.onLeftClick(target, raw);
-            return;
-          }
-          if (target.kind === 'content' && !target.neighborId && cur.onContentClick) {
-            cur.onContentClick(target, raw);
-            return;
-          }
-          if (target.kind === 'background' && cur.onBackgroundClick) {
-            const consumed = cur.onBackgroundClick(raw);
-            if (consumed === true) {
-              return;
-            }
-          }
-          if (ctrlRef.current?.getZoomStrategy().mode === 'drill-down') {
-            if (target.kind === 'triangle') {
-              if (target.triangle.neighborId) {
-                ctrlRef.current.drillToNeighbor(target.triangle.neighborId);
-              } else if (!target.triangle.isContext) {
-                ctrlRef.current.drillDownTriangle(target.triangle.index);
-              }
-            } else if (target.kind === 'cluster') {
-              if (target.neighborId) {
-                ctrlRef.current.drillToNeighbor(target.neighborId);
-              } else {
-                ctrlRef.current.drillDownCluster(target.cluster.clusterUid);
-              }
-            } else if (target.kind === 'content' && target.neighborId) {
-              ctrlRef.current.drillToNeighbor(target.neighborId);
-            } else if (target.kind === 'background') {
-              ctrlRef.current.drillUp();
-            }
-            return;
-          }
-          if (
-            target.kind === 'cluster' &&
-            cur.focusedClusterUid === undefined &&
-            (cur.focusOnClusterClick ?? true)
-          ) {
-            if (
-              cur.focusedTriangleIndex === undefined &&
-              internalFocusedTriangleRef.current !== null
-            ) {
-              internalFocusedTriangleRef.current = null;
-              ctrlRef.current?.setFocusedTriangleIndex(null);
-            }
-            const next =
-              internalFocusedUidRef.current === target.cluster.clusterUid
-                ? null
-                : target.cluster.clusterUid;
-            internalFocusedUidRef.current = next;
-            ctrlRef.current?.setFocusedClusterUid(next);
-          } else if (
-            target.kind === 'triangle' &&
-            cur.focusedTriangleIndex === undefined &&
-            (cur.focusOnTriangleClick ?? true)
-          ) {
-            if (
-              cur.focusedClusterUid === undefined &&
-              internalFocusedUidRef.current !== null
-            ) {
-              internalFocusedUidRef.current = null;
-              ctrlRef.current?.setFocusedClusterUid(null);
-            }
-            const next =
-              internalFocusedTriangleRef.current === target.triangle.index
-                ? null
-                : target.triangle.index;
-            internalFocusedTriangleRef.current = next;
-            ctrlRef.current?.setFocusedTriangleIndex(next);
-          } else if (target.kind === 'background') {
-            if (
-              cur.focusedClusterUid === undefined &&
-              internalFocusedUidRef.current !== null
-            ) {
-              internalFocusedUidRef.current = null;
-              ctrlRef.current?.setFocusedClusterUid(null);
-            }
-            if (
-              cur.focusedTriangleIndex === undefined &&
-              internalFocusedTriangleRef.current !== null
-            ) {
-              internalFocusedTriangleRef.current = null;
-              ctrlRef.current?.setFocusedTriangleIndex(null);
-            }
-          }
-        },
-        onRightClick: (t, raw) => latestPropsRef.current.onRightClick?.(t, raw),
-        onWheel: (ev, cam) => {
-          if (ctrlRef.current?.getZoomStrategy().mode === 'drill-down') return;
-          const policy = latestPropsRef.current.onWheel ?? 'zoom-to-cursor';
-          if (policy === 'none') return;
-          if (typeof policy === 'function') {
-            policy(ev, cam);
-            return;
-          }
-          if (policy === 'pan-vertical') {
-            cam.panBy(-ev.deltaX, -ev.deltaY);
-            return;
-          }
-          const factor = Math.exp(-ev.deltaY * 0.0014);
-          cam.zoomToCursor(ev.screenX, ev.screenY, factor);
-        },
-      },
+      interactions: buildReactInteractions(p.onWheel),
       onMetricsChange: (m) => latestPropsRef.current.onMetricsChange?.(m),
       onClustersChange: (c) => latestPropsRef.current.onClustersChange?.(c),
       onZoomStateChange: (z) => latestPropsRef.current.onZoomStateChange?.(z),
@@ -757,6 +800,11 @@ export function SimplexTopicGraph<
       showZoomBreadcrumbs: props.showZoomBreadcrumbs,
     });
   }, [props.showZoomBreadcrumbs]);
+
+  // Sync wheel policy so `'none'`, `'pan-vertical'`, `'zoom-to-cursor'`, and custom callbacks stay live
+  useEffect(() => {
+    ctrlRef.current?.setInteractions(buildReactInteractions(props.onWheel));
+  }, [props.onWheel]);
 
   // Sync meshOptions & layoutOptions when values change after mount
   useEffect(() => {

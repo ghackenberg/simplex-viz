@@ -326,14 +326,14 @@ Or compose custom layout pipelines via `createComposedLayoutStrategy(options)` /
   - `clusterZoomMode`: `'incident-star'` *(default — uniform 1-ring incident-star mesh for both primary and intermediate clusters with barycentric simplex-distance dimming)* | `'spotlight'` | `'none'`
   - `adaptiveContrastStretch`: `true` *(default)* — Re-centers skewed parent weight distributions across the 4 sub-triangles.
   - `enableSectorFallback`: `true` *(default)* — Falls back to radial sector partitioning when weights are degenerate.
-  - `stopWhenFullScale`: `true` *(default)* — Stops `1:4` subdivision once all covered items reach `fullScaleThreshold` (`0.995` default).
+  - `stopWhenFullScale`: `true` *(default)* — Stops `1:4` subdivision once all covered items reach `fullScaleThreshold` (`0.75` default, exported as `DEFAULT_FULL_SCALE_THRESHOLD`).
   - `leafTriangleFocus`: `true` *(default)* — Keeps non-subdividable leaf triangles focusable as single triangles (`'triangle-focus'`) while leaving their content items directly clickable.
 - `createSemanticZoomStrategy(options?)` (`mode: 'drill-down'`):
-  - Re-partitions a focused triangle's discriminative tags across all `6` sub-vertices (`clusterZoomMode: 'incident-star'`, `stopWhenFullScale: true`, `fullScaleThreshold: 0.995`, `leafTriangleFocus: true`, `barycentricFallback: true`).
+  - Re-partitions a focused triangle's discriminative tags across all `6` sub-vertices (`clusterZoomMode: 'incident-star'`, `stopWhenFullScale: true`, `fullScaleThreshold: 0.75`, `leafTriangleFocus: true`, `barycentricFallback: true`).
 - `createSubspaceZoomStrategy(options?)` (`mode: 'drill-down'`):
-  - Representation-agnostic `6`-vertex local subspace refinement across embeddings, pairwise similarity kernels, and tags (`clusterZoomMode: 'incident-star'`, `stopWhenFullScale: true`, `fullScaleThreshold: 0.995`, `leafTriangleFocus: true`, `minItemsForRecluster: 6`, `blendFactor: 0.35`).
-- **Imperative Zoom Methods on `SimplexGraphEngine`**:
-  `setZoomStrategy(strategy)`, `getZoomStrategy()`, `getZoomState()`, `drillDownTriangle(index)`, `drillDownCluster(uid)`, `drillToNeighbor(neighborId)`, `drillUp()`, `drillToDepth(depth)`, `drillToRoot()`.
+  - Representation-agnostic `6`-vertex local subspace refinement across embeddings, pairwise similarity kernels, and tags (`clusterZoomMode: 'incident-star'`, `stopWhenFullScale: true`, `fullScaleThreshold: 0.75`, `leafTriangleFocus: true`, `minItemsForRecluster: 6`, `blendFactor: 0.35`).
+- **Imperative Zoom & Layout Methods on `SimplexGraphEngine`**:
+  `setZoomStrategy(strategy)`, `getZoomStrategy()`, `getZoomState()`, `drillDownTriangle(index)`, `drillDownCluster(uid)`, `drillToNeighbor(neighborId)`, `drillUp()`, `drillToDepth(depth)`, `drillToRoot()`, `relayout()`.
 
 ---
 
