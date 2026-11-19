@@ -60,6 +60,8 @@ import type {
   SceneFrameSnapshot,
   SimplexEngineConfig,
   SimplexEngineResolvedConfig,
+  SimplexInteractiveTarget,
+  SimplexKeyboardFocusTarget,
   SimplexMesh,
   SimplexRendererAdapter,
   VisualResolver,
@@ -4364,10 +4366,227 @@ export class SimplexGraphEngine<
     };
   }
 
-  /** Processes pointer movement for centralized hover detection. */
-  handlePointerMove(screenX: number, screenY: number): void {
-    const target = this.hitTest(screenX, screenY);
+  /** Returns the active cluster descriptor for a given cluster UID, if currently mounted. */
+  getClusterByUid(
+    clusterUid: string,
+  ): ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | undefined {
+    const active = this.clusterNodes.get(clusterUid);
+    if (active && active.status === 'active') {
+      return active.domain;
+    }
+    return this.currentClusters.find((c) => c.clusterUid === clusterUid);
+  }
 
+  /** Returns the active item and layout context for a given item ID, if currently mounted. */
+  getItemLayoutById(
+    itemId: string,
+  ):
+    | {
+        readonly item: TItem;
+        readonly layoutContext: ContentLayoutContext<TItem, TTagMeta, TClusterMeta>;
+      }
+    | undefined {
+    const active = this.itemNodes.get(itemId);
+    if (active && active.status === 'active') {
+      return {
+        item: active.domain.item,
+        layoutContext: active.domain.layoutContext,
+      };
+    }
+    const placement = this.currentPlacements.find((p) => p.layoutContext.id === itemId);
+    return placement
+      ? { item: placement.item, layoutContext: placement.layoutContext }
+      : undefined;
+  }
+
+  /**
+   * Returns the deterministic ordered list of currently visible, interactive scene targets
+   * (active topic clusters, drillable/focusable mesh triangles in drill-down mode, and
+   * visible non-pass-through content items) for keyboard traversal and screen-reader navigation.
+   */
+  getInteractiveTargets(): readonly SimplexInteractiveTarget<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >[] {
+    const targets: SimplexInteractiveTarget<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >[] = [];
+    const zState = this.currentZoomState;
+    const isDrillDown = this.zoomStrategy.mode === 'drill-down';
+    const hasTriangleFocus = this.focusedTriangleIndex !== null;
+    const drillableClusterSet = new Set(zState.drillableClusterUids);
+    const drillableTriSet =
+      isDrillDown && zState.drillableTriangleIndices.length > 0
+        ? new Set(zState.drillableTriangleIndices)
+        : null;
+    const focusableTriSet =
+      isDrillDown && zState.focusableTriangleIndices.length > 0
+        ? new Set(zState.focusableTriangleIndices)
+        : null;
+
+    // 1. Active visible topic clusters (ordered deterministically by vertexIndex)
+    const activeClusters = [...this.clusterNodes.values()]
+      .filter(
+        (node) =>
+          node.status === 'active' &&
+          !(this.emptyClusterBehavior === 'hide' && node.domain.members.length === 0) &&
+          (node.opacity.target >= 0.05 || node.opacity.value >= 0.15),
+      )
+      .sort((a, b) => a.domain.clusterIndex - b.domain.clusterIndex);
+
+    for (const node of activeClusters) {
+      const worldPosition: Point2D = { x: node.x.value, y: node.y.value };
+      const screenPosition = this.camera.worldToScreen(worldPosition.x, worldPosition.y);
+      targets.push({
+        kind: 'cluster',
+        id: node.id,
+        cluster: node.domain,
+        visual: node.visual,
+        worldPosition,
+        screenPosition,
+        scale: node.scale.value,
+        hull: node.hull,
+        isDrillable: isDrillDown && drillableClusterSet.has(node.domain.clusterUid),
+        isFocused: this.focusedClusterUid === node.domain.clusterUid,
+      });
+    }
+
+    // 2. Drillable / focusable mesh triangles in drill-down mode
+    if (isDrillDown) {
+      for (const tr of this.triangleStates) {
+        const isDrillable = drillableTriSet?.has(tr.index) ?? false;
+        const isFocusable = focusableTriSet?.has(tr.index) ?? false;
+        if (!isDrillable && !isFocusable) continue;
+        const worldPosition: Point2D = {
+          x: (tr.points[0].x + tr.points[1].x + tr.points[2].x) / 3,
+          y: (tr.points[0].y + tr.points[1].y + tr.points[2].y) / 3,
+        };
+        const screenPosition = this.camera.worldToScreen(worldPosition.x, worldPosition.y);
+        targets.push({
+          kind: 'triangle',
+          index: tr.index,
+          triangle: this.buildTriangleRenderState(tr, hasTriangleFocus),
+          worldPosition,
+          screenPosition,
+          isDrillable,
+          isFocusable,
+          isFocused: this.focusedTriangleIndex === tr.index,
+        });
+      }
+    }
+
+    // 3. Active visible non-pass-through content items
+    for (const node of this.itemNodes.values()) {
+      if (
+        node.status !== 'active' ||
+        (node.opacity.target < 0.05 && node.opacity.value < 0.15) ||
+        (this.itemFilterPredicate !== null &&
+          this.itemFilterMode === 'hide' &&
+          this.filteredOutItemIds.has(node.id))
+      ) {
+        continue;
+      }
+      const worldPosition: Point2D = { x: node.x.value, y: node.y.value };
+      if (
+        drillableTriSet !== null &&
+        this.resolveDrillableTriangleForActiveItem(node, worldPosition, drillableTriSet) !==
+          null
+      ) {
+        continue;
+      }
+      const screenPosition = this.camera.worldToScreen(worldPosition.x, worldPosition.y);
+      targets.push({
+        kind: 'item',
+        id: node.id,
+        item: node.domain.item,
+        layoutContext: node.domain.layoutContext,
+        visual: node.visual,
+        worldPosition,
+        screenPosition,
+        scale: node.scale.value,
+        hull: node.hull,
+        isFilteredDimmed:
+          this.itemFilterPredicate !== null &&
+          this.itemFilterMode === 'dim' &&
+          this.filteredOutItemIds.has(node.id),
+      });
+    }
+
+    return targets;
+  }
+
+  private resolveHitTargetForInteractiveTarget(
+    target: SimplexKeyboardFocusTarget,
+  ): HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta> | null {
+    const hasTriangleFocus = this.focusedTriangleIndex !== null;
+    if (target.kind === 'cluster') {
+      const node = this.clusterNodes.get(target.id);
+      if (
+        !node ||
+        node.status !== 'active' ||
+        (this.emptyClusterBehavior === 'hide' && node.domain.members.length === 0)
+      ) {
+        return null;
+      }
+      const worldPosition: Point2D = { x: node.x.value, y: node.y.value };
+      const screenPosition = this.camera.worldToScreen(worldPosition.x, worldPosition.y);
+      return {
+        kind: 'cluster',
+        cluster: node.domain,
+        visual: node.visual,
+        worldPosition,
+        screenPosition,
+      };
+    }
+
+    if (target.kind === 'triangle') {
+      const tr = this.triangleStates.find((t) => t.index === target.index);
+      if (!tr) return null;
+      const worldPosition: Point2D = {
+        x: (tr.points[0].x + tr.points[1].x + tr.points[2].x) / 3,
+        y: (tr.points[0].y + tr.points[1].y + tr.points[2].y) / 3,
+      };
+      const screenPosition = this.camera.worldToScreen(worldPosition.x, worldPosition.y);
+      return {
+        kind: 'triangle',
+        triangle: this.buildTriangleRenderState(tr, hasTriangleFocus),
+        worldPosition,
+        screenPosition,
+      };
+    }
+
+    const node = this.itemNodes.get(target.id);
+    if (
+      !node ||
+      node.status !== 'active' ||
+      (this.itemFilterPredicate !== null &&
+        this.itemFilterMode === 'hide' &&
+        this.filteredOutItemIds.has(node.id))
+    ) {
+      return null;
+    }
+    const worldPosition: Point2D = { x: node.x.value, y: node.y.value };
+    const screenPosition = this.camera.worldToScreen(worldPosition.x, worldPosition.y);
+    return {
+      kind: 'content',
+      item: node.domain.item,
+      layoutContext: node.domain.layoutContext,
+      visual: node.visual,
+      worldPosition,
+      screenPosition,
+    };
+  }
+
+  private dispatchHoverForHitTarget(
+    target: HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
+  ): void {
     if (target.kind === 'content') {
       if (this.hoveredClusterUid !== null || this.hoveredContextClusterId !== null) {
         this.hoveredClusterUid = null;
@@ -4454,6 +4673,86 @@ export class SimplexGraphEngine<
     }
   }
 
+  private dispatchLeftClickForHitTarget(
+    target: HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
+    raw: Omit<NormalizedPointerEvent, 'worldX' | 'worldY'>,
+  ): boolean {
+    const fullEvent: NormalizedPointerEvent = {
+      ...raw,
+      worldX: target.worldPosition.x,
+      worldY: target.worldPosition.y,
+    };
+    if (target.kind === 'content' && !target.neighborId) {
+      if (this.interactions.onContentClick?.(target, fullEvent) === true) {
+        return true;
+      }
+    } else if (target.kind === 'cluster') {
+      if (this.interactions.onClusterClick?.(target, fullEvent) === true) {
+        return true;
+      }
+    } else if (target.kind === 'triangle') {
+      if (this.interactions.onTriangleClick?.(target, fullEvent) === true) {
+        return true;
+      }
+    } else if (target.kind === 'background') {
+      if (this.interactions.onBackgroundClick?.(fullEvent) === true) {
+        return true;
+      }
+    }
+    return this.interactions.onLeftClick?.(target, fullEvent) === true;
+  }
+
+  /**
+   * Programmatically applies hover state and invokes hover callbacks (including tooltip triggers)
+   * for a specific keyboard-focused scene target, or clears hover state when `null`.
+   */
+  hoverInteractiveTarget(target: SimplexKeyboardFocusTarget | null): boolean {
+    if (target === null) {
+      this.handlePointerLeave();
+      return false;
+    }
+    const hitTarget = this.resolveHitTargetForInteractiveTarget(target);
+    if (!hitTarget) {
+      this.handlePointerLeave();
+      return false;
+    }
+    this.dispatchHoverForHitTarget(hitTarget);
+    return true;
+  }
+
+  /**
+   * Programmatically activates a specific keyboard-focused scene target through the exact same
+   * click/drill-down/focus interaction pipeline as `handleLeftClick`.
+   */
+  activateInteractiveTarget(
+    target: SimplexKeyboardFocusTarget,
+    modifiers?: Partial<
+      Pick<NormalizedPointerEvent, 'shiftKey' | 'ctrlKey' | 'altKey' | 'metaKey'>
+    >,
+  ): boolean {
+    const hitTarget = this.resolveHitTargetForInteractiveTarget(target);
+    if (!hitTarget) return false;
+    if (this.neighborReturnHighlight !== null) {
+      this.neighborReturnHighlight = null;
+      this.dirtyRender = true;
+    }
+    return this.dispatchLeftClickForHitTarget(hitTarget, {
+      screenX: hitTarget.screenPosition.x,
+      screenY: hitTarget.screenPosition.y,
+      button: 0,
+      shiftKey: Boolean(modifiers?.shiftKey),
+      ctrlKey: Boolean(modifiers?.ctrlKey),
+      altKey: Boolean(modifiers?.altKey),
+      metaKey: Boolean(modifiers?.metaKey),
+    });
+  }
+
+  /** Processes pointer movement for centralized hover detection. */
+  handlePointerMove(screenX: number, screenY: number): void {
+    const target = this.hitTest(screenX, screenY);
+    this.dispatchHoverForHitTarget(target);
+  }
+
   /** Clears active hover state when pointer exits the canvas/SVG surface. */
   handlePointerLeave(): void {
     if (this.hoveredContentId !== null) {
@@ -4486,29 +4785,7 @@ export class SimplexGraphEngine<
       this.dirtyRender = true;
     }
     const target = this.hitTest(raw.screenX, raw.screenY);
-    const fullEvent: NormalizedPointerEvent = {
-      ...raw,
-      worldX: target.worldPosition.x,
-      worldY: target.worldPosition.y,
-    };
-    if (target.kind === 'content' && !target.neighborId) {
-      if (this.interactions.onContentClick?.(target, fullEvent) === true) {
-        return true;
-      }
-    } else if (target.kind === 'cluster') {
-      if (this.interactions.onClusterClick?.(target, fullEvent) === true) {
-        return true;
-      }
-    } else if (target.kind === 'triangle') {
-      if (this.interactions.onTriangleClick?.(target, fullEvent) === true) {
-        return true;
-      }
-    } else if (target.kind === 'background') {
-      if (this.interactions.onBackgroundClick?.(fullEvent) === true) {
-        return true;
-      }
-    }
-    return this.interactions.onLeftClick?.(target, fullEvent) === true;
+    return this.dispatchLeftClickForHitTarget(target, raw);
   }
 
   /**

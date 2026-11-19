@@ -1025,6 +1025,73 @@ describe('@simplex-viz/react integration', () => {
 
     unmount();
   });
+
+  it('forwards ariaLabel & keyboardNavigation props and supports Arrow/Enter/Escape accessibility on SimplexTopicGraph (Issue #17)', () => {
+    const items = [
+      { id: 'k1', label: 'First Node', tags: ['alpha', 'beta'] },
+      { id: 'k2', label: 'Second Node', tags: ['beta', 'gamma'] },
+      { id: 'k3', label: 'Third Node', tags: ['alpha', 'gamma'] },
+    ];
+    const clicked: string[] = [];
+
+    const exposed: {
+      handle: ReturnType<typeof useSimplexGraphController<(typeof items)[number]>>['handle'] | null;
+    } = { handle: null };
+
+    const Host = ({
+      ariaLabel,
+      keyboardNavigation,
+    }: {
+      ariaLabel?: string;
+      keyboardNavigation?: boolean;
+    }) => {
+      const { controllerRef, handle } = useSimplexGraphController<(typeof items)[number]>();
+      exposed.handle = handle;
+      return (
+        <div style={{ width: 640, height: 420 }}>
+          <SimplexTopicGraph
+            controllerRef={controllerRef}
+            items={items}
+            ariaLabel={ariaLabel}
+            keyboardNavigation={keyboardNavigation}
+            onContentClick={(ev) => {
+              clicked.push(ev.layoutContext.id);
+              return true;
+            }}
+          />
+        </div>
+      );
+    };
+
+    const { container, rerender, unmount } = render(
+      <Host ariaLabel="Knowledge simplex map" keyboardNavigation={true} />,
+    );
+
+    const svg = container.querySelector('svg')!;
+    const announcer = container.querySelector('.sv-sr-announcer') as HTMLDivElement | null;
+    expect(svg.getAttribute('role')).toBe('application');
+    expect(svg.getAttribute('aria-label')).toBe('Knowledge simplex map');
+    expect(svg.getAttribute('tabindex')).toBe('0');
+    expect(announcer?.getAttribute('aria-live')).toBe('polite');
+
+    // Focus SVG, jump to last item via End, and activate with Enter
+    act(() => {
+      svg.focus();
+      svg.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+      svg.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(exposed.handle!.getKeyboardFocusTarget()?.kind).toBe('item');
+    expect(clicked.length).toBe(1);
+    expect(announcer?.textContent).toContain('Item:');
+
+    // Dynamically update ariaLabel and disable keyboardNavigation via props
+    rerender(<Host ariaLabel="Updated map label" keyboardNavigation={false} />);
+    expect(svg.getAttribute('aria-label')).toBe('Updated map label');
+    expect(svg.getAttribute('tabindex')).toBeNull();
+    expect(exposed.handle!.getKeyboardFocusTarget()).toBeNull();
+
+    unmount();
+  });
 });
 
 

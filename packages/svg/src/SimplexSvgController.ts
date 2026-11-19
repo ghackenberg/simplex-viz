@@ -26,6 +26,8 @@ import {
   type MeshOptions,
   type SimplexClusteringStrategy,
   type SimplexColorStrategy,
+  type SimplexInteractiveTarget,
+  type SimplexKeyboardFocusTarget,
   type SimplexLayoutStrategy,
   type SimplexMeshStrategy,
   type SimplexTimelineOptions,
@@ -48,12 +50,20 @@ import {
   type SimplexTheme,
   type SimplexVisualPreset,
 } from './presets.js';
-import { SvgRendererAdapter, type SvgRendererOptions } from './SvgRendererAdapter.js';
+import {
+  SvgRendererAdapter,
+  type SvgAriaMetadataResolver,
+  type SvgRendererOptions,
+} from './SvgRendererAdapter.js';
 import type { SvgEdgeView, SvgNodeView, SvgTriangleView } from './types.js';
 import {
   GeometricShapeSvgView,
   type GeometricShapeSvgViewOptions,
 } from './views/GeometricShapeSvgView.js';
+
+let nextA11yInstanceSeq = 0;
+
+const DEFAULT_ARIA_LABEL = 'Interactive simplex topic graph';
 
 export type SimplexTooltipFormatter<
   TItem = DefaultTaggedItem,
@@ -272,6 +282,17 @@ export interface SimplexSvgControllerResolvedOptions<
   readonly tooltip?:
     | boolean
     | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
+  /**
+   * Accessible label applied to the root `<svg role="application">` element for screen readers.
+   * Default: `'Interactive simplex topic graph'`.
+   */
+  readonly ariaLabel?: string;
+  /**
+   * Enables built-in WCAG 2.1 AA keyboard navigation (`Arrow` keys, `Home`/`End`, `Enter`/`Space`,
+   * `Escape`), visible focus rings, and `aria-activedescendant` tracking on the root `<svg>`.
+   * Default: `true`.
+   */
+  readonly keyboardNavigation?: boolean;
   readonly interactions?: InteractionHandlers<
     TItem,
     TContentVisual,
@@ -356,6 +377,8 @@ export interface SimplexSvgUpdateOptions<
   readonly tooltip?:
     | boolean
     | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
+  readonly ariaLabel?: string;
+  readonly keyboardNavigation?: boolean;
   readonly touchScrollLockPx?: number;
   readonly clickTolerancePx?: number;
   readonly interactions?: InteractionHandlers<
@@ -438,6 +461,12 @@ export class SimplexSvgController<
     | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
   private tooltipEl: HTMLDivElement | null = null;
   private breadcrumbOverlayEl: HTMLDivElement | null = null;
+  private srAnnouncerEl: HTMLDivElement | null = null;
+  private ariaLabel: string;
+  private keyboardNavigationEnabled: boolean;
+  private keyboardFocusTarget: SimplexKeyboardFocusTarget | null = null;
+  private lastInteractionWasPointer = false;
+  private lastAnnouncedZoomSig: string | null = null;
   private timelineController: SimplexTimelineController<TItem> | null = null;
   private timelineUnsubscribe: (() => void) | null = null;
   private readonly timelineStateListeners = new Set<
@@ -543,6 +572,8 @@ export class SimplexSvgController<
     this.usesCustomContentView = options.contentView !== undefined;
     this.usesCustomClusterView = options.clusterView !== undefined;
     this.tooltipOption = options.tooltip ?? false;
+    this.ariaLabel = options.ariaLabel?.trim() || DEFAULT_ARIA_LABEL;
+    this.keyboardNavigationEnabled = options.keyboardNavigation ?? true;
     this.getIdExtractor =
       options.getId ??
       ((item: TItem) =>
@@ -593,7 +624,9 @@ export class SimplexSvgController<
     this.svgEl.style.display = 'block';
     this.syncSvgTouchAction();
     this.svgEl.style.userSelect = 'none';
+    this.syncSvgAccessibilityAttributes();
     this.containerEl.appendChild(this.svgEl);
+    this.ensureSrAnnouncerElement();
 
     const measureContainerSize = (): { width: number; height: number } => {
       const rect = this.containerEl.getBoundingClientRect();
@@ -619,6 +652,7 @@ export class SimplexSvgController<
         ? deferConfig.fallbackTimeoutMs
         : null;
 
+    const ariaIdPrefix = `sv-a11y-${++nextA11yInstanceSeq}`;
     this.adapter = new SvgRendererAdapter<
       TContentVisual,
       TClusterVisual,
@@ -631,6 +665,8 @@ export class SimplexSvgController<
       triangleView: options.triangleView,
       edgeView: options.edgeView,
       theme: this.currentTheme,
+      ariaIdPrefix,
+      ariaMetadataResolver: this.buildAriaMetadataResolver(),
     });
 
     this.rawClusteringStrategy = options.clusteringStrategy;
@@ -703,11 +739,18 @@ export class SimplexSvgController<
       onClustersChange: options.onClustersChange,
       onZoomStateChange: (state) => {
         this.syncZoomOverlays(state);
+        this.handleZoomStateAccessibility(state);
         this.onZoomStateChangeCallback?.(state);
       },
     });
-    this.syncZoomOverlays(this.engine.getZoomState());
-    this.onZoomStateChangeCallback?.(this.engine.getZoomState());
+    if (!shouldDeferSolve) {
+      // Refresh first rendered frame with live engine-backed ARIA labels on clusters/items/triangles
+      this.engine.renderNow();
+    }
+    const initialZoomState = this.engine.getZoomState();
+    this.lastAnnouncedZoomSig = this.computeZoomAnnouncementSig(initialZoomState);
+    this.syncZoomOverlays(initialZoomState);
+    this.onZoomStateChangeCallback?.(initialZoomState);
     if (this.timelineController) {
       this.attachTimelineController(this.timelineController);
     }
@@ -1698,6 +1741,12 @@ export class SimplexSvgController<
       if (options.tooltip !== undefined) {
         this.setTooltip(options.tooltip);
       }
+      if (options.ariaLabel !== undefined) {
+        this.setAriaLabel(options.ariaLabel);
+      }
+      if (options.keyboardNavigation !== undefined) {
+        this.setKeyboardNavigation(options.keyboardNavigation);
+      }
       if (options.touchScrollLockPx !== undefined) {
         this.setTouchScrollLockPx(options.touchScrollLockPx);
       }
@@ -1983,6 +2032,14 @@ export class SimplexSvgController<
     options?: ItemFilterOptions,
   ): void {
     this.engine.setItemFilter(predicate, options);
+    if (this.keyboardFocusTarget !== null) {
+      const stillVisible = this.engine
+        .getInteractiveTargets()
+        .some((t) => this.targetMatches(this.keyboardFocusTarget, t));
+      if (!stillVisible) {
+        this.clearKeyboardFocus();
+      }
+    }
     this.ensureLoopRunning();
   }
 
@@ -2156,6 +2213,8 @@ export class SimplexSvgController<
       if (!this.breadcrumbOverlayEl) {
         const el = doc.createElement('div');
         el.className = 'sv-zoom-breadcrumbs';
+        el.setAttribute('role', 'navigation');
+        el.setAttribute('aria-label', 'Zoom breadcrumbs');
         el.style.position = 'absolute';
         el.style.top = '12px';
         el.style.left = '50%';
@@ -2196,6 +2255,7 @@ export class SimplexSvgController<
         if (idx > 0) {
           const sep = doc.createElement('span');
           sep.textContent = '›';
+          sep.setAttribute('aria-hidden', 'true');
           sep.style.opacity = '0.48';
           sep.style.fontSize = '12px';
           sep.style.padding = '0 1px';
@@ -2205,6 +2265,11 @@ export class SimplexSvgController<
         const btn = doc.createElement('button');
         btn.type = 'button';
         btn.title = crumb.label;
+        if (isCurrent) {
+          btn.setAttribute('aria-current', 'location');
+        } else {
+          btn.setAttribute('aria-label', `Zoom out to ${crumb.label}`);
+        }
         btn.style.display = 'inline-flex';
         btn.style.alignItems = 'center';
         btn.style.gap = '4px';
@@ -2232,11 +2297,13 @@ export class SimplexSvgController<
             if (sIdx > 0) {
               const dotSep = doc.createElement('span');
               dotSep.textContent = '·';
+              dotSep.setAttribute('aria-hidden', 'true');
               dotSep.style.opacity = '0.5';
               btn.appendChild(dotSep);
             }
             if (seg.colorHex) {
               const pip = doc.createElement('span');
+              pip.setAttribute('aria-hidden', 'true');
               pip.style.display = 'inline-block';
               pip.style.width = '6px';
               pip.style.height = '6px';
@@ -2688,7 +2755,544 @@ export class SimplexSvgController<
     }
   };
 
+  private syncSvgAccessibilityAttributes(): void {
+    this.svgEl.setAttribute('role', 'application');
+    this.svgEl.setAttribute('aria-roledescription', 'interactive topic graph');
+    this.svgEl.setAttribute('aria-label', this.ariaLabel);
+    if (this.keyboardNavigationEnabled) {
+      this.svgEl.setAttribute('tabindex', '0');
+      this.svgEl.setAttribute(
+        'aria-keyshortcuts',
+        'ArrowRight ArrowLeft ArrowDown ArrowUp Home End Enter Space Escape',
+      );
+    } else {
+      this.svgEl.removeAttribute('tabindex');
+      this.svgEl.removeAttribute('aria-keyshortcuts');
+      this.svgEl.removeAttribute('aria-activedescendant');
+    }
+  }
+
+  private ensureSrAnnouncerElement(): HTMLDivElement {
+    if (this.srAnnouncerEl) return this.srAnnouncerEl;
+    const doc = this.containerEl.ownerDocument;
+    const el = doc.createElement('div');
+    el.className = 'sv-sr-announcer';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.setAttribute('aria-atomic', 'true');
+    el.style.position = 'absolute';
+    el.style.width = '1px';
+    el.style.height = '1px';
+    el.style.padding = '0';
+    el.style.margin = '-1px';
+    el.style.overflow = 'hidden';
+    el.style.clip = 'rect(0, 0, 0, 0)';
+    el.style.clipPath = 'inset(50%)';
+    el.style.whiteSpace = 'nowrap';
+    el.style.border = '0';
+    el.style.pointerEvents = 'none';
+    this.containerEl.appendChild(el);
+    this.srAnnouncerEl = el;
+    return el;
+  }
+
+  private announce(message: string): void {
+    if (this.destroyed || !message) return;
+    const el = this.ensureSrAnnouncerElement();
+    if (el.textContent === message) {
+      el.textContent = '';
+    }
+    el.textContent = message;
+  }
+
+  private computeZoomAnnouncementSig(state: SimplexZoomState): string {
+    return `${state.mode}:${state.depth}:${state.activeFrameKind}:${state.breadcrumbs
+      .map((b) => b.label)
+      .join('>')}`;
+  }
+
+  private formatTargetAriaLabel(
+    target: SimplexInteractiveTarget<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): string {
+    if (target.kind === 'cluster') {
+      const c = target.cluster;
+      const name = c.subclusterLabel || c.defaultLabel;
+      const count = c.members.length;
+      const zState = this.engine.getZoomState();
+      const actionHint =
+        zState.mode === 'drill-down'
+          ? zState.activeFrameKind === 'cluster-star' &&
+            c.clusterIndex === 0 &&
+            zState.canDrillUp
+            ? ', press Enter to zoom out'
+            : target.isDrillable
+              ? ', press Enter to zoom in'
+              : ''
+          : target.isFocused
+            ? ', focused'
+            : '';
+      return `Topic cluster: ${name}, ${count} ${count === 1 ? 'item' : 'items'}${actionHint}`;
+    }
+
+    if (target.kind === 'triangle') {
+      const tr = target.triangle;
+      const corners = tr.clusters
+        .map((c, idx) => (c ? c.defaultLabel : `Vertex ${tr.vertexIndices[idx] ?? idx}`))
+        .join(', ');
+      const count = tr.coveredItemCount;
+      const actionHint = target.isDrillable
+        ? ', press Enter to zoom in'
+        : target.isFocusable
+          ? ', press Enter to focus'
+          : target.isFocused
+            ? ', focused'
+            : '';
+      return `Region: ${corners}, ${count} ${count === 1 ? 'item' : 'items'}${actionHint}`;
+    }
+
+    const title = extractDefaultItemLabel(
+      target.item,
+      target.layoutContext.id,
+      this.getLabelExtractor,
+    );
+    const tagSummary =
+      target.layoutContext.tags.length > 0
+        ? target.layoutContext.tags
+            .slice(0, 3)
+            .map((t) => {
+              if (t.label) return t.label;
+              if (this.formatTagLabelFn) {
+                const formatted = this.formatTagLabelFn(t.tag).trim();
+                if (formatted.length > 0) return formatted;
+              }
+              return t.tag;
+            })
+            .join(', ')
+        : target.layoutContext.unitClusters
+            .slice(0, 3)
+            .map((uc) => uc.cluster.defaultLabel)
+            .join(', ');
+    const filterNote = target.isFilteredDimmed ? ', dimmed by filter' : '';
+    return `Item: ${title}${tagSummary ? `, ${tagSummary}` : ''}${filterNote}`;
+  }
+
+  private buildAriaMetadataResolver(): SvgAriaMetadataResolver<
+    TContentVisual,
+    TClusterVisual,
+    TItem,
+    TTagMeta,
+    TClusterMeta
+  > {
+    return {
+      getClusterAria: (node) => {
+        if (!this.engine) {
+          return { role: 'button', label: `Topic cluster ${node.id}` };
+        }
+        const cluster = this.engine.getClusterByUid(node.id);
+        if (!cluster) {
+          return { role: 'button', label: `Topic cluster ${node.id}` };
+        }
+        const zState = this.engine.getZoomState();
+        const name = cluster.subclusterLabel || cluster.defaultLabel;
+        const count = cluster.members.length;
+        const isDrillable =
+          zState.mode === 'drill-down' &&
+          zState.drillableClusterUids.includes(cluster.clusterUid);
+        const isClusterStarCenter =
+          zState.mode === 'drill-down' &&
+          zState.activeFrameKind === 'cluster-star' &&
+          cluster.clusterIndex === 0 &&
+          zState.canDrillUp;
+        const isFocused = this.focusedClusterUidState === cluster.clusterUid;
+        const hint = isClusterStarCenter
+          ? ', press Enter to zoom out'
+          : isDrillable
+            ? ', press Enter to zoom in'
+            : '';
+        return {
+          role: 'button',
+          label: `Topic cluster: ${name}, ${count} ${count === 1 ? 'item' : 'items'}${hint}`,
+          pressed: isFocused ? true : undefined,
+        };
+      },
+      getItemAria: (node) => {
+        if (!this.engine) {
+          return { role: 'button', label: `Item ${node.id}` };
+        }
+        const rec = this.engine.getItemLayoutById(node.id);
+        if (!rec) {
+          return { role: 'button', label: `Item ${node.id}` };
+        }
+        const title = extractDefaultItemLabel(
+          rec.item,
+          rec.layoutContext.id,
+          this.getLabelExtractor,
+        );
+        const tagSummary =
+          rec.layoutContext.tags.length > 0
+            ? rec.layoutContext.tags
+                .slice(0, 3)
+                .map((t) => {
+                  if (t.label) return t.label;
+                  if (this.formatTagLabelFn) {
+                    const formatted = this.formatTagLabelFn(t.tag).trim();
+                    if (formatted.length > 0) return formatted;
+                  }
+                  return t.tag;
+                })
+                .join(', ')
+            : rec.layoutContext.unitClusters
+                .slice(0, 3)
+                .map((uc) => uc.cluster.defaultLabel)
+                .join(', ');
+        const filterNote = node.isFilteredOut ? ', dimmed by filter' : '';
+        return {
+          role: 'button',
+          label: `Item: ${title}${tagSummary ? `, ${tagSummary}` : ''}${filterNote}`,
+        };
+      },
+      getTriangleAria: (tr) => {
+        if (!this.engine) {
+          return { hidden: true };
+        }
+        const zState = this.engine.getZoomState();
+        const isDrillable =
+          zState.mode === 'drill-down' &&
+          zState.drillableTriangleIndices.includes(tr.index);
+        const isFocusable =
+          zState.mode === 'drill-down' &&
+          zState.focusableTriangleIndices.includes(tr.index);
+        if (!isDrillable && !isFocusable && tr.coveredItemCount === 0) {
+          return { hidden: true };
+        }
+        const corners = tr.clusters
+          .map((c, idx) => (c ? c.defaultLabel : `Vertex ${tr.vertexIndices[idx] ?? idx}`))
+          .join(', ');
+        const count = tr.coveredItemCount;
+        const hint = isDrillable
+          ? ', press Enter to zoom in'
+          : isFocusable
+            ? ', press Enter to focus'
+            : '';
+        return {
+          role: 'button',
+          label: `Region: ${corners}, ${count} ${count === 1 ? 'item' : 'items'}${hint}`,
+          pressed: tr.interaction.isFocused ? true : undefined,
+        };
+      },
+    };
+  }
+
+  private targetMatches(
+    a: SimplexKeyboardFocusTarget | null,
+    b: SimplexInteractiveTarget<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): boolean {
+    if (!a || a.kind !== b.kind) return false;
+    if (a.kind === 'triangle' && b.kind === 'triangle') {
+      return a.index === b.index;
+    }
+    if (a.kind !== 'triangle' && b.kind !== 'triangle') {
+      return a.id === b.id;
+    }
+    return false;
+  }
+
+  private toKeyboardTargetRef(
+    target: SimplexInteractiveTarget<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): SimplexKeyboardFocusTarget {
+    if (target.kind === 'triangle') {
+      return { kind: 'triangle', index: target.index };
+    }
+    return { kind: target.kind, id: target.id };
+  }
+
+  private applyKeyboardFocus(
+    target: SimplexInteractiveTarget<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+    index: number,
+    total: number,
+    shouldAnnounce: boolean,
+  ): void {
+    const ref = this.toKeyboardTargetRef(target);
+    this.keyboardFocusTarget = ref;
+    this.adapter.setKeyboardFocusTarget(ref);
+    const domId = this.adapter.getDomIdForTarget(ref);
+    if (domId) {
+      this.svgEl.setAttribute('aria-activedescendant', domId);
+    } else {
+      this.svgEl.removeAttribute('aria-activedescendant');
+    }
+    this.engine.hoverInteractiveTarget(ref);
+    this.engine.renderNow();
+    this.ensureLoopRunning();
+    if (shouldAnnounce) {
+      this.announce(`${this.formatTargetAriaLabel(target)} (${index + 1} of ${total})`);
+    }
+  }
+
+  private moveKeyboardFocusToIndex(index: number, shouldAnnounce: boolean): boolean {
+    const targets = this.engine.getInteractiveTargets();
+    if (targets.length === 0) {
+      this.clearKeyboardFocus();
+      return false;
+    }
+    const resolvedIdx =
+      index < 0
+        ? targets.length - 1
+        : Math.max(0, Math.min(targets.length - 1, index));
+    this.applyKeyboardFocus(targets[resolvedIdx]!, resolvedIdx, targets.length, shouldAnnounce);
+    return true;
+  }
+
+  private stepKeyboardFocus(delta: 1 | -1): void {
+    const targets = this.engine.getInteractiveTargets();
+    if (targets.length === 0) {
+      this.clearKeyboardFocus();
+      return;
+    }
+    const currentIdx = targets.findIndex((t) =>
+      this.targetMatches(this.keyboardFocusTarget, t),
+    );
+    const nextIdx =
+      currentIdx === -1
+        ? delta > 0
+          ? 0
+          : targets.length - 1
+        : (currentIdx + delta + targets.length) % targets.length;
+    this.applyKeyboardFocus(targets[nextIdx]!, nextIdx, targets.length, true);
+  }
+
+  private handleZoomStateAccessibility(state: SimplexZoomState): void {
+    const sig = this.computeZoomAnnouncementSig(state);
+    if (this.lastAnnouncedZoomSig === null) {
+      this.lastAnnouncedZoomSig = sig;
+      return;
+    }
+    if (sig === this.lastAnnouncedZoomSig) return;
+    this.lastAnnouncedZoomSig = sig;
+
+    const targets = this.engine.getInteractiveTargets();
+    const clusterCount = targets.filter((t) => t.kind === 'cluster').length;
+    const itemCount = targets.filter((t) => t.kind === 'item').length;
+    const triangleCount = targets.filter((t) => t.kind === 'triangle').length;
+    const pathText = state.breadcrumbs.map((b) => b.label).join(' › ');
+    const countsParts: string[] = [];
+    if (clusterCount > 0) {
+      countsParts.push(`${clusterCount} ${clusterCount === 1 ? 'cluster' : 'clusters'}`);
+    }
+    if (triangleCount > 0) {
+      countsParts.push(`${triangleCount} ${triangleCount === 1 ? 'region' : 'regions'}`);
+    }
+    if (itemCount > 0) {
+      countsParts.push(`${itemCount} ${itemCount === 1 ? 'item' : 'items'}`);
+    }
+    const countsText = countsParts.join(', ');
+
+    if (this.keyboardFocusTarget !== null) {
+      const stillValidIdx = targets.findIndex((t) =>
+        this.targetMatches(this.keyboardFocusTarget, t),
+      );
+      if (stillValidIdx === -1) {
+        if (targets.length > 0 && this.svgEl.ownerDocument.activeElement === this.svgEl) {
+          this.applyKeyboardFocus(targets[0]!, 0, targets.length, false);
+        } else {
+          this.clearKeyboardFocus();
+        }
+      }
+    }
+
+    if (state.depth === 0) {
+      this.announce(
+        `Zoom level 0: ${pathText || 'Overview'}${countsText ? `. ${countsText}` : ''}.`,
+      );
+    } else {
+      this.announce(
+        `Zoom level ${state.depth}: ${pathText}${countsText ? `. ${countsText}` : ''}. Press Escape to zoom out.`,
+      );
+    }
+  }
+
+  /** Updates the `aria-label` on the root `<svg>` element at runtime. */
+  setAriaLabel(label: string): void {
+    this.ariaLabel = label.trim() || DEFAULT_ARIA_LABEL;
+    this.syncSvgAccessibilityAttributes();
+  }
+
+  /** Enables or disables built-in keyboard navigation and focus ring tracking at runtime. */
+  setKeyboardNavigation(enabled: boolean): void {
+    if (this.keyboardNavigationEnabled === enabled) return;
+    this.keyboardNavigationEnabled = enabled;
+    if (!enabled) {
+      this.clearKeyboardFocus();
+    }
+    this.syncSvgAccessibilityAttributes();
+  }
+
+  /** Returns the currently keyboard-focused cluster, item, or triangle target, or `null`. */
+  getKeyboardFocusTarget(): SimplexKeyboardFocusTarget | null {
+    return this.keyboardFocusTarget;
+  }
+
+  /** Clears the active keyboard focus ring, `aria-activedescendant`, and synthetic hover tooltip. */
+  clearKeyboardFocus(options?: { readonly preserveHover?: boolean }): void {
+    const hadFocus = this.keyboardFocusTarget !== null;
+    this.keyboardFocusTarget = null;
+    this.adapter.setKeyboardFocusTarget(null);
+    this.svgEl.removeAttribute('aria-activedescendant');
+    if (hadFocus) {
+      if (!options?.preserveHover) {
+        this.hideTooltip();
+        this.engine.hoverInteractiveTarget(null);
+      }
+      this.engine.renderNow();
+      this.ensureLoopRunning();
+    }
+  }
+
+  /** Returns the ordered list of currently visible, keyboard-navigable scene targets. */
+  getInteractiveTargets(): readonly SimplexInteractiveTarget<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >[] {
+    return this.engine.getInteractiveTargets();
+  }
+
+  private readonly onSvgFocus = (): void => {
+    if (!this.keyboardNavigationEnabled || this.destroyed) return;
+    if (this.lastInteractionWasPointer) {
+      this.lastInteractionWasPointer = false;
+      return;
+    }
+    if (this.keyboardFocusTarget === null) {
+      this.moveKeyboardFocusToIndex(0, true);
+    }
+  };
+
+  private readonly onSvgBlur = (): void => {
+    this.lastInteractionWasPointer = false;
+    this.clearKeyboardFocus();
+  };
+
+  private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (!this.keyboardNavigationEnabled || this.destroyed) return;
+    this.lastInteractionWasPointer = false;
+
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      this.stepKeyboardFocus(1);
+      return;
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      this.stepKeyboardFocus(-1);
+      return;
+    }
+    if (e.key === 'Home') {
+      e.preventDefault();
+      this.moveKeyboardFocusToIndex(0, true);
+      return;
+    }
+    if (e.key === 'End') {
+      e.preventDefault();
+      this.moveKeyboardFocusToIndex(-1, true);
+      return;
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (!this.keyboardFocusTarget) {
+        this.moveKeyboardFocusToIndex(0, true);
+        return;
+      }
+      const prevZoomSig = this.lastAnnouncedZoomSig;
+      const prevFocusedCluster = this.focusedClusterUidState;
+      const prevFocusedTri = this.focusedTriangleIndexState;
+      const target = this.keyboardFocusTarget;
+      this.engine.activateInteractiveTarget(target, {
+        shiftKey: e.shiftKey,
+        ctrlKey: e.ctrlKey,
+        altKey: e.altKey,
+        metaKey: e.metaKey,
+      });
+      this.engine.renderNow();
+      this.ensureLoopRunning();
+      if (this.lastAnnouncedZoomSig === prevZoomSig) {
+        if (this.focusedClusterUidState !== prevFocusedCluster) {
+          if (this.focusedClusterUidState !== null) {
+            const cluster = this.engine.getClusterByUid(this.focusedClusterUidState);
+            this.announce(
+              `Focused cluster: ${cluster?.subclusterLabel || cluster?.defaultLabel || this.focusedClusterUidState}`,
+            );
+          } else {
+            this.announce('Cleared cluster focus');
+          }
+        } else if (this.focusedTriangleIndexState !== prevFocusedTri) {
+          if (this.focusedTriangleIndexState !== null) {
+            this.announce(`Focused region ${this.focusedTriangleIndexState + 1}`);
+          } else {
+            this.announce('Cleared region focus');
+          }
+        }
+      }
+      return;
+    }
+    if (e.key === 'Escape') {
+      if (this.engine.getZoomState().canDrillUp) {
+        e.preventDefault();
+        this.drillUp();
+        return;
+      }
+      if (
+        this.focusedClusterUidState !== null ||
+        this.focusedTriangleIndexState !== null
+      ) {
+        e.preventDefault();
+        if (this.focusedClusterUidState !== null) {
+          this.setFocusedClusterUid(null);
+        }
+        if (this.focusedTriangleIndexState !== null) {
+          this.setFocusedTriangleIndex(null);
+        }
+        this.announce('Cleared focus');
+        return;
+      }
+      if (this.keyboardFocusTarget !== null) {
+        e.preventDefault();
+        this.clearKeyboardFocus();
+      }
+    }
+  };
+
   private readonly onPointerDown = (e: PointerEvent): void => {
+    this.lastInteractionWasPointer = true;
+    if (this.keyboardFocusTarget !== null) {
+      this.clearKeyboardFocus({ preserveHover: true });
+    }
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const { x, y } = this.toLocalCoords(e.clientX, e.clientY);
     this.activePointers.set(e.pointerId, { x, y });
@@ -3073,6 +3677,9 @@ export class SimplexSvgController<
     this.svgEl.addEventListener('click', this.onClick);
     this.svgEl.addEventListener('contextmenu', this.onContextMenu);
     this.svgEl.addEventListener('wheel', this.onWheel, { passive: false });
+    this.svgEl.addEventListener('focus', this.onSvgFocus);
+    this.svgEl.addEventListener('blur', this.onSvgBlur);
+    this.svgEl.addEventListener('keydown', this.onKeyDown);
   }
 
   private detachSvgListeners(): void {
@@ -3088,6 +3695,9 @@ export class SimplexSvgController<
     this.svgEl.removeEventListener('click', this.onClick);
     this.svgEl.removeEventListener('contextmenu', this.onContextMenu);
     this.svgEl.removeEventListener('wheel', this.onWheel);
+    this.svgEl.removeEventListener('focus', this.onSvgFocus);
+    this.svgEl.removeEventListener('blur', this.onSvgBlur);
+    this.svgEl.removeEventListener('keydown', this.onKeyDown);
   }
 
   private ensureLoopRunning(): void {
@@ -3157,6 +3767,10 @@ export class SimplexSvgController<
     if (this.breadcrumbOverlayEl && this.breadcrumbOverlayEl.parentElement === this.containerEl) {
       this.containerEl.removeChild(this.breadcrumbOverlayEl);
       this.breadcrumbOverlayEl = null;
+    }
+    if (this.srAnnouncerEl && this.srAnnouncerEl.parentElement === this.containerEl) {
+      this.containerEl.removeChild(this.srAnnouncerEl);
+      this.srAnnouncerEl = null;
     }
     if (this.timelineOverlayEl && this.timelineOverlayEl.parentElement === this.containerEl) {
       this.containerEl.removeChild(this.timelineOverlayEl);

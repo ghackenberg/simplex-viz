@@ -989,3 +989,59 @@ export type SimplexEngineConfig<
     >,
     'getId' | 'getTags' | 'deriveClusterMeta' | 'clusteringStrategy'
   >;
+
+/**
+ * Compact identifier referencing a single keyboard-focusable scene target
+ * (a topic cluster, content item, or mesh triangle).
+ */
+export type SimplexKeyboardFocusTarget =
+  | { readonly kind: 'cluster'; readonly id: string }
+  | { readonly kind: 'item'; readonly id: string }
+  | { readonly kind: 'triangle'; readonly index: number };
+
+/**
+ * Read-only descriptor of a currently visible, interactive scene target
+ * returned by `engine.getInteractiveTargets()` for keyboard traversal and
+ * screen-reader narration.
+ */
+export type SimplexInteractiveTarget<
+  TItem = DefaultTaggedItem,
+  TContentVisual = unknown,
+  TClusterVisual = unknown,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> =
+  | {
+      readonly kind: 'cluster';
+      readonly id: string;
+      readonly cluster: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>;
+      readonly visual: TClusterVisual;
+      readonly worldPosition: Point2D;
+      readonly screenPosition: Point2D;
+      readonly scale: number;
+      readonly hull: ConvexGeometry;
+      readonly isDrillable: boolean;
+      readonly isFocused: boolean;
+    }
+  | {
+      readonly kind: 'triangle';
+      readonly index: number;
+      readonly triangle: MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta>;
+      readonly worldPosition: Point2D;
+      readonly screenPosition: Point2D;
+      readonly isDrillable: boolean;
+      readonly isFocusable: boolean;
+      readonly isFocused: boolean;
+    }
+  | {
+      readonly kind: 'item';
+      readonly id: string;
+      readonly item: TItem;
+      readonly layoutContext: ContentLayoutContext<TItem, TTagMeta, TClusterMeta>;
+      readonly visual: TContentVisual;
+      readonly worldPosition: Point2D;
+      readonly screenPosition: Point2D;
+      readonly scale: number;
+      readonly hull: ConvexGeometry;
+      readonly isFilteredDimmed: boolean;
+    };

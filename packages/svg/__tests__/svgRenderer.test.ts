@@ -3037,6 +3037,182 @@ describe('@simplex-viz/svg integration', () => {
       container.remove();
     }
   });
+
+  it('supports WCAG 2.1 AA keyboard navigation, focus rings, semantic ARIA attributes, and polite live-region announcements (Issue #17)', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+    });
+    document.body.appendChild(container);
+
+    const items = [
+      { id: 'paper-1', label: 'Alpha Paper', tags: ['systems', 'graphics'] },
+      { id: 'paper-2', label: 'Beta Paper', tags: ['graphics', 'theory'] },
+      { id: 'paper-3', label: 'Gamma Paper', tags: ['systems', 'theory'] },
+      { id: 'paper-4', label: 'Delta Paper', tags: ['systems', 'graphics', 'theory'] },
+    ];
+    const clickedItems: string[] = [];
+
+    const controller = createSimplexSvg(container, {
+      items,
+      preset: 'geometric',
+      tooltip: true,
+      ariaLabel: 'Research topic map',
+      interactions: {
+        onContentClick: (ev) => {
+          clickedItems.push(ev.layoutContext.id);
+          return true;
+        },
+      },
+    });
+    for (let i = 0; i < 25; i++) controller.stepForTest(20);
+
+    const svg = controller.getSvgElement();
+    const announcer = container.querySelector('.sv-sr-announcer') as HTMLDivElement | null;
+
+    // 1) Root SVG & live-region ARIA attributes
+    expect(svg.getAttribute('role')).toBe('application');
+    expect(svg.getAttribute('aria-label')).toBe('Research topic map');
+    expect(svg.getAttribute('tabindex')).toBe('0');
+    expect(announcer).not.toBeNull();
+    expect(announcer?.getAttribute('aria-live')).toBe('polite');
+    expect(announcer?.getAttribute('role')).toBe('status');
+
+    // 2) Semantic role, unique IDs, and domain-aware aria-label on clusters & items
+    const clusterGroups = [...svg.querySelectorAll('g.sv-node-cluster')];
+    const itemGroups = [...svg.querySelectorAll('g.sv-node-item')];
+    expect(clusterGroups.length).toBeGreaterThanOrEqual(3);
+    expect(itemGroups.length).toBe(4);
+    for (const cg of clusterGroups) {
+      expect(cg.getAttribute('role')).toBe('button');
+      expect(cg.getAttribute('id')).toMatch(/^sv-a11y-\d+-cluster-/);
+      expect(cg.getAttribute('aria-label')).toContain('Topic cluster:');
+    }
+    const paper1Group = svg.querySelector('g.sv-node-item[data-node-id="paper-1"]')!;
+    expect(paper1Group.getAttribute('role')).toBe('button');
+    expect(paper1Group.getAttribute('id')).toMatch(/^sv-a11y-\d+-item-paper-1$/);
+    expect(paper1Group.getAttribute('aria-label')).toContain('Item: Alpha Paper');
+
+    // 3) Keyboard focus activates first target, updates aria-activedescendant, renders focus ring, shows tooltip, and announces
+    svg.focus();
+    const firstTarget = controller.getKeyboardFocusTarget();
+    expect(firstTarget?.kind).toBe('cluster');
+    const firstDescId = svg.getAttribute('aria-activedescendant');
+    expect(firstDescId).toBeTruthy();
+    expect(svg.querySelector(`#${firstDescId}`)?.getAttribute('data-keyboard-focused')).toBe('true');
+    expect(svg.querySelectorAll('g.sv-a11y-focus-ring .sv-focus-ring-stroke').length).toBe(1);
+    expect(announcer?.textContent).toContain('Topic cluster:');
+    const tooltip = container.querySelector('.sv-tooltip') as HTMLDivElement | null;
+    expect(tooltip?.style.display).toBe('block');
+
+    // 4) ArrowRight / ArrowLeft / Home / End traverse clusters & items cleanly
+    const targets = controller.getInteractiveTargets();
+    expect(targets.length).toBe(clusterGroups.length + itemGroups.length);
+
+    svg.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    expect(controller.getKeyboardFocusTarget()).toEqual({
+      kind: 'item',
+      id: (targets[targets.length - 1] as { readonly id: string }).id,
+    });
+    expect(announcer?.textContent).toContain('Item:');
+
+    // Enter activates content click through the exact click pipeline
+    svg.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(clickedItems).toEqual([
+      (targets[targets.length - 1] as { readonly id: string }).id,
+    ]);
+
+    // Home jumps back to first cluster; Space toggles free-camera cluster focus
+    svg.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    expect(controller.getKeyboardFocusTarget()?.kind).toBe('cluster');
+    svg.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    expect(announcer?.textContent).toContain('Focused cluster:');
+
+    // Escape clears cluster focus at root
+    svg.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(announcer?.textContent).toContain('Cleared focus');
+
+    // 5) Items hidden via setItemFilter(mode: 'hide') are aria-hidden and skipped in keyboard traversal
+    controller.setItemFilter((it) => it.id !== 'paper-4', { mode: 'hide' });
+    for (let i = 0; i < 10; i++) controller.stepForTest(20);
+    const hiddenGroup = svg.querySelector('g.sv-node-item[data-node-id="paper-4"]')!;
+    expect(hiddenGroup.getAttribute('aria-hidden')).toBe('true');
+    expect(hiddenGroup.getAttribute('role')).toBeNull();
+    expect(
+      controller.getInteractiveTargets().some((t) => t.kind === 'item' && t.id === 'paper-4'),
+    ).toBe(false);
+
+    // 6) Disabling keyboardNavigation removes tabindex and clears focus ring
+    controller.setKeyboardNavigation(false);
+    expect(svg.getAttribute('tabindex')).toBeNull();
+    expect(controller.getKeyboardFocusTarget()).toBeNull();
+    expect(svg.querySelectorAll('g.sv-a11y-focus-ring .sv-focus-ring-stroke').length).toBe(0);
+
+    controller.destroy();
+    expect(container.querySelector('.sv-sr-announcer')).toBeNull();
+    container.remove();
+  });
+
+  it('supports keyboard drill-down via Enter/Space, drill-up via Escape, and announces zoom level and breadcrumbs (Issue #17)', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+    });
+    document.body.appendChild(container);
+
+    const items = Array.from({ length: 24 }, (_, i) => ({
+      id: `doc-${i}`,
+      label: `Document ${i}`,
+      tags: ['alpha', 'beta', 'gamma', `topic-${i % 4}`],
+    }));
+
+    const controller = createSimplexSvg(container, {
+      items,
+      preset: 'geometric',
+      zoomStrategy: createBarycentricZoomStrategy({ stopWhenFullScale: false }),
+      layoutOptions: { seed: 42 },
+    });
+    for (let i = 0; i < 30; i++) controller.stepForTest(20);
+
+    const svg = controller.getSvgElement();
+    const announcer = container.querySelector('.sv-sr-announcer') as HTMLDivElement;
+
+    svg.focus();
+    const targets = controller.getInteractiveTargets();
+    const drillableTriIdx = targets.findIndex(
+      (t) => t.kind === 'triangle' && t.isDrillable,
+    );
+    expect(drillableTriIdx).toBeGreaterThanOrEqual(0);
+
+    // Navigate with ArrowRight until the drillable triangle is focused
+    for (let step = 0; step < drillableTriIdx; step++) {
+      svg.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    }
+    expect(controller.getKeyboardFocusTarget()?.kind).toBe('triangle');
+    expect(svg.querySelectorAll('g.sv-a11y-focus-ring polygon.sv-focus-ring-stroke').length).toBe(1);
+    expect(announcer.textContent).toContain('press Enter to zoom in');
+
+    // Press Enter to drill into the triangle
+    svg.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(controller.getZoomState().depth).toBe(1);
+    expect(announcer.textContent).toContain('Zoom level 1:');
+    expect(announcer.textContent).toContain('Press Escape to zoom out.');
+
+    // Breadcrumb overlay exposes navigation landmark and aria-current="location"
+    const breadcrumbsNav = container.querySelector('.sv-zoom-breadcrumbs');
+    expect(breadcrumbsNav?.getAttribute('role')).toBe('navigation');
+    expect(breadcrumbsNav?.getAttribute('aria-label')).toBe('Zoom breadcrumbs');
+    expect(breadcrumbsNav?.querySelector('button[aria-current="location"]')).not.toBeNull();
+
+    // Press Escape to drill back up to Overview
+    svg.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(controller.getZoomState().depth).toBe(0);
+    expect(announcer.textContent).toContain('Zoom level 0:');
+    expect(announcer.textContent).toContain('Overview');
+
+    controller.destroy();
+    container.remove();
+  });
 });
 
 

@@ -8,6 +8,7 @@ import type {
   LayoutMetrics,
   SimplexClusteringStrategy,
   SimplexColorStrategy,
+  SimplexKeyboardFocusTarget,
   SimplexLayoutStrategy,
   SimplexMeshStrategy,
   SimplexTimelineController,
@@ -69,6 +70,8 @@ export interface SimplexGraphHandle<
     options?: ItemFilterOptions,
   ): void;
   getItemFilter(): ItemFilterState<TItem> | null;
+  getKeyboardFocusTarget(): SimplexKeyboardFocusTarget | null;
+  clearKeyboardFocus(): void;
   relayout(): void;
   getMetrics(): LayoutMetrics | null;
   getClusters(): readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[];
@@ -251,6 +254,14 @@ export function useSimplexGraphController<
     return controllerRef.current?.getItemFilter() ?? null;
   }, []);
 
+  const getKeyboardFocusTarget = useCallback(() => {
+    return controllerRef.current?.getKeyboardFocusTarget() ?? null;
+  }, []);
+
+  const clearKeyboardFocus = useCallback(() => {
+    controllerRef.current?.clearKeyboardFocus();
+  }, []);
+
   const relayout = useCallback(() => {
     controllerRef.current?.relayout();
   }, []);
@@ -298,6 +309,8 @@ export function useSimplexGraphController<
       setOptions,
       setItemFilter,
       getItemFilter,
+      getKeyboardFocusTarget,
+      clearKeyboardFocus,
       relayout,
       getMetrics,
       getClusters,

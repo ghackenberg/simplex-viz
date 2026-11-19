@@ -288,6 +288,16 @@ export type SimplexTopicGraphProps<
             TClusterMeta
           >,
         ) => ReactNode);
+    /**
+     * Accessible label applied to the root `<svg role="application">` element for screen readers.
+     * Default: `'Interactive simplex topic graph'`.
+     */
+    readonly ariaLabel?: string;
+    /**
+     * Enables built-in WCAG 2.1 AA keyboard navigation (`Arrow` keys, `Home`/`End`, `Enter`/`Space`,
+     * `Escape`), visible focus rings, and `aria-activedescendant` tracking. Default: `true`.
+     */
+    readonly keyboardNavigation?: boolean;
     /** Return `true` to suppress the built-in hover tooltip for this content node. */
     readonly onContentHover?: (
       event: ContentHoverEvent<TItem, TContentVisual, TTagMeta, TClusterMeta> | null,
@@ -830,6 +840,8 @@ export function SimplexTopicGraph<
       deferInitialLayout: p.deferInitialLayout,
       touchScrollLockPx: p.touchScrollLockPx,
       clickTolerancePx: p.clickTolerancePx,
+      ariaLabel: p.ariaLabel,
+      keyboardNavigation: p.keyboardNavigation,
       focusOnClusterClick: false,
       focusOnTriangleClick: false,
       interactions: buildReactInteractions(p.onWheel),
@@ -1186,6 +1198,19 @@ export function SimplexTopicGraph<
       ctrlRef.current?.setClickTolerancePx(props.clickTolerancePx);
     }
   }, [props.clickTolerancePx]);
+
+  // Sync ariaLabel & keyboardNavigation
+  useEffect(() => {
+    if (props.ariaLabel !== undefined) {
+      ctrlRef.current?.setAriaLabel(props.ariaLabel);
+    }
+  }, [props.ariaLabel]);
+
+  useEffect(() => {
+    if (props.keyboardNavigation !== undefined) {
+      ctrlRef.current?.setKeyboardNavigation(props.keyboardNavigation);
+    }
+  }, [props.keyboardNavigation]);
 
   // Sync wheel policy so `'none'`, `'pan-vertical'`, `'zoom-to-cursor'`, and custom callbacks stay live
   useEffect(() => {

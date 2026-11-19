@@ -11,6 +11,7 @@ import {
   type Point2D,
   type SceneFrameSnapshot,
   type SimplexColorTheme,
+  type SimplexKeyboardFocusTarget,
   type SimplexRendererAdapter,
 } from '@simplex-viz/core';
 import { measureVisualWithSvgView, SVG_NS } from './hullMeasure.js';
@@ -19,6 +20,33 @@ import {
   DashedMeshEdgeSvgView,
   OklabTintTriangleSvgView,
 } from './views/MeshFaceEdgeViews.js';
+
+/** Semantic ARIA attributes applied to an SVG cluster, item, or triangle group. */
+export interface SvgAriaAttributes {
+  readonly role?: string;
+  readonly label?: string;
+  readonly hidden?: boolean;
+  readonly pressed?: boolean;
+}
+
+/** Optional callbacks resolving domain-aware ARIA metadata for rendered SVG scene elements. */
+export interface SvgAriaMetadataResolver<
+  TContentVisual,
+  TClusterVisual,
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> {
+  readonly getClusterAria?: (
+    node: NodeRenderState<TClusterVisual>,
+  ) => SvgAriaAttributes;
+  readonly getItemAria?: (
+    node: NodeRenderState<TContentVisual>,
+  ) => SvgAriaAttributes;
+  readonly getTriangleAria?: (
+    triangle: MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta>,
+  ) => SvgAriaAttributes;
+}
 
 export interface SvgRendererOptions<
   TContentVisual,
@@ -32,6 +60,49 @@ export interface SvgRendererOptions<
   readonly triangleView?: SvgTriangleView<TItem, TTagMeta, TClusterMeta>;
   readonly edgeView?: SvgEdgeView<TItem, TTagMeta, TClusterMeta>;
   readonly theme?: SimplexColorTheme;
+  /** Optional unique ID prefix used to assign collision-free DOM `id` attributes for `aria-activedescendant`. */
+  readonly ariaIdPrefix?: string;
+  /** Optional callbacks resolving domain-aware `role` and `aria-label` attributes on SVG nodes and triangles. */
+  readonly ariaMetadataResolver?: SvgAriaMetadataResolver<
+    TContentVisual,
+    TClusterVisual,
+    TItem,
+    TTagMeta,
+    TClusterMeta
+  >;
+}
+
+function sanitizeSvgIdToken(raw: string): string {
+  return raw.replace(
+    /[^a-zA-Z0-9-]/g,
+    (ch) => `_${ch.charCodeAt(0).toString(16)}_`,
+  );
+}
+
+function applyAriaAttributes(el: Element, attrs: SvgAriaAttributes): void {
+  if (attrs.hidden) {
+    el.setAttribute('aria-hidden', 'true');
+    el.removeAttribute('role');
+    el.removeAttribute('aria-label');
+    el.removeAttribute('aria-pressed');
+    return;
+  }
+  el.removeAttribute('aria-hidden');
+  if (attrs.role) {
+    el.setAttribute('role', attrs.role);
+  } else {
+    el.removeAttribute('role');
+  }
+  if (attrs.label) {
+    el.setAttribute('aria-label', attrs.label);
+  } else {
+    el.removeAttribute('aria-label');
+  }
+  if (attrs.pressed !== undefined) {
+    el.setAttribute('aria-pressed', attrs.pressed ? 'true' : 'false');
+  } else {
+    el.removeAttribute('aria-pressed');
+  }
 }
 
 interface TrackedNodeDom<TVisual> {
@@ -248,6 +319,7 @@ export class SvgRendererAdapter<
   private readonly edgesGroup: SVGGElement;
   private readonly clustersGroup: SVGGElement;
   private readonly itemsGroup: SVGGElement;
+  private readonly focusRingGroup: SVGGElement;
   private readonly hullsGroup: SVGGElement;
   private readonly measureBin: SVGGElement;
 
@@ -256,6 +328,15 @@ export class SvgRendererAdapter<
   private triangleView: SvgTriangleView<TItem, TTagMeta, TClusterMeta>;
   private edgeView: SvgEdgeView<TItem, TTagMeta, TClusterMeta>;
   private theme: SimplexColorTheme;
+  private readonly ariaIdPrefix: string | null;
+  private ariaMetadataResolver?: SvgAriaMetadataResolver<
+    TContentVisual,
+    TClusterVisual,
+    TItem,
+    TTagMeta,
+    TClusterMeta
+  >;
+  private keyboardFocusTarget: SimplexKeyboardFocusTarget | null = null;
   private triangleViewSeq = 0;
   private edgeViewSeq = 0;
 
@@ -291,6 +372,8 @@ export class SvgRendererAdapter<
       options.edgeView ??
       new DashedMeshEdgeSvgView<TItem, TTagMeta, TClusterMeta>();
     this.theme = options.theme ?? 'dark';
+    this.ariaIdPrefix = options.ariaIdPrefix ?? null;
+    this.ariaMetadataResolver = options.ariaMetadataResolver;
 
     while (this.svgEl.firstChild) {
       this.svgEl.removeChild(this.svgEl.firstChild);
@@ -300,22 +383,30 @@ export class SvgRendererAdapter<
     this.trianglesGroup = this.createGroup('sv-mesh-triangles');
     this.drillEdgesGroup = this.createGroup('sv-drill-edges');
     this.drillEdgesGroup.setAttribute('pointer-events', 'none');
+    this.drillEdgesGroup.setAttribute('aria-hidden', 'true');
     this.edgesGroup = this.createGroup('sv-mesh-edges');
+    this.edgesGroup.setAttribute('aria-hidden', 'true');
     this.clustersGroup = this.createGroup('sv-clusters');
     this.itemsGroup = this.createGroup('sv-items');
+    this.focusRingGroup = this.createGroup('sv-a11y-focus-ring');
+    this.focusRingGroup.setAttribute('pointer-events', 'none');
+    this.focusRingGroup.setAttribute('aria-hidden', 'true');
     this.hullsGroup = this.createGroup('sv-hull-overlay');
     this.hullsGroup.setAttribute('pointer-events', 'none');
+    this.hullsGroup.setAttribute('aria-hidden', 'true');
 
     this.worldGroup.appendChild(this.trianglesGroup);
     this.worldGroup.appendChild(this.drillEdgesGroup);
     this.worldGroup.appendChild(this.edgesGroup);
     this.worldGroup.appendChild(this.clustersGroup);
     this.worldGroup.appendChild(this.itemsGroup);
+    this.worldGroup.appendChild(this.focusRingGroup);
     this.worldGroup.appendChild(this.hullsGroup);
 
     this.measureBin = this.createGroup('sv-measure-bin');
     this.measureBin.setAttribute('visibility', 'hidden');
     this.measureBin.setAttribute('pointer-events', 'none');
+    this.measureBin.setAttribute('aria-hidden', 'true');
     this.measureBin.setAttribute('transform', 'translate(-99999, -99999)');
 
     this.svgEl.appendChild(this.worldGroup);
@@ -326,6 +417,44 @@ export class SvgRendererAdapter<
     const g = this.doc.createElementNS(SVG_NS, 'g');
     g.setAttribute('class', className);
     return g;
+  }
+
+  /**
+   * Computes the deterministic DOM `id` assigned to a rendered cluster, item, or triangle
+   * for `aria-activedescendant` linkage, or `null` when `ariaIdPrefix` is not configured.
+   */
+  getDomIdForTarget(target: SimplexKeyboardFocusTarget): string | null {
+    if (!this.ariaIdPrefix) return null;
+    if (target.kind === 'cluster') {
+      return `${this.ariaIdPrefix}-cluster-${sanitizeSvgIdToken(target.id)}`;
+    }
+    if (target.kind === 'item') {
+      return `${this.ariaIdPrefix}-item-${sanitizeSvgIdToken(target.id)}`;
+    }
+    return `${this.ariaIdPrefix}-tri-${target.index}`;
+  }
+
+  /** Updates the currently keyboard-focused target so the high-contrast focus ring tracks it. */
+  setKeyboardFocusTarget(target: SimplexKeyboardFocusTarget | null): void {
+    this.keyboardFocusTarget = target;
+  }
+
+  /** Returns the currently keyboard-focused target tracked by the renderer. */
+  getKeyboardFocusTarget(): SimplexKeyboardFocusTarget | null {
+    return this.keyboardFocusTarget;
+  }
+
+  /** Updates optional domain-aware ARIA metadata callbacks. */
+  setAriaMetadataResolver(
+    resolver?: SvgAriaMetadataResolver<
+      TContentVisual,
+      TClusterVisual,
+      TItem,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): void {
+    this.ariaMetadataResolver = resolver;
   }
 
   /**
@@ -483,6 +612,39 @@ export class SvgRendererAdapter<
       } else {
         entry.group.removeAttribute('opacity');
       }
+      if (!isGhost && !tr.isContext && this.ariaIdPrefix) {
+        entry.group.setAttribute(
+          'id',
+          this.getDomIdForTarget({ kind: 'triangle', index: tr.index })!,
+        );
+      } else {
+        entry.group.removeAttribute('id');
+      }
+      const isTriKeyboardFocused =
+        !isGhost &&
+        !tr.isContext &&
+        this.keyboardFocusTarget?.kind === 'triangle' &&
+        this.keyboardFocusTarget.index === tr.index;
+      if (isTriKeyboardFocused) {
+        entry.group.setAttribute('data-keyboard-focused', 'true');
+      } else {
+        entry.group.removeAttribute('data-keyboard-focused');
+      }
+      const triAria: SvgAriaAttributes =
+        isGhost || tr.isContext
+          ? { hidden: true }
+          : (this.ariaMetadataResolver?.getTriangleAria?.(tr) ?? {
+              role: tr.isDrillable || tr.coveredItemCount > 0 ? 'button' : undefined,
+              label:
+                tr.isDrillable || tr.coveredItemCount > 0
+                  ? `Region ${tr.index + 1}, ${tr.coveredItemCount} ${
+                      tr.coveredItemCount === 1 ? 'item' : 'items'
+                    }`
+                  : undefined,
+              hidden: !(tr.isDrillable || tr.coveredItemCount > 0),
+              pressed: tr.interaction.isFocused ? true : undefined,
+            });
+      applyAriaAttributes(entry.group, triAria);
       const sig = triangleSignature(tr, this.theme, this.triangleViewSeq, triViewKey);
       if (entry.lastSig !== sig) {
         this.triangleView.mountOrUpdate(entry.group, tr, this.theme);
@@ -582,7 +744,10 @@ export class SvgRendererAdapter<
       'item',
     );
 
-    // 4. Optional Convex Hull Debug Overlay
+    // 4. High-Contrast Keyboard Focus Ring
+    this.renderKeyboardFocusRing(snapshot);
+
+    // 5. Optional Convex Hull Debug Overlay
     this.renderHullOverlay(snapshot);
   }
 
@@ -644,6 +809,50 @@ export class SvgRendererAdapter<
       } else {
         tracked.rootGroup.removeAttribute('data-neighbor-id');
       }
+      if (!isGhostNode && !node.isContext && this.ariaIdPrefix) {
+        tracked.rootGroup.setAttribute(
+          'id',
+          this.getDomIdForTarget(
+            kind === 'cluster'
+              ? { kind: 'cluster', id: node.id }
+              : { kind: 'item', id: node.id },
+          )!,
+        );
+      } else {
+        tracked.rootGroup.removeAttribute('id');
+      }
+      const isKeyboardFocused =
+        !isGhostNode &&
+        !node.isContext &&
+        this.keyboardFocusTarget !== null &&
+        this.keyboardFocusTarget.kind === kind &&
+        this.keyboardFocusTarget.id === node.id;
+      if (isKeyboardFocused) {
+        tracked.rootGroup.setAttribute('data-keyboard-focused', 'true');
+      } else {
+        tracked.rootGroup.removeAttribute('data-keyboard-focused');
+      }
+      const isHiddenFromA11y =
+        isGhostNode ||
+        Boolean(node.isContext) ||
+        Boolean(node.isPassThrough) ||
+        node.opacity < 0.05;
+      const nodeAria: SvgAriaAttributes = isHiddenFromA11y
+        ? { hidden: true }
+        : kind === 'cluster'
+          ? (this.ariaMetadataResolver?.getClusterAria?.(
+              node as unknown as NodeRenderState<TClusterVisual>,
+            ) ?? {
+              role: 'button',
+              label: `Topic cluster ${node.id}`,
+            })
+          : (this.ariaMetadataResolver?.getItemAria?.(
+              node as unknown as NodeRenderState<TContentVisual>,
+            ) ?? {
+              role: 'button',
+              label: `Item ${node.id}`,
+            });
+      applyAriaAttributes(tracked.rootGroup, nodeAria);
 
       const styleView = node.transition
         ? (viewByKey.get(node.transition.toCacheKey) ?? activeView)
@@ -810,6 +1019,134 @@ export class SvgRendererAdapter<
         tracked.rootGroup.remove();
         domMap.delete(id);
       }
+    }
+  }
+
+  private renderKeyboardFocusRing(
+    snapshot: SceneFrameSnapshot<
+      TContentVisual,
+      TClusterVisual,
+      TItem,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): void {
+    while (this.focusRingGroup.firstChild) {
+      this.focusRingGroup.removeChild(this.focusRingGroup.firstChild);
+    }
+    const target = this.keyboardFocusTarget;
+    if (!target) return;
+
+    const invZoom = 1 / Math.max(0.35, snapshot.camera.zoom);
+    const pad = 5 * invZoom;
+    const haloWidth = 6 * invZoom;
+    const ringWidth = 2.6 * invZoom;
+    const isLight = this.theme === 'light';
+    const haloColor = isLight ? '#ffffff' : '#020617';
+    const haloOpacity = isLight ? '0.96' : '0.92';
+    const ringColor = isLight ? '#0369a1' : '#38bdf8';
+
+    const drawNodeRing = <TVisual>(
+      node: NodeRenderState<TVisual> | undefined,
+      activeView: SvgNodeView<TVisual>,
+      viewByKey: Map<string, SvgNodeView<TVisual>>,
+    ): void => {
+      if (!node || node.opacity < 0.05) return;
+      const styleView = node.transition
+        ? (viewByKey.get(node.transition.toCacheKey) ?? activeView)
+        : (viewByKey.get(node.cacheKey) ?? activeView);
+      const hoverScaleFactor =
+        !node.isContext &&
+        !node.isPassThrough &&
+        node.interaction.isHovered &&
+        styleView.hoverScale !== undefined &&
+        Number.isFinite(styleView.hoverScale) &&
+        styleView.hoverScale > 0
+          ? styleView.hoverScale
+          : 1;
+      const effectiveScale = node.scale * hoverScaleFactor;
+      const hull = node.hull;
+
+      if (hull.kind === 'circle') {
+        const radius = hull.radius * effectiveScale + pad;
+        for (const [stroke, strokeWidth, strokeOpacity, cls] of [
+          [haloColor, haloWidth, haloOpacity, 'sv-focus-ring-halo'],
+          [ringColor, ringWidth, '1', 'sv-focus-ring-stroke'],
+        ] as const) {
+          const circle = this.doc.createElementNS(SVG_NS, 'circle');
+          circle.setAttribute('class', cls);
+          circle.setAttribute('cx', node.x.toFixed(2));
+          circle.setAttribute('cy', node.y.toFixed(2));
+          circle.setAttribute('r', radius.toFixed(2));
+          circle.setAttribute('fill', 'none');
+          circle.setAttribute('stroke', stroke);
+          circle.setAttribute('stroke-width', strokeWidth.toFixed(2));
+          circle.setAttribute('stroke-opacity', strokeOpacity);
+          this.focusRingGroup.appendChild(circle);
+        }
+      } else if (hull.vertices.length >= 3) {
+        const pointsStr = hull.vertices
+          .map((v) => {
+            const vx = v.x * effectiveScale;
+            const vy = v.y * effectiveScale;
+            const len = Math.hypot(vx, vy);
+            const scaleOut = len > 1e-4 ? (len + pad) / len : 1;
+            return `${(node.x + vx * scaleOut).toFixed(2)},${(node.y + vy * scaleOut).toFixed(2)}`;
+          })
+          .join(' ');
+        for (const [stroke, strokeWidth, strokeOpacity, cls] of [
+          [haloColor, haloWidth, haloOpacity, 'sv-focus-ring-halo'],
+          [ringColor, ringWidth, '1', 'sv-focus-ring-stroke'],
+        ] as const) {
+          const poly = this.doc.createElementNS(SVG_NS, 'polygon');
+          poly.setAttribute('class', cls);
+          poly.setAttribute('points', pointsStr);
+          poly.setAttribute('fill', 'none');
+          poly.setAttribute('stroke', stroke);
+          poly.setAttribute('stroke-width', strokeWidth.toFixed(2));
+          poly.setAttribute('stroke-opacity', strokeOpacity);
+          poly.setAttribute('stroke-linejoin', 'round');
+          this.focusRingGroup.appendChild(poly);
+        }
+      }
+    };
+
+    if (target.kind === 'cluster') {
+      const node = snapshot.clusters.find(
+        (c) => c.id === target.id && !c.isContext && !c.id.startsWith('ghost-'),
+      );
+      drawNodeRing(node, this.clusterView, this.clusterViewByKey);
+      return;
+    }
+
+    if (target.kind === 'item') {
+      const node = snapshot.items.find(
+        (it) => it.id === target.id && !it.isContext && !it.id.startsWith('ghost-'),
+      );
+      drawNodeRing(node, this.contentView, this.contentViewByKey);
+      return;
+    }
+
+    const tri = snapshot.triangles.find(
+      (t) => t.index === target.index && !t.isContext && t.index > -10000,
+    );
+    if (!tri) return;
+    const pointsStr = tri.points
+      .map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`)
+      .join(' ');
+    for (const [stroke, strokeWidth, strokeOpacity, cls] of [
+      [haloColor, haloWidth, haloOpacity, 'sv-focus-ring-halo'],
+      [ringColor, ringWidth, '1', 'sv-focus-ring-stroke'],
+    ] as const) {
+      const poly = this.doc.createElementNS(SVG_NS, 'polygon');
+      poly.setAttribute('class', cls);
+      poly.setAttribute('points', pointsStr);
+      poly.setAttribute('fill', 'none');
+      poly.setAttribute('stroke', stroke);
+      poly.setAttribute('stroke-width', strokeWidth.toFixed(2));
+      poly.setAttribute('stroke-opacity', strokeOpacity);
+      poly.setAttribute('stroke-linejoin', 'round');
+      this.focusRingGroup.appendChild(poly);
     }
   }
 
