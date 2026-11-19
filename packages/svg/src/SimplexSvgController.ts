@@ -1,5 +1,11 @@
 import {
   SimplexGraphEngine,
+  SimplexTimelineController,
+  createCollisionDrivenLayoutStrategy,
+  createFinalSeededClusteringStrategy,
+  createFinalSeededLayoutStrategy,
+  createSimplexTimeline,
+  createSoftSimplexTagClusteringStrategy,
   isPointInTriangle,
   type CameraController,
   type ClusterDerivationContext,
@@ -8,6 +14,8 @@ import {
   type ClusterMetaConfig,
   type ContentHoverEvent,
   type DefaultTaggedItem,
+  type EmptyClusterBehavior,
+  type FinalSeededLayoutScaleMode,
   type InteractionHandlers,
   type LayoutMetrics,
   type LayoutSolverOptions,
@@ -16,6 +24,8 @@ import {
   type SimplexColorStrategy,
   type SimplexLayoutStrategy,
   type SimplexMeshStrategy,
+  type SimplexTimelineOptions,
+  type SimplexTimelineState,
   type SimplexZoomState,
   type SimplexZoomStrategy,
   type StrategyItemIdentityConfig,
@@ -63,6 +73,45 @@ export type SimplexTooltipFormatter<
         TClusterMeta
       >),
 ) => string;
+
+/**
+ * Configuration options for the built-in optional timeline / frame-stepping player
+ * in `@simplex-viz/svg` and `@simplex-viz/react`.
+ */
+export interface TimelinePlayerOptions<TItem = DefaultTaggedItem>
+  extends SimplexTimelineOptions<TItem> {
+  /**
+   * Renders the compact, theme-adaptive Play/Pause/Step/Scrubber HUD bar inside the graph container.
+   * Set to `false` when driving playback through a custom host UI via `controller.timeline`.
+   * Default: `true`.
+   */
+  readonly showControls?: boolean;
+  /** Vertical placement of the built-in timeline player bar. Default: `'bottom'`. */
+  readonly position?: 'bottom' | 'top';
+  /**
+   * Automatically wraps the active clustering strategy in `createFinalSeededClusteringStrategy`
+   * seeded from the full corpus so cluster vertices, UIDs, labels, and colors stay pinned across
+   * `0..N` playback frames with zero cluster hopping. Default: `true`.
+   */
+  readonly autoFinalSeed?: boolean;
+  /**
+   * Automatically wraps the active layout strategy in `createFinalSeededLayoutStrategy`
+   * seeded from the full corpus so items appear at their exact final coordinates across `0..N`
+   * playback frames with zero drift.
+   * - `false` / `undefined` (default): active `layoutStrategy` runs normally on each step.
+   * - `true` or `'pinned'`: freeze both coordinates and final scale.
+   * - `'adaptive'`: freeze coordinates, allow sparse frames to render larger and smoothly scale down.
+   */
+  readonly autoFinalSeedLayout?: boolean | FinalSeededLayoutScaleMode;
+  /**
+   * Controls how empty / not-yet-populated future clusters are rendered while timeline playback
+   * is active (`'normal'`, `'dim'`, or `'hide'`). Overrides top-level `emptyClusterBehavior`
+   * during timeline playback when specified.
+   */
+  readonly emptyClusterBehavior?: EmptyClusterBehavior;
+  /** Invoked whenever the timeline playback state changes (step, play/pause, speed, corpus). */
+  readonly onStateChange?: (state: SimplexTimelineState<TItem>) => void;
+}
 
 export interface SimplexSvgControllerResolvedOptions<
   TItem = DefaultTaggedItem,
@@ -126,8 +175,19 @@ export interface SimplexSvgControllerResolvedOptions<
   readonly layoutStrategy?: SimplexLayoutStrategy;
   readonly zoomStrategy?: SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>;
   readonly showHulls?: boolean;
+  /**
+   * Controls how clusters with `0` active member items are rendered (`'normal'`, `'dim'`, or `'hide'`).
+   * Especially useful during chronological timeline playback with final-seeded clusters. Default: `'normal'`.
+   */
+  readonly emptyClusterBehavior?: EmptyClusterBehavior;
   /** Renders the built-in breadcrumb bar when drilled into sub-levels. Default: `true`. */
   readonly showZoomBreadcrumbs?: boolean;
+  /**
+   * Opt-in chronological timeline / frame-stepping playback support.
+   * Pass `true` for zero-config playback with auto-detected timestamps and built-in HUD controls,
+   * or a `TimelinePlayerOptions` object for custom frame extractors, speed, and UI controls.
+   */
+  readonly timeline?: boolean | TimelinePlayerOptions<TItem>;
   /**
    * Automatically re-measures SVG hulls and re-solves layout once webfonts finish loading
    * (`document.fonts.ready` and `loadingdone`). Prevents stale fallback-font text measurements
@@ -246,6 +306,32 @@ export class SimplexSvgController<
     | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
   private tooltipEl: HTMLDivElement | null = null;
   private breadcrumbOverlayEl: HTMLDivElement | null = null;
+  private timelineController: SimplexTimelineController<TItem> | null = null;
+  private timelineUnsubscribe: (() => void) | null = null;
+  private readonly timelineStateListeners = new Set<
+    (state: SimplexTimelineState<TItem> | null) => void
+  >();
+  private timelineOverlayEl: HTMLDivElement | null = null;
+  private timelineUiRefs: {
+    playBtn: HTMLButtonElement;
+    prevBtn: HTMLButtonElement;
+    nextBtn: HTMLButtonElement;
+    scrubber: HTMLInputElement;
+    labelEl: HTMLSpanElement;
+    countEl: HTMLSpanElement;
+  } | null = null;
+  private timelineShowControls = true;
+  private timelinePosition: 'bottom' | 'top' = 'bottom';
+  private timelineAutoFinalSeed = true;
+  private timelineAutoFinalSeedLayout: FinalSeededLayoutScaleMode | false = false;
+  private baseEmptyClusterBehavior: EmptyClusterBehavior = 'normal';
+  private timelineEmptyClusterBehavior: EmptyClusterBehavior | undefined = undefined;
+  private timelineOnStateChange?: (state: SimplexTimelineState<TItem>) => void;
+  private rawClusteringStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>;
+  private rawLayoutStrategy?: SimplexLayoutStrategy;
+  private lastTimelineActiveItems: readonly TItem[] | null = null;
+  private lastExternalItemsRef: readonly TItem[];
+  private fullCorpusItems: readonly TItem[];
   private focusedClusterUidState: string | null = null;
   private focusedTriangleIndexState: number | null = null;
   private currentPreset: SimplexVisualPreset;
@@ -361,8 +447,47 @@ export class SimplexSvgController<
       theme: this.currentTheme,
     });
 
+    this.rawClusteringStrategy = options.clusteringStrategy;
+    this.rawLayoutStrategy = options.layoutStrategy;
+    this.baseEmptyClusterBehavior = options.emptyClusterBehavior ?? 'normal';
+    this.lastExternalItemsRef = options.items;
+    this.fullCorpusItems = options.items.slice();
+
+    if (options.timeline) {
+      const timelineOpts: TimelinePlayerOptions<TItem> =
+        options.timeline === true ? {} : options.timeline;
+      this.timelineShowControls = timelineOpts.showControls ?? true;
+      this.timelinePosition = timelineOpts.position ?? 'bottom';
+      this.timelineAutoFinalSeed = timelineOpts.autoFinalSeed ?? true;
+      this.timelineAutoFinalSeedLayout = this.normalizeAutoFinalSeedLayout(
+        timelineOpts.autoFinalSeedLayout,
+      );
+      this.timelineEmptyClusterBehavior = timelineOpts.emptyClusterBehavior;
+      this.timelineOnStateChange = timelineOpts.onStateChange;
+      this.timelineController = createSimplexTimeline(
+        this.fullCorpusItems,
+        timelineOpts,
+      );
+      this.lastTimelineActiveItems = this.timelineController.getActiveItems();
+    }
+
+    const initialItems = this.timelineController
+      ? this.timelineController.getActiveItems()
+      : options.items;
+    const initialClusteringStrategy = this.resolveEffectiveClusteringStrategy(
+      this.rawClusteringStrategy,
+      this.fullCorpusItems,
+    );
+    const initialLayoutStrategy = this.resolveEffectiveLayoutStrategy(
+      this.rawLayoutStrategy,
+    );
+    const effectiveEmptyClusterBehavior =
+      this.timelineController && this.timelineEmptyClusterBehavior !== undefined
+        ? this.timelineEmptyClusterBehavior
+        : this.baseEmptyClusterBehavior;
+
     this.engine = SimplexGraphEngine.createFromResolved({
-      items: options.items,
+      items: initialItems,
       getId: options.getId,
       getTags: options.getTags,
       deriveClusterMeta: options.deriveClusterMeta,
@@ -376,12 +501,14 @@ export class SimplexSvgController<
       meshOptions: options.meshOptions,
       layoutOptions: options.layoutOptions,
       meshStrategy: options.meshStrategy,
-      clusteringStrategy: options.clusteringStrategy,
+      clusteringStrategy: initialClusteringStrategy,
       colorStrategy: options.colorStrategy,
-      layoutStrategy: options.layoutStrategy,
+      layoutStrategy: initialLayoutStrategy,
       zoomStrategy: options.zoomStrategy,
       theme: this.currentTheme,
       showHulls: options.showHulls,
+      emptyClusterBehavior: effectiveEmptyClusterBehavior,
+      canonicalSeedItems: this.timelineController ? this.fullCorpusItems : undefined,
       interactions: this.wrapInteractions(options.interactions),
       onMetricsChange: options.onMetricsChange,
       onClustersChange: options.onClustersChange,
@@ -392,6 +519,9 @@ export class SimplexSvgController<
     });
     this.syncZoomOverlays(this.engine.getZoomState());
     this.onZoomStateChangeCallback?.(this.engine.getZoomState());
+    if (this.timelineController) {
+      this.attachTimelineController(this.timelineController);
+    }
 
     const baseCamera = this.engine.camera;
     const syncCameraRender = (): void => {
@@ -803,6 +933,111 @@ export class SimplexSvgController<
     return this.cameraProxy;
   }
 
+  /** Active headless timeline controller when `timeline` is enabled, or `null` otherwise. */
+  get timeline(): SimplexTimelineController<TItem> | null {
+    return this.timelineController;
+  }
+
+  /** Returns the active headless timeline controller, or `null` when timeline mode is disabled. */
+  getTimeline(): SimplexTimelineController<TItem> | null {
+    return this.timelineController;
+  }
+
+  /**
+   * Subscribes to timeline state changes (including enabling/disabling timeline mode at runtime).
+   * Invokes `listener` immediately with the current state (or `null`) and returns an unsubscribe handle.
+   */
+  subscribeTimeline(
+    listener: (state: SimplexTimelineState<TItem> | null) => void,
+  ): () => void {
+    this.timelineStateListeners.add(listener);
+    listener(this.timelineController?.getState() ?? null);
+    return () => {
+      this.timelineStateListeners.delete(listener);
+    };
+  }
+
+  /**
+   * Dynamically enables, updates, or disables timeline playback at runtime.
+   */
+  setTimelineOptions(
+    timeline: boolean | TimelinePlayerOptions<TItem> | undefined,
+  ): void {
+    if (this.destroyed) return;
+    if (!timeline) {
+      if (!this.timelineController) return;
+      const hadAutoFinalSeed = this.timelineAutoFinalSeed;
+      const hadAutoFinalSeedLayout = this.timelineAutoFinalSeedLayout !== false;
+      this.detachTimelineController();
+      this.timelineAutoFinalSeed = true;
+      this.timelineAutoFinalSeedLayout = false;
+      this.timelineEmptyClusterBehavior = undefined;
+      this.lastTimelineActiveItems = null;
+      this.syncTimelineOverlay(null);
+      this.engine.setCanonicalSeedItems(null);
+      if (this.rawClusteringStrategy) {
+        this.engine.setClusteringStrategy(this.rawClusteringStrategy);
+      } else if (hadAutoFinalSeed) {
+        this.engine.setClusteringStrategy(
+          createSoftSimplexTagClusteringStrategy<TItem, TTagMeta>(),
+        );
+      }
+      if (hadAutoFinalSeedLayout) {
+        this.engine.setLayoutStrategy(
+          this.rawLayoutStrategy ?? createCollisionDrivenLayoutStrategy(),
+        );
+      }
+      this.engine.setEmptyClusterBehavior(this.baseEmptyClusterBehavior);
+      this.engine.setItems(this.fullCorpusItems);
+      this.notifyTimelineListeners(null);
+      this.ensureLoopRunning();
+      return;
+    }
+
+    const opts: TimelinePlayerOptions<TItem> = timeline === true ? {} : timeline;
+    const prevAutoFinalSeed = this.timelineAutoFinalSeed;
+    const prevAutoFinalSeedLayout = this.timelineAutoFinalSeedLayout;
+    this.timelineShowControls = opts.showControls ?? true;
+    this.timelinePosition = opts.position ?? 'bottom';
+    this.timelineAutoFinalSeed = opts.autoFinalSeed ?? true;
+    this.timelineAutoFinalSeedLayout = this.normalizeAutoFinalSeedLayout(
+      opts.autoFinalSeedLayout,
+    );
+    this.timelineEmptyClusterBehavior = opts.emptyClusterBehavior;
+    this.timelineOnStateChange = opts.onStateChange;
+
+    this.detachTimelineController();
+    this.timelineController = createSimplexTimeline(this.fullCorpusItems, opts);
+    this.engine.setCanonicalSeedItems(this.fullCorpusItems);
+    const effectiveClustering = this.resolveEffectiveClusteringStrategy(
+      this.rawClusteringStrategy,
+      this.fullCorpusItems,
+    );
+    if (effectiveClustering) {
+      this.engine.setClusteringStrategy(effectiveClustering);
+    } else if (prevAutoFinalSeed) {
+      this.engine.setClusteringStrategy(
+        createSoftSimplexTagClusteringStrategy<TItem, TTagMeta>(),
+      );
+    }
+    const effectiveLayout = this.resolveEffectiveLayoutStrategy(this.rawLayoutStrategy);
+    if (effectiveLayout) {
+      this.engine.setLayoutStrategy(effectiveLayout);
+    } else if (prevAutoFinalSeedLayout !== false) {
+      this.engine.setLayoutStrategy(
+        this.rawLayoutStrategy ?? createCollisionDrivenLayoutStrategy(),
+      );
+    }
+    this.engine.setEmptyClusterBehavior(
+      this.timelineEmptyClusterBehavior ?? this.baseEmptyClusterBehavior,
+    );
+    const activeItems = this.timelineController.getActiveItems();
+    this.lastTimelineActiveItems = activeItems;
+    this.engine.setItems(activeItems);
+    this.attachTimelineController(this.timelineController);
+    this.ensureLoopRunning();
+  }
+
   getSvgElement(): SVGSVGElement {
     return this.svgEl;
   }
@@ -820,16 +1055,77 @@ export class SimplexSvgController<
   }
 
   addItems(items: TItem | readonly TItem[]): void {
+    const incoming = Array.isArray(items) ? (items as readonly TItem[]) : [items as TItem];
+    if (incoming.length === 0) return;
+
+    const byId = new Map<string, number>();
+    const merged = this.fullCorpusItems.slice();
+    merged.forEach((item, idx) => {
+      const id = this.getIdExtractor(item);
+      if (id) byId.set(id, idx);
+    });
+    for (const item of incoming) {
+      const id = this.getIdExtractor(item);
+      if (id && byId.has(id)) {
+        merged[byId.get(id)!] = item;
+      } else {
+        if (id) byId.set(id, merged.length);
+        merged.push(item);
+      }
+    }
+    this.fullCorpusItems = merged;
+    this.lastExternalItemsRef = merged;
+
+    if (this.timelineController) {
+      this.engine.setCanonicalSeedItems(this.fullCorpusItems);
+      this.syncFinalSeededClusteringForCorpus(this.fullCorpusItems);
+      this.timelineController.setItems(this.fullCorpusItems);
+      this.ensureLoopRunning();
+      return;
+    }
+
     this.engine.addItems(items);
     this.ensureLoopRunning();
   }
 
   removeItems(ids: string | readonly string[]): void {
+    const idList = Array.isArray(ids) ? (ids as readonly string[]) : [ids as string];
+    const removeSet = new Set(idList);
+    if (removeSet.size === 0) return;
+
+    const filtered = this.fullCorpusItems.filter(
+      (item) => !removeSet.has(this.getIdExtractor(item)),
+    );
+    this.fullCorpusItems = filtered;
+    this.lastExternalItemsRef = filtered;
+
+    if (this.timelineController) {
+      this.engine.setCanonicalSeedItems(this.fullCorpusItems);
+      this.syncFinalSeededClusteringForCorpus(this.fullCorpusItems);
+      this.timelineController.setItems(this.fullCorpusItems);
+      this.ensureLoopRunning();
+      return;
+    }
+
     this.engine.removeItems(ids);
     this.ensureLoopRunning();
   }
 
   setItems(items: readonly TItem[]): void {
+    if (this.timelineController) {
+      if (items === this.lastExternalItemsRef) {
+        return;
+      }
+      this.lastExternalItemsRef = items;
+      this.fullCorpusItems = items.slice();
+      this.engine.setCanonicalSeedItems(this.fullCorpusItems);
+      this.syncFinalSeededClusteringForCorpus(this.fullCorpusItems);
+      this.timelineController.setItems(this.fullCorpusItems);
+      this.ensureLoopRunning();
+      return;
+    }
+    this.lastExternalItemsRef = items;
+    this.fullCorpusItems = items.slice();
     this.engine.setItems(items);
     this.ensureLoopRunning();
   }
@@ -900,6 +1196,9 @@ export class SimplexSvgController<
       );
     }
     this.syncZoomOverlays(this.engine.getZoomState());
+    if (this.timelineController) {
+      this.syncTimelineOverlay(this.timelineController.getState());
+    }
     this.engine.renderNow();
     this.ensureLoopRunning();
   }
@@ -910,7 +1209,11 @@ export class SimplexSvgController<
   }
 
   setClusteringStrategy(strategy: SimplexClusteringStrategy<TItem, TTagMeta>): void {
-    this.engine.setClusteringStrategy(strategy);
+    this.rawClusteringStrategy = strategy;
+    const effective =
+      this.resolveEffectiveClusteringStrategy(strategy, this.fullCorpusItems) ??
+      strategy;
+    this.engine.setClusteringStrategy(effective);
     this.ensureLoopRunning();
   }
 
@@ -920,7 +1223,9 @@ export class SimplexSvgController<
   }
 
   setLayoutStrategy(strategy: SimplexLayoutStrategy): void {
-    this.engine.setLayoutStrategy(strategy);
+    this.rawLayoutStrategy = strategy;
+    const effective = this.resolveEffectiveLayoutStrategy(strategy) ?? strategy;
+    this.engine.setLayoutStrategy(effective);
     this.ensureLoopRunning();
   }
 
@@ -1079,6 +1384,18 @@ export class SimplexSvgController<
     this.ensureLoopRunning();
   }
 
+  /** Returns the active empty-cluster rendering behavior (`'normal' | 'dim' | 'hide'`). */
+  getEmptyClusterBehavior(): EmptyClusterBehavior {
+    return this.engine.getEmptyClusterBehavior();
+  }
+
+  /** Configures how clusters with `0` active member items are rendered (`'normal' | 'dim' | 'hide'`). */
+  setEmptyClusterBehavior(behavior: EmptyClusterBehavior): void {
+    this.baseEmptyClusterBehavior = behavior;
+    this.engine.setEmptyClusterBehavior(behavior);
+    this.ensureLoopRunning();
+  }
+
   setInteractions(
     interactions: InteractionHandlers<
       TItem,
@@ -1125,8 +1442,9 @@ export class SimplexSvgController<
     this.ensureLoopRunning();
   }
 
-  /** Deterministically advances simulation time in tests without waiting for rAF. */
+  /** Deterministically advances simulation & timeline clocks in tests without waiting for rAF. */
   stepForTest(dtMs: number): boolean {
+    this.timelineController?.tick(dtMs);
     return this.engine.step(dtMs);
   }
 
@@ -1348,6 +1666,361 @@ export class SimplexSvgController<
     } else if (this.breadcrumbOverlayEl) {
       this.breadcrumbOverlayEl.style.display = 'none';
     }
+  }
+
+  private normalizeAutoFinalSeedLayout(
+    option: boolean | FinalSeededLayoutScaleMode | undefined,
+  ): FinalSeededLayoutScaleMode | false {
+    if (option === true) return 'pinned';
+    if (option === 'pinned' || option === 'adaptive') return option;
+    return false;
+  }
+
+  private resolveEffectiveLayoutStrategy(
+    baseStrategy: SimplexLayoutStrategy | undefined,
+  ): SimplexLayoutStrategy | undefined {
+    if (!this.timelineController || !this.timelineAutoFinalSeedLayout) {
+      return baseStrategy;
+    }
+    if (baseStrategy && baseStrategy.name.startsWith('final-seeded(')) {
+      return baseStrategy;
+    }
+    return createFinalSeededLayoutStrategy(baseStrategy, {
+      scaleMode: this.timelineAutoFinalSeedLayout,
+    });
+  }
+
+  private resolveEffectiveClusteringStrategy(
+    baseStrategy: SimplexClusteringStrategy<TItem, TTagMeta> | undefined,
+    seedItems: readonly TItem[],
+  ): SimplexClusteringStrategy<TItem, TTagMeta> | undefined {
+    if (
+      !this.timelineController ||
+      !this.timelineAutoFinalSeed ||
+      seedItems.length === 0
+    ) {
+      return baseStrategy;
+    }
+    if (baseStrategy && baseStrategy.name.startsWith('final-seeded(')) {
+      return baseStrategy;
+    }
+    return createFinalSeededClusteringStrategy<TItem, TTagMeta>(baseStrategy, {
+      seedItems,
+    });
+  }
+
+  private syncFinalSeededClusteringForCorpus(seedItems: readonly TItem[]): void {
+    if (!this.timelineController || !this.timelineAutoFinalSeed) return;
+    if (
+      this.rawClusteringStrategy &&
+      this.rawClusteringStrategy.name.startsWith('final-seeded(')
+    ) {
+      return;
+    }
+    const nextStrategy = this.resolveEffectiveClusteringStrategy(
+      this.rawClusteringStrategy,
+      seedItems,
+    );
+    if (nextStrategy) {
+      this.engine.setClusteringStrategy(nextStrategy);
+    }
+  }
+
+  private notifyTimelineListeners(
+    state: SimplexTimelineState<TItem> | null,
+  ): void {
+    if (state) {
+      this.timelineOnStateChange?.(state);
+    }
+    for (const listener of this.timelineStateListeners) {
+      listener(state);
+    }
+  }
+
+  private detachTimelineController(): void {
+    this.timelineUnsubscribe?.();
+    this.timelineUnsubscribe = null;
+    this.timelineController?.destroy();
+    this.timelineController = null;
+  }
+
+  private attachTimelineController(
+    controller: SimplexTimelineController<TItem>,
+  ): void {
+    this.timelineUnsubscribe = controller.subscribe((state) => {
+      if (this.destroyed) return;
+      if (state.activeItems !== this.lastTimelineActiveItems) {
+        this.lastTimelineActiveItems = state.activeItems;
+        this.engine.setItems(state.activeItems);
+      }
+      this.syncTimelineOverlay(state);
+      this.notifyTimelineListeners(state);
+      this.ensureLoopRunning();
+    });
+    const initialState = controller.getState();
+    this.syncTimelineOverlay(initialState);
+    this.notifyTimelineListeners(initialState);
+  }
+
+  private createTimelineIconSvg(
+    doc: Document,
+    kind: 'play' | 'pause' | 'prev' | 'next',
+  ): SVGSVGElement {
+    const svg = doc.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('width', '12');
+    svg.setAttribute('height', '12');
+    svg.setAttribute('viewBox', '0 0 12 12');
+    svg.setAttribute('fill', 'currentColor');
+    svg.setAttribute('aria-hidden', 'true');
+    if (kind === 'play') {
+      const poly = doc.createElementNS(SVG_NS, 'polygon');
+      poly.setAttribute('points', '3,1.8 10.2,6 3,10.2');
+      svg.appendChild(poly);
+    } else if (kind === 'pause') {
+      const r1 = doc.createElementNS(SVG_NS, 'rect');
+      r1.setAttribute('x', '2.5');
+      r1.setAttribute('y', '2');
+      r1.setAttribute('width', '2.5');
+      r1.setAttribute('height', '8');
+      r1.setAttribute('rx', '0.6');
+      const r2 = doc.createElementNS(SVG_NS, 'rect');
+      r2.setAttribute('x', '7');
+      r2.setAttribute('y', '2');
+      r2.setAttribute('width', '2.5');
+      r2.setAttribute('height', '8');
+      r2.setAttribute('rx', '0.6');
+      svg.appendChild(r1);
+      svg.appendChild(r2);
+    } else if (kind === 'prev') {
+      const bar = doc.createElementNS(SVG_NS, 'rect');
+      bar.setAttribute('x', '2');
+      bar.setAttribute('y', '2.2');
+      bar.setAttribute('width', '1.6');
+      bar.setAttribute('height', '7.6');
+      bar.setAttribute('rx', '0.5');
+      const poly = doc.createElementNS(SVG_NS, 'polygon');
+      poly.setAttribute('points', '9.8,2.2 4.2,6 9.8,9.8');
+      svg.appendChild(bar);
+      svg.appendChild(poly);
+    } else {
+      const poly = doc.createElementNS(SVG_NS, 'polygon');
+      poly.setAttribute('points', '2.2,2.2 7.8,6 2.2,9.8');
+      const bar = doc.createElementNS(SVG_NS, 'rect');
+      bar.setAttribute('x', '8.4');
+      bar.setAttribute('y', '2.2');
+      bar.setAttribute('width', '1.6');
+      bar.setAttribute('height', '7.6');
+      bar.setAttribute('rx', '0.5');
+      svg.appendChild(poly);
+      svg.appendChild(bar);
+    }
+    return svg;
+  }
+
+  private styleTimelineButton(
+    btn: HTMLButtonElement,
+    isLight: boolean,
+    disabled: boolean,
+    accent = false,
+  ): void {
+    btn.disabled = disabled;
+    btn.style.display = 'inline-flex';
+    btn.style.alignItems = 'center';
+    btn.style.justifyContent = 'center';
+    btn.style.width = '24px';
+    btn.style.height = '24px';
+    btn.style.padding = '0';
+    btn.style.borderRadius = '6px';
+    btn.style.border = 'none';
+    btn.style.flexShrink = '0';
+    btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+    btn.style.opacity = disabled ? '0.38' : '1';
+    if (accent) {
+      btn.style.background = isLight
+        ? 'rgba(15, 23, 42, 0.92)'
+        : 'rgba(226, 232, 240, 0.94)';
+      btn.style.color = isLight ? '#f8fafc' : '#0f172a';
+    } else {
+      btn.style.background = isLight
+        ? 'rgba(241, 245, 249, 0.9)'
+        : 'rgba(30, 41, 59, 0.72)';
+      btn.style.color = isLight ? '#334155' : '#cbd5e1';
+    }
+  }
+
+  private syncTimelineOverlay(
+    state: SimplexTimelineState<TItem> | null,
+  ): void {
+    if (this.destroyed) return;
+    if (!state || !this.timelineShowControls || state.frames.length === 0) {
+      if (this.timelineOverlayEl) {
+        this.timelineOverlayEl.style.display = 'none';
+      }
+      return;
+    }
+
+    const isLight = this.currentTheme === 'light';
+    const doc = this.containerEl.ownerDocument;
+    this.ensureContainerPositioned();
+
+    if (!this.timelineOverlayEl || !this.timelineUiRefs) {
+      const el = doc.createElement('div');
+      el.className = 'sv-timeline-bar';
+      el.setAttribute('role', 'region');
+      el.setAttribute('aria-label', 'Timeline playback controls');
+      el.style.position = 'absolute';
+      el.style.left = '50%';
+      el.style.transform = 'translateX(-50%)';
+      el.style.zIndex = '17';
+      el.style.display = 'flex';
+      el.style.alignItems = 'center';
+      el.style.gap = '6px';
+      el.style.maxWidth = 'calc(100% - 24px)';
+      el.style.padding = '5px 10px';
+      el.style.borderRadius = '8px';
+      el.style.backdropFilter = 'blur(8px)';
+      el.style.fontFamily =
+        'Plus Jakarta Sans, ui-sans-serif, system-ui, sans-serif';
+      el.style.fontSize = '11px';
+
+      const stopEvt = (ev: Event) => {
+        ev.stopPropagation();
+      };
+      el.addEventListener('pointerdown', stopEvt);
+      el.addEventListener('click', stopEvt);
+      el.addEventListener('wheel', stopEvt);
+
+      const playBtn = doc.createElement('button');
+      playBtn.type = 'button';
+      playBtn.setAttribute('data-sv-timeline-action', 'toggle');
+      playBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        this.timelineController?.toggle();
+      });
+
+      const prevBtn = doc.createElement('button');
+      prevBtn.type = 'button';
+      prevBtn.setAttribute('data-sv-timeline-action', 'prev');
+      prevBtn.setAttribute('aria-label', 'Previous step');
+      prevBtn.title = 'Previous step';
+      prevBtn.appendChild(this.createTimelineIconSvg(doc, 'prev'));
+      prevBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        this.timelineController?.pause();
+        this.timelineController?.stepBy(-1);
+      });
+
+      const scrubber = doc.createElement('input');
+      scrubber.type = 'range';
+      scrubber.min = '0';
+      scrubber.step = '1';
+      scrubber.setAttribute('data-sv-timeline-action', 'scrubber');
+      scrubber.setAttribute('aria-label', 'Timeline step');
+      scrubber.style.width = '128px';
+      scrubber.style.minWidth = '64px';
+      scrubber.style.margin = '0 2px';
+      scrubber.style.cursor = 'pointer';
+      scrubber.addEventListener('input', (ev) => {
+        ev.stopPropagation();
+        const nextVal = Number((ev.target as HTMLInputElement).value);
+        this.timelineController?.pause();
+        this.timelineController?.seek(nextVal);
+      });
+
+      const nextBtn = doc.createElement('button');
+      nextBtn.type = 'button';
+      nextBtn.setAttribute('data-sv-timeline-action', 'next');
+      nextBtn.setAttribute('aria-label', 'Next step');
+      nextBtn.title = 'Next step';
+      nextBtn.appendChild(this.createTimelineIconSvg(doc, 'next'));
+      nextBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        this.timelineController?.pause();
+        this.timelineController?.stepBy(1);
+      });
+
+      const labelEl = doc.createElement('span');
+      labelEl.setAttribute('data-sv-timeline-label', '');
+      labelEl.style.fontWeight = '600';
+      labelEl.style.whiteSpace = 'nowrap';
+      labelEl.style.paddingLeft = '2px';
+
+      const countEl = doc.createElement('span');
+      countEl.setAttribute('data-sv-timeline-count', '');
+      countEl.style.fontVariantNumeric = 'tabular-nums';
+      countEl.style.whiteSpace = 'nowrap';
+      countEl.style.fontSize = '10px';
+
+      el.appendChild(playBtn);
+      el.appendChild(prevBtn);
+      el.appendChild(scrubber);
+      el.appendChild(nextBtn);
+      el.appendChild(labelEl);
+      el.appendChild(countEl);
+
+      this.containerEl.appendChild(el);
+      this.timelineOverlayEl = el;
+      this.timelineUiRefs = {
+        playBtn,
+        prevBtn,
+        nextBtn,
+        scrubber,
+        labelEl,
+        countEl,
+      };
+    }
+
+    const el = this.timelineOverlayEl;
+    const refs = this.timelineUiRefs;
+
+    el.style.display = 'flex';
+    if (this.timelinePosition === 'top') {
+      el.style.top = '12px';
+      el.style.bottom = '';
+    } else {
+      el.style.bottom = '12px';
+      el.style.top = '';
+    }
+    el.style.background = isLight
+      ? 'rgba(255, 255, 255, 0.95)'
+      : 'rgba(11, 15, 23, 0.93)';
+    el.style.border = isLight
+      ? '1px solid rgba(203, 213, 225, 0.95)'
+      : '1px solid rgba(51, 65, 85, 0.92)';
+    el.style.boxShadow = isLight
+      ? '0 4px 14px rgba(15, 23, 42, 0.08)'
+      : '0 4px 16px rgba(0, 0, 0, 0.36)';
+    el.style.color = isLight ? '#0f172a' : '#e2e8f0';
+
+    while (refs.playBtn.firstChild) {
+      refs.playBtn.removeChild(refs.playBtn.firstChild);
+    }
+    refs.playBtn.appendChild(
+      this.createTimelineIconSvg(doc, state.playing ? 'pause' : 'play'),
+    );
+    refs.playBtn.setAttribute(
+      'aria-label',
+      state.playing ? 'Pause timeline' : 'Play timeline',
+    );
+    refs.playBtn.title = state.playing ? 'Pause' : 'Play';
+    this.styleTimelineButton(
+      refs.playBtn,
+      isLight,
+      state.totalSteps <= 0,
+      true,
+    );
+    this.styleTimelineButton(refs.prevBtn, isLight, state.atStart);
+    this.styleTimelineButton(refs.nextBtn, isLight, state.atEnd);
+
+    refs.scrubber.max = String(state.totalSteps);
+    refs.scrubber.value = String(state.step);
+    refs.scrubber.disabled = state.totalSteps <= 0;
+    refs.scrubber.style.accentColor = isLight ? '#0f172a' : '#e2e8f0';
+
+    refs.labelEl.textContent = state.activeLabel;
+    refs.labelEl.style.color = isLight ? '#0f172a' : '#f8fafc';
+    refs.countEl.textContent = `${state.activeItemCount}/${state.totalItemCount}`;
+    refs.countEl.style.color = isLight ? '#64748b' : '#94a3b8';
   }
 
   private readonly onPointerDown = (e: PointerEvent): void => {
@@ -1664,8 +2337,10 @@ export class SimplexSvgController<
         this.fpsAccumMs = 0;
       }
 
+      this.timelineController?.tick(dtMs);
       const settled = this.engine.step(dtMs);
-      if (!settled) {
+      const timelinePlaying = this.timelineController?.getState().playing ?? false;
+      if (!settled || timelinePlaying) {
         this.rafId = requestAnimationFrame(tick);
       } else {
         this.rafId = null;
@@ -1686,6 +2361,8 @@ export class SimplexSvgController<
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
+    this.detachTimelineController();
+    this.timelineStateListeners.clear();
     this.resizeObserver?.disconnect();
     this.fontLoadCleanup?.();
     this.fontLoadCleanup = null;
@@ -1698,6 +2375,11 @@ export class SimplexSvgController<
     if (this.breadcrumbOverlayEl && this.breadcrumbOverlayEl.parentElement === this.containerEl) {
       this.containerEl.removeChild(this.breadcrumbOverlayEl);
       this.breadcrumbOverlayEl = null;
+    }
+    if (this.timelineOverlayEl && this.timelineOverlayEl.parentElement === this.containerEl) {
+      this.containerEl.removeChild(this.timelineOverlayEl);
+      this.timelineOverlayEl = null;
+      this.timelineUiRefs = null;
     }
     if (this.svgEl.parentElement === this.containerEl) {
       this.containerEl.removeChild(this.svgEl);

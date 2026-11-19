@@ -4,7 +4,7 @@ shortTitle: Quickstart
 description: Install SimplexViz in under two minutes, understand its strict headless/SVG/React package separation, and inspect every default setting.
 section: Getting Started
 order: 1
-updatedDate: "2026-11-15"
+updatedDate: "2026-11-19"
 summaryPoints:
   - Zero-config defaults solve 60-degree equilateral simplex layouts with guaranteed 0.0 px convex overlap.
   - Works identically for tagged records, single- or multi-modal vector embeddings, and pairwise similarity kernels.
@@ -12,7 +12,7 @@ summaryPoints:
 relatedApiSlug: react
 ---
 
-SimplexViz maps high-dimensional collections onto an **adaptive 60° equilateral triangle mesh**, blends node colors in perceptual **OKLab** space, separates every convex hull to **`0.0 px` overlap**, and supports conformal **`1:4` hierarchical drill-down**.
+SimplexViz maps high-dimensional collections onto an **adaptive 60° equilateral triangle mesh**, blends node colors in perceptual **OKLab** space, separates every convex hull to **`0.0 px` overlap**, and supports conformal **`1:4` hierarchical drill-down** plus path-independent **chronological timeline playback**.
 
 ## Choose Your Package Layer
 
@@ -20,9 +20,9 @@ Each higher-level package re-exports all strategies, views, and TypeScript types
 
 | Package | Runtime & Dependencies | Primary Entry Points |
 | --- | --- | --- |
-| `@simplex-viz/react` | React 18 / 19 | `<SimplexTopicGraph />`, `useSimplexGraphController()` |
+| `@simplex-viz/react` | React 18 / 19 | `<SimplexTopicGraph />`, `useSimplexGraphController()`, `useSimplexTimeline()` |
 | `@simplex-viz/svg` | Vanilla TS, Vue, Svelte, Angular, Web Components | `createSimplexSvg()`, `SimplexSvgController`, `SvgRendererAdapter` |
-| `@simplex-viz/core` | Browser, Node.js, Bun, Deno, Web Workers (`0` deps, no DOM) | `solveSimplexSnapshot()`, `SimplexGraphEngine` |
+| `@simplex-viz/core` | Browser, Node.js, Bun, Deno, Web Workers (`0` deps, no DOM) | `solveSimplexSnapshot()`, `SimplexGraphEngine`, `createSimplexTimeline()` |
 
 ## React Quickstart
 
@@ -107,4 +107,6 @@ Every pipeline stage ships with a named deterministic default strategy out of th
 | `colorStrategy` | **OKLab Edge Contrast** | `createOklabContrastColorStrategy()` — Greedy + swap OKLab edge contrast (`ΔE_OK`) + barycentric OKLab mixing. |
 | `layoutStrategy` | **Uniform PBD Layout** | `createPbdUniformLayoutStrategy()` — Mesh-inward fan seeder + space-filling PBD dispersion + global uniform scale search (`0.0 px` overlap). |
 | `zoomStrategy` | **Continuous Free Camera** | `createFreeCameraZoomStrategy()` — Continuous cursor wheel zoom, drag-to-pan, and 2-finger touch pinch. |
+| `timeline` | **Disabled (`false`)** | Opt-in `true \| TimelinePlayerOptions` — Built-in Play/Pause/Step/Scrubber HUD with `autoFinalSeed`, `autoFinalSeedLayout` (`false \| 'pinned' \| 'adaptive'`), and `emptyClusterBehavior`. |
+| `emptyClusterBehavior` | **Normal (`'normal'`)** | `'normal' \| 'dim' \| 'hide'` — Controls how `0`-item clusters render (e.g., future clusters during chronological playback). |
 | `preset` / `theme` | **Geometric Preset (Dark)** | `'geometric'` / `'dark'` — Morphing geometric SVG content shapes + cluster badges on dark canvas. |

@@ -40,6 +40,7 @@ import type {
   ContentLayoutContext,
   ConvexGeometry,
   DefaultTaggedItem,
+  EmptyClusterBehavior,
   HitTarget,
   IdentifiedItem,
   InteractionHandlers,
@@ -376,6 +377,9 @@ export class SimplexGraphEngine<
   private theme: SimplexColorTheme;
   private previousTheme: SimplexColorTheme | undefined;
   private showHulls: boolean;
+  private emptyClusterBehavior: EmptyClusterBehavior = 'normal';
+  private canonicalSeedItems: readonly TItem[] | null = null;
+  private visualResolverRevision = 0;
   private interactions: InteractionHandlers<
     TItem,
     TContentVisual,
@@ -542,6 +546,10 @@ export class SimplexGraphEngine<
       config.zoomStrategy ??
       createFreeCameraZoomStrategy<TItem, TTagMeta, TClusterMeta>();
     this.theme = config.theme ?? 'dark';
+    this.emptyClusterBehavior = config.emptyClusterBehavior ?? 'normal';
+    this.canonicalSeedItems = config.canonicalSeedItems
+      ? [...config.canonicalSeedItems]
+      : null;
     this.showHulls = config.showHulls ?? false;
     this.interactions = config.interactions ?? {};
     this.onMetricsChange = config.onMetricsChange;
@@ -1095,6 +1103,7 @@ export class SimplexGraphEngine<
     >,
   ): void {
     this.visualResolver = resolver;
+    this.visualResolverRevision += 1;
     this.recomputeLayoutOnly('strategy');
   }
 
@@ -1123,6 +1132,7 @@ export class SimplexGraphEngine<
    */
   relayout(): void {
     if (this.destroyed) return;
+    this.visualResolverRevision += 1;
     this.recomputeLayoutOnly('strategy');
   }
 
@@ -1131,6 +1141,45 @@ export class SimplexGraphEngine<
     if (this.showHulls === show) return;
     this.showHulls = show;
     this.dirtyRender = true;
+  }
+
+  /** Returns the current empty-cluster visual behavior (`'normal' | 'dim' | 'hide'`). */
+  getEmptyClusterBehavior(): EmptyClusterBehavior {
+    return this.emptyClusterBehavior;
+  }
+
+  /**
+   * Configures how clusters with `0` active member items are rendered
+   * (`'normal'`, `'dim'`, or `'hide'`).
+   */
+  setEmptyClusterBehavior(behavior: EmptyClusterBehavior): void {
+    if (this.emptyClusterBehavior === behavior) return;
+    this.emptyClusterBehavior = behavior;
+    for (const cNode of this.clusterNodes.values()) {
+      if (cNode.status !== 'active') continue;
+      const targetOpacity =
+        behavior === 'hide' && cNode.domain.members.length === 0 ? 0 : 1;
+      cNode.opacity.target = targetOpacity;
+      if (behavior === 'hide' && cNode.domain.members.length === 0) {
+        if (this.hoveredClusterUid === cNode.id) {
+          this.hoveredClusterUid = null;
+        }
+      }
+    }
+    this.dirtyRender = true;
+    this.renderNow();
+  }
+
+  /**
+   * Sets (or clears) the full canonical item corpus used to seed layout strategies
+   * supporting `seedCanonicalLayout` (such as `createFinalSeededLayoutStrategy`).
+   */
+  setCanonicalSeedItems(items: readonly TItem[] | null): void {
+    this.canonicalSeedItems = items ? [...items] : null;
+    if (this.destroyed) return;
+    if (this.layoutStrategy.seedCanonicalLayout) {
+      this.recomputeLayoutOnly('strategy');
+    }
   }
 
   /** Updates interaction callbacks cleanly without recreating the engine. */
@@ -1657,6 +1706,183 @@ export class SimplexGraphEngine<
     this.onClustersChange?.(this.currentClusters);
   }
 
+  private ensureCanonicalLayoutSeeded(
+    mesh: SimplexMesh,
+    reason: PipelineUpdateReason,
+  ): void {
+    const seedItems = this.canonicalSeedItems;
+    if (!seedItems || seedItems.length === 0 || !this.layoutStrategy.seedCanonicalLayout) {
+      return;
+    }
+
+    const fullIdentified = extractIdentifiedItems(seedItems, this.getIdFn);
+    if (fullIdentified.length === 0) return;
+
+    const meshSig = mesh.vertices
+      .map((v) => `${v.x.toFixed(1)},${v.y.toFixed(1)}`)
+      .join(';');
+    const clusterSig = this.currentClusters
+      .map((c) => `${c.clusterUid}@${c.clusterIndex}`)
+      .join(',');
+    const itemIdSig = fullIdentified.map((it) => it.id).join(',');
+    const seedSignature = [
+      `v${this.visualResolverRevision}`,
+      this.theme,
+      this.clusteringStrategy.name,
+      this.colorStrategy.name,
+      `${Math.max(this.viewportWidth, mesh.width)}x${Math.max(this.viewportHeight, mesh.height)}`,
+      meshSig,
+      clusterSig,
+      `sm=${this.layoutOptions.sizeMultiplier ?? 1}`,
+      `cg=${this.layoutOptions.clusterGapPx ?? ''}`,
+      `ig=${this.layoutOptions.itemGapPx ?? ''}`,
+      `ms=${this.layoutOptions.minContentScale ?? ''}`,
+      `ri=${this.layoutOptions.relaxationIterations ?? ''}`,
+      `sd=${this.layoutOptions.seed ?? ''}`,
+      `n=${fullIdentified.length}`,
+      itemIdSig,
+    ].join('|');
+
+    if (
+      this.layoutStrategy.needsCanonicalSeed &&
+      !this.layoutStrategy.needsCanonicalSeed(seedSignature)
+    ) {
+      return;
+    }
+
+    const requiresTags = this.clusteringStrategy.requiresTags !== false;
+    const effectiveGetTags = this.clusteringStrategy.getTags ?? this.getTagsFn;
+    const effectiveNormalizeTag = this.clusteringStrategy.normalizeTag ?? this.normalizeTagFn;
+    const fullNormalized = requiresTags
+      ? extractNormalizedItems(
+          seedItems,
+          this.getIdFn,
+          effectiveGetTags,
+          effectiveNormalizeTag,
+        )
+      : [];
+
+    const currentClusterSnapshots: PreviousClusterSnapshot[] = this.currentClusters.map(
+      (c) => {
+        const tags = new Set<string>();
+        const coreTags = new Set<string>();
+        for (const t of c.coreTags) {
+          tags.add(t.tag);
+          coreTags.add(t.tag);
+        }
+        for (const t of c.sharedTags) tags.add(t.tag);
+        const memberIds = new Set<string>();
+        for (const m of c.members) {
+          memberIds.add(m.itemId);
+        }
+        return {
+          clusterUid: c.clusterUid,
+          tags,
+          coreTags,
+          memberIds,
+          centroid: c.centroid,
+          x: c.gridNode.x,
+          y: c.gridNode.y,
+          colorHex: c.colorHex,
+          oklab: c.oklab,
+        };
+      },
+    );
+
+    let seedUidSeq = 0;
+    const fullClusteringOutput = this.clusteringStrategy.initialize({
+      items: fullIdentified,
+      previousItems: [],
+      normalizedItems: fullNormalized,
+      previousNormalizedItems: [],
+      addedItemIds: new Set(fullIdentified.map((it) => it.id)),
+      removedItemIds: new Set<string>(),
+      mesh,
+      previousMesh: null,
+      previousClusters: currentClusterSnapshots,
+      viewportWidth: this.viewportWidth,
+      viewportHeight: this.viewportHeight,
+      getId: this.getIdFn,
+      getTags: effectiveGetTags,
+      normalizeTag: effectiveNormalizeTag,
+      formatTagLabel: this.formatTagLabelFn,
+      resolveTagMeta: this.resolveTagMetaFn,
+      allocateClusterUid: () => {
+        seedUidSeq += 1;
+        return `seed-cluster-${seedUidSeq}`;
+      },
+      seed: this.layoutOptions.seed ?? 0x51a7c0de,
+      reason: 'initial',
+    });
+
+    const fullFinalized = finalizeClusteringWithColors<TItem, TTagMeta, TClusterMeta>({
+      clusteringOutput: fullClusteringOutput,
+      mesh,
+      colorStrategy: this.colorStrategy,
+      theme: this.theme,
+      previousTheme: this.theme,
+      previousClusters: currentClusterSnapshots,
+      reason: 'initial',
+      seed: this.layoutOptions.seed ?? 0x51a7c0de,
+      deriveClusterMeta: this.deriveClusterMetaFn,
+    });
+
+    const seedClusters = fullFinalized.clusters as readonly ClusterDescriptor<
+      TItem,
+      TTagMeta,
+      TClusterMeta
+    >[];
+    const seedPlacements = fullFinalized.items as readonly ComputedItemPlacement<
+      TItem,
+      TTagMeta,
+      TClusterMeta
+    >[];
+
+    const resolvedSeedClusters = seedClusters.map((cluster) => {
+      const visual = this.visualResolver.resolveClusterVisual(cluster);
+      const cacheKey = this.visualResolver.getVisualCacheKey(visual);
+      const hull = this.renderer.measureClusterHull(visual, cacheKey);
+      return {
+        id: cluster.clusterUid,
+        targetX: cluster.gridNode.x,
+        targetY: cluster.gridNode.y,
+        hull,
+      };
+    });
+
+    const resolvedSeedItems = seedPlacements.map((placement) => {
+      const visual = this.visualResolver.resolveContentVisual(
+        placement.item,
+        placement.layoutContext,
+      );
+      const cacheKey = this.visualResolver.getVisualCacheKey(visual);
+      const hull = this.renderer.measureContentHull(visual, cacheKey);
+      return {
+        id: placement.id,
+        anchorX: placement.anchorX,
+        anchorY: placement.anchorY,
+        hull,
+        unitVertexIndices: placement.layoutContext.unitClusters.map(
+          (uc) => uc.cluster.clusterIndex,
+        ),
+      };
+    });
+
+    this.layoutStrategy.seedCanonicalLayout(
+      {
+        clusters: resolvedSeedClusters,
+        items: resolvedSeedItems,
+        mesh,
+        viewportWidth: Math.max(this.viewportWidth, mesh.width),
+        viewportHeight: Math.max(this.viewportHeight, mesh.height),
+        viewportMargin: 8,
+        layoutOptions: this.layoutOptions,
+        reason: reason === 'viewport' ? 'viewport' : 'initial',
+      },
+      seedSignature,
+    );
+  }
+
   private recomputeLayoutOnly(reason: PipelineUpdateReason = 'strategy'): void {
     this.solvedFrameCache.clear();
     this.recomputeLayoutAndReconcile(false, this.currentMetrics.tagCount, reason);
@@ -1736,6 +1962,17 @@ export class SimplexGraphEngine<
             });
           }
         }
+      }
+
+      // 1b. Seed canonical full-corpus layout when a final-seeded layout strategy is active at root level
+      if (
+        !drillFlight &&
+        this.zoomStack.length === 0 &&
+        this.canonicalSeedItems &&
+        this.canonicalSeedItems.length > 0 &&
+        this.layoutStrategy.seedCanonicalLayout
+      ) {
+        this.ensureCanonicalLayoutSeeded(mesh, reason);
       }
 
       // 2. Solve strictly overlap-free layout via active SimplexLayoutStrategy
@@ -2392,6 +2629,10 @@ export class SimplexGraphEngine<
         const placed = solved.clusters[idx]!;
         const uid = rc.cluster.clusterUid;
         activeClusterIds.add(uid);
+        const clusterTargetOpacity =
+          this.emptyClusterBehavior === 'hide' && rc.cluster.members.length === 0
+            ? 0
+            : 1;
 
         const existing = this.clusterNodes.get(uid);
         if (!existing) {
@@ -2405,7 +2646,11 @@ export class SimplexGraphEngine<
               velocity: 0,
               target: placed.scale,
             },
-            opacity: { value: isInitial ? 1 : 0, velocity: 0, target: 1 },
+            opacity: {
+              value: isInitial ? clusterTargetOpacity : 0,
+              velocity: 0,
+              target: clusterTargetOpacity,
+            },
             visual: rc.visual,
             hull: rc.hull,
             cacheKey: rc.cacheKey,
@@ -2426,7 +2671,7 @@ export class SimplexGraphEngine<
           existing.x.target = placed.x;
           existing.y.target = placed.y;
           existing.scale.target = placed.scale;
-          existing.opacity.target = 1;
+          existing.opacity.target = clusterTargetOpacity;
           existing.visual = rc.visual;
           existing.hull = rc.hull;
           existing.cacheKey = rc.cacheKey;
@@ -3119,9 +3364,13 @@ export class SimplexGraphEngine<
         hasTriangleOnlyFocus && focusedTriVertSet?.has(cNode.domain.clusterIndex),
       );
       const isPinned = this.pinnedIds.has(cNode.id);
+      const isEmptyCluster = cNode.domain.members.length === 0;
+      const isHiddenEmptyCluster =
+        this.emptyClusterBehavior === 'hide' && isEmptyCluster;
       const isDimmed =
         (this.focusedClusterUid !== null && !isFocusedCluster && !isHovered) ||
-        (hasTriangleOnlyFocus && !inFocusedTriangle && !isHovered);
+        (hasTriangleOnlyFocus && !inFocusedTriangle && !isHovered) ||
+        (this.emptyClusterBehavior === 'dim' && isEmptyCluster && !isHovered);
 
       clusters.push({
         id: cNode.id,
@@ -3132,6 +3381,7 @@ export class SimplexGraphEngine<
         visual: cNode.visual,
         hull: cNode.hull,
         cacheKey: cNode.cacheKey,
+        isPassThrough: isHiddenEmptyCluster ? true : undefined,
         interaction: {
           isHovered,
           isPinned,
@@ -3625,7 +3875,13 @@ export class SimplexGraphEngine<
     const clusterList = [...this.clusterNodes.values()];
     for (let i = clusterList.length - 1; i >= 0; i--) {
       const node = clusterList[i]!;
-      if (node.status !== 'active' || node.opacity.value < 0.15) continue;
+      if (
+        node.status !== 'active' ||
+        node.opacity.value < 0.15 ||
+        (this.emptyClusterBehavior === 'hide' && node.domain.members.length === 0)
+      ) {
+        continue;
+      }
       if (
         hitTestConvexGeometry(
           node.hull,

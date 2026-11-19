@@ -15,6 +15,7 @@ import {
   createSoftSimplexTagClusteringStrategy,
   createThemeAdaptiveOklabColorStrategy,
   createWarmStartPbdLayoutStrategy,
+  type TimelinePlayerOptions,
 } from '@simplex-viz/react';
 import { useMemo, useState } from 'react';
 import type { CommonsThumbManifest } from '../../demo/commonsThumbs';
@@ -72,6 +73,7 @@ export interface UseCaseMiniAtlasProps {
   readonly zoomStrategy: CanonicalZoomStrategyId;
   readonly nodeView: ContentRendererKind;
   readonly thumbManifest?: CommonsThumbManifest;
+  readonly timelineEnabled?: boolean;
   readonly embedded?: boolean;
 }
 
@@ -111,6 +113,7 @@ export function UseCaseMiniAtlas({
   zoomStrategy: zoomId,
   nodeView,
   thumbManifest,
+  timelineEnabled = false,
   embedded = false,
 }: UseCaseMiniAtlasProps) {
   const theme = useDocumentDarkTheme();
@@ -288,6 +291,23 @@ export function UseCaseMiniAtlas({
     [datasetId, zoomId],
   );
 
+  const timelineOptions = useMemo<TimelinePlayerOptions<DemoEntity> | undefined>(() => {
+    if (!timelineEnabled) return undefined;
+    return {
+      getTimestamp: (entity) => {
+        if (entity.kind === 'media') return entity.media.releaseYear;
+        if (entity.kind === 'knowledge') return entity.entry.publishedYear;
+        return undefined;
+      },
+      stepIntervalMs: 550,
+      showControls: true,
+      autoFinalSeed: true,
+      autoFinalSeedLayout: 'adaptive',
+      emptyClusterBehavior: 'dim',
+      position: 'bottom',
+    };
+  }, [timelineEnabled]);
+
   const activeContentView =
     effectiveNodeView === 'react-card'
       ? undefined
@@ -359,6 +379,7 @@ export function UseCaseMiniAtlas({
           zoomStrategy={zoomStrategyInstance}
           theme={theme}
           showZoomBreadcrumbs
+          timeline={timelineOptions}
           pinnedIds={inspector.pinnedIds}
           onContentClick={(ev) =>
             inspector.handleContentClick(ev.item, ev.layoutContext)

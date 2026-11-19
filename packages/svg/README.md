@@ -74,6 +74,8 @@ const controller = createSimplexSvg('#graph', items);
 | `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Mesh-inward fan seeding + space-filling PBD dispersion + global uniform scale search (`0.0 px` overlap). |
 | `zoomStrategy` | `createFreeCameraZoomStrategy()` | Continuous cursor wheel zoom (`onWheel: 'zoom-to-cursor'`), 2-finger pinch, and drag-to-pan. |
 | `showZoomBreadcrumbs` | `true` | Displays clickable navigation breadcrumbs automatically when `depth > 0` in drill-down mode. |
+| `timeline` | `false` | Opt-in chronological frame stepping & playback (`true` or `TimelinePlayerOptions`) with floating Play/Pause/Step/Scrubber HUD, `autoFinalSeed`, `autoFinalSeedLayout` (`false \| 'pinned' \| 'adaptive'`), and `emptyClusterBehavior`. |
+| `emptyClusterBehavior` | `'normal'` | `'normal' \| 'dim' \| 'hide'` — Controls how clusters with `0` active items render (e.g., future clusters during timeline replay). |
 | `relayoutOnFontLoad` | `true` | Automatically clears SVG hull caches and re-solves layout after `document.fonts.ready` / `loadingdone`. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode unless consumed (`return true`) by a click handler. |
 | `tooltip` | `true` for `createSimplexSvg(el, items)`, `false` in options | Floating DOM hover tooltip (`boolean` or custom `(target) => string` formatter). |
@@ -297,6 +299,36 @@ controller.setInteractions({
 });
 ```
 
+### Step 7 — Chronological Timeline Playback, Final-Seeded Layout & Empty-Cluster Dimming
+
+Enable chronological frame stepping and playback via `timeline`. By default, `autoFinalSeed: true` pins canonical full-corpus clusters (`createFinalSeededClusteringStrategy`), while `autoFinalSeedLayout` (`false | 'pinned' | 'adaptive'`) pins item positions (`createFinalSeededLayoutStrategy`) and `emptyClusterBehavior` (`'normal' | 'dim' | 'hide'`) controls how future `0`-item clusters appear:
+
+```ts
+import { SimplexSvgController } from '@simplex-viz/svg';
+
+const controller = new SimplexSvgController('#graph', {
+  items: releaseHistory,
+  getId: (r) => r.id,
+  getTags: (r) => r.tags,
+  timeline: {
+    getTimestamp: (r) => r.releaseYear,
+    stepIntervalMs: 850,
+    showControls: true,
+    position: 'bottom',              // 'bottom' | 'top'
+    autoFinalSeed: true,             // pin full-corpus clusters & OKLab hues
+    autoFinalSeedLayout: 'adaptive', // false | 'pinned' | 'adaptive'
+    emptyClusterBehavior: 'dim',     // 'normal' | 'dim' | 'hide'
+  },
+  onTimelineStateChange: (state) => {
+    console.log(`Frame ${state.step}/${state.totalSteps - 1}: ${state.activeLabel}`);
+  },
+});
+
+// Imperative playback controls via the headless SimplexTimelineController:
+controller.timeline?.play();
+controller.timeline?.seek(0);
+```
+
 ---
 
 ## API Reference (`createSimplexSvg` & `SimplexSvgController`)
@@ -311,9 +343,11 @@ controller.setInteractions({
 | `meshStrategy` / `setMeshStrategy(strategy)` | Swaps `SimplexMeshStrategy` (`createAdaptiveHexMeshStrategy`, `createFixedLatticeMeshStrategy`, or custom). |
 | `clusteringStrategy` / `setClusteringStrategy(strategy)` | Swaps `SimplexClusteringStrategy` (Jaccard, Soft-Simplex Tags/Embeddings, Embeddings, Pairwise Similarity, Incremental, `createFinalSeededClusteringStrategy`, or custom). |
 | `colorStrategy` / `setColorStrategy(strategy)` | Swaps `SimplexColorStrategy` (`createOklabContrastColorStrategy`, `createThemeAdaptiveOklabColorStrategy`, `createPaletteColorStrategy`, or custom). |
-| `layoutStrategy` / `setLayoutStrategy(strategy)` | Swaps `SimplexLayoutStrategy` (`createPbdUniformLayoutStrategy`, `createWarmStartPbdLayoutStrategy`, `createLocalAdaptiveLayoutStrategy`, `createCollisionDrivenLayoutStrategy`, `createComposedLayoutStrategy`, or custom). |
+| `layoutStrategy` / `setLayoutStrategy(strategy)` | Swaps `SimplexLayoutStrategy` (`createPbdUniformLayoutStrategy`, `createWarmStartPbdLayoutStrategy`, `createLocalAdaptiveLayoutStrategy`, `createCollisionDrivenLayoutStrategy`, `createFinalSeededLayoutStrategy`, `createComposedLayoutStrategy`, or custom). |
 | `zoomStrategy` / `setZoomStrategy(strategy)` | Swaps `SimplexZoomStrategy` (`createFreeCameraZoomStrategy`, `createBarycentricZoomStrategy`, `createSemanticZoomStrategy`, `createSubspaceZoomStrategy`, or custom). |
-| `showZoomBreadcrumbs` / `setShowZoomBreadcrumbs(show)` | Toggles the built-in top breadcrumb bar when drilled into sub-levels (`default: true`). |
+| `emptyClusterBehavior` / `setEmptyClusterBehavior(mode)` | Controls how clusters with `0` active items render (`'normal'`, `'dim'`, or `'hide'`; default `'normal'`). |
+| `timeline` / `controller.timeline` / `setTimelineOptions(opts)` | Opt-in chronological frame-stepping and playback (`true` or `TimelinePlayerOptions<TItem>`). Renders a compact theme-adaptive Play/Pause/Step/Scrubber HUD bar (`showControls`, `position`), automatically wraps clustering in `createFinalSeededClusteringStrategy` (`autoFinalSeed: true`), optionally pins item positions via `autoFinalSeedLayout` (`false \| 'pinned' \| 'adaptive'`), supports `emptyClusterBehavior` (`'normal' \| 'dim' \| 'hide'`), and exposes the headless `SimplexTimelineController` via `controller.timeline` / `getTimeline()` / `subscribeTimeline()`. |
+| `showZoomBreadcrumbs` / `setZoomUiOptions(opts)` | Toggles the built-in top breadcrumb bar when drilled into sub-levels (`default: true`). |
 | `drillDownTriangle(index)` / `drillDownCluster(uid)` | Drills into a triangle (`1:4` subdivision or `'triangle-focus'` leaf focus) or cluster (`1`-ring `'incident-star'` / `'spotlight'`). |
 | `drillToNeighbor(neighborId)` | Navigates laterally (or auto-zooms out when targeting a neighbor region). |
 | `drillUp()` / `drillToDepth(depth)` / `drillToRoot()` | Navigates up one zoom level, to a specific breadcrumb depth, or back to Overview. |

@@ -8,6 +8,7 @@ import {
   type ContentHoverEvent,
   type ContentLayoutContext,
   type DefaultTaggedItem,
+  type EmptyClusterBehavior,
   type HitTarget,
   type InteractionHandlers,
   type LayoutMetrics,
@@ -18,6 +19,7 @@ import {
   type SimplexColorStrategy,
   type SimplexLayoutStrategy,
   type SimplexMeshStrategy,
+  type SimplexTimelineState,
   type SimplexZoomState,
   type SimplexZoomStrategy,
   type StrategyItemIdentityConfig,
@@ -40,6 +42,7 @@ import {
   type SvgEdgeView,
   type SvgNodeView,
   type SvgTriangleView,
+  type TimelinePlayerOptions,
 } from '@simplex-viz/svg';
 import {
   useEffect,
@@ -206,8 +209,19 @@ export type SimplexTopicGraphProps<
     readonly zoomStrategy?: SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>;
     /** Renders the built-in breadcrumb bar in drill-down mode. Default: `true`. */
     readonly showZoomBreadcrumbs?: boolean;
+    /**
+     * Opt-in chronological timeline / frame-stepping playback support.
+     * Pass `true` for zero-config playback with built-in controls, or a `TimelinePlayerOptions`
+     * object to customize timestamps, frame grouping, playback speed, or built-in HUD placement.
+     */
+    readonly timeline?: boolean | TimelinePlayerOptions<TItem>;
     readonly sizeMultiplier?: number;
     readonly showHulls?: boolean;
+    /**
+     * Controls how clusters with `0` active member items are rendered (`'normal'`, `'dim'`, or `'hide'`).
+     * Especially useful during timeline playback with final-seeded clusters. Default: `'normal'`.
+     */
+    readonly emptyClusterBehavior?: EmptyClusterBehavior;
     readonly pinnedIds?: ReadonlySet<string> | readonly string[];
     readonly highlightedIds?: ReadonlySet<string> | readonly string[];
     readonly focusedClusterUid?: string | null;
@@ -307,6 +321,8 @@ export type SimplexTopicGraphProps<
       clusters: readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[],
     ) => void;
     readonly onZoomStateChange?: (state: SimplexZoomState) => void;
+    /** Invoked whenever the timeline playback state changes (when `timeline` is enabled). */
+    readonly onTimelineStateChange?: (state: SimplexTimelineState<TItem>) => void;
     readonly onFpsUpdate?: (fps: number) => void;
     readonly controllerRef?: MutableRefObject<SimplexSvgController<
       TItem,
@@ -397,6 +413,59 @@ export function SimplexTopicGraph<
   const syncedLayoutOptionsRef = useRef(props.layoutOptions);
   const syncedTriangleViewRef = useRef(props.triangleView);
   const syncedEdgeViewRef = useRef(props.edgeView);
+  const syncedTimelineRef = useRef(props.timeline);
+
+  const resolveTimelineOption = (
+    timeline: boolean | TimelinePlayerOptions<TItem> | undefined,
+  ): boolean | TimelinePlayerOptions<TItem> | undefined => {
+    if (!timeline) return undefined;
+    const baseOpts: TimelinePlayerOptions<TItem> =
+      timeline === true ? {} : timeline;
+    const getLatestTimelineOpts = (): TimelinePlayerOptions<TItem> | null => {
+      const cur = latestPropsRef.current.timeline;
+      return typeof cur === 'object' && cur !== null ? cur : null;
+    };
+    return {
+      ...baseOpts,
+      getTimestamp: baseOpts.getTimestamp
+        ? (item) => {
+            const latest = getLatestTimelineOpts()?.getTimestamp ?? baseOpts.getTimestamp;
+            return latest ? latest(item) : undefined;
+          }
+        : undefined,
+      getFrameKey: baseOpts.getFrameKey
+        ? (item) => {
+            const latest = getLatestTimelineOpts()?.getFrameKey ?? baseOpts.getFrameKey;
+            return latest ? latest(item) : undefined;
+          }
+        : undefined,
+      formatFrameLabel: baseOpts.formatFrameLabel
+        ? (ctx) => {
+            const latest =
+              getLatestTimelineOpts()?.formatFrameLabel ?? baseOpts.formatFrameLabel;
+            return latest ? latest(ctx) : ctx.key;
+          }
+        : undefined,
+      compareFrameKeys: baseOpts.compareFrameKeys
+        ? (a, b) => {
+            const latest =
+              getLatestTimelineOpts()?.compareFrameKeys ?? baseOpts.compareFrameKeys;
+            return latest ? latest(a, b) : 0;
+          }
+        : undefined,
+      onItemsChange: baseOpts.onItemsChange
+        ? (items, state) => {
+            const latest =
+              getLatestTimelineOpts()?.onItemsChange ?? baseOpts.onItemsChange;
+            latest?.(items, state);
+          }
+        : undefined,
+      onStateChange: (state) => {
+        getLatestTimelineOpts()?.onStateChange?.(state);
+        latestPropsRef.current.onTimelineStateChange?.(state);
+      },
+    };
+  };
 
   const resolveEffectiveResolver = (): VisualResolver<
     TItem,
@@ -703,7 +772,9 @@ export function SimplexTopicGraph<
       layoutStrategy: p.layoutStrategy,
       zoomStrategy: p.zoomStrategy,
       showHulls: p.showHulls,
+      emptyClusterBehavior: p.emptyClusterBehavior,
       showZoomBreadcrumbs: p.showZoomBreadcrumbs,
+      timeline: resolveTimelineOption(p.timeline),
       relayoutOnFontLoad: p.relayoutOnFontLoad,
       focusOnClusterClick: false,
       focusOnTriangleClick: false,
@@ -773,6 +844,13 @@ export function SimplexTopicGraph<
     }
   }, [props.showHulls]);
 
+  // Sync emptyClusterBehavior
+  useEffect(() => {
+    if (props.emptyClusterBehavior !== undefined) {
+      ctrlRef.current?.setEmptyClusterBehavior(props.emptyClusterBehavior);
+    }
+  }, [props.emptyClusterBehavior]);
+
   // Sync pluggable core algorithm strategies when props change after mount
   useEffect(() => {
     if (syncedMeshStrategyRef.current === props.meshStrategy) return;
@@ -820,6 +898,41 @@ export function SimplexTopicGraph<
       showZoomBreadcrumbs: props.showZoomBreadcrumbs,
     });
   }, [props.showZoomBreadcrumbs]);
+
+  // Sync timeline option changes after mount
+  useEffect(() => {
+    const prev = syncedTimelineRef.current;
+    const next = props.timeline;
+    if (prev === next) return;
+    if (
+      typeof prev === 'object' &&
+      prev !== null &&
+      typeof next === 'object' &&
+      next !== null &&
+      prev.showControls === next.showControls &&
+      prev.position === next.position &&
+      prev.autoFinalSeed === next.autoFinalSeed &&
+      prev.autoFinalSeedLayout === next.autoFinalSeedLayout &&
+      prev.emptyClusterBehavior === next.emptyClusterBehavior &&
+      prev.stepIntervalMs === next.stepIntervalMs &&
+      prev.speed === next.speed &&
+      prev.loop === next.loop &&
+      prev.autoPlay === next.autoPlay &&
+      prev.initialStep === next.initialStep &&
+      prev.includeEmptyStart === next.includeEmptyStart &&
+      prev.baselineLabel === next.baselineLabel &&
+      prev.emptyStartLabel === next.emptyStartLabel &&
+      Boolean(prev.getTimestamp) === Boolean(next.getTimestamp) &&
+      Boolean(prev.getFrameKey) === Boolean(next.getFrameKey) &&
+      Boolean(prev.formatFrameLabel) === Boolean(next.formatFrameLabel) &&
+      Boolean(prev.compareFrameKeys) === Boolean(next.compareFrameKeys)
+    ) {
+      syncedTimelineRef.current = next;
+      return;
+    }
+    syncedTimelineRef.current = next;
+    ctrlRef.current?.setTimelineOptions(resolveTimelineOption(next));
+  }, [props.timeline]);
 
   // Sync wheel policy so `'none'`, `'pan-vertical'`, `'zoom-to-cursor'`, and custom callbacks stay live
   useEffect(() => {

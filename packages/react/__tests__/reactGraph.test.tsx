@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { render } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   BarycentricSectorTriangleSvgView,
@@ -7,6 +7,10 @@ import {
   SimplexTopicGraph,
   createBarycentricZoomStrategy,
   createEmbeddingClusteringStrategy,
+  createSimplexTimeline,
+  useSimplexGraphController,
+  useSimplexTimeline,
+  type SimplexTimelineState,
 } from '../src/index';
 
 interface CustomDoc {
@@ -418,6 +422,174 @@ describe('@simplex-viz/react integration', () => {
     for (const cg of updatedClusterNodes) {
       expect(cg.querySelectorAll('text').length).toBe(3);
     }
+
+    unmount();
+  });
+
+  it('supports timeline prop, onTimelineStateChange, and declarative useSimplexTimeline hook controls (Issue #8)', () => {
+    interface DatedEntry {
+      readonly id: string;
+      readonly title: string;
+      readonly tags: readonly string[];
+      readonly year: number;
+    }
+
+    const entries: readonly DatedEntry[] = [
+      { id: 'e1', title: 'First', tags: ['alpha', 'beta'], year: 2021 },
+      { id: 'e2', title: 'Second', tags: ['beta', 'gamma'], year: 2022 },
+      { id: 'e3', title: 'Third', tags: ['alpha', 'gamma'], year: 2023 },
+      { id: 'e4', title: 'Fourth', tags: ['alpha', 'delta'], year: 2023 },
+    ];
+
+    const callbackStates: SimplexTimelineState<DatedEntry>[] = [];
+
+    function TimelineHost() {
+      const { controllerRef } = useSimplexGraphController<DatedEntry>();
+      const tl = useSimplexTimeline(controllerRef);
+
+      return (
+        <div style={{ width: 820, height: 540 }}>
+          <SimplexTopicGraph
+            controllerRef={controllerRef}
+            items={entries}
+            getLabel={(e) => e.title}
+            timeline={{
+              getTimestamp: (e) => e.year,
+              stepIntervalMs: 300,
+              showControls: true,
+            }}
+            onTimelineStateChange={(st) => {
+              callbackStates.push(st);
+            }}
+          />
+          <div data-testid="tl-step">{tl.state?.step ?? -1}</div>
+          <div data-testid="tl-label">{tl.state?.activeLabel ?? ''}</div>
+          <div data-testid="tl-playing">{String(tl.state?.playing ?? false)}</div>
+          <button type="button" data-testid="tl-seek-0" onClick={() => tl.seek(0)}>
+            Start
+          </button>
+          <button type="button" data-testid="tl-next" onClick={() => tl.stepBy(1)}>
+            Next
+          </button>
+          <button type="button" data-testid="tl-play" onClick={() => tl.play()}>
+            Play
+          </button>
+          <button type="button" data-testid="tl-reset" onClick={() => tl.resetToEnd()}>
+            End
+          </button>
+        </div>
+      );
+    }
+
+    const { container, getByTestId, unmount } = render(<TimelineHost />);
+
+    // Built-in player bar is mounted and hook reflects initial full-corpus frame (step 2 = '2023')
+    expect(container.querySelector('.sv-timeline-bar')).not.toBeNull();
+    expect(getByTestId('tl-step').textContent).toBe('2');
+    expect(getByTestId('tl-label').textContent).toBe('2023');
+    expect(callbackStates.at(-1)?.step).toBe(2);
+
+    // Declarative hook seek(0) and stepBy(1) update React state and underlying graph
+    act(() => {
+      getByTestId('tl-seek-0').click();
+    });
+    expect(getByTestId('tl-step').textContent).toBe('0');
+    expect(getByTestId('tl-label').textContent).toBe('2021');
+
+    act(() => {
+      getByTestId('tl-next').click();
+    });
+    expect(getByTestId('tl-step').textContent).toBe('1');
+    expect(getByTestId('tl-label').textContent).toBe('2022');
+
+    act(() => {
+      getByTestId('tl-play').click();
+    });
+    expect(getByTestId('tl-playing').textContent).toBe('true');
+
+    act(() => {
+      getByTestId('tl-reset').click();
+    });
+    expect(getByTestId('tl-playing').textContent).toBe('false');
+    expect(getByTestId('tl-step').textContent).toBe('2');
+
+    unmount();
+
+    // Standalone SimplexTimelineController source also works directly with useSimplexTimeline
+    const standalone = createSimplexTimeline(entries, {
+      getTimestamp: (e) => e.year,
+      initialStep: 0,
+    });
+    function StandaloneReader() {
+      const tl = useSimplexTimeline(standalone);
+      return (
+        <span data-testid="standalone-label">
+          {tl.state?.activeLabel}:{tl.state?.activeItemCount}
+        </span>
+      );
+    }
+    const standaloneView = render(<StandaloneReader />);
+    expect(standaloneView.getByTestId('standalone-label').textContent).toBe('2021:1');
+    act(() => {
+      standalone.stepBy(1);
+    });
+    expect(standaloneView.getByTestId('standalone-label').textContent).toBe('2022:2');
+    standaloneView.unmount();
+    standalone.destroy();
+  });
+
+  it('syncs emptyClusterBehavior and timeline.autoFinalSeedLayout props dynamically on SimplexTopicGraph', () => {
+    const items = [
+      { id: 'r1', title: 'Alpha 1', tags: ['alpha', 'beta'], year: 2021 },
+      { id: 'r2', title: 'Alpha 2', tags: ['alpha'], year: 2021 },
+      { id: 'r3', title: 'Gamma 1', tags: ['gamma', 'delta'], year: 2024 },
+      { id: 'r4', title: 'Delta 1', tags: ['delta'], year: 2024 },
+    ];
+
+    function DynamicHost({
+      emptyClusterBehavior,
+      autoFinalSeedLayout,
+    }: {
+      readonly emptyClusterBehavior: 'normal' | 'dim' | 'hide';
+      readonly autoFinalSeedLayout: false | 'pinned' | 'adaptive';
+    }) {
+      const { controllerRef } = useSimplexGraphController<(typeof items)[number]>();
+      return (
+        <div style={{ width: 780, height: 520 }}>
+          <SimplexTopicGraph
+            controllerRef={controllerRef}
+            items={items}
+            emptyClusterBehavior={emptyClusterBehavior}
+            timeline={{
+              getTimestamp: (it) => it.year,
+              autoFinalSeed: true,
+              autoFinalSeedLayout,
+              emptyClusterBehavior,
+              initialStep: 0,
+            }}
+          />
+          <span data-testid="layout-name">
+            {controllerRef.current?.getLayoutStrategy().name ?? ''}
+          </span>
+        </div>
+      );
+    }
+
+    const { container, rerender, unmount } = render(
+      <DynamicHost emptyClusterBehavior="dim" autoFinalSeedLayout="adaptive" />,
+    );
+
+    expect(container.querySelector('.sv-timeline-bar')).not.toBeNull();
+    const clusterNodesDim = Array.from(container.querySelectorAll('g.sv-node-cluster'));
+    expect(clusterNodesDim.length).toBeGreaterThan(0);
+
+    // Re-render with hide & pinned (must sync cleanly without crashing or remounting)
+    rerender(<DynamicHost emptyClusterBehavior="hide" autoFinalSeedLayout="pinned" />);
+    expect(container.querySelector('.sv-timeline-bar')).not.toBeNull();
+
+    // Re-render with dynamic layout & normal empty clusters
+    rerender(<DynamicHost emptyClusterBehavior="normal" autoFinalSeedLayout={false} />);
+    expect(container.querySelector('.sv-timeline-bar')).not.toBeNull();
 
     unmount();
   });

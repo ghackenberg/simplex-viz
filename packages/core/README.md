@@ -123,6 +123,7 @@ const snapshot = solveSimplexSnapshot(samples as readonly AudioSample[], {
 | `colorStrategy` | `createOklabContrastColorStrategy()` | `createOklabContrastColorStrategy()` |
 | `layoutStrategy` | `createPbdUniformLayoutStrategy()` | `createPbdUniformLayoutStrategy()` |
 | `zoomStrategy` | *(N/A — stateless single-frame solver)* | `createFreeCameraZoomStrategy()` |
+| `emptyClusterBehavior` | *(N/A)* | `'normal'` (`'normal' \| 'dim' \| 'hide'` for `0`-item clusters) |
 | `onWheel` | *(N/A)* | `'zoom-to-cursor'` (blocked automatically when `zoomStrategy.mode === 'drill-down'`) |
 
 ---
@@ -316,6 +317,7 @@ Built-in layout strategy presets (all strictly guaranteeing **`0.0 px` overlap**
 - `createWarmStartPbdLayoutStrategy()` — Same as above with `warmStart: true` for minimal movement across updates.
 - `createLocalAdaptiveLayoutStrategy({ crowdRadiusPx?, minLocalScale?, warmStart? })` — Combines `createMeshInwardFanSeeder` + `createSpaceFillingPbdRelaxer` + `createDensityPriorScaleController` (`crowdRadiusPx: 76`, `minLocalScale: 0.35`, `warmStart: true`) to spread pockets first, compute smooth radial crowd gradients on dispersed positions, and polish locally without global shrink.
 - `createCollisionDrivenLayoutStrategy({ minLocalScale?, shrinkFactor?, warmStart? })` — Combines `createMeshInwardFanSeeder` + `createSpaceFillingPbdRelaxer` + `createCollisionLocalScaleController` (`minLocalScale: 0.32`, `shrinkFactor: 0.85`, `warmStart: true`) to keep every non-colliding item at `1.0` scale and shrink only locally colliding pockets.
+- `createFinalSeededLayoutStrategy(baseStrategy?, { scaleMode?: 'pinned' | 'adaptive', unseenItemPolicy?: 'fallback' | 'reseed' })` — Wraps any layout strategy to solve canonical full-corpus `(x, y)` coordinates once (when `canonicalSeedItems` are provided) and reuse them path-independently across chronological subsets (`0..N`) with zero item drift: `'pinned'` keeps exact final scales, while `'adaptive'` expands sparse early-frame items symmetrically up to `1.0x` subject to exact SAT `0.0 px` overlap verification.
 
 Or compose custom layout pipelines via `createComposedLayoutStrategy(options)` / `solveComposedLayout(params)`:
 - **Seeders (`LayoutSeeder`)**: `createPhyllotaxisSeeder(opts?)`, `createMeshInwardFanSeeder(opts?)`, `withWarmStartSeeder(seeder)`.
@@ -335,8 +337,8 @@ Or compose custom layout pipelines via `createComposedLayoutStrategy(options)` /
   - Re-partitions a focused triangle's discriminative tags across all `6` sub-vertices (`clusterZoomMode: 'incident-star'`, `stopWhenFullScale: true`, `fullScaleThreshold: 0.75`, `leafTriangleFocus: true`, `barycentricFallback: true`).
 - `createSubspaceZoomStrategy(options?)` (`mode: 'drill-down'`):
   - Representation-agnostic `6`-vertex local subspace refinement across embeddings, pairwise similarity kernels, and tags (`clusterZoomMode: 'incident-star'`, `stopWhenFullScale: true`, `fullScaleThreshold: 0.75`, `leafTriangleFocus: true`, `minItemsForRecluster: 6`, `blendFactor: 0.35`).
-- **Imperative Zoom & Layout Methods on `SimplexGraphEngine`**:
-  `setZoomStrategy(strategy)`, `getZoomStrategy()`, `getZoomState()`, `drillDownTriangle(index)`, `drillDownCluster(uid)`, `drillToNeighbor(neighborId)`, `drillUp()`, `drillToDepth(depth)`, `drillToRoot()`, `relayout()`.
+- **Imperative Zoom, Timeline & Layout Methods on `SimplexGraphEngine`**:
+  `setZoomStrategy(strategy)`, `getZoomStrategy()`, `getZoomState()`, `drillDownTriangle(index)`, `drillDownCluster(uid)`, `drillToNeighbor(neighborId)`, `drillUp()`, `drillToDepth(depth)`, `drillToRoot()`, `getEmptyClusterBehavior()`, `setEmptyClusterBehavior(mode)`, `setCanonicalSeedItems(items)`, `relayout()`.
 
 ---
 
@@ -372,6 +374,7 @@ Every algorithmic building block can also be imported standalone:
 - **Layout Solver**: `solveComposedLayout`, `solveTwoPhaseLayout`, `solveLocalAdaptiveLayout`, `solveCollisionDrivenLayout`, `buildItemCoveringTriangles`, `measureLayoutOverlaps`
 - **Geometry & Collision**: `computeConvexHull`, `rectToConvexPolygon`, `regularPolygon`, `starConvexHull`, `isPointInTriangle`, `computeConvexMtv`, `computeCirclePolygonMtv`, `hitTestConvexGeometry`, `UniformSpatialHashGrid`
 - **Color Science**: `hexToOklab`, `oklabToHex`, `mixOklabColors`, `lerpOklabHex`, `generatePerceptualClusterPalette`, `buildDistinctOklabPalette`, `assignMeshClusterColors`, `assignGreedyEdgeContrastColors`
+- **Chronological Timeline Playback**: `SimplexTimelineController`, `createSimplexTimeline`, `createFinalSeededLayoutStrategy` — Zero-DOM headless chronological frame grouper & player (`play()`, `pause()`, `toggle()`, `stepBy(delta)`, `seek(step)`, `resetToEnd()`, `setSpeed(speed)`, `tick(dtMs)`, `subscribe(listener)`) supporting `getTimestamp`, `getFrameKey`, undated step-`0` baseline items, full-corpus layout freezing (`scaleMode: 'pinned' | 'adaptive'`), configurable `emptyClusterBehavior: 'normal' | 'dim' | 'hide'`, and seamless composition with `createFinalSeededClusteringStrategy`.
 - **Animation & Camera**: `stepCriticallyDampedSpring`, `retargetVisualTransition`, `stepVisualTransition`, `SimplexCamera`
 
 ## License

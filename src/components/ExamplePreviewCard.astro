@@ -72,7 +72,9 @@ const surfaceClasses =
         Open example →
       </span>
       <span class="font-mono text-[11px] text-slate-400 dark:text-slate-500 truncate">
-        {dataset.data.representationLabel}
+        {dataset.data.timelineEnabled
+          ? `Timeline · ${dataset.data.representationLabel}`
+          : dataset.data.representationLabel}
       </span>
     </div>
   </div>

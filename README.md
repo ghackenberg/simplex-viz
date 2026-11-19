@@ -5,7 +5,7 @@
 <h1 align="center">SimplexViz</h1>
 
 <p align="center">
-  <strong>Triangulation-based, strictly overlap-free visualization of arbitrary domain collections (vector embeddings, pairwise similarities, or tagged items) on a dynamic 60° equilateral triangle mesh with hierarchical 1:4 zoom/drill-down.</strong>
+  <strong>Triangulation-based, strictly overlap-free visualization of arbitrary domain collections (vector embeddings, pairwise similarities, or tagged items) on a dynamic 60° equilateral triangle mesh with hierarchical 1:4 zoom/drill-down and chronological timeline playback.</strong>
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-f59e0b.svg" alt="License: MIT" /></a>
 </p>
 
-SimplexViz partitions arbitrary collections—whether **single- or multi-modal vector embeddings** (text, images, videos, voice audio signatures, body-shape latents), **custom pairwise similarity functions**, or **tagged knowledge items**—into balanced clusters, embeds them onto an adaptive 60° simplex lattice with perceptual OKLab color mixing, resolves every convex node hull to a guaranteed `0.0 px` overlap layout, and supports both continuous camera navigation and conformal **`1:4` hierarchical zoom / drill-down**. It is structured as a modular three-layer TypeScript stack—a zero-dependency headless core (`@simplex-viz/core`), a framework-agnostic SVG engine (`@simplex-viz/svg`), and type-safe React bindings (`@simplex-viz/react`).
+SimplexViz partitions arbitrary collections—whether **single- or multi-modal vector embeddings** (text, images, videos, voice audio signatures, body-shape latents), **custom pairwise similarity functions**, or **tagged knowledge items**—into balanced clusters, embeds them onto an adaptive 60° simplex lattice with perceptual OKLab color mixing, resolves every convex node hull to a guaranteed `0.0 px` overlap layout, and supports continuous camera navigation, conformal **`1:4` hierarchical zoom / drill-down**, and path-independent **chronological timeline playback**. It is structured as a modular three-layer TypeScript stack—a zero-dependency headless core (`@simplex-viz/core`), a framework-agnostic SVG engine (`@simplex-viz/svg`), and type-safe React bindings (`@simplex-viz/react`).
 
 ## Live Showcase
 
@@ -37,8 +37,9 @@ Classical force-directed layouts and raw UMAP/t-SNE scatters often turn multi-di
    - **Tag Specializations**: `createJaccardAnnealingClusteringStrategy()` *(Quickstart default)*, `createSoftSimplexTagClusteringStrategy({ triangleSpread })` (smooth interior spreading across covering triangles while preserving 360° halos for single-cluster items), and `createIncrementalAnchorClusteringStrategy()` (`initialize` vs. incremental `update`).
    - **Single & Multi-Modal Vector Embeddings (`requiresTags: false`)**: `createEmbeddingClusteringStrategy()` and `createSoftSimplexEmbeddingClusteringStrategy()` cluster untagged items from one or multiple weighted feature vectors (`getEmbedding`), embed centroids via QAP (`embedSimilarityMatrixOnMesh` / load-balanced QAP), preserve cluster UIDs via Hungarian matching, and project items into planar simplex coordinates.
    - **Pairwise Similarity Matrices (`requiresTags: false`)**: `createSimilarityClusteringStrategy({ getSimilarity })` partitions any untagged domain model using PAM k-Medoids, QAP mesh embedding, and simplex projection.
+   - **Chronological / Subset Pinning Wrapper**: `createFinalSeededClusteringStrategy(baseStrategy?, options?)` wraps any clustering strategy to pin canonical full-corpus clusters, vertices, UIDs, and colors across chronological timeline steps (`0..N`) or filtered subsets.
 3. **Color Strategy (`SimplexColorStrategy`)**: Defaults to `createOklabContrastColorStrategy()` (perceptual OKLab edge-contrast coloring + chroma-preserving barycentric mixing), or swaps to `createThemeAdaptiveOklabColorStrategy()` or `createPaletteColorStrategy(hexColors)`.
-4. **Layout & Collision Strategy (`SimplexLayoutStrategy`)**: Defaults to `createPbdUniformLayoutStrategy()`, or swaps to `createWarmStartPbdLayoutStrategy()`, `createLocalAdaptiveLayoutStrategy()`, `createCollisionDrivenLayoutStrategy()`, or any custom **`LayoutSeeder` × `PositionRelaxer` × `ScaleController`** trio via `createComposedLayoutStrategy()`—strictly guaranteeing **`0.0 px` overlap** and triangle containment.
+4. **Layout & Collision Strategy (`SimplexLayoutStrategy`)**: Defaults to `createPbdUniformLayoutStrategy()`, or swaps to `createWarmStartPbdLayoutStrategy()`, `createLocalAdaptiveLayoutStrategy()`, `createCollisionDrivenLayoutStrategy()`, `createFinalSeededLayoutStrategy()` (full-corpus position pinning with `scaleMode: 'pinned' | 'adaptive'` for zero-drift chronological replay), or any custom **`LayoutSeeder` × `PositionRelaxer` × `ScaleController`** trio via `createComposedLayoutStrategy()`—strictly guaranteeing **`0.0 px` overlap** and triangle containment.
 5. **Zoom & Drill-Down Strategy (`SimplexZoomStrategy`)**: Defaults to `createFreeCameraZoomStrategy()` (wheel zoom-to-cursor, 2-finger touch pinch, and drag-to-pan), or swaps to hierarchical **`1:4` drill-down** via `createBarycentricZoomStrategy()`, `createSemanticZoomStrategy()` (`6`-vertex tag re-partitioning), or `createSubspaceZoomStrategy()` (`6`-vertex representation-agnostic subspace refinement)—featuring conformal `1:4` equilateral subdivision, single-triangle leaf focus (`'triangle-focus'`, `leafTriangleFocus: true`) with directly clickable content items, uniform `1`-ring `'incident-star'` cluster/subcluster stars with barycentric simplex-distance dimming, internal `1:4` subdivision mesh previews, dimmed clickable neighborhood context, and discrete 2-finger pinch.
 
 ## Architecture (Strict 3-Package Separation)
@@ -55,9 +56,9 @@ flowchart LR
 
 | Package | Role | Documentation |
 | --- | --- | --- |
-| [`@simplex-viz/core`](./packages/core) | Pure TypeScript triangulation, clustering, OKLab color science, composable 2-phase convex SAT solver, `1:4` zoom/drill-down strategies, spring animation, and convex + triangle hit-testing. Zero DOM/SVG/React dependencies (`ES2022`). | [Core README](./packages/core/README.md) |
-| [`@simplex-viz/svg`](./packages/svg) | Framework-agnostic SVG engine (`Vanilla TS`, `Vue`, `Angular`, `Svelte`, Web Components) with root-SVG hit-testing, offscreen `getBBox()` hull measurement, pluggable node/triangle/edge `Svg*View` plugins, `1:4` subdivision previews, breadcrumbs, and dual-layer crossfading. | [SVG README](./packages/svg/README.md) |
-| [`@simplex-viz/react`](./packages/react) | Thin, end-to-end type-safe React bindings (`<SimplexTopicGraph />`, `useSimplexGraphController`) supporting portable `SvgNodeView` / `SvgTriangleView` / `SvgEdgeView` plugins, declarative JSX node renderers, and hierarchical drill-down props & hooks. | [React README](./packages/react/README.md) |
+| [`@simplex-viz/core`](./packages/core) | Pure TypeScript triangulation, clustering, OKLab color science, composable 2-phase convex SAT solver, `1:4` zoom/drill-down strategies, headless `SimplexTimelineController`, spring animation, and convex + triangle hit-testing. Zero DOM/SVG/React dependencies (`ES2022`). | [Core README](./packages/core/README.md) |
+| [`@simplex-viz/svg`](./packages/svg) | Framework-agnostic SVG engine (`Vanilla TS`, `Vue`, `Angular`, `Svelte`, Web Components) with root-SVG hit-testing, offscreen `getBBox()` hull measurement, pluggable node/triangle/edge `Svg*View` plugins, `1:4` subdivision previews, breadcrumbs, built-in timeline HUD, and dual-layer crossfading. | [SVG README](./packages/svg/README.md) |
+| [`@simplex-viz/react`](./packages/react) | Thin, end-to-end type-safe React bindings (`<SimplexTopicGraph />`, `useSimplexGraphController`, `useSimplexTimeline`) supporting portable `SvgNodeView` / `SvgTriangleView` / `SvgEdgeView` plugins, declarative JSX node renderers, chronological timeline playback, and hierarchical drill-down props & hooks. | [React README](./packages/react/README.md) |
 
 ## Quickstart (Zero-Config)
 
@@ -119,6 +120,8 @@ Every setting has a deterministic zero-config default out of the box—you only 
 | `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Mesh-inward fan seeding + space-filling PBD dispersion + global uniform scale search (`clusterGapPx: 14`, `itemGapPx: 5`, `minContentScale: 0.2`, `0.0 px` overlap). |
 | `zoomStrategy` | `createFreeCameraZoomStrategy()` | Continuous cursor wheel zoom (`onWheel: 'zoom-to-cursor'`), 2-finger touch pinch, and drag-to-pan. |
 | `showZoomBreadcrumbs` | `true` | Automatically displays clickable navigation breadcrumbs whenever drilled into a sub-level (`depth > 0`). |
+| `timeline` | `false` | Opt-in chronological frame stepping & playback (`boolean \| TimelinePlayerOptions`) with built-in HUD bar, `autoFinalSeed`, `autoFinalSeedLayout` (`false \| 'pinned' \| 'adaptive'`), and `emptyClusterBehavior`. |
+| `emptyClusterBehavior` | `'normal'` | `'normal' \| 'dim' \| 'hide'` — Controls how clusters with `0` active items render (e.g., future clusters during chronological playback). |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Clicking a cluster or triangle isolates its neighborhood in `free-camera` mode (clicking background clears). |
 | `tooltip` | `true` in `createSimplexSvg(el, items)`, `false` in options/React | Floating hover tooltip for `'content'`, `'cluster'`, and `'triangle'` targets (accepts `boolean` or custom formatter). |
 
@@ -389,6 +392,43 @@ export function ControlledAtlas({ items }: { items: readonly { id: string; tags:
         }}
       />
     </div>
+  );
+}
+```
+
+### Step 10 — Chronological Timeline Playback, Final-Seeded Layout & Empty-Cluster Dimming
+
+Turn any timestamped or chronologically bucketed collection into a smooth frame-by-frame replay with one prop (`timeline`). By default, `autoFinalSeed: true` pins canonical full-corpus clusters via `createFinalSeededClusteringStrategy`; add `autoFinalSeedLayout: 'adaptive'` (or `'pinned'`) to also pin item coordinates via `createFinalSeededLayoutStrategy`, and `emptyClusterBehavior: 'dim'` (or `'hide'`) to fade future clusters until their first item arrives:
+
+```tsx
+import {
+  SimplexTopicGraph,
+  useSimplexGraphController,
+  useSimplexTimeline,
+} from '@simplex-viz/react';
+
+export function ChronologicalAtlas({ papers }: { papers: readonly (ResearchPaper & { year: number })[] }) {
+  const { controllerRef } = useSimplexGraphController();
+  const timeline = useSimplexTimeline(controllerRef);
+
+  return (
+    <SimplexTopicGraph
+      controllerRef={controllerRef}
+      items={papers}
+      getId={(p) => p.doi}
+      getTags={(p) => p.topics}
+      timeline={{
+        getTimestamp: (p) => p.year,
+        stepIntervalMs: 900,
+        position: 'bottom',              // 'bottom' | 'top'
+        autoFinalSeed: true,             // pin full-corpus clusters & colors
+        autoFinalSeedLayout: 'adaptive', // false | 'pinned' | 'adaptive'
+        emptyClusterBehavior: 'dim',     // 'normal' | 'dim' | 'hide'
+      }}
+      onTimelineStateChange={(state) => {
+        console.log(state.activeLabel, state.activeItemCount, timeline.isReady);
+      }}
+    />
   );
 }
 ```

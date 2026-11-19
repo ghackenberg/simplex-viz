@@ -5,7 +5,7 @@ description: Deep dive into Soft-Simplex interior spreading, Jaccard QAP anneali
 section: Core Strategies
 order: 4
 stageNumber: 2
-updatedDate: "2026-11-15"
+updatedDate: "2026-11-19"
 summaryPoints:
   - "SimplexClusteringStrategy decouples data representation cleanly: tag strategies set requiresTags: true, while embedding and similarity strategies set requiresTags: false."
   - Quadratic Assignment Problem (QAP) simulated annealing places related clusters on adjacent mesh vertices so shared items land on planar edges and triangles.
@@ -112,3 +112,24 @@ SimplexViz solves this directly inside Stage 2 and exposes the underlying primit
 
 1. **Built-In `features` Option on Embedding & Similarity Strategies**: Passing `features: SubspaceZoomFeature<TItem>[]` to `createSoftSimplexEmbeddingClusteringStrategy`, `createEmbeddingClusteringStrategy`, or `createSimilarityClusteringStrategy` invokes `assignDiscriminativeClusterLabels` across all `K` sibling clusters—scoring numeric features by standardized z-score separation (`|z_k|`), boolean/categorical facets by specificity lift above corpus base rates, and shared taxonomic groups by intra-group secondary contrast (such as *Adélie · Male* vs. *Adélie · Female*).
 2. **Sibling Context in `deriveClusterMeta`**: Every `ClusterDerivationContext<TItem, TTagMeta>` receives `allItems` and `peerClusters: readonly PeerClusterContext<TItem, TTagMeta>[]`, enabling custom domain meta builders to call `resolveDiscriminativeClusterLabel(ctx, { features })` or `disambiguatePeerClusterTitle(ctx, getBaseTitle, getQualifier)` with guaranteed pairwise uniqueness across the mesh.
+
+## Path-Independent Chronological Pinning (`createFinalSeededClusteringStrategy`)
+
+When stepping chronologically (`0 → N`) through a growing corpus or applying interactive filters, running a clustering strategy from scratch on early sparse frames can cause clusters to jump vertices or rename themselves from frame to frame. Wrap any Stage 2 strategy—tag, embedding, similarity, or custom—with `createFinalSeededClusteringStrategy`:
+
+```ts
+import {
+  createFinalSeededClusteringStrategy,
+  createSoftSimplexEmbeddingClusteringStrategy,
+} from '@simplex-viz/core';
+
+const pinnedClustering = createFinalSeededClusteringStrategy(
+  createSoftSimplexEmbeddingClusteringStrategy({ getEmbedding: (d) => d.vec }),
+  { seedItems: fullCorpus },
+);
+```
+
+- Computes and pins the canonical full-corpus clusters, vertex assignments, UIDs, and OKLab colors once on initialization (or re-seeds cleanly whenever the viewport/mesh changes cluster count `K`).
+- Projects every chronological or filtered subset onto those pinned anchors with **zero cluster hopping** and path-independent parity at the final frame.
+- Enabled automatically whenever `timeline` is active with `autoFinalSeed: true` (the default). To disable automatic pinning and let clusters re-form dynamically at every timeline step, pass `timeline={{ ..., autoFinalSeed: false }}`.
+

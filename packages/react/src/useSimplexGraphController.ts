@@ -7,6 +7,7 @@ import type {
   SimplexColorStrategy,
   SimplexLayoutStrategy,
   SimplexMeshStrategy,
+  SimplexTimelineController,
   SimplexZoomState,
   SimplexZoomStrategy,
 } from '@simplex-viz/core';
@@ -52,6 +53,7 @@ export interface SimplexGraphHandle<
   relayout(): void;
   getMetrics(): LayoutMetrics | null;
   getClusters(): readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[];
+  getTimeline(): SimplexTimelineController<TItem> | null;
   getRawController(): SimplexSvgController<
     TItem,
     TContentVisual,
@@ -209,6 +211,10 @@ export function useSimplexGraphController<
     return controllerRef.current?.getClusters() ?? [];
   }, []);
 
+  const getTimeline = useCallback(() => {
+    return controllerRef.current?.getTimeline() ?? null;
+  }, []);
+
   const getRawController = useCallback(() => {
     return controllerRef.current;
   }, []);
@@ -239,6 +245,7 @@ export function useSimplexGraphController<
       relayout,
       getMetrics,
       getClusters,
+      getTimeline,
       getRawController,
     },
   };

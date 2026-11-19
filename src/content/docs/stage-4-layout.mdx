@@ -5,7 +5,7 @@ description: How SimplexViz guarantees 0.0 px overlap across arbitrary convex sh
 section: Core Strategies
 order: 6
 stageNumber: 4
-updatedDate: "2026-11-15"
+updatedDate: "2026-11-19"
 summaryPoints:
   - "Every built-in layout strategy strictly enforces two hard invariants: covering-triangle containment and 0.0 px convex SAT overlap."
   - Layout pipelines decompose orthogonally into LayoutSeeder × PositionRelaxer × ScaleController.
@@ -100,3 +100,28 @@ const customLayout = createComposedLayoutStrategy({
   warmStart: true,
 });
 ```
+
+## Chronological Layout Stability (`createFinalSeededLayoutStrategy`)
+
+Just as `createFinalSeededClusteringStrategy` pins cluster vertices across chronological timeline frames (`0 → N`), `createFinalSeededLayoutStrategy` wraps any Stage 4 layout strategy to solve canonical full-corpus `(x, y)` coordinates once (when `canonicalSeedItems` are provided) and reuse them path-independently across subsets:
+
+```ts
+import {
+  createFinalSeededLayoutStrategy,
+  createCollisionDrivenLayoutStrategy,
+} from '@simplex-viz/core';
+
+const chronologicalLayout = createFinalSeededLayoutStrategy(
+  createCollisionDrivenLayoutStrategy(),
+  {
+    scaleMode: 'adaptive',        // 'pinned' | 'adaptive'
+    unseenItemPolicy: 'fallback', // 'fallback' | 'reseed'
+  },
+);
+```
+
+- **`scaleMode: 'pinned'` *(Default)***: Freezes both the canonical `(x, y)` positions and the final full-corpus item scales. Earlier items never slide, shrink, or jump as later items enter—making frame `N` strictly identical whether reached by stepping forward, scrubbing backward, or jumping directly to the end.
+- **`scaleMode: 'adaptive'`**: Keeps every item anchored at its exact canonical `(x, y)` position, while expanding sparse early-frame items symmetrically up to `1.0x` via exact SAT convex clearance checks (`0.0 px` overlap guaranteed) so early frames stay readable without sacrificing spatial landmarks.
+- **`unseenItemPolicy`**: Controls what happens if a live mutation introduces an item ID absent from the canonical seed (`'fallback'` delegates to the wrapped base strategy for that frame; `'reseed'` updates the canonical seed automatically).
+- **One-line Timeline Integration**: In `@simplex-viz/svg` and `@simplex-viz/react`, setting `timeline={{ ..., autoFinalSeedLayout: 'adaptive' }}` (or `'pinned'`) automatically wraps your active `layoutStrategy` and feeds the full timeline corpus via `canonicalSeedItems`.
+

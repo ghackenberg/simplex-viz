@@ -4,6 +4,7 @@ import {
   createAdaptiveHexMeshStrategy,
   createBarycentricZoomStrategy,
   createCollisionDrivenLayoutStrategy,
+  createFinalSeededLayoutStrategy,
   createFixedLatticeMeshStrategy,
   createFreeCameraZoomStrategy,
   createIncrementalAnchorClusteringStrategy,
@@ -21,12 +22,16 @@ import {
   type BarycentricClusterZoomMode,
   type DefaultClusterPresetVisual,
   type DefaultContentPresetVisual,
+  type EmptyClusterBehavior,
+  type FinalSeededLayoutScaleMode,
   type LayoutSolverOptions,
   type MeshOptions,
   type SharedTagRuleKind,
   type SimplexAnchorRuleKind,
+  type SimplexTimelineState,
   type SimplexVisualPreset,
   type SimplexZoomState,
+  type TimelinePlayerOptions,
 } from '@simplex-viz/react';
 import {
   useCallback,
@@ -52,6 +57,7 @@ export interface PlaygroundTaggedItem {
   readonly id: string;
   readonly label: string;
   readonly tags: readonly string[];
+  readonly date?: string | number;
   readonly note?: string;
 }
 
@@ -66,7 +72,10 @@ type AccordionSectionId =
   | 'color'
   | 'layout'
   | 'zoom'
-  | 'visual';
+  | 'visual'
+  | 'timeline';
+
+type PlaygroundLayoutId = CanonicalLayoutStrategyId | 'final-seeded-layout';
 
 const DEFAULT_BRAND_PALETTE: readonly string[] = [
   '#0891b2',
@@ -106,15 +115,32 @@ const SCHEMA_EXAMPLE = `{
       "id": "paper-1",
       "label": "Conformal Mesh Parameterization",
       "tags": ["geometry", "mesh", "graphics"],
+      "date": 2021,
       "note": "Optional subtitle or URL"
     },
     {
       "id": "paper-2",
       "label": "Perceptual Color Interpolation",
-      "tags": ["color", "graphics"]
+      "tags": ["color", "graphics"],
+      "date": 2023
     }
   ]
 }`;
+
+function parseOptionalDateValue(raw: unknown): string | number | undefined {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return raw;
+  }
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return undefined;
+    if (/^\d{4}$/.test(trimmed)) {
+      return Number(trimmed);
+    }
+    return trimmed;
+  }
+  return undefined;
+}
 
 function normalizeTagList(rawInput: string | readonly unknown[]): string[] {
   const tokens: string[] = [];
@@ -241,6 +267,15 @@ export function parsePlaygroundJson(
     }
     seenIds.add(uniqueId);
 
+    const date = parseOptionalDateValue(
+      rec.date ??
+        rec.year ??
+        rec.publishedYear ??
+        rec.releaseYear ??
+        rec.timestamp ??
+        rec.createdAt,
+    );
+
     const note =
       typeof rec.note === 'string' && rec.note.trim().length > 0
         ? rec.note.trim()
@@ -252,6 +287,7 @@ export function parsePlaygroundJson(
       id: uniqueId,
       label,
       tags,
+      ...(date !== undefined ? { date } : {}),
       ...(note ? { note } : {}),
     });
   }
@@ -295,6 +331,7 @@ export function PlaygroundWorkspace() {
   // Builder form state
   const [draftLabel, setDraftLabel] = useState<string>('');
   const [draftTags, setDraftTags] = useState<string>('');
+  const [draftDate, setDraftDate] = useState<string>('');
   const [draftNote, setDraftNote] = useState<string>('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -337,7 +374,14 @@ export function PlaygroundWorkspace() {
 
   // Stage 04 · Layout strategy & parameters
   const [layoutId, setLayoutId] =
+    useState<PlaygroundLayoutId>('collision-local-layout');
+  const [finalSeededBaseLayoutId, setFinalSeededBaseLayoutId] =
     useState<CanonicalLayoutStrategyId>('collision-local-layout');
+  const [finalSeededScaleMode, setFinalSeededScaleMode] =
+    useState<FinalSeededLayoutScaleMode>('pinned');
+  const [finalSeededUnseenPolicy, setFinalSeededUnseenPolicy] = useState<
+    'fallback' | 'reseed'
+  >('fallback');
   const [collisionMinLocalScale, setCollisionMinLocalScale] = useState<number>(0.32);
   const [collisionShrinkFactor, setCollisionShrinkFactor] = useState<number>(0.85);
   const [collisionWarmStart, setCollisionWarmStart] = useState<boolean>(true);
@@ -369,6 +413,24 @@ export function PlaygroundWorkspace() {
   const [presetMode, setPresetMode] = useState<SimplexVisualPreset>('geometric');
   const [sizeMultiplier, setSizeMultiplier] = useState<number>(1);
   const [showHulls, setShowHulls] = useState<boolean>(false);
+  const [emptyClusterBehavior, setEmptyClusterBehavior] =
+    useState<EmptyClusterBehavior>('normal');
+
+  // Stage 07 · Chronological timeline playback
+  const [timelineEnabled, setTimelineEnabled] = useState<boolean>(false);
+  const [timelineStepIntervalMs, setTimelineStepIntervalMs] = useState<number>(650);
+  const [timelineSpeed, setTimelineSpeed] = useState<number>(1);
+  const [timelineLoop, setTimelineLoop] = useState<boolean>(false);
+  const [timelineAutoFinalSeed, setTimelineAutoFinalSeed] = useState<boolean>(true);
+  const [timelineAutoFinalSeedLayout, setTimelineAutoFinalSeedLayout] = useState<
+    false | FinalSeededLayoutScaleMode
+  >(false);
+  const [timelineIncludeEmptyStart, setTimelineIncludeEmptyStart] =
+    useState<boolean>(false);
+  const [timelineShowControls, setTimelineShowControls] = useState<boolean>(true);
+  const [timelinePosition, setTimelinePosition] = useState<'bottom' | 'top'>('bottom');
+  const [timelineState, setTimelineState] =
+    useState<SimplexTimelineState<PlaygroundTaggedItem> | null>(null);
 
   // Import/Export & Drag-and-drop state
   const [jsonDrawerOpen, setJsonDrawerOpen] = useState<boolean>(false);
@@ -474,6 +536,7 @@ export function PlaygroundWorkspace() {
       (item) =>
         item.label.toLowerCase().includes(q) ||
         item.tags.some((t) => t.includes(q)) ||
+        (item.date !== undefined && String(item.date).toLowerCase().includes(q)) ||
         (item.note && item.note.toLowerCase().includes(q)),
     );
   }, [items, searchQuery]);
@@ -577,26 +640,43 @@ export function PlaygroundWorkspace() {
   );
 
   const layoutStrategy = useMemo(() => {
-    if (layoutId === 'pbd-uniform-layout') {
-      return createPbdUniformLayoutStrategy();
-    }
-    if (layoutId === 'warm-start-pbd-layout') {
-      return createWarmStartPbdLayoutStrategy();
-    }
-    if (layoutId === 'density-adaptive-layout') {
-      return createLocalAdaptiveLayoutStrategy({
-        crowdRadiusPx: densityCrowdRadiusPx,
-        minLocalScale: densityMinLocalScale,
-        warmStart: densityWarmStart,
+    const buildBaseLayout = (id: CanonicalLayoutStrategyId) => {
+      if (id === 'pbd-uniform-layout') {
+        return createPbdUniformLayoutStrategy();
+      }
+      if (id === 'warm-start-pbd-layout') {
+        return createWarmStartPbdLayoutStrategy();
+      }
+      if (id === 'density-adaptive-layout') {
+        return createLocalAdaptiveLayoutStrategy({
+          crowdRadiusPx: densityCrowdRadiusPx,
+          minLocalScale: densityMinLocalScale,
+          warmStart: densityWarmStart,
+        });
+      }
+      return createCollisionDrivenLayoutStrategy({
+        minLocalScale: collisionMinLocalScale,
+        shrinkFactor: collisionShrinkFactor,
+        warmStart: collisionWarmStart,
       });
+    };
+
+    if (layoutId === 'final-seeded-layout') {
+      return createFinalSeededLayoutStrategy(
+        buildBaseLayout(finalSeededBaseLayoutId),
+        {
+          scaleMode: finalSeededScaleMode,
+          unseenItemPolicy: finalSeededUnseenPolicy,
+        },
+      );
     }
-    return createCollisionDrivenLayoutStrategy({
-      minLocalScale: collisionMinLocalScale,
-      shrinkFactor: collisionShrinkFactor,
-      warmStart: collisionWarmStart,
-    });
+
+    return buildBaseLayout(layoutId);
   }, [
     layoutId,
+    finalSeededBaseLayoutId,
+    finalSeededScaleMode,
+    finalSeededUnseenPolicy,
     densityCrowdRadiusPx,
     densityMinLocalScale,
     densityWarmStart,
@@ -641,6 +721,41 @@ export function PlaygroundWorkspace() {
     zoomFullScaleThreshold,
   ]);
 
+  const timelineConfig = useMemo<
+    TimelinePlayerOptions<PlaygroundTaggedItem> | undefined
+  >(() => {
+    if (!timelineEnabled) return undefined;
+    return {
+      getTimestamp: (item) => item.date,
+      stepIntervalMs: timelineStepIntervalMs,
+      speed: timelineSpeed,
+      loop: timelineLoop,
+      autoFinalSeed: timelineAutoFinalSeed,
+      autoFinalSeedLayout: timelineAutoFinalSeedLayout,
+      emptyClusterBehavior,
+      includeEmptyStart: timelineIncludeEmptyStart,
+      showControls: timelineShowControls,
+      position: timelinePosition,
+    };
+  }, [
+    timelineEnabled,
+    timelineStepIntervalMs,
+    timelineSpeed,
+    timelineLoop,
+    timelineAutoFinalSeed,
+    timelineAutoFinalSeedLayout,
+    emptyClusterBehavior,
+    timelineIncludeEmptyStart,
+    timelineShowControls,
+    timelinePosition,
+  ]);
+
+  useEffect(() => {
+    if (!timelineEnabled || items.length === 0) {
+      setTimelineState(null);
+    }
+  }, [timelineEnabled, items.length]);
+
   const hasNonDefaultPipeline = useMemo(() => {
     const paletteChanged =
       paletteColors.length !== DEFAULT_BRAND_PALETTE.length ||
@@ -664,6 +779,9 @@ export function PlaygroundWorkspace() {
       paletteMode !== 'edge-contrast' ||
       palettePreserveMatched ||
       layoutId !== 'collision-local-layout' ||
+      finalSeededBaseLayoutId !== 'collision-local-layout' ||
+      finalSeededScaleMode !== 'pinned' ||
+      finalSeededUnseenPolicy !== 'fallback' ||
       Math.abs(collisionMinLocalScale - 0.32) > 1e-4 ||
       Math.abs(collisionShrinkFactor - 0.85) > 1e-4 ||
       !collisionWarmStart ||
@@ -683,7 +801,17 @@ export function PlaygroundWorkspace() {
       !barycentricSectorFallback ||
       presetMode !== 'geometric' ||
       Math.abs(sizeMultiplier - 1) > 1e-4 ||
-      showHulls
+      showHulls ||
+      emptyClusterBehavior !== 'normal' ||
+      timelineEnabled ||
+      timelineStepIntervalMs !== 650 ||
+      timelineSpeed !== 1 ||
+      timelineLoop ||
+      !timelineAutoFinalSeed ||
+      timelineAutoFinalSeedLayout !== false ||
+      timelineIncludeEmptyStart ||
+      !timelineShowControls ||
+      timelinePosition !== 'bottom'
     );
   }, [
     meshId,
@@ -704,6 +832,9 @@ export function PlaygroundWorkspace() {
     paletteMode,
     palettePreserveMatched,
     layoutId,
+    finalSeededBaseLayoutId,
+    finalSeededScaleMode,
+    finalSeededUnseenPolicy,
     collisionMinLocalScale,
     collisionShrinkFactor,
     collisionWarmStart,
@@ -724,6 +855,16 @@ export function PlaygroundWorkspace() {
     presetMode,
     sizeMultiplier,
     showHulls,
+    emptyClusterBehavior,
+    timelineEnabled,
+    timelineStepIntervalMs,
+    timelineSpeed,
+    timelineLoop,
+    timelineAutoFinalSeed,
+    timelineAutoFinalSeedLayout,
+    timelineIncludeEmptyStart,
+    timelineShowControls,
+    timelinePosition,
   ]);
 
   function resetAllPipelineDefaults() {
@@ -749,6 +890,9 @@ export function PlaygroundWorkspace() {
     setPalettePreserveMatched(false);
 
     setLayoutId('collision-local-layout');
+    setFinalSeededBaseLayoutId('collision-local-layout');
+    setFinalSeededScaleMode('pinned');
+    setFinalSeededUnseenPolicy('fallback');
     setCollisionMinLocalScale(0.32);
     setCollisionShrinkFactor(0.85);
     setCollisionWarmStart(true);
@@ -771,6 +915,18 @@ export function PlaygroundWorkspace() {
     setPresetMode('geometric');
     setSizeMultiplier(1);
     setShowHulls(false);
+    setEmptyClusterBehavior('normal');
+
+    setTimelineEnabled(false);
+    setTimelineStepIntervalMs(650);
+    setTimelineSpeed(1);
+    setTimelineLoop(false);
+    setTimelineAutoFinalSeed(true);
+    setTimelineAutoFinalSeedLayout(false);
+    setTimelineIncludeEmptyStart(false);
+    setTimelineShowControls(true);
+    setTimelinePosition('bottom');
+    setTimelineState(null);
   }
 
   function openJsonEditor() {
@@ -798,6 +954,7 @@ export function PlaygroundWorkspace() {
     ev.preventDefault();
     const cleanLabel = draftLabel.trim();
     const cleanTags = normalizeTagList(draftTags);
+    const cleanDate = parseOptionalDateValue(draftDate);
     const cleanNote = draftNote.trim();
 
     if (!cleanLabel) {
@@ -820,6 +977,7 @@ export function PlaygroundWorkspace() {
                 id: it.id,
                 label: cleanLabel,
                 tags: cleanTags,
+                ...(cleanDate !== undefined ? { date: cleanDate } : {}),
                 ...(cleanNote ? { note: cleanNote } : {}),
               }
             : it,
@@ -834,6 +992,7 @@ export function PlaygroundWorkspace() {
           id: nextId,
           label: cleanLabel,
           tags: cleanTags,
+          ...(cleanDate !== undefined ? { date: cleanDate } : {}),
           ...(cleanNote ? { note: cleanNote } : {}),
         },
         ...prev,
@@ -844,6 +1003,7 @@ export function PlaygroundWorkspace() {
 
     setDraftLabel('');
     setDraftTags('');
+    setDraftDate('');
     setDraftNote('');
   }
 
@@ -851,6 +1011,7 @@ export function PlaygroundWorkspace() {
     setEditingId(item.id);
     setDraftLabel(item.label);
     setDraftTags(item.tags.join(', '));
+    setDraftDate(item.date !== undefined ? String(item.date) : '');
     setDraftNote(item.note ?? '');
   }
 
@@ -994,13 +1155,17 @@ export function PlaygroundWorkspace() {
         : 'Theme OKLab';
 
   const layoutHeaderSummary =
-    layoutId === 'pbd-uniform-layout'
-      ? 'Uniform PBD'
-      : layoutId === 'warm-start-pbd-layout'
-        ? 'Warm-Start PBD'
-        : layoutId === 'density-adaptive-layout'
-          ? 'Density-Adaptive'
-          : 'Collision-Local';
+    layoutId === 'final-seeded-layout'
+      ? finalSeededScaleMode === 'adaptive'
+        ? 'Final-Seeded (Adapt)'
+        : 'Final-Seeded (Pin)'
+      : layoutId === 'pbd-uniform-layout'
+        ? 'Uniform PBD'
+        : layoutId === 'warm-start-pbd-layout'
+          ? 'Warm-Start PBD'
+          : layoutId === 'density-adaptive-layout'
+            ? 'Density-Adaptive'
+            : 'Collision-Local';
 
   const zoomHeaderSummary =
     zoomId === 'free-camera-zoom'
@@ -1017,6 +1182,12 @@ export function PlaygroundWorkspace() {
       : presetMode === 'badges'
         ? 'Label Badges'
         : 'Geometric';
+
+  const timelineHeaderSummary = timelineEnabled
+    ? timelineState
+      ? `${timelineState.activeLabel} (${timelineState.step + 1}/${timelineState.totalSteps + 1})`
+      : 'Enabled'
+    : 'Off';
 
   return (
     <div className="relative flex h-full min-h-0 flex-1 overflow-hidden bg-white dark:bg-[#0B0F17]">
@@ -1144,6 +1315,7 @@ export function PlaygroundWorkspace() {
                   setEditingId(null);
                   setDraftLabel('');
                   setDraftTags('');
+                  setDraftDate('');
                   setDraftNote('');
                 }}
                 className="cursor-pointer text-[11px] font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white whitespace-nowrap"
@@ -1173,13 +1345,21 @@ export function PlaygroundWorkspace() {
             />
           </div>
 
-          <div>
+          <div className="grid grid-cols-[1fr_92px] gap-1.5">
             <input
               type="text"
               placeholder="Optional note or subtitle"
               value={draftNote}
               onChange={(e) => setDraftNote(e.target.value)}
               className="h-8 w-full rounded-md border border-slate-200 bg-white px-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-cyan-600 focus:outline-none dark:border-slate-700 dark:bg-[#07090E] dark:text-slate-100"
+            />
+            <input
+              type="text"
+              placeholder="Year / date"
+              aria-label="Optional year or ISO date for timeline"
+              value={draftDate}
+              onChange={(e) => setDraftDate(e.target.value)}
+              className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 font-mono text-xs text-slate-900 placeholder:font-sans placeholder:text-slate-400 focus:border-cyan-600 focus:outline-none dark:border-slate-700 dark:bg-[#07090E] dark:text-slate-100"
             />
           </div>
 
@@ -1266,6 +1446,7 @@ export function PlaygroundWorkspace() {
                         {item.label}
                       </p>
                       <p className="mt-0.5 truncate font-mono text-[10.5px] text-cyan-700 dark:text-cyan-400">
+                        {item.date !== undefined ? `${item.date} · ` : ''}
                         {item.tags.map((t) => `#${t}`).join(' · ')}
                       </p>
                     </button>
@@ -1433,7 +1614,8 @@ export function PlaygroundWorkspace() {
                 <p className="mt-1.5 leading-relaxed text-slate-600 dark:text-slate-400">
                   Provide an object with <code className="font-mono">items</code> or a top-level array. Each item requires a{' '}
                   <code className="font-mono">label</code> (or <code className="font-mono">title</code>) and non-empty{' '}
-                  <code className="font-mono">tags</code> (<code className="font-mono">string[]</code> or comma-separated string).
+                  <code className="font-mono">tags</code> (<code className="font-mono">string[]</code> or comma-separated string), plus optional{' '}
+                  <code className="font-mono">date</code>/<code className="font-mono">year</code> for Timeline playback.
                 </p>
                 <p className="mt-2 leading-relaxed text-slate-600 dark:text-slate-400">
                   Tip: Press{' '}
@@ -1461,6 +1643,7 @@ export function PlaygroundWorkspace() {
             theme={theme}
             sizeMultiplier={sizeMultiplier}
             showHulls={showHulls}
+            emptyClusterBehavior={emptyClusterBehavior}
             highlightedIds={highlightedSet}
             meshOptions={meshOptions}
             layoutOptions={layoutOptions}
@@ -1470,12 +1653,16 @@ export function PlaygroundWorkspace() {
             layoutStrategy={layoutStrategy}
             zoomStrategy={zoomStrategy}
             showZoomBreadcrumbs
+            timeline={timelineConfig}
+            onTimelineStateChange={setTimelineState}
             tooltip={(target) => {
               if (target.kind === 'content') {
                 const tagStr = target.item.tags.map((t) => `#${t}`).join(' ');
+                const datePrefix =
+                  target.item.date !== undefined ? `[${target.item.date}] ` : '';
                 return target.item.note
-                  ? `${target.item.label} (${tagStr}) — ${target.item.note}`
-                  : `${target.item.label} (${tagStr})`;
+                  ? `${datePrefix}${target.item.label} (${tagStr}) — ${target.item.note}`
+                  : `${datePrefix}${target.item.label} (${tagStr})`;
               }
               if (target.kind === 'cluster') {
                 return `${target.cluster.code}: ${target.cluster.defaultLabel} (${target.cluster.members.length} items)`;
@@ -1505,7 +1692,7 @@ export function PlaygroundWorkspace() {
               <button
                 type="button"
                 onClick={openJsonEditor}
-                className="cursor-pointer rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-[#0B0F17] dark:text-slate-200 whitespace-nowrap"
+                className="cursor-pointer rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-[#0B0F17] dark:text-slate-200 dark:hover:bg-slate-800 whitespace-nowrap transition-colors"
               >
                 Paste / Edit JSON
               </button>
@@ -2040,21 +2227,92 @@ export function PlaygroundWorkspace() {
                   </span>
                   <select
                     value={layoutId}
-                    onChange={(e) => setLayoutId(e.target.value as CanonicalLayoutStrategyId)}
+                    onChange={(e) => setLayoutId(e.target.value as PlaygroundLayoutId)}
                     className="h-8.5 w-full rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-900 focus:border-cyan-600 focus:outline-none dark:border-slate-700 dark:bg-[#07090E] dark:text-slate-100"
                   >
                     <option value="collision-local-layout">Collision-Local</option>
                     <option value="pbd-uniform-layout">Uniform PBD</option>
                     <option value="warm-start-pbd-layout">Warm-Start PBD</option>
                     <option value="density-adaptive-layout">Density-Adaptive</option>
+                    <option value="final-seeded-layout">Final-Seeded (Frozen)</option>
                   </select>
                 </label>
 
                 <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-                  {STRATEGY_REGISTRY[layoutId].summary}
+                  {layoutId === 'final-seeded-layout'
+                    ? 'Seeds every item at its canonical full-corpus coordinates (0 px drift across timeline steps). Choose pinned final scale or adaptive sparse-frame scaling.'
+                    : STRATEGY_REGISTRY[layoutId].summary}
                 </p>
 
                 <div className="space-y-2.5 border-t border-slate-200/70 pt-2.5 dark:border-slate-800/70">
+                  {layoutId === 'final-seeded-layout' && (
+                    <>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                          Scale mode
+                        </span>
+                        <div className="grid grid-cols-2 gap-1 rounded-md border border-slate-200 bg-slate-100/80 p-0.5 dark:border-slate-700 dark:bg-[#07090E]">
+                          {(
+                            [
+                              { id: 'pinned', label: 'Pinned' },
+                              { id: 'adaptive', label: 'Adaptive' },
+                            ] as const
+                          ).map((mode) => (
+                            <button
+                              key={mode.id}
+                              type="button"
+                              onClick={() => setFinalSeededScaleMode(mode.id)}
+                              className={`cursor-pointer rounded py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
+                                finalSeededScaleMode === mode.id
+                                  ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white'
+                                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                              }`}
+                            >
+                              {mode.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                          Canonical base solver
+                        </span>
+                        <select
+                          value={finalSeededBaseLayoutId}
+                          onChange={(e) =>
+                            setFinalSeededBaseLayoutId(
+                              e.target.value as CanonicalLayoutStrategyId,
+                            )
+                          }
+                          className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-900 focus:border-cyan-600 focus:outline-none dark:border-slate-700 dark:bg-[#07090E] dark:text-slate-100"
+                        >
+                          <option value="collision-local-layout">Collision-Local</option>
+                          <option value="density-adaptive-layout">Density-Adaptive</option>
+                          <option value="warm-start-pbd-layout">Warm-Start PBD</option>
+                          <option value="pbd-uniform-layout">Uniform PBD</option>
+                        </select>
+                      </label>
+
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                          Unseen item policy
+                        </span>
+                        <select
+                          value={finalSeededUnseenPolicy}
+                          onChange={(e) =>
+                            setFinalSeededUnseenPolicy(
+                              e.target.value as 'fallback' | 'reseed',
+                            )
+                          }
+                          className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-900 focus:border-cyan-600 focus:outline-none dark:border-slate-700 dark:bg-[#07090E] dark:text-slate-100"
+                        >
+                          <option value="fallback">Fallback to base solver</option>
+                          <option value="reseed">Re-seed with new items</option>
+                        </select>
+                      </label>
+                    </>
+                  )}
                   {layoutId === 'collision-local-layout' && (
                     <>
                       <label className="flex flex-col gap-1">
@@ -2459,7 +2717,299 @@ export function PlaygroundWorkspace() {
                       className="h-3.5 w-3.5 rounded accent-cyan-600 dark:accent-cyan-400"
                     />
                   </label>
+
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                      Empty clusters
+                    </span>
+                    <div className="grid grid-cols-3 gap-1 rounded-md border border-slate-200 bg-slate-100/80 p-0.5 dark:border-slate-700 dark:bg-[#07090E]">
+                      {(
+                        [
+                          { id: 'normal', label: 'Normal' },
+                          { id: 'dim', label: 'Dim' },
+                          { id: 'hide', label: 'Hide' },
+                        ] as const
+                      ).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setEmptyClusterBehavior(opt.id)}
+                          className={`cursor-pointer rounded py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
+                            emptyClusterBehavior === opt.id
+                              ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white'
+                              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* 07 · Chronological Timeline Playback */}
+          <div>
+            <button
+              type="button"
+              aria-expanded={openSection === 'timeline'}
+              onClick={() => toggleSection('timeline')}
+              className="flex w-full cursor-pointer items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-slate-50/80 dark:hover:bg-[#0E131D]/70 transition-colors"
+            >
+              <span className="text-xs font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                07. Timeline
+              </span>
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate font-mono text-[11px] text-cyan-700 dark:text-cyan-300">
+                  {timelineHeaderSummary}
+                </span>
+                <AccordionChevron open={openSection === 'timeline'} />
+              </span>
+            </button>
+
+            {openSection === 'timeline' && (
+              <div className="space-y-3 border-t border-slate-100 bg-slate-50/35 px-3.5 py-3 text-xs dark:border-slate-800/60 dark:bg-[#0E131D]/35">
+                <label className="flex cursor-pointer items-center justify-between gap-2 text-[11px] font-medium text-slate-800 dark:text-slate-200">
+                  <span>Enable chronological timeline</span>
+                  <input
+                    type="checkbox"
+                    checked={timelineEnabled}
+                    onChange={(e) => setTimelineEnabled(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded accent-cyan-600 dark:accent-cyan-400"
+                  />
+                </label>
+
+                <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                  Groups items by their optional <code className="font-mono">date</code> /{' '}
+                  <code className="font-mono">year</code> field (or steps 1 item per frame when undated).
+                </p>
+
+                {timelineEnabled && (
+                  <>
+                    {timelineState && (
+                      <div className="space-y-2 rounded-lg border border-slate-200/80 bg-white p-2.5 dark:border-slate-800 dark:bg-[#07090E]">
+                        <div className="flex items-center justify-between gap-2 font-mono text-[11px] tabular-nums">
+                          <span className="truncate font-semibold text-slate-900 dark:text-slate-100">
+                            {timelineState.activeLabel}
+                          </span>
+                          <span className="text-slate-500 dark:text-slate-400 shrink-0">
+                            {timelineState.activeItemCount}/{timelineState.totalItemCount} items
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const tl = handle.getTimeline();
+                              tl?.pause();
+                              tl?.stepBy(-1);
+                            }}
+                            disabled={timelineState.atStart}
+                            className="cursor-pointer rounded border border-slate-200 bg-slate-50 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-[#0B0F17] dark:text-slate-200 dark:hover:bg-slate-800"
+                          >
+                            Prev
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handle.getTimeline()?.toggle()}
+                            className="col-span-2 cursor-pointer rounded bg-slate-900 py-1 text-[11px] font-semibold text-white hover:bg-slate-800 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
+                          >
+                            {timelineState.playing ? 'Pause' : 'Play'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const tl = handle.getTimeline();
+                              tl?.pause();
+                              tl?.stepBy(1);
+                            }}
+                            disabled={timelineState.atEnd}
+                            className="cursor-pointer rounded border border-slate-200 bg-slate-50 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-[#0B0F17] dark:text-slate-200 dark:hover:bg-slate-800"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-2.5 border-t border-slate-200/70 pt-2.5 dark:border-slate-800/70">
+                      <label className="flex flex-col gap-1">
+                        <span className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300">
+                          <span>Step interval</span>
+                          <span className="font-mono tabular-nums text-slate-900 dark:text-slate-100">
+                            {timelineStepIntervalMs} ms
+                          </span>
+                        </span>
+                        <input
+                          type="range"
+                          min={200}
+                          max={2000}
+                          step={50}
+                          value={timelineStepIntervalMs}
+                          onChange={(e) =>
+                            setTimelineStepIntervalMs(Number(e.target.value))
+                          }
+                          className="w-full accent-cyan-600 dark:accent-cyan-400"
+                        />
+                      </label>
+
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                          Playback speed
+                        </span>
+                        <div className="grid grid-cols-4 gap-1">
+                          {[0.5, 1, 2, 4].map((spd) => (
+                            <button
+                              key={spd}
+                              type="button"
+                              onClick={() => setTimelineSpeed(spd)}
+                              className={`cursor-pointer rounded border py-1 font-mono text-[11px] tabular-nums transition-colors ${
+                                timelineSpeed === spd
+                                  ? 'border-cyan-600 bg-cyan-50 font-semibold text-cyan-800 dark:border-cyan-400 dark:bg-cyan-950/60 dark:text-cyan-200'
+                                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-[#07090E] dark:text-slate-300 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              {spd}×
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                          Playback layout stability
+                        </span>
+                        <div className="grid grid-cols-3 gap-1 rounded-md border border-slate-200 bg-slate-100/80 p-0.5 dark:border-slate-700 dark:bg-[#07090E]">
+                          {(
+                            [
+                              { id: 'dynamic', value: false as const, label: 'Dynamic' },
+                              { id: 'pinned', value: 'pinned' as const, label: 'Pinned' },
+                              { id: 'adaptive', value: 'adaptive' as const, label: 'Adaptive' },
+                            ] as const
+                          ).map((opt) => (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => setTimelineAutoFinalSeedLayout(opt.value)}
+                              className={`cursor-pointer rounded py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
+                                timelineAutoFinalSeedLayout === opt.value
+                                  ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white'
+                                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        <span className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+                          {layoutId === 'final-seeded-layout'
+                            ? 'Using explicit Final-Seeded strategy from 04. Layout.'
+                            : timelineAutoFinalSeedLayout === 'pinned'
+                              ? 'Pins final positions & scale (0 px drift, no resize).'
+                              : timelineAutoFinalSeedLayout === 'adaptive'
+                                ? 'Pins final positions, scales larger while sparse.'
+                                : 'Re-solves positions & scales with the active 04. Layout strategy.'}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                          Empty / future clusters
+                        </span>
+                        <div className="grid grid-cols-3 gap-1 rounded-md border border-slate-200 bg-slate-100/80 p-0.5 dark:border-slate-700 dark:bg-[#07090E]">
+                          {(
+                            [
+                              { id: 'normal', label: 'Normal' },
+                              { id: 'dim', label: 'Dim' },
+                              { id: 'hide', label: 'Hide' },
+                            ] as const
+                          ).map((opt) => (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => setEmptyClusterBehavior(opt.id)}
+                              className={`cursor-pointer rounded py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
+                                emptyClusterBehavior === opt.id
+                                  ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white'
+                                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <label className="flex cursor-pointer items-center justify-between gap-2 text-[11px] text-slate-700 dark:text-slate-300">
+                        <span>Pin clusters (auto final-seed)</span>
+                        <input
+                          type="checkbox"
+                          checked={timelineAutoFinalSeed}
+                          onChange={(e) => setTimelineAutoFinalSeed(e.target.checked)}
+                          className="h-3.5 w-3.5 rounded accent-cyan-600 dark:accent-cyan-400"
+                        />
+                      </label>
+
+                      <label className="flex cursor-pointer items-center justify-between gap-2 text-[11px] text-slate-700 dark:text-slate-300">
+                        <span>Show canvas player HUD</span>
+                        <input
+                          type="checkbox"
+                          checked={timelineShowControls}
+                          onChange={(e) => setTimelineShowControls(e.target.checked)}
+                          className="h-3.5 w-3.5 rounded accent-cyan-600 dark:accent-cyan-400"
+                        />
+                      </label>
+
+                      {timelineShowControls && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                            Canvas HUD position
+                          </span>
+                          <div className="grid grid-cols-2 gap-1 rounded-md border border-slate-200 bg-slate-100/80 p-0.5 dark:border-slate-700 dark:bg-[#07090E]">
+                            {(['bottom', 'top'] as const).map((pos) => (
+                              <button
+                                key={pos}
+                                type="button"
+                                onClick={() => setTimelinePosition(pos)}
+                                className={`cursor-pointer rounded py-1 text-[11px] font-medium capitalize transition-colors whitespace-nowrap ${
+                                  timelinePosition === pos
+                                    ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white'
+                                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                                }`}
+                              >
+                                {pos}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <label className="flex cursor-pointer items-center justify-between gap-2 text-[11px] text-slate-700 dark:text-slate-300">
+                        <span>Loop playback</span>
+                        <input
+                          type="checkbox"
+                          checked={timelineLoop}
+                          onChange={(e) => setTimelineLoop(e.target.checked)}
+                          className="h-3.5 w-3.5 rounded accent-cyan-600 dark:accent-cyan-400"
+                        />
+                      </label>
+
+                      <label className="flex cursor-pointer items-center justify-between gap-2 text-[11px] text-slate-700 dark:text-slate-300">
+                        <span>Include empty start frame</span>
+                        <input
+                          type="checkbox"
+                          checked={timelineIncludeEmptyStart}
+                          onChange={(e) =>
+                            setTimelineIncludeEmptyStart(e.target.checked)
+                          }
+                          className="h-3.5 w-3.5 rounded accent-cyan-600 dark:accent-cyan-400"
+                        />
+                      </label>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>

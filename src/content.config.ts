@@ -107,6 +107,7 @@ const datasets = defineCollection({
     layoutStrategy: z.enum(LAYOUT_STRATEGY_IDS),
     zoomStrategy: z.enum(ZOOM_STRATEGY_IDS),
     nodeView: z.enum(['domain', 'geometric', 'multisector', 'react-card']),
+    timelineEnabled: z.boolean().optional(),
     publishedDate: z.string(),
     description: z.string(),
     order: z.number().int().positive(),

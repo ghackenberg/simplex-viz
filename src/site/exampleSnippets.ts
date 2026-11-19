@@ -107,6 +107,13 @@ const cinemaZoom = createSubspaceZoomStrategy<FilmRecord>({
   colorStrategy={createThemeAdaptiveOklabColorStrategy()}
   layoutStrategy={createCollisionDrivenLayoutStrategy()}
   zoomStrategy={cinemaZoom}
+  timeline={{
+    getTimestamp: (film) => film.releaseYear,
+    stepIntervalMs: 550,
+    autoFinalSeed: true,
+    autoFinalSeedLayout: 'adaptive',
+    emptyClusterBehavior: 'dim',
+  }}
   showZoomBreadcrumbs
 />;`,
 

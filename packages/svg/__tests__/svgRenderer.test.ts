@@ -1620,6 +1620,231 @@ describe('@simplex-viz/svg integration', () => {
     controller.destroy();
     container.remove();
   });
+
+  it('renders optional built-in timeline player controls, advances playback via stepForTest, pins clusters via auto final-seed, and syncs theme (Issue #8)', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 820, height: 540, right: 820, bottom: 540 }),
+    });
+    document.body.appendChild(container);
+
+    interface DatedDoc {
+      readonly id: string;
+      readonly title: string;
+      readonly tags: readonly string[];
+      readonly year?: number;
+    }
+
+    const items: readonly DatedDoc[] = [
+      { id: 'b0', title: 'Foundation', tags: ['systems', 'theory'] },
+      { id: 'd1', title: '2021 Note', tags: ['systems', 'graphics'], year: 2021 },
+      { id: 'd2', title: '2021 Extra', tags: ['theory', 'ml'], year: 2021 },
+      { id: 'd3', title: '2022 Note', tags: ['graphics', 'ml'], year: 2022 },
+      { id: 'd4', title: '2023 Note', tags: ['systems', 'ml'], year: 2023 },
+      { id: 'd5', title: '2023 Extra', tags: ['graphics', 'theory'], year: 2023 },
+    ];
+
+    const observedSteps: number[] = [];
+    const controller = createSimplexSvg<DatedDoc>(container, {
+      items,
+      preset: 'geometric',
+      theme: 'dark',
+      layoutOptions: { seed: 42 },
+      timeline: {
+        getTimestamp: (item) => item.year,
+        baselineLabel: 'Base',
+        stepIntervalMs: 400,
+        onStateChange: (st) => {
+          observedSteps.push(st.step);
+        },
+      },
+    });
+    for (let i = 0; i < 30; i++) controller.stepForTest(20);
+
+    // Starts at full corpus (step 3 = '2023') and renders built-in .sv-timeline-bar
+    expect(controller.timeline).not.toBeNull();
+    expect(controller.timeline!.getState().step).toBe(3);
+    expect(controller.timeline!.getState().totalSteps).toBe(3);
+    expect(controller.getClusteringStrategy().name).toMatch(/^final-seeded\(/);
+
+    const canonicalClusterUids = controller
+      .getClusters()
+      .map((c) => `${c.vertexIndex}:${c.clusterUid}:${c.colorHex}`);
+
+    const bar = container.querySelector('.sv-timeline-bar') as HTMLDivElement | null;
+    expect(bar).not.toBeNull();
+    expect(bar!.style.display).toBe('flex');
+    const playBtn = bar!.querySelector(
+      '[data-sv-timeline-action="toggle"]',
+    ) as HTMLButtonElement;
+    const prevBtn = bar!.querySelector(
+      '[data-sv-timeline-action="prev"]',
+    ) as HTMLButtonElement;
+    const nextBtn = bar!.querySelector(
+      '[data-sv-timeline-action="next"]',
+    ) as HTMLButtonElement;
+    const scrubber = bar!.querySelector(
+      '[data-sv-timeline-action="scrubber"]',
+    ) as HTMLInputElement;
+    const labelEl = bar!.querySelector('[data-sv-timeline-label]') as HTMLSpanElement;
+    const countEl = bar!.querySelector('[data-sv-timeline-count]') as HTMLSpanElement;
+
+    expect(labelEl.textContent).toBe('2023');
+    expect(countEl.textContent).toBe('6/6');
+    expect(nextBtn.disabled).toBe(true);
+    expect(prevBtn.disabled).toBe(false);
+
+    // Clicking prev steps back from 3 -> 2 while keeping clusters pinned
+    prevBtn.click();
+    for (let i = 0; i < 20; i++) controller.stepForTest(20);
+    expect(controller.timeline!.getState().step).toBe(2);
+    expect(labelEl.textContent).toBe('2022');
+    expect(countEl.textContent).toBe('4/6');
+    expect(controller.getItems().length).toBe(4);
+    expect(
+      controller.getClusters().map((c) => `${c.vertexIndex}:${c.clusterUid}:${c.colorHex}`),
+    ).toEqual(canonicalClusterUids);
+
+    // Scrubbing to step 0 shows baseline frame ('Base', 1/6)
+    scrubber.value = '0';
+    scrubber.dispatchEvent(new Event('input', { bubbles: true }));
+    for (let i = 0; i < 20; i++) controller.stepForTest(20);
+    expect(controller.timeline!.getState().step).toBe(0);
+    expect(labelEl.textContent).toBe('Base');
+    expect(countEl.textContent).toBe('1/6');
+    expect(prevBtn.disabled).toBe(true);
+
+    // Clicking play advances automatically through frames via stepForTest()
+    playBtn.click();
+    expect(controller.timeline!.getState().playing).toBe(true);
+    controller.stepForTest(400);
+    expect(controller.timeline!.getState().step).toBe(1);
+    controller.stepForTest(400);
+    expect(controller.timeline!.getState().step).toBe(2);
+    controller.stepForTest(400);
+    expect(controller.timeline!.getState().step).toBe(3);
+    expect(controller.timeline!.getState().playing).toBe(false);
+    expect(observedSteps).toContain(0);
+    expect(observedSteps.at(-1)).toBe(3);
+
+    // Switching theme updates built-in timeline bar styling
+    const darkBg = bar!.style.background;
+    controller.setTheme('light');
+    expect(bar!.style.background).not.toBe(darkBg);
+
+    // Disabling timeline hides overlay and restores full corpus
+    controller.setTimelineOptions(false);
+    expect(controller.timeline).toBeNull();
+    expect(bar!.style.display).toBe('none');
+    expect(controller.getItems().length).toBe(6);
+
+    controller.destroy();
+    expect(container.querySelector('.sv-timeline-bar')).toBeNull();
+    container.remove();
+  });
+
+  it('supports timeline.autoFinalSeedLayout and configurable emptyClusterBehavior (dim | hide | normal) in SimplexSvgController', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 780, height: 520, right: 780, bottom: 520 }),
+    });
+    document.body.appendChild(container);
+
+    interface DatedNode {
+      readonly id: string;
+      readonly title: string;
+      readonly tags: readonly string[];
+      readonly year: number;
+    }
+
+    const items: readonly DatedNode[] = [
+      { id: 'early-1', title: 'Early A', tags: ['alpha', 'beta'], year: 2020 },
+      { id: 'early-2', title: 'Early B', tags: ['alpha'], year: 2020 },
+      { id: 'late-1', title: 'Late C', tags: ['gamma', 'delta'], year: 2023 },
+      { id: 'late-2', title: 'Late D', tags: ['gamma'], year: 2023 },
+      { id: 'late-3', title: 'Late E', tags: ['delta', 'beta'], year: 2023 },
+      { id: 'late-4', title: 'Late F', tags: ['delta'], year: 2023 },
+    ];
+
+    const controller = createSimplexSvg<DatedNode>(container, {
+      items,
+      preset: 'geometric',
+      layoutOptions: { seed: 31 },
+      timeline: {
+        getTimestamp: (item) => item.year,
+        autoFinalSeed: true,
+        autoFinalSeedLayout: 'pinned',
+        emptyClusterBehavior: 'dim',
+      },
+    });
+    for (let i = 0; i < 45; i++) controller.stepForTest(20);
+
+    expect(controller.getLayoutStrategy().name).toMatch(/^final-seeded\(/);
+    expect(controller.getEmptyClusterBehavior()).toBe('dim');
+
+    const parseTranslate = (el: Element) => {
+      const m = el
+        .getAttribute('transform')
+        ?.match(/translate\(\s*([0-9.-]+)[,\s]+([0-9.-]+)/);
+      return m ? { x: parseFloat(m[1]!), y: parseFloat(m[2]!) } : null;
+    };
+
+    const svg = controller.getSvgElement();
+    const earlyFinalEl = svg.querySelector('g.sv-node-item[data-node-id="early-1"]')!;
+    const earlyFinalPos = parseTranslate(earlyFinalEl)!;
+    expect(earlyFinalPos).not.toBeNull();
+
+    // Seek to step 0 (year 2020): early-1 must stay pinned at its exact final coordinates
+    controller.timeline!.seek(0);
+    for (let i = 0; i < 45; i++) controller.stepForTest(20);
+
+    const earlyStep0Pos = parseTranslate(
+      svg.querySelector('g.sv-node-item[data-node-id="early-1"]')!,
+    )!;
+    expect(earlyStep0Pos.x).toBeCloseTo(earlyFinalPos.x, 1);
+    expect(earlyStep0Pos.y).toBeCloseTo(earlyFinalPos.y, 1);
+
+    // Future empty clusters must render dimmed (opacity ~ 0.34) while populated clusters remain full opacity (1.0)
+    const emptyUids = new Set(
+      controller
+        .getClusters()
+        .filter((c) => c.members.length === 0)
+        .map((c) => c.clusterUid),
+    );
+    expect(emptyUids.size).toBeGreaterThan(0);
+
+    for (const cEl of svg.querySelectorAll('g.sv-node-cluster')) {
+      const uid = cEl.getAttribute('data-node-id') ?? '';
+      const opacity = Number(cEl.getAttribute('opacity'));
+      if (emptyUids.has(uid)) {
+        expect(opacity).toBeLessThan(0.45);
+      } else {
+        expect(opacity).toBeGreaterThan(0.95);
+      }
+    }
+
+    // Switch to 'hide' at runtime: empty clusters fade to 0 opacity & become pass-through
+    controller.setEmptyClusterBehavior('hide');
+    for (let i = 0; i < 45; i++) controller.stepForTest(20);
+    for (const cEl of svg.querySelectorAll('g.sv-node-cluster')) {
+      const uid = cEl.getAttribute('data-node-id') ?? '';
+      const opacity = Number(cEl.getAttribute('opacity'));
+      if (emptyUids.has(uid)) {
+        expect(opacity).toBeLessThan(0.05);
+        expect(cEl.getAttribute('data-pass-through')).toBe('true');
+      } else {
+        expect(opacity).toBeGreaterThan(0.95);
+      }
+    }
+
+    // Disabling timeline unwraps autoFinalSeedLayout and restores full corpus
+    controller.setTimelineOptions(false);
+    expect(controller.getLayoutStrategy().name).not.toMatch(/^final-seeded\(/);
+    expect(controller.getItems().length).toBe(items.length);
+
+    controller.destroy();
+    container.remove();
+  });
 });
 
 

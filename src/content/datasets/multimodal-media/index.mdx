@@ -11,8 +11,9 @@ colorStrategy: theme-adaptive-oklab
 layoutStrategy: collision-local-layout
 zoomStrategy: subspace-recluster-zoom
 nodeView: domain
+timelineEnabled: true
 publishedDate: "2026-11-15"
-description: Clusters real feature films from the UW Interactive Data Lab Vega movies dataset across two weighted embedding modalities without relying on discrete genre tags.
+description: Clusters real feature films from 1928–1976 across two weighted embedding modalities without discrete genre tags, with chronological timeline playback, adaptive final-seeded layout, and dimmed future clusters.
 order: 3
 ---
 
@@ -28,3 +29,9 @@ This example uses real feature-film records from **`vega-datasets` (`movies.json
 In historical film canons, discrete genre labels are heavily skewed—nearly four-fifths of acclaimed classics carry `"Drama"` as their primary genre, so naive majority-category naming would label five out of seven clusters *"Drama"*. Passing `features: cinemaFeatures` into `createSoftSimplexEmbeddingClusteringStrategy` evaluates **base-rate-aware z-scores and specificity lift** across continuous commercial and critical axes, producing seven pairwise-distinct archetypes (*Low-Budget Cult*, *Acclaimed Canon*, *Sleeper Hits*, *Roadshow Prestige*, *Critic Classics*, *Genre Curiosities*, and *Epic Runtime*).
 
 Clicking any triangle or cluster badge activates **Subspace Re-Clustering Drill-Down** (`createSubspaceZoomStrategy`): SimplexViz projects out parent traits with low local variance and re-clusters covered films across **production budget**, **release era** (*Golden Age* vs. *New Hollywood*), **theatrical runtime**, **box-office ROI**, **Rotten Tomatoes consensus**, and **genre**—preserving spatial orientation via two-line `parentContextLabel` headers on the `3` outer corners.
+
+## Chronological Cinema Timeline (1928–1976)
+
+Use the floating timeline bar at the bottom of the canvas to **Play**, **Pause**, **Step**, or **Scrub** through `29` release-year frames spanning nearly five decades of film history—from early silent/pre-Code classics (`1928`) through post-war noir (`1944–1955`) and `1960s` roadshow epics to `1970s` New Hollywood.
+
+Because this example configures `timeline` with `autoFinalSeed: true`, `autoFinalSeedLayout: 'adaptive'`, and `emptyClusterBehavior: 'dim'`, SimplexViz automatically pins all seven cinema archetype vertices, labels, and OKLab hues via `createFinalSeededClusteringStrategy`, anchors every film to its canonical full-corpus `(x, y)` coordinate via `createFinalSeededLayoutStrategy` (with symmetric SAT-verified adaptive scaling on sparse early decades), and renders future archetype clusters dimmed until their first film enters the timeline.

@@ -1,13 +1,14 @@
 ---
-title: Custom Views, Tooltips & Headless Snapshots
-shortTitle: Views & Headless SSR
-description: Customize content nodes, cluster anchors, triangle faces, mesh edges, and run SimplexViz headlessly in Node.js or Web Workers.
+title: Custom Views, Tooltips, Timeline & Headless Snapshots
+shortTitle: Views, Timeline & SSR
+description: Customize content nodes, cluster anchors, triangle faces, mesh edges, chronological timeline playback, and headless Node.js/Worker snapshots.
 section: Customization
 order: 2
-updatedDate: "2026-11-15"
+updatedDate: "2026-11-19"
 summaryPoints:
   - Measure arbitrary React JSX cards or custom SVG glyphs automatically via offscreen getBBox() convex hull extraction.
   - Swap SvgTriangleView and SvgEdgeView plugins independently—internal 1:4 drillable previews automatically inherit your SvgEdgeView.
+  - Enable chronological timeline playback with pinned full-corpus clusters, optional final-seeded item positions (pinned or adaptive), and configurable empty-cluster dimming.
   - Run solveSimplexSnapshot() synchronously in Node.js, Bun, Deno, or Web Workers with zero DOM dependencies.
 relatedApiSlug: svg
 ---
@@ -99,25 +100,58 @@ You can tailor built-in presets without writing a custom `VisualResolver` or `Sv
 />
 ```
 
-## 6. Path-Independent Chronological Replay (`createFinalSeededClusteringStrategy`)
+## 6. Chronological Timeline Playback, Final-Seeded Layout & Empty-Cluster Dimming
 
-When stepping through a dataset chronologically (`0 → N`) or toggling filters, incremental clustering can drift because early items dictate the initial anchors. Wrap any clustering strategy (Jaccard, Soft-Simplex, Embeddings, or Similarity) with `createFinalSeededClusteringStrategy`:
+Turn any timestamped or bucketed dataset into an interactive chronological replay (`0 → N`) using the built-in `timeline` option in `@simplex-viz/svg` and `@simplex-viz/react`—or drive custom UI headlessly via `createSimplexTimeline()` (`@simplex-viz/core`) and `useSimplexTimeline()` (`@simplex-viz/react`):
 
-```ts
+```tsx
 import {
-  createFinalSeededClusteringStrategy,
-  createSoftSimplexTagClusteringStrategy,
-} from '@simplex-viz/core';
+  SimplexTopicGraph,
+  useSimplexGraphController,
+  useSimplexTimeline,
+} from '@simplex-viz/react';
 
-const clusteringStrategy = createFinalSeededClusteringStrategy(
-  createSoftSimplexTagClusteringStrategy(),
-  { seedItems: allPublications }, // optional: defaults to the initial `items` array
-);
+export function PublicationTimeline({ publications }: { publications: readonly Publication[] }) {
+  const { controllerRef } = useSimplexGraphController();
+  const timeline = useSimplexTimeline(controllerRef);
+
+  return (
+    <SimplexTopicGraph
+      controllerRef={controllerRef}
+      items={publications}
+      timeline={{
+        getTimestamp: (p) => p.year,      // numeric year, Date, ISO string, or custom getFrameKey
+        stepIntervalMs: 850,              // playback interval per step (ms)
+        showControls: true,               // built-in theme-adaptive Play/Pause/Step/Scrubber HUD
+        position: 'bottom',               // 'bottom' | 'top'
+        loop: false,                      // optionally loop back to frame 0 after end
+        includeEmptyStart: false,         // optionally prepend an empty frame 0
+        autoFinalSeed: true,              // wraps clustering in createFinalSeededClusteringStrategy
+        autoFinalSeedLayout: 'adaptive',  // false | 'pinned' | 'adaptive' (createFinalSeededLayoutStrategy)
+        emptyClusterBehavior: 'dim',      // 'normal' | 'dim' | 'hide' for 0-item future clusters
+      }}
+      onTimelineStateChange={(state) => {
+        console.log(state.activeLabel, state.activeItemCount, timeline.isReady);
+      }}
+    />
+  );
+}
 ```
 
-- Computes and pins the canonical full-corpus clusters, mesh vertices, UIDs, and colors once.
-- Projects chronological subsets onto those pinned anchors with zero cluster hopping and restores the exact full-corpus clustering at step `N`.
-- Because `estimateClusterCount(ctx)` and `ClusteringStrategyContext` both receive explicit `reason` (`'initial' | 'items' | 'viewport' | 'mesh' | 'strategy'`) and viewport dimensions, shrinking and growing the viewport cleanly re-seeds the canonical full corpus and restores the original cluster count.
+### Independent Control Over All Three Timeline Axes
+
+1. **Cluster Stability (`autoFinalSeed` / `createFinalSeededClusteringStrategy`)**: Enabled by default (`autoFinalSeed: true`), wrapping your active clustering strategy so canonical full-corpus clusters, mesh vertices, UIDs, and OKLab hues stay pinned across frames `0..N`. Set `autoFinalSeed: false` to let clusters re-form dynamically at each chronological step, or wrap manually via `createFinalSeededClusteringStrategy(base, { seedItems })`.
+2. **Item Position & Scale Stability (`autoFinalSeedLayout` / `createFinalSeededLayoutStrategy`)**:
+   - `false` *(default)* — Re-solves layout dynamically on every frame using your active `layoutStrategy` (for example, `createWarmStartPbdLayoutStrategy()` or `createCollisionDrivenLayoutStrategy()`).
+   - `'pinned'` — Wraps your active layout strategy in `createFinalSeededLayoutStrategy(base, { scaleMode: 'pinned' })` so items stay locked to their canonical full-corpus `(x, y)` coordinates and final scales with zero drift.
+   - `'adaptive'` — Keeps canonical `(x, y)` coordinates pinned while symmetrically expanding sparse early-frame items up to `1.0x` with exact SAT `0.0 px` overlap verification.
+3. **Empty / Future Cluster Visibility (`emptyClusterBehavior`)**: Available both inside `timeline` and directly as a top-level prop/method (`emptyClusterBehavior` / `setEmptyClusterBehavior()`):
+   - `'normal'` *(default)* — All pinned clusters render at full opacity even before their first member item enters.
+   - `'dim'` — Clusters with `0` active members stay visible as dimmed landmarks until their first item arrives.
+   - `'hide'` — Clusters with `0` active members are hidden until activated by an incoming item.
+
+Because `estimateClusterCount(ctx)` and `ClusteringStrategyContext` receive explicit `reason` (`'initial' | 'items' | 'viewport' | 'mesh' | 'strategy'`) and viewport dimensions, resizing the canvas cleanly re-seeds both final-seeded clustering and final-seeded layout against the canonical full corpus.
+
 
 
 

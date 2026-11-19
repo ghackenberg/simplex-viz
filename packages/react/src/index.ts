@@ -1,5 +1,6 @@
 export * from './ReactJsxSvgView.js';
 export * from './useSimplexGraphController.js';
+export * from './useSimplexTimeline.js';
 export * from './SimplexTopicGraph.js';
 
 // Convenient re-exports from @simplex-viz/svg and @simplex-viz/core for single-import React usage
@@ -56,6 +57,7 @@ export {
   type SvgNodeView,
   type SvgRendererOptions,
   type SvgTriangleView,
+  type TimelinePlayerOptions,
 } from '@simplex-viz/svg';
 
 export {
@@ -85,6 +87,7 @@ export {
   createWarmStartPbdLayoutStrategy,
   createLocalAdaptiveLayoutStrategy,
   createCollisionDrivenLayoutStrategy,
+  createFinalSeededLayoutStrategy,
   createComposedLayoutStrategy,
   solveComposedLayout,
   createPhyllotaxisSeeder,
@@ -106,6 +109,8 @@ export {
   assignDiscriminativeClusterLabels,
   resolveDiscriminativeClusterLabel,
   disambiguatePeerClusterTitle,
+  SimplexTimelineController,
+  createSimplexTimeline,
   type AssignedColor,
   type BarycentricClusterZoomMode,
   type BarycentricPbdRelaxerOptions,
@@ -138,8 +143,11 @@ export {
   type EmbeddingClusteringOptions,
   type EmbeddingSource,
   type EmbeddingVector,
+  type EmptyClusterBehavior,
   type EstimateClusterCountContext,
   type FinalSeededClusteringOptions,
+  type FinalSeededLayoutOptions,
+  type FinalSeededLayoutScaleMode,
   type FixedScaleControllerOptions,
   type HitTarget,
   type IdentifiedItem,
@@ -187,6 +195,11 @@ export {
   type SimplexMeshContext,
   type SimplexMeshStrategy,
   type SimplexSnapshotOptions,
+  type SimplexTimelineFrame,
+  type SimplexTimelineLabelContext,
+  type SimplexTimelineListener,
+  type SimplexTimelineOptions,
+  type SimplexTimelineState,
   type SimplexZoomState,
   type SimplexZoomStrategy,
   type SoftSimplexEmbeddingClusteringOptions,
@@ -196,6 +209,7 @@ export {
   type SubspaceZoomContext,
   type SubspaceZoomFeature,
   type SubspaceZoomStrategyOptions,
+  type TimelineTimestampValue,
   type TriangleClickEvent,
   type TriangleHoverEvent,
   type UniformScaleControllerOptions,

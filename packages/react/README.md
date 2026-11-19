@@ -28,7 +28,7 @@ In React, `<SimplexTopicGraph />` lets you drop custom JSX directly into cluster
   2. **Portable `Svg*View` Plugins** (`contentView`, `clusterView`, `triangleView`, `edgeView` from `@simplex-viz/svg`): Direct SVG DOM updates with zero React reconciliation overhead per animation frame.
 - **5 Pluggable Strategy Axes (`Mesh`, `Clustering`, `Color`, `Layout`, `Zoom`)**: Swap tag clustering, soft-simplex clustering, multi-modal embeddings, pairwise similarity, composable layout (`Seeder × Relaxer × ScaleController`), and conformal **`1:4` hierarchical drill-down** (`zoomStrategy`) via declarative props.
 - **Full generic type inference**: Infers `<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>` end-to-end across `items`, `getId`, `getTags`, `deriveClusterMeta`, `visualResolver`, `renderContentNode`, `renderClusterNode`, tooltips, hover events, and click targets.
-- **`useSimplexGraphController`**: Imperative hook for live item mutations, strategy/view hot-swapping, programmatic drill-down (`drillDownTriangle`, `drillDownCluster`, `drillUp`, `drillToRoot`), camera controls, and telemetry getters.
+- **Chronological Timeline Playback & Imperative Hooks**: Opt-in `timeline` prop with built-in floating Play/Pause/Step/Scrubber HUD, automatic full-corpus cluster/layout pinning (`autoFinalSeed`, `autoFinalSeedLayout: 'pinned' | 'adaptive'`), configurable `emptyClusterBehavior` (`'normal' | 'dim' | 'hide'`), and reactive `useSimplexTimeline()` alongside `useSimplexGraphController()`.
 
 ## Installation
 
@@ -78,6 +78,8 @@ export function QuickTopicMap() {
 | `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Mesh-inward fan seeding + space-filling PBD dispersion + global uniform scale search (`0.0 px` overlap). |
 | `zoomStrategy` | `createFreeCameraZoomStrategy()` | Continuous cursor wheel zoom (`onWheel="zoom-to-cursor"`), 2-finger pinch, and drag-to-pan. |
 | `showZoomBreadcrumbs` | `true` | Displays clickable top breadcrumbs whenever drilled into a sub-level (`depth > 0`). |
+| `timeline` | `false` | Opt-in chronological frame stepping & playback (`boolean \| TimelinePlayerOptions`) with Play/Pause/Step/Scrubber HUD, `autoFinalSeed`, `autoFinalSeedLayout`, and `emptyClusterBehavior`. |
+| `emptyClusterBehavior` | `'normal'` | `'normal' \| 'dim' \| 'hide'` — Controls how clusters with `0` active items render (e.g., future clusters during timeline playback). |
 | `relayoutOnFontLoad` | `true` | Automatically clears SVG hull caches and re-solves layout once webfonts finish loading. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode when `focused*` is uncontrolled and click is not consumed (`return true`). |
 | `tooltip` | `false` | Set `tooltip` (`true`) or pass `(target) => ReactNode` to render a floating tooltip overlay. |
@@ -336,6 +338,43 @@ export function FastControlledGraph({
 }
 ```
 
+### Step 7 — Chronological Timeline Playback & `useSimplexTimeline()`
+
+Pass `timeline` to step or play through timestamped datasets with pinned full-corpus clusters (`autoFinalSeed: true`), optional final-seeded item coordinates (`autoFinalSeedLayout: 'pinned' | 'adaptive'`), and dimmed or hidden future clusters (`emptyClusterBehavior: 'normal' | 'dim' | 'hide'`). Pair with `useSimplexTimeline(controllerRef)` to drive custom React playback UI:
+
+```tsx
+import {
+  SimplexTopicGraph,
+  useSimplexGraphController,
+  useSimplexTimeline,
+} from '@simplex-viz/react';
+
+export function TimelineAtlas({ items }: { items: readonly { id: string; tags: string[]; year: number }[] }) {
+  const { controllerRef } = useSimplexGraphController();
+  const timeline = useSimplexTimeline(controllerRef);
+
+  return (
+    <div style={{ width: '100%', height: 600 }}>
+      <SimplexTopicGraph
+        controllerRef={controllerRef}
+        items={items}
+        timeline={{
+          getTimestamp: (item) => item.year,
+          stepIntervalMs: 850,
+          autoFinalSeed: true,
+          autoFinalSeedLayout: 'adaptive',
+          emptyClusterBehavior: 'dim',
+        }}
+        tooltip
+      />
+      <button onClick={() => timeline.toggle()}>
+        {timeline.state?.playing ? 'Pause' : 'Play'} ({timeline.state?.activeLabel ?? '—'})
+      </button>
+    </div>
+  );
+}
+```
+
 ---
 
 ## `<SimplexTopicGraph />` Props Reference
@@ -375,12 +414,14 @@ export function FastControlledGraph({
 | `meshStrategy` | `createAdaptiveHexMeshStrategy()` | Pluggable `SimplexMeshStrategy<TItem>`. |
 | `clusteringStrategy` | `createJaccardAnnealingClusteringStrategy()` | Pluggable `SimplexClusteringStrategy<TItem, TTagMeta>` (Jaccard, Soft-Simplex Tags/Embeddings, Embeddings, Similarity, Incremental, `createFinalSeededClusteringStrategy`, or custom). |
 | `colorStrategy` | `createOklabContrastColorStrategy()` | Pluggable `SimplexColorStrategy<TItem, TTagMeta>`. |
-| `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Pluggable `SimplexLayoutStrategy` (`pbd-uniform`, `pbd-warm-start`, `local-adaptive`, `collision-driven`, `createComposedLayoutStrategy`, or custom). |
+| `layoutStrategy` | `createPbdUniformLayoutStrategy()` | Pluggable `SimplexLayoutStrategy` (`pbd-uniform`, `pbd-warm-start`, `local-adaptive`, `collision-driven`, `createFinalSeededLayoutStrategy`, `createComposedLayoutStrategy`, or custom). |
 | `zoomStrategy` | `createFreeCameraZoomStrategy()` | Pluggable `SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>` (`createFreeCameraZoomStrategy`, `createBarycentricZoomStrategy`, `createSemanticZoomStrategy`, `createSubspaceZoomStrategy`, or custom). |
 | `showZoomBreadcrumbs` | `true` | Renders clickable top breadcrumb navigation in drill-down mode when `depth > 0`. |
+| `timeline` | `false` | `boolean \| TimelinePlayerOptions<TItem>` — Opt-in chronological frame stepping & playback (`getTimestamp`, `getFrameKey`, `stepIntervalMs`, `showControls`, `position`, `autoFinalSeed`, `autoFinalSeedLayout`, `emptyClusterBehavior`). |
 | `relayoutOnFontLoad` | `true` | Automatically re-measures SVG hulls and re-solves layout after `document.fonts.ready` / `loadingdone`. |
 | `sizeMultiplier` | `1.0` | Uniform node size multiplier (`0.35` – `3.0`). |
 | `showHulls` | `false` | Renders convex bounding hull wireframes over nodes. |
+| `emptyClusterBehavior` | `'normal'` | `'normal' \| 'dim' \| 'hide'` — Controls how clusters with `0` active member items render (e.g. future clusters during timeline playback). |
 | `pinnedIds` / `highlightedIds` | — | `ReadonlySet<string> \| readonly string[]` of pinned or highlighted item IDs. |
 | `focusedClusterUid` / `focusedTriangleIndex` | `null` | Controlled cluster UID or triangle index isolation in `free-camera` mode. |
 | `className` / `style` | — | Styling forwarded to the outer container `<div>` (`width: 100%; height: 100%`). |
@@ -397,19 +438,22 @@ export function FastControlledGraph({
 | `onMetricsChange` | — | `(metrics: LayoutMetrics) => void` |
 | `onClustersChange` | — | `(clusters: readonly ClusterDescriptor[]) => void` |
 | `onZoomStateChange` | — | `(state: SimplexZoomState) => void` — Emits `depth`, `activeFrameKind`, `breadcrumbs`, `drillableTriangleIndices`, `focusableTriangleIndices`, `drillableClusterUids`, `isLeafReached`. |
+| `onTimelineStateChange` | — | `(state: SimplexTimelineState<TItem>) => void` — Emits chronological playback state (`step`, `totalSteps`, `playing`, `speed`, `atEnd`, `activeLabel`, `activeItemCount`, `frames`). |
 | `onFpsUpdate` | — | `(fps: number) => void` |
 | `controllerRef` | — | Ref populated with the underlying `SimplexSvgController` instance. |
 
-## `useSimplexGraphController()` Hook
+## `useSimplexGraphController()` & `useSimplexTimeline()` Hooks
 
-Returns `{ controllerRef, handle }`:
+`useSimplexGraphController()` returns `{ controllerRef, handle }`:
 
 - `handle.addItems(items)` / `handle.removeItems(ids)` / `handle.setItems(items)` — Live dataset mutations.
 - `handle.setMeshStrategy(s)` / `handle.setClusteringStrategy(s)` / `handle.setColorStrategy(s)` / `handle.setLayoutStrategy(s)` / `handle.setZoomStrategy(s)` — Hot-swaps any of the 5 pipeline stages imperatively.
 - `handle.drillDownTriangle(index)` / `handle.drillDownCluster(uid)` / `handle.drillToNeighbor(neighborId)` / `handle.drillUp()` / `handle.drillToDepth(depth)` / `handle.drillToRoot()` / `handle.getZoomState()` — Programmatic drill-down navigation and state inspection.
 - `handle.setTriangleView(view)` / `handle.setEdgeView(view)` / `handle.setFocusedTriangleIndex(index)` — Hot-swaps mesh triangle/edge renderers or updates triangle focus.
 - `handle.zoomBy(factor)` / `handle.resetCamera()` / `handle.relayout()` — Camera zoom/reset and manual hull re-measurement + relayout.
-- `handle.getMetrics()` / `handle.getClusters()` / `handle.getRawController()` — Live solver telemetry and raw controller access.
+- `handle.getMetrics()` / `handle.getClusters()` / `handle.getTimeline()` / `handle.getRawController()` — Live solver telemetry, active timeline controller, and raw controller access.
+
+`useSimplexTimeline(controllerRef | timelineController)` returns reactive `{ state, isReady, play, pause, toggle, stepBy, seek, resetToEnd, setSpeed, setStepIntervalMs, setLoop, getController }` for building custom declarative React playback toolbars.
 
 ## License
 

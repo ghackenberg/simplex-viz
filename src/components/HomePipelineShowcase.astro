@@ -29,7 +29,7 @@ const STAGE_CHAPTERS: readonly StageChapterMeta[] = [
     num: '02',
     title: 'Simplex Projection',
     description:
-      'Projects tag sets, dense embeddings, or arbitrary pairwise similarities S(a, b) into planar barycentric weights w₁ + w₂ + w₃ = 1.',
+      'Projects tag sets, dense embeddings, or pairwise similarities S(a, b) into planar barycentric weights w₁ + w₂ + w₃ = 1—with optional final-seeded pinning for chronological replay.',
     href: withBase('/docs/stage-2-clustering'),
     strategies: getStrategiesByStage(2),
   },
@@ -47,7 +47,7 @@ const STAGE_CHAPTERS: readonly StageChapterMeta[] = [
     num: '04',
     title: 'Convex Layout',
     description:
-      'Fans dense node clusters into open triangle territory and resolves exact convex Minimum Translation Vectors for guaranteed 0.0 px overlap.',
+      'Fans dense clusters into open triangle territory and resolves exact convex Minimum Translation Vectors for 0.0 px overlap—or pins final-seeded coordinates across timeline frames.',
     href: withBase('/docs/stage-4-layout'),
     strategies: getStrategiesByStage(4),
   },

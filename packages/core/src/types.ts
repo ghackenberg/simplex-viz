@@ -276,6 +276,8 @@ export interface VisualResolver<
 /**
  * 2D Cartesian point.
  */
+export type EmptyClusterBehavior = 'normal' | 'dim' | 'hide';
+
 export interface Point2D {
   readonly x: number;
   readonly y: number;
@@ -891,6 +893,19 @@ export interface SimplexEngineResolvedConfig<
   readonly zoomStrategy?: SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>;
   /** Canvas theme hint forwarded to `SimplexColorStrategy`. Default: `'dark'`. */
   readonly theme?: SimplexColorTheme;
+  /**
+   * Visual treatment for clusters that currently have `0` active member items
+   * (e.g. future clusters during chronological timeline playback with final-seeded clustering):
+   * - `'normal'` (default): Render at full opacity.
+   * - `'dim'`: Dim empty clusters (`interaction.isDimmed = true`) until their first member arrives.
+   * - `'hide'`: Fade empty clusters to opacity `0` and disable pointer hit-testing until their first member arrives.
+   */
+  readonly emptyClusterBehavior?: EmptyClusterBehavior;
+  /**
+   * Optional full canonical item corpus used to seed `createFinalSeededLayoutStrategy`
+   * when rendering partial subsets (such as early timeline frames or filtered views).
+   */
+  readonly canonicalSeedItems?: readonly TItem[];
   readonly showHulls?: boolean;
   readonly interactions?: InteractionHandlers<
     TItem,

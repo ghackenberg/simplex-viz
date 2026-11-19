@@ -177,6 +177,9 @@ const jsonLd = {
             label: entry.data.requiresTags ? 'Tagged Dataset' : 'Tag-Free Vectors',
             mono: true,
           },
+          ...(entry.data.timelineEnabled
+            ? [{ icon: 'clock' as const, label: 'Timeline Playback', mono: true }]
+            : []),
         ]}
         showCopyLink
       />
@@ -266,6 +269,7 @@ const jsonLd = {
           zoomStrategy={entry.data.zoomStrategy}
           nodeView={entry.data.nodeView}
           thumbManifest={thumbManifest}
+          timelineEnabled={entry.data.timelineEnabled}
           embedded
           client:load
         />
