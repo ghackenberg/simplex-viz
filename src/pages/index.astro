@@ -160,13 +160,30 @@ const installTargets = [
   <!-- Section 3: Interactive Domain Examples (Real Open-Access Datasets) -->
   <section class="border-y border-slate-200/80 bg-white dark:border-slate-800/80 dark:bg-[#0B0F17]">
     <div class="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
-      <div class="max-w-xl">
-        <p class="text-xs font-medium text-slate-500 dark:text-slate-400">
-          Real Open-Access Datasets
-        </p>
-        <h2 class="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
-          Explore six domain atlases directly in the browser
-        </h2>
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
+        <div class="max-w-xl">
+          <p class="text-xs font-medium text-slate-500 dark:text-slate-400">
+            Real Open-Access Datasets
+          </p>
+          <h2 class="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
+            Explore six domain atlases directly in the browser
+          </h2>
+        </div>
+
+        <a
+          href={withBase('/examples')}
+          class="group inline-flex w-fit shrink-0 items-center gap-1.5 rounded-sm text-sm font-semibold text-cyan-700 transition-colors hover:text-cyan-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:text-cyan-300 dark:hover:text-cyan-200 whitespace-nowrap"
+        >
+          <span class="underline-offset-4 group-hover:underline">
+            Explore all examples
+          </span>
+          <span
+            aria-hidden="true"
+            class="transition-transform group-hover:translate-x-0.5"
+          >
+            →
+          </span>
+        </a>
       </div>
 
       <div class="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -188,13 +205,30 @@ const installTargets = [
   {
     latestNotes.length > 0 && (
       <section class="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
-        <div class="max-w-xl">
-          <p class="text-xs font-medium text-slate-500 dark:text-slate-400">
-            Latest Notes
-          </p>
-          <h2 class="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
-            Engineering deep dives &amp; release updates
-          </h2>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
+          <div class="max-w-xl">
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">
+              Latest Notes
+            </p>
+            <h2 class="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-white [text-wrap:balance]">
+              Engineering deep dives &amp; release updates
+            </h2>
+          </div>
+
+          <a
+            href={withBase('/notes')}
+            class="group inline-flex w-fit shrink-0 items-center gap-1.5 rounded-sm text-sm font-semibold text-cyan-700 transition-colors hover:text-cyan-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:text-cyan-300 dark:hover:text-cyan-200 whitespace-nowrap"
+          >
+            <span class="underline-offset-4 group-hover:underline">
+              Read all notes
+            </span>
+            <span
+              aria-hidden="true"
+              class="transition-transform group-hover:translate-x-0.5"
+            >
+              →
+            </span>
+          </a>
         </div>
 
         <div class="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
