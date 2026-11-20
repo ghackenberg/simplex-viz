@@ -240,6 +240,15 @@ export type SimplexTopicGraphProps<
     readonly itemFilterMode?: ItemFilterMode;
     readonly pinnedIds?: ReadonlySet<string> | readonly string[];
     readonly highlightedIds?: Iterable<string> | null;
+    /**
+     * Multi-selected item IDs. Tracked independently of `highlightedIds` and `pinnedIds`.
+     * Supports both controlled usage (paired with `onSelectionChange`) and uncontrolled interactive selection.
+     */
+    readonly selectedIds?: Iterable<string> | null;
+    /**
+     * Enables `Shift+Drag` rubberband marquee box selection on pointer/mouse devices. Default: `true`.
+     */
+    readonly marqueeSelection?: boolean;
     readonly focusedClusterUid?: string | null;
     readonly focusedTriangleIndex?: number | null;
     /**
@@ -369,6 +378,8 @@ export type SimplexTopicGraphProps<
       clusters: readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[],
     ) => void;
     readonly onZoomStateChange?: (state: SimplexZoomState) => void;
+    /** Invoked whenever the active multi-selection set changes via user interaction or API calls. */
+    readonly onSelectionChange?: (selectedIds: ReadonlySet<string>) => void;
     /** Invoked whenever the timeline playback state changes (when `timeline` is enabled). */
     readonly onTimelineStateChange?: (state: SimplexTimelineState<TItem>) => void;
     readonly onFpsUpdate?: (fps: number) => void;
@@ -849,12 +860,15 @@ export function SimplexTopicGraph<
       ariaLabel: p.ariaLabel,
       keyboardNavigation: p.keyboardNavigation,
       reducedMotion: p.reducedMotion,
+      selectedIds: p.selectedIds,
+      marqueeSelection: p.marqueeSelection,
       focusOnClusterClick: false,
       focusOnTriangleClick: false,
       interactions: buildReactInteractions(p.onWheel),
       onMetricsChange: (m) => latestPropsRef.current.onMetricsChange?.(m),
       onClustersChange: (c) => latestPropsRef.current.onClustersChange?.(c),
       onZoomStateChange: (z) => latestPropsRef.current.onZoomStateChange?.(z),
+      onSelectionChange: (s) => latestPropsRef.current.onSelectionChange?.(s),
       onFpsUpdate: (fps) => latestPropsRef.current.onFpsUpdate?.(fps),
     });
     ctrlRef.current = ctrl;
@@ -1242,6 +1256,18 @@ export function SimplexTopicGraph<
       ctrlRef.current?.setHighlightedIds(props.highlightedIds);
     }
   }, [props.highlightedIds]);
+
+  useEffect(() => {
+    if (props.selectedIds !== undefined) {
+      ctrlRef.current?.setSelectedIds(props.selectedIds);
+    }
+  }, [props.selectedIds]);
+
+  useEffect(() => {
+    if (props.marqueeSelection !== undefined) {
+      ctrlRef.current?.setMarqueeSelection(props.marqueeSelection);
+    }
+  }, [props.marqueeSelection]);
 
   useEffect(() => {
     if (props.focusedClusterUid !== undefined) {

@@ -108,12 +108,13 @@ export class MultiSectorGlyphSvgView implements SvgNodeView<MultiSectorGlyphVisu
     core.setAttribute('fill', visual.centerColorHex);
     groupEl.appendChild(core);
 
-    if (
+    const hasInnerRing = Boolean(
       visual.accentRingHex ||
-      state.interaction.isHovered ||
-      state.interaction.isPinned ||
-      state.interaction.isHighlighted
-    ) {
+        state.interaction.isHovered ||
+        state.interaction.isPinned ||
+        state.interaction.isHighlighted,
+    );
+    if (hasInnerRing) {
       const ring = doc.createElementNS(SVG_NS, 'circle');
       ring.setAttribute('cx', '0');
       ring.setAttribute('cy', '0');
@@ -129,6 +130,19 @@ export class MultiSectorGlyphSvgView implements SvgNodeView<MultiSectorGlyphVisu
       );
       ring.setAttribute('stroke-width', state.interaction.isHovered ? '2' : '1.2');
       groupEl.appendChild(ring);
+    }
+
+    if (state.interaction.isSelected) {
+      const selRing = doc.createElementNS(SVG_NS, 'circle');
+      selRing.setAttribute('class', 'sv-glyph-selection-ring');
+      selRing.setAttribute('cx', '0');
+      selRing.setAttribute('cy', '0');
+      selRing.setAttribute('r', String(visual.outerRadius + (hasInnerRing ? 6 : 3.8)));
+      selRing.setAttribute('fill', 'none');
+      selRing.setAttribute('stroke', isLight ? '#7c3aed' : '#a78bfa');
+      selRing.setAttribute('stroke-width', '2.1');
+      selRing.setAttribute('stroke-opacity', '0.96');
+      groupEl.appendChild(selRing);
     }
   }
 }

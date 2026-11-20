@@ -108,6 +108,7 @@ export interface SsrRenderContentContext<
   readonly theme: SimplexTheme;
   readonly preset: SimplexVisualPreset;
   readonly isHighlighted: boolean;
+  readonly isSelected: boolean;
   readonly isDimmed: boolean;
   readonly defaultMarkup: string;
 }
@@ -153,6 +154,8 @@ export interface RenderSimplexSvgStringExtraOptions<
   readonly xmlDeclaration?: boolean;
   /** Optional iterable of item IDs to highlight (dimming non-matches). */
   readonly highlightedIds?: Iterable<string> | null;
+  /** Optional item IDs rendered with multi-selection rings (`data-selected="true"`). */
+  readonly selectedIds?: Iterable<string> | null;
   /** Optional item filter predicate (`'dim'` or `'hide'`). */
   readonly itemFilter?: ItemFilterPredicate<TItem> | null;
   /** Visual mode for filtered-out items (`'dim'` or `'hide'`). Default: `'dim'`. */
@@ -956,6 +959,7 @@ function renderDefaultContentMarkup<TItem, TTagMeta, TClusterMeta>(
   preset: SimplexVisualPreset,
   theme: SimplexTheme,
   isHighlighted: boolean,
+  isSelected: boolean,
   options: {
     readonly getShape?: PresetContentShapeOption<TItem, TTagMeta, TClusterMeta>;
     readonly shapeOptions?: GeometricShapeSvgViewOptions;
@@ -963,6 +967,8 @@ function renderDefaultContentMarkup<TItem, TTagMeta, TClusterMeta>(
 ): string {
   const isLight = theme === 'light';
   const accentRing = options.shapeOptions?.hoverRingColor ?? (isLight ? '#0891b2' : '#22d3ee');
+  const selectionRing =
+    options.shapeOptions?.selectionRingColor ?? (isLight ? '#7c3aed' : '#a78bfa');
 
   if (preset === 'glyphs') {
     const outerR = 11.5;
@@ -993,6 +999,11 @@ function renderDefaultContentMarkup<TItem, TTagMeta, TClusterMeta>(
         `<circle cx="0" cy="0" r="${outerR + 3}" fill="none" stroke="${escapeXml(accentRing)}" stroke-width="1.4" stroke-opacity="0.9"/>`,
       );
     }
+    if (isSelected) {
+      parts.push(
+        `<circle class="sv-glyph-selection-ring" cx="0" cy="0" r="${outerR + (isHighlighted ? 6 : 3.8)}" fill="none" stroke="${escapeXml(selectionRing)}" stroke-width="2.1" stroke-opacity="0.96"/>`,
+      );
+    }
     return parts.join('');
   }
 
@@ -1010,13 +1021,18 @@ function renderDefaultContentMarkup<TItem, TTagMeta, TClusterMeta>(
       ? Math.max(0, options.shapeOptions.strokeWidth)
       : 1.4;
   const parts: string[] = [];
+  if (isSelected) {
+    parts.push(
+      `<path class="sv-geom-selection-ring" d="${buildGeometricShapePath(resolved, resolved.radius + (isHighlighted ? 7.2 : 4.6))}" fill="none" stroke="${escapeXml(selectionRing)}" stroke-width="2.1" stroke-opacity="0.96"/>`,
+    );
+  }
   if (isHighlighted) {
     parts.push(
       `<path class="sv-geom-ring" d="${buildGeometricShapePath(resolved, resolved.radius + 4.5)}" fill="none" stroke="${escapeXml(accentRing)}" stroke-width="1.4" stroke-opacity="0.9"/>`,
     );
   }
   parts.push(
-    `<path class="sv-geom-shape" d="${buildGeometricShapePath(resolved, resolved.radius)}" fill="${escapeXml(node.colorHex)}" stroke="${escapeXml(restStroke)}" stroke-width="${fmt(strokeWidth)}"/>`,
+    `<path class="sv-geom-shape" d="${buildGeometricShapePath(resolved, resolved.radius)}" fill="${escapeXml(node.colorHex)}" stroke="${escapeXml(isSelected ? selectionRing : restStroke)}" stroke-width="${fmt(isSelected ? Math.max(2.2, strokeWidth) : strokeWidth)}"/>`,
   );
   return parts.join('');
 }
@@ -1169,6 +1185,8 @@ export function renderSimplexSvgString<
   const highlightedSet =
     opts.highlightedIds != null ? new Set(opts.highlightedIds) : null;
   const hasHighlights = highlightedSet !== null && highlightedSet.size > 0;
+  const selectedSet =
+    opts.selectedIds != null ? new Set(opts.selectedIds) : null;
   const itemFilter = opts.itemFilter ?? null;
   const itemFilterMode: ItemFilterMode = opts.itemFilterMode ?? 'dim';
   const dimmedFactor =
@@ -1223,14 +1241,18 @@ export function renderSimplexSvgString<
       continue;
     }
     const isHighlighted = hasHighlights && highlightedSet!.has(node.id);
-    const isDimmed = !passesFilter || (hasHighlights && !isHighlighted);
+    const isSelected = selectedSet !== null && selectedSet.has(node.id);
+    const isDimmed =
+      !passesFilter || (hasHighlights && !isHighlighted && !isSelected);
     const opacityAttr = isDimmed ? ` opacity="${dimmedFactor.toFixed(3)}"` : '';
     const filteredAttr = !passesFilter ? ' data-filtered-out="true"' : '';
+    const selectedAttr = isSelected ? ' data-selected="true"' : '';
     const defaultMarkup = renderDefaultContentMarkup(
       node,
       preset,
       theme,
       isHighlighted,
+      isSelected,
       {
         getShape: opts.getShape,
         shapeOptions: opts.shapeOptions,
@@ -1242,12 +1264,13 @@ export function renderSimplexSvgString<
           theme,
           preset,
           isHighlighted,
+          isSelected,
           isDimmed,
           defaultMarkup,
         })
       : defaultMarkup;
     itemsParts.push(
-      `<g class="sv-node sv-node-item" data-node-id="${escapeXml(node.id)}"${filteredAttr} transform="translate(${node.x.toFixed(2)}, ${node.y.toFixed(2)}) scale(${node.scale.toFixed(4)})"${opacityAttr}>${inner}</g>`,
+      `<g class="sv-node sv-node-item" data-node-id="${escapeXml(node.id)}"${filteredAttr}${selectedAttr} transform="translate(${node.x.toFixed(2)}, ${node.y.toFixed(2)}) scale(${node.scale.toFixed(4)})"${opacityAttr}>${inner}</g>`,
     );
   }
   const itemsSvg = itemsParts.join('');

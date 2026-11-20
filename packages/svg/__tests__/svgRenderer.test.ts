@@ -3683,6 +3683,184 @@ describe('@simplex-viz/svg integration', () => {
       container.remove();
     }
   });
+
+  it('supports Shift+Click, Shift+Drag marquee box, keyboard selection, and distinct selection rings (Issue #25)', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+    document.body.appendChild(container);
+
+    const items: DefaultTaggedItem[] = [
+      { id: 'sel-1', tags: ['alpha', 'beta'] },
+      { id: 'sel-2', tags: ['alpha', 'gamma'] },
+      { id: 'sel-3', tags: ['beta', 'gamma'] },
+      { id: 'sel-4', tags: ['gamma', 'delta'] },
+      { id: 'sel-5', tags: ['beta', 'delta'] },
+    ];
+    const selectionEvents: string[][] = [];
+
+    const ctrl = createSimplexSvg(container, {
+      items,
+      preset: 'geometric',
+      layoutOptions: { seed: 17 },
+      onSelectionChange: (ids) => {
+        selectionEvents.push([...ids].sort());
+      },
+    });
+
+    const svgEl = container.querySelector('svg')!;
+    Object.defineProperty(svgEl, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+
+    const getItemScreenPos = (id: string) => {
+      const g = svgEl.querySelector<SVGGElement>(`g.sv-node-item[data-node-id="${id}"]`)!;
+      const transform = g.getAttribute('transform') ?? '';
+      const m = /translate\(([-0-9.]+),\s*([-0-9.]+)\)/.exec(transform)!;
+      return { x: Number(m[1]), y: Number(m[2]), el: g };
+    };
+
+    try {
+      const p1 = getItemScreenPos('sel-1');
+      const p2 = getItemScreenPos('sel-2');
+
+      // 1) Shift+Click on sel-1 and sel-2 selects both and renders distinct selection rings
+      svgEl.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: p1.x, clientY: p1.y, shiftKey: true }),
+      );
+      svgEl.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: p2.x, clientY: p2.y, shiftKey: true }),
+      );
+      expect([...ctrl.getSelectedIds()].sort()).toEqual(['sel-1', 'sel-2']);
+      expect(p1.el.getAttribute('data-selected')).toBe('true');
+      expect(p1.el.getAttribute('aria-selected')).toBe('true');
+      const ring1 = p1.el.querySelector('path.sv-geom-selection-ring');
+      expect(ring1?.getAttribute('d')).toBeTruthy();
+
+      // 2) Highlighting another item does not erase selection
+      ctrl.setHighlightedIds(['sel-3']);
+      expect([...ctrl.getSelectedIds()].sort()).toEqual(['sel-1', 'sel-2']);
+      ctrl.setHighlightedIds(null);
+
+      // 3) Plain background click clears selection
+      svgEl.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: 6, clientY: 6, shiftKey: false }),
+      );
+      expect(ctrl.getSelectedIds().size).toBe(0);
+      expect(p1.el.getAttribute('data-selected')).toBeNull();
+
+      // 4) Shift+Drag marquee box selects enclosed items without panning camera
+      const camBefore = ctrl.camera.getState();
+      const minX = Math.min(p1.x, p2.x) - 18;
+      const minY = Math.min(p1.y, p2.y) - 18;
+      const maxX = Math.max(p1.x, p2.x) + 18;
+      const maxY = Math.max(p1.y, p2.y) + 18;
+
+      svgEl.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          bubbles: true,
+          pointerId: 1,
+          pointerType: 'mouse',
+          button: 0,
+          clientX: minX,
+          clientY: minY,
+          shiftKey: true,
+        }),
+      );
+      svgEl.dispatchEvent(
+        new PointerEvent('pointermove', {
+          bubbles: true,
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: maxX,
+          clientY: maxY,
+          shiftKey: true,
+        }),
+      );
+      // Marquee overlay rect is visible mid-drag and excluded from exportSvg()
+      const marqueeOverlay = svgEl.querySelector('g.sv-marquee-overlay');
+      const marqueeRect = svgEl.querySelector('rect.sv-marquee-rect');
+      expect(marqueeOverlay).not.toBeNull();
+      expect(marqueeOverlay?.getAttribute('display')).toBeNull();
+      expect(Number(marqueeRect?.getAttribute('width'))).toBeGreaterThan(10);
+      expect(ctrl.exportSvg()).not.toContain('sv-marquee-overlay');
+
+      svgEl.dispatchEvent(
+        new PointerEvent('pointerup', {
+          bubbles: true,
+          pointerId: 1,
+          pointerType: 'mouse',
+          button: 0,
+          clientX: maxX,
+          clientY: maxY,
+          shiftKey: true,
+        }),
+      );
+      // Trailing browser click after marquee drag must be suppressed
+      svgEl.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: maxX, clientY: maxY, shiftKey: false }),
+      );
+      expect(marqueeOverlay?.getAttribute('display')).toBe('none');
+      expect(ctrl.getSelectedIds().has('sel-1')).toBe(true);
+      expect(ctrl.getSelectedIds().has('sel-2')).toBe(true);
+      expect(ctrl.camera.getState()).toEqual(camBefore);
+
+      // 5) Escape clears selection via keyboard and announces politely
+      svgEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(ctrl.getSelectedIds().size).toBe(0);
+
+      // 6) Glyphs preset renders sv-glyph-selection-ring
+      ctrl.setPreset('glyphs');
+      ctrl.setSelectedIds(['sel-3']);
+      const glyphEl = svgEl.querySelector<SVGGElement>('g.sv-node-item[data-node-id="sel-3"]')!;
+      expect(glyphEl.getAttribute('data-selected')).toBe('true');
+      expect(glyphEl.querySelector('circle.sv-glyph-selection-ring')).not.toBeNull();
+
+      // 7) Disabling marqueeSelection prevents marquee box activation
+      ctrl.setMarqueeSelection(false);
+      expect(ctrl.isMarqueeSelectionEnabled()).toBe(false);
+      ctrl.clearSelection();
+      svgEl.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          bubbles: true,
+          pointerId: 2,
+          pointerType: 'mouse',
+          button: 0,
+          clientX: minX,
+          clientY: minY,
+          shiftKey: true,
+        }),
+      );
+      svgEl.dispatchEvent(
+        new PointerEvent('pointermove', {
+          bubbles: true,
+          pointerId: 2,
+          pointerType: 'mouse',
+          clientX: maxX,
+          clientY: maxY,
+          shiftKey: true,
+        }),
+      );
+      svgEl.dispatchEvent(
+        new PointerEvent('pointerup', {
+          bubbles: true,
+          pointerId: 2,
+          pointerType: 'mouse',
+          button: 0,
+          clientX: maxX,
+          clientY: maxY,
+          shiftKey: true,
+        }),
+      );
+      expect(ctrl.getSelectedIds().size).toBe(0);
+      expect(selectionEvents.length).toBeGreaterThanOrEqual(4);
+    } finally {
+      ctrl.destroy();
+      container.remove();
+    }
+  });
 });
 
 

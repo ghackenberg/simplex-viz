@@ -125,8 +125,8 @@ interface TrackedMeshPartDom {
 }
 
 function interactionSignature<TVisual>(state: NodeRenderState<TVisual>): string {
-  const { isHovered, isPinned, isDimmed, isHighlighted } = state.interaction;
-  return `${isHovered ? 1 : 0}${isPinned ? 1 : 0}${isDimmed ? 1 : 0}${isHighlighted ? 1 : 0}`;
+  const { isHovered, isPinned, isDimmed, isHighlighted, isSelected } = state.interaction;
+  return `${isHovered ? 1 : 0}${isPinned ? 1 : 0}${isDimmed ? 1 : 0}${isHighlighted ? 1 : 0}${isSelected ? 1 : 0}`;
 }
 
 function triangleSignature<TItem, TTagMeta, TClusterMeta>(
@@ -853,6 +853,19 @@ export class SvgRendererAdapter<
               label: `Item ${node.id}`,
             });
       applyAriaAttributes(tracked.rootGroup, nodeAria);
+      if (kind === 'item') {
+        if (node.interaction.isSelected) {
+          tracked.rootGroup.setAttribute('data-selected', 'true');
+          if (!isHiddenFromA11y) {
+            tracked.rootGroup.setAttribute('aria-selected', 'true');
+          } else {
+            tracked.rootGroup.removeAttribute('aria-selected');
+          }
+        } else {
+          tracked.rootGroup.removeAttribute('data-selected');
+          tracked.rootGroup.removeAttribute('aria-selected');
+        }
+      }
 
       const styleView = node.transition
         ? (viewByKey.get(node.transition.toCacheKey) ?? activeView)

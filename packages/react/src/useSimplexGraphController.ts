@@ -8,6 +8,7 @@ import type {
   ItemFilterState,
   LayoutMetrics,
   ReducedMotionPreference,
+  SelectInRectOptions,
   SimplexClusteringStrategy,
   SimplexColorStrategy,
   SimplexKeyboardFocusTarget,
@@ -81,6 +82,17 @@ export interface SimplexGraphHandle<
   setHighlightedItems(ids: Iterable<string> | null): void;
   getHighlightedIds(): ReadonlySet<string>;
   getHighlightedItems(): ReadonlySet<string>;
+  setSelectedIds(ids: Iterable<string> | null): void;
+  toggleSelectedId(id: string): boolean;
+  clearSelection(): void;
+  getSelectedIds(): ReadonlySet<string>;
+  selectItemsInScreenRect(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    options?: SelectInRectOptions,
+  ): ReadonlySet<string>;
   focusItem(
     itemId: string | null,
     options?: FocusItemOptions & { readonly announce?: boolean },
@@ -294,6 +306,38 @@ export function useSimplexGraphController<
     return controllerRef.current?.getHighlightedItems() ?? new Set();
   }, []);
 
+  const setSelectedIds = useCallback((ids: Iterable<string> | null) => {
+    controllerRef.current?.setSelectedIds(ids);
+  }, []);
+
+  const toggleSelectedId = useCallback((id: string): boolean => {
+    return controllerRef.current?.toggleSelectedId(id) ?? false;
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    controllerRef.current?.clearSelection();
+  }, []);
+
+  const getSelectedIds = useCallback((): ReadonlySet<string> => {
+    return controllerRef.current?.getSelectedIds() ?? new Set();
+  }, []);
+
+  const selectItemsInScreenRect = useCallback(
+    (
+      x1: number,
+      y1: number,
+      x2: number,
+      y2: number,
+      options?: SelectInRectOptions,
+    ): ReadonlySet<string> => {
+      return (
+        controllerRef.current?.selectItemsInScreenRect(x1, y1, x2, y2, options) ??
+        new Set()
+      );
+    },
+    [],
+  );
+
   const focusItem = useCallback(
     (
       itemId: string | null,
@@ -405,6 +449,11 @@ export function useSimplexGraphController<
       setHighlightedItems,
       getHighlightedIds,
       getHighlightedItems,
+      setSelectedIds,
+      toggleSelectedId,
+      clearSelection,
+      getSelectedIds,
+      selectItemsInScreenRect,
       focusItem,
       getFocusedItemId,
       zoomToItem,

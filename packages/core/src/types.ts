@@ -477,6 +477,8 @@ export interface NodeRenderState<TVisual> {
     readonly isPinned: boolean;
     readonly isDimmed: boolean;
     readonly isHighlighted: boolean;
+    /** True when this content item is part of the active multi-selection (`setSelectedIds`, `Shift+Click`, or `Shift+Drag` marquee). */
+    readonly isSelected?: boolean;
   };
   readonly transition: {
     readonly from: TVisual;
@@ -1009,6 +1011,10 @@ export interface SimplexEngineResolvedConfig<
    * dynamically via `matchMedia('(prefers-reduced-motion: reduce)')`. Default: `'auto'`.
    */
   readonly reducedMotion?: ReducedMotionPreference;
+  /**
+   * Optional initial multi-selected item IDs. Tracked independently of `highlightedIds` and `pinnedIds`.
+   */
+  readonly selectedIds?: Iterable<string> | null;
   readonly showHulls?: boolean;
   readonly interactions?: InteractionHandlers<
     TItem,
@@ -1022,6 +1028,26 @@ export interface SimplexEngineResolvedConfig<
     clusters: readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[],
   ) => void;
   readonly onZoomStateChange?: (state: SimplexZoomState) => void;
+  /** Invoked whenever the active multi-selection set changes via user interaction or API calls. */
+  readonly onSelectionChange?: (selectedIds: ReadonlySet<string>) => void;
+}
+
+/**
+ * Combination mode when applying a rectangular marquee selection (`selectItemsInWorldRect` / `selectItemsInScreenRect`).
+ */
+export type SelectInRectMode = 'add' | 'replace' | 'toggle';
+
+/**
+ * Options for rectangular marquee item selection.
+ */
+export interface SelectInRectOptions {
+  /**
+   * How items intersecting the rectangle combine with the existing selection:
+   * - `'add'` (default): Adds all enclosed items to the current selection.
+   * - `'replace'`: Replaces the current selection with the enclosed items.
+   * - `'toggle'`: Toggles each enclosed item's membership in the selection.
+   */
+  readonly mode?: SelectInRectMode;
 }
 
 /**

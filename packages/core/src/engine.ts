@@ -14,7 +14,11 @@ import {
   type NormalizedContentItem,
   type PreviousClusterSnapshot,
 } from './clustering.js';
-import { hitTestConvexGeometry, isPointInTriangle } from './geometry.js';
+import {
+  getHullBoundingBox,
+  hitTestConvexGeometry,
+  isPointInTriangle,
+} from './geometry.js';
 import type { TwoPhaseLayoutResult } from './layout.js';
 import { hexToOklab, lerpOklabHex, mixOklabColors, type OklabTuple } from './oklab.js';
 import {
@@ -60,6 +64,7 @@ import type {
   Point2D,
   ReducedMotionPreference,
   SceneFrameSnapshot,
+  SelectInRectOptions,
   SimplexEngineConfig,
   SimplexEngineResolvedConfig,
   SimplexInteractiveTarget,
@@ -493,6 +498,8 @@ export class SimplexGraphEngine<
   private hoveredTriangleIndex: number | null = null;
   private pinnedIds = new Set<string>();
   private highlightedIds = new Set<string>();
+  private selectedIds = new Set<string>();
+  private onSelectionChange?: (selectedIds: ReadonlySet<string>) => void;
   private focusedItemId: string | null = null;
   private focusedItemHighlight = false;
   private focusedClusterUid: string | null = null;
@@ -582,6 +589,13 @@ export class SimplexGraphEngine<
     this.onMetricsChange = config.onMetricsChange;
     this.onClustersChange = config.onClustersChange;
     this.onZoomStateChange = config.onZoomStateChange;
+    this.onSelectionChange = config.onSelectionChange;
+    if (config.selectedIds != null) {
+      for (const id of config.selectedIds) {
+        const trimmed = id.trim();
+        if (trimmed) this.selectedIds.add(trimmed);
+      }
+    }
 
     this.camera = new SimplexCamera(() => {
       this.dirtyRender = true;
@@ -694,7 +708,17 @@ export class SimplexGraphEngine<
       this.focusedItemId = null;
       this.focusedItemHighlight = false;
     }
+    let selectionPruned = false;
+    for (const id of removeSet) {
+      if (this.selectedIds.delete(id)) {
+        selectionPruned = true;
+      }
+    }
     const filtered = this.rawItems.filter((it) => !removeSet.has(this.getIdFn(it).trim()));
+    if (selectionPruned) {
+      this.dirtyRender = true;
+      this.onSelectionChange?.(new Set(this.selectedIds));
+    }
     if (filtered.length === this.rawItems.length) return;
     this.rawItems = filtered;
     if (this.awaitingInitialSolve) return;
@@ -1613,6 +1637,148 @@ export class SimplexGraphEngine<
   /** Alias for `getHighlightedIds()`. */
   getHighlightedItems(): ReadonlySet<string> {
     return this.getHighlightedIds();
+  }
+
+  /** Updates the multi-selection change listener. */
+  setOnSelectionChange(cb?: (selectedIds: ReadonlySet<string>) => void): void {
+    this.onSelectionChange = cb;
+  }
+
+  /**
+   * Replaces the active multi-selection set (`null` clears selection).
+   * Tracked independently of `highlightedIds` and `pinnedIds`.
+   * Emits `onSelectionChange` only when membership actually changes (unless `silent: true`).
+   */
+  setSelectedIds(
+    ids: Iterable<string> | null,
+    options?: { readonly silent?: boolean },
+  ): void {
+    const next = new Set<string>();
+    if (ids !== null) {
+      for (const raw of ids) {
+        const trimmed = raw.trim();
+        if (trimmed) next.add(trimmed);
+      }
+    }
+    if (next.size === this.selectedIds.size) {
+      let identical = true;
+      for (const id of next) {
+        if (!this.selectedIds.has(id)) {
+          identical = false;
+          break;
+        }
+      }
+      if (identical) return;
+    }
+    this.selectedIds = next;
+    this.dirtyRender = true;
+    if (!options?.silent) {
+      this.onSelectionChange?.(new Set(this.selectedIds));
+    }
+  }
+
+  /**
+   * Toggles a single item ID in the multi-selection set and emits `onSelectionChange`.
+   * @returns `true` if the item is now selected, `false` if deselected.
+   */
+  toggleSelectedId(id: string): boolean {
+    const trimmed = id.trim();
+    if (!trimmed) return false;
+    let nowSelected: boolean;
+    if (this.selectedIds.has(trimmed)) {
+      this.selectedIds.delete(trimmed);
+      nowSelected = false;
+    } else {
+      this.selectedIds.add(trimmed);
+      nowSelected = true;
+    }
+    this.dirtyRender = true;
+    this.onSelectionChange?.(new Set(this.selectedIds));
+    return nowSelected;
+  }
+
+  /** Clears all currently selected item IDs, emitting `onSelectionChange` if selection was non-empty. */
+  clearSelection(): void {
+    this.setSelectedIds(null);
+  }
+
+  /** Returns a snapshot of the currently multi-selected item IDs. */
+  getSelectedIds(): ReadonlySet<string> {
+    return new Set(this.selectedIds);
+  }
+
+  /**
+   * Selects active content items intersecting the given world-space axis-aligned rectangle.
+   * Excludes exiting nodes and items hidden by an active `itemFilter` (`itemFilterMode: 'hide'`).
+   *
+   * @returns The resulting `ReadonlySet<string>` of selected item IDs.
+   */
+  selectItemsInWorldRect(
+    minX: number,
+    minY: number,
+    maxX: number,
+    maxY: number,
+    options?: SelectInRectOptions,
+  ): ReadonlySet<string> {
+    const x0 = Math.min(minX, maxX);
+    const x1 = Math.max(minX, maxX);
+    const y0 = Math.min(minY, maxY);
+    const y1 = Math.max(minY, maxY);
+    const mode = options?.mode ?? 'add';
+
+    const hitIds: string[] = [];
+    for (const iNode of this.itemNodes.values()) {
+      if (iNode.status === 'exiting') continue;
+      if (
+        this.itemFilterPredicate !== null &&
+        this.itemFilterMode === 'hide' &&
+        this.filteredOutItemIds.has(iNode.id)
+      ) {
+        continue;
+      }
+      const box = getHullBoundingBox(
+        iNode.hull,
+        iNode.x.value,
+        iNode.y.value,
+        Math.max(0.05, iNode.scale.value),
+      );
+      if (box.maxX >= x0 && box.minX <= x1 && box.maxY >= y0 && box.minY <= y1) {
+        hitIds.push(iNode.id);
+      }
+    }
+
+    const next = mode === 'replace' ? new Set<string>() : new Set<string>(this.selectedIds);
+    if (mode === 'toggle') {
+      for (const id of hitIds) {
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+      }
+    } else {
+      for (const id of hitIds) {
+        next.add(id);
+      }
+    }
+
+    this.setSelectedIds(next);
+    return this.getSelectedIds();
+  }
+
+  /**
+   * Selects active content items intersecting the given screen/SVG-local rectangle,
+   * automatically transforming screen coordinates through the active camera.
+   *
+   * @returns The resulting `ReadonlySet<string>` of selected item IDs.
+   */
+  selectItemsInScreenRect(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    options?: SelectInRectOptions,
+  ): ReadonlySet<string> {
+    const w1 = this.camera.screenToWorld(x1, y1);
+    const w2 = this.camera.screenToWorld(x2, y2);
+    return this.selectItemsInWorldRect(w1.x, w1.y, w2.x, w2.y, options);
   }
 
   /** Returns the currently programmatically focused item ID, or `null`. */
@@ -4132,6 +4298,7 @@ export class SimplexGraphEngine<
         (!isPassThrough || isProgrammaticallyFocused) &&
         this.hoveredContentId === iNode.id;
       const isPinned = this.pinnedIds.has(iNode.id);
+      const isSelected = !isHiddenByFilter && this.selectedIds.has(iNode.id);
       const belongsToFocusedCluster =
         this.focusedClusterUid !== null &&
         iNode.domain.layoutContext.unitClusters.some(
@@ -4152,12 +4319,17 @@ export class SimplexGraphEngine<
           belongsToFocusedTriangle);
       const isDimmed =
         !isHiddenByFilter &&
-        ((hasHighlightFocus && !isHighlighted && !isHovered && !isPinned) ||
+        ((hasHighlightFocus &&
+          !isHighlighted &&
+          !isHovered &&
+          !isPinned &&
+          !isSelected) ||
           isDimmedByFilter);
       const effectiveItemOpacity = isHiddenByFilter
         ? 0
         : !this.activeFlight
           ? isPinned ||
+            isSelected ||
             this.highlightedIds.has(iNode.id) ||
             (isProgrammaticallyFocused && this.focusedItemHighlight)
             ? Math.max(iNode.opacity.value, 1)
@@ -4182,6 +4354,7 @@ export class SimplexGraphEngine<
           isPinned,
           isDimmed,
           isHighlighted,
+          isSelected,
         },
         transition: iNode.transition
           ? {
@@ -5110,7 +5283,11 @@ export class SimplexGraphEngine<
         return true;
       }
     }
-    return this.interactions.onLeftClick?.(target, fullEvent) === true;
+    const consumed = this.interactions.onLeftClick?.(target, fullEvent) === true;
+    if (!consumed && target.kind === 'content' && !target.neighborId && fullEvent.shiftKey) {
+      this.toggleSelectedId(target.layoutContext.id);
+    }
+    return consumed;
   }
 
   /**

@@ -136,6 +136,8 @@ export {
   type ScaleControlContext,
   type ScaleControlResult,
   type ScaleController,
+  type SelectInRectMode,
+  type SelectInRectOptions,
   type SemanticZoomStrategyOptions,
   type SharedTagExpansionContext,
   type SharedTagExpansionFn,

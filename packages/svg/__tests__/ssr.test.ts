@@ -206,4 +206,19 @@ describe('@simplex-viz/svg/ssr headless renderer (Issue #18)', () => {
     expect(pngBuffer[2]).toBe(0x4e);
     expect(pngBuffer[3]).toBe(0x47);
   });
+
+  it('renders selectedIds with data-selected and distinct selection rings in headless SSR (Issue #25)', () => {
+    const svg = renderSimplexSvgString(SAMPLE_ITEMS, {
+      preset: 'geometric',
+      theme: 'dark',
+      selectedIds: ['doc-1', 'doc-3'],
+      highlightedIds: ['doc-2'],
+      layoutOptions: { seed: 42 },
+    });
+
+    expect(svg).toContain('data-node-id="doc-1" data-selected="true"');
+    expect(svg).toContain('data-node-id="doc-3" data-selected="true"');
+    expect(svg).toContain('class="sv-geom-selection-ring"');
+    expect(svg).not.toContain('data-node-id="doc-2" data-selected="true"');
+  });
 });

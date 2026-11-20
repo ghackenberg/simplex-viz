@@ -26,6 +26,7 @@ import {
   type LayoutSolverOptions,
   type MeshOptions,
   type ReducedMotionPreference,
+  type SelectInRectOptions,
   type SimplexClusteringStrategy,
   type SimplexColorStrategy,
   type SimplexInteractiveTarget,
@@ -312,6 +313,15 @@ export interface SimplexSvgControllerResolvedOptions<
    * - `false`: Always runs full animations regardless of OS preference.
    */
   readonly reducedMotion?: ReducedMotionPreference;
+  /**
+   * Optional initial multi-selected item IDs. Tracked independently of `highlightedIds` and `pinnedIds`.
+   */
+  readonly selectedIds?: Iterable<string> | null;
+  /**
+   * Enables `Shift+Drag` rubberband marquee box selection on pointer/mouse devices.
+   * Does not conflict with single-button drag-to-pan or touch scrolling. Default: `true`.
+   */
+  readonly marqueeSelection?: boolean;
   readonly interactions?: InteractionHandlers<
     TItem,
     TContentVisual,
@@ -324,6 +334,8 @@ export interface SimplexSvgControllerResolvedOptions<
     clusters: readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[],
   ) => void;
   readonly onZoomStateChange?: (state: SimplexZoomState) => void;
+  /** Invoked whenever the active multi-selection set changes via user interaction or API calls. */
+  readonly onSelectionChange?: (selectedIds: ReadonlySet<string>) => void;
   readonly onFpsUpdate?: (fps: number) => void;
 }
 
@@ -411,6 +423,9 @@ export interface SimplexSvgUpdateOptions<
   readonly pinnedIds?: ReadonlySet<string> | readonly string[];
   readonly highlightedIds?: Iterable<string> | null;
   readonly highlightedItems?: Iterable<string> | null;
+  readonly selectedIds?: Iterable<string> | null;
+  readonly marqueeSelection?: boolean;
+  readonly onSelectionChange?: (selectedIds: ReadonlySet<string>) => void;
   readonly focusedItemId?: string | null;
   readonly focusedClusterUid?: string | null;
   readonly focusedTriangleIndex?: number | null;
@@ -560,6 +575,15 @@ export class SimplexSvgController<
   private reducedMotionPreference: ReducedMotionPreference = 'auto';
   private reducedMotionActive = false;
   private reducedMotionMediaCleanup: (() => void) | null = null;
+  private marqueeSelectionEnabled = true;
+  private marqueeArmed = false;
+  private isMarqueeSelecting = false;
+  private marqueeStartX = 0;
+  private marqueeStartY = 0;
+  private marqueeCurrentX = 0;
+  private marqueeCurrentY = 0;
+  private marqueeOverlayGroup: SVGGElement | null = null;
+  private marqueeRectEl: SVGRectElement | null = null;
   private pendingInitialViewport = false;
   private deferFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -599,6 +623,7 @@ export class SimplexSvgController<
     this.tooltipOption = options.tooltip ?? false;
     this.ariaLabel = options.ariaLabel?.trim() || DEFAULT_ARIA_LABEL;
     this.keyboardNavigationEnabled = options.keyboardNavigation ?? true;
+    this.marqueeSelectionEnabled = options.marqueeSelection ?? true;
     this.reducedMotionPreference = options.reducedMotion ?? 'auto';
     this.reducedMotionActive = this.computeReducedMotionActive();
     this.getIdExtractor =
@@ -763,9 +788,11 @@ export class SimplexSvgController<
       canonicalSeedItems: this.timelineController ? this.fullCorpusItems : undefined,
       deferInitialSolve: shouldDeferSolve,
       reducedMotion: this.reducedMotionActive,
+      selectedIds: options.selectedIds,
       interactions: this.wrapInteractions(options.interactions),
       onMetricsChange: options.onMetricsChange,
       onClustersChange: options.onClustersChange,
+      onSelectionChange: options.onSelectionChange,
       onZoomStateChange: (state) => {
         this.syncZoomOverlays(state);
         this.handleZoomStateAccessibility(state);
@@ -995,7 +1022,11 @@ export class SimplexSvgController<
           } else if (target.kind === 'content' && target.neighborId) {
             this.drillToNeighbor(target.neighborId);
           } else if (target.kind === 'background') {
-            this.drillUp();
+            if (this.engine.getZoomState().canDrillUp) {
+              this.drillUp();
+            } else if (!rawEvent.shiftKey && this.engine.getSelectedIds().size > 0) {
+              this.clearSelection();
+            }
           }
           return false;
         }
@@ -1026,6 +1057,9 @@ export class SimplexSvgController<
           }
           if (this.engine.getFocusedItemId() !== null) {
             this.focusItem(null);
+          }
+          if (!rawEvent.shiftKey && this.engine.getSelectedIds().size > 0) {
+            this.clearSelection();
           }
         }
         return false;
@@ -1767,6 +1801,16 @@ export class SimplexSvgController<
         this.engine.setHighlightedItems(options.highlightedItems ?? null);
         needsRenderNow = true;
       }
+      if ('onSelectionChange' in options) {
+        this.engine.setOnSelectionChange(options.onSelectionChange);
+      }
+      if ('selectedIds' in options) {
+        this.engine.setSelectedIds(options.selectedIds ?? null);
+        needsRenderNow = true;
+      }
+      if (options.marqueeSelection !== undefined) {
+        this.setMarqueeSelection(options.marqueeSelection);
+      }
       if ('focusedItemId' in options) {
         this.engine.focusItem(options.focusedItemId ?? null);
         needsRenderNow = true;
@@ -2124,6 +2168,70 @@ export class SimplexSvgController<
   /** Alias for `getHighlightedIds()`. */
   getHighlightedItems(): ReadonlySet<string> {
     return this.engine.getHighlightedItems();
+  }
+
+  /**
+   * Replaces the active multi-selection set (`null` clears selection).
+   * Tracked independently of `highlightedIds` and `pinnedIds`.
+   */
+  setSelectedIds(ids: Iterable<string> | null): void {
+    this.engine.setSelectedIds(ids);
+    this.engine.renderNow();
+    this.ensureLoopRunning();
+  }
+
+  /** Toggles a single item ID in the multi-selection set and returns its new selected state. */
+  toggleSelectedId(id: string): boolean {
+    const next = this.engine.toggleSelectedId(id);
+    this.engine.renderNow();
+    this.ensureLoopRunning();
+    return next;
+  }
+
+  /** Clears all currently selected item IDs. */
+  clearSelection(): void {
+    this.engine.clearSelection();
+    this.engine.renderNow();
+    this.ensureLoopRunning();
+  }
+
+  /** Returns a snapshot of the currently multi-selected item IDs. */
+  getSelectedIds(): ReadonlySet<string> {
+    return this.engine.getSelectedIds();
+  }
+
+  /**
+   * Selects active content items intersecting the given SVG-local screen rectangle.
+   */
+  selectItemsInScreenRect(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    options?: SelectInRectOptions,
+  ): ReadonlySet<string> {
+    const next = this.engine.selectItemsInScreenRect(x1, y1, x2, y2, options);
+    this.engine.renderNow();
+    this.ensureLoopRunning();
+    return next;
+  }
+
+  /** Enables or disables `Shift+Drag` marquee box selection at runtime. */
+  setMarqueeSelection(enabled: boolean): void {
+    this.marqueeSelectionEnabled = enabled;
+    if (!enabled) {
+      this.hideMarqueeRect();
+    }
+  }
+
+  /** Returns whether `Shift+Drag` marquee box selection is currently enabled. */
+  isMarqueeSelectionEnabled(): boolean {
+    return this.marqueeSelectionEnabled;
+  }
+
+  /** Updates the multi-selection change listener at runtime. */
+  setOnSelectionChange(cb?: (selectedIds: ReadonlySet<string>) => void): void {
+    this.engine.setOnSelectionChange(cb);
   }
 
   /** Returns the currently programmatically focused item ID, or `null`. */
@@ -3472,6 +3580,7 @@ export class SimplexSvgController<
       const prevZoomSig = this.lastAnnouncedZoomSig;
       const prevFocusedCluster = this.focusedClusterUidState;
       const prevFocusedTri = this.focusedTriangleIndexState;
+      const prevSelected = this.engine.getSelectedIds();
       const target = this.keyboardFocusTarget;
       this.engine.activateInteractiveTarget(target, {
         shiftKey: e.shiftKey,
@@ -3481,7 +3590,19 @@ export class SimplexSvgController<
       });
       this.engine.renderNow();
       this.ensureLoopRunning();
-      if (this.lastAnnouncedZoomSig === prevZoomSig) {
+      const nextSelected = this.engine.getSelectedIds();
+      if (target.kind === 'item' && nextSelected.size !== prevSelected.size) {
+        const nowSelected = nextSelected.has(target.id);
+        const item = this.engine
+          .getItems()
+          .find((it) => this.getIdExtractor(it).trim() === target.id);
+        const label = item
+          ? extractDefaultItemLabel(item, target.id, this.getLabelExtractor)
+          : target.id;
+        this.announce(
+          `${nowSelected ? 'Selected' : 'Deselected'} ${label} (${nextSelected.size} selected)`,
+        );
+      } else if (this.lastAnnouncedZoomSig === prevZoomSig) {
         if (this.focusedClusterUidState !== prevFocusedCluster) {
           if (this.focusedClusterUidState !== null) {
             const cluster = this.engine.getClusterByUid(this.focusedClusterUidState);
@@ -3502,6 +3623,13 @@ export class SimplexSvgController<
       return;
     }
     if (e.key === 'Escape') {
+      if (this.isMarqueeSelecting || this.marqueeArmed) {
+        e.preventDefault();
+        this.hideMarqueeRect();
+        this.svgEl.style.cursor =
+          this.engine.getZoomStrategy().mode === 'drill-down' ? 'default' : 'grab';
+        return;
+      }
       if (this.engine.getZoomState().canDrillUp) {
         e.preventDefault();
         this.drillUp();
@@ -3525,12 +3653,68 @@ export class SimplexSvgController<
         this.announce('Cleared focus');
         return;
       }
+      if (this.engine.getSelectedIds().size > 0) {
+        e.preventDefault();
+        this.clearSelection();
+        this.announce('Cleared selection');
+        return;
+      }
       if (this.keyboardFocusTarget !== null) {
         e.preventDefault();
         this.clearKeyboardFocus();
       }
     }
   };
+
+  private ensureMarqueeRect(): SVGRectElement {
+    if (!this.marqueeOverlayGroup || !this.marqueeRectEl) {
+      const doc = this.svgEl.ownerDocument;
+      const group = doc.createElementNS(SVG_NS, 'g');
+      group.setAttribute('class', 'sv-marquee-overlay');
+      group.setAttribute('pointer-events', 'none');
+      group.setAttribute('display', 'none');
+
+      const rect = doc.createElementNS(SVG_NS, 'rect');
+      rect.setAttribute('class', 'sv-marquee-rect');
+      rect.setAttribute('rx', '3');
+      rect.setAttribute('ry', '3');
+      rect.setAttribute('stroke-width', '1.5');
+      rect.setAttribute('stroke-dasharray', '4 3');
+      group.appendChild(rect);
+      this.svgEl.appendChild(group);
+
+      this.marqueeOverlayGroup = group;
+      this.marqueeRectEl = rect;
+    }
+    const isLight = this.currentTheme === 'light';
+    this.marqueeRectEl.setAttribute(
+      'fill',
+      isLight ? 'rgba(124, 58, 237, 0.12)' : 'rgba(139, 92, 246, 0.16)',
+    );
+    this.marqueeRectEl.setAttribute('stroke', isLight ? '#7c3aed' : '#a78bfa');
+    return this.marqueeRectEl;
+  }
+
+  private updateMarqueeRect(x1: number, y1: number, x2: number, y2: number): void {
+    const rect = this.ensureMarqueeRect();
+    const minX = Math.min(x1, x2);
+    const minY = Math.min(y1, y2);
+    const width = Math.abs(x2 - x1);
+    const height = Math.abs(y2 - y1);
+    rect.setAttribute('x', minX.toFixed(1));
+    rect.setAttribute('y', minY.toFixed(1));
+    rect.setAttribute('width', width.toFixed(1));
+    rect.setAttribute('height', height.toFixed(1));
+    this.marqueeOverlayGroup?.removeAttribute('display');
+  }
+
+  private hideMarqueeRect(): void {
+    this.marqueeArmed = false;
+    this.isMarqueeSelecting = false;
+    if (this.marqueeOverlayGroup) {
+      this.marqueeOverlayGroup.setAttribute('display', 'none');
+    }
+  }
 
   private readonly onPointerDown = (e: PointerEvent): void => {
     this.lastInteractionWasPointer = true;
@@ -3551,6 +3735,7 @@ export class SimplexSvgController<
       this.suppressNextClick = false;
       this.suppressClickStartPos = null;
       this.suppressClickEndPos = null;
+      this.hideMarqueeRect();
       if (e.pointerType === 'touch') {
         this.touchOriginX = e.clientX;
         this.touchOriginY = e.clientY;
@@ -3560,6 +3745,7 @@ export class SimplexSvgController<
     }
 
     if (this.activePointers.size >= 2) {
+      this.hideMarqueeRect();
       this.isDraggingPan = false;
       this.panStarted = false;
       this.wasMultiTouchGesture = true;
@@ -3573,6 +3759,22 @@ export class SimplexSvgController<
       this.pinchHandledInGesture = false;
       this.lastPinchMid = { x: (p0.x + p1.x) * 0.5, y: (p0.y + p1.y) * 0.5 };
       this.hideTooltip();
+      return;
+    }
+
+    if (
+      this.activePointers.size === 1 &&
+      e.pointerType !== 'touch' &&
+      e.shiftKey &&
+      this.marqueeSelectionEnabled
+    ) {
+      this.marqueeArmed = true;
+      this.isMarqueeSelecting = false;
+      this.marqueeStartX = x;
+      this.marqueeStartY = y;
+      this.marqueeCurrentX = x;
+      this.marqueeCurrentY = y;
+      this.isDraggingPan = false;
       return;
     }
 
@@ -3677,6 +3879,23 @@ export class SimplexSvgController<
       }
     }
 
+    if (this.marqueeArmed && this.activePointers.has(e.pointerId)) {
+      this.marqueeCurrentX = x;
+      this.marqueeCurrentY = y;
+      if (
+        !this.isMarqueeSelecting &&
+        Math.hypot(x - this.marqueeStartX, y - this.marqueeStartY) > 4
+      ) {
+        this.isMarqueeSelecting = true;
+        this.hideTooltip();
+        this.svgEl.style.cursor = 'crosshair';
+      }
+      if (this.isMarqueeSelecting) {
+        this.updateMarqueeRect(this.marqueeStartX, this.marqueeStartY, x, y);
+        return;
+      }
+    }
+
     if (this.isDraggingPan && zoomMode === 'free-camera') {
       if (
         e.pointerType === 'touch' &&
@@ -3758,7 +3977,30 @@ export class SimplexSvgController<
       this.resetTouchPinchState();
     }
     if (this.activePointers.size === 0) {
+      const completedMarquee = this.isMarqueeSelecting;
+      if (completedMarquee) {
+        const prevSize = this.engine.getSelectedIds().size;
+        const nextSelected = this.engine.selectItemsInScreenRect(
+          this.marqueeStartX,
+          this.marqueeStartY,
+          this.marqueeCurrentX,
+          this.marqueeCurrentY,
+          { mode: e.altKey ? 'toggle' : 'add' },
+        );
+        this.engine.renderNow();
+        this.ensureLoopRunning();
+        if (nextSelected.size !== prevSize) {
+          this.announce(
+            `Selected ${nextSelected.size} item${nextSelected.size === 1 ? '' : 's'}`,
+          );
+        }
+        this.svgEl.style.cursor =
+          this.engine.getZoomStrategy().mode === 'drill-down' ? 'default' : 'grab';
+      }
+      this.hideMarqueeRect();
+
       const shouldSuppress =
+        completedMarquee ||
         this.pointerMaxDisplacement > this.clickTolerancePx ||
         this.touchYieldedToScroll ||
         this.wasMultiTouchGesture;
@@ -3794,6 +4036,7 @@ export class SimplexSvgController<
       this.resetTouchPinchState();
     }
     if (this.activePointers.size === 0) {
+      this.hideMarqueeRect();
       this.isDraggingPan = false;
       this.panStarted = false;
       this.hasActiveGestureOrigin = false;
@@ -3814,6 +4057,7 @@ export class SimplexSvgController<
       this.resetTouchPinchState();
     }
     if (this.activePointers.size === 0) {
+      this.hideMarqueeRect();
       this.isDraggingPan = false;
       this.panStarted = false;
     }
@@ -3855,6 +4099,7 @@ export class SimplexSvgController<
       altKey: e.altKey,
       metaKey: e.metaKey,
     });
+    this.engine.renderNow();
     this.ensureLoopRunning();
   };
 
@@ -4003,6 +4248,9 @@ export class SimplexSvgController<
     this.fontLoadCleanup?.();
     this.fontLoadCleanup = null;
     this.detachReducedMotionMediaSubscription();
+    this.hideMarqueeRect();
+    this.marqueeOverlayGroup = null;
+    this.marqueeRectEl = null;
     this.detachSvgListeners();
     this.engine.destroy();
     if (this.tooltipEl && this.tooltipEl.parentElement === this.containerEl) {

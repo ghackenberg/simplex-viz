@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { act, render } from '@testing-library/react';
+import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   BarycentricSectorTriangleSvgView,
@@ -1294,6 +1295,70 @@ describe('@simplex-viz/react integration', () => {
     unmount();
     expect(exposed.handle!.getReducedMotion()).toBe('auto');
     expect(exposed.handle!.isReducedMotionActive()).toBe(false);
+  });
+
+  it('supports controlled selectedIds + onSelectionChange and imperative selection handle methods (Issue #25)', () => {
+    const items = [
+      { id: 's1', label: 'Alpha', tags: ['a', 'b'] },
+      { id: 's2', label: 'Beta', tags: ['b', 'c'] },
+      { id: 's3', label: 'Gamma', tags: ['a', 'c'] },
+    ];
+
+    const exposed: {
+      handle: ReturnType<typeof useSimplexGraphController<(typeof items)[number]>>['handle'] | null;
+    } = { handle: null };
+    const changeSpy = vi.fn();
+
+    const ControlledHost = () => {
+      const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set(['s1']));
+      const { controllerRef, handle } = useSimplexGraphController<(typeof items)[number]>();
+      exposed.handle = handle;
+      return (
+        <div style={{ width: 640, height: 420 }}>
+          <span data-testid="sel-count">{selected.size}</span>
+          <SimplexTopicGraph
+            controllerRef={controllerRef}
+            items={items}
+            preset="geometric"
+            selectedIds={selected}
+            onSelectionChange={(next) => {
+              changeSpy([...next].sort());
+              setSelected(next);
+            }}
+          />
+        </div>
+      );
+    };
+
+    const { container, getByTestId, unmount } = render(<ControlledHost />);
+
+    // Initial controlled selection rendered cleanly without spurious change callbacks
+    expect([...exposed.handle!.getSelectedIds()]).toEqual(['s1']);
+    expect(getByTestId('sel-count').textContent).toBe('1');
+    expect(
+      container.querySelector('g.sv-node-item[data-node-id="s1"]')?.getAttribute('data-selected'),
+    ).toBe('true');
+    expect(changeSpy).not.toHaveBeenCalled();
+
+    // Imperative toggle updates controlled React state once (no infinite loop)
+    act(() => {
+      expect(exposed.handle!.toggleSelectedId('s2')).toBe(true);
+    });
+    expect([...exposed.handle!.getSelectedIds()].sort()).toEqual(['s1', 's2']);
+    expect(getByTestId('sel-count').textContent).toBe('2');
+    expect(changeSpy).toHaveBeenCalledTimes(1);
+    expect(changeSpy).toHaveBeenLastCalledWith(['s1', 's2']);
+
+    // clearSelection empties controlled React state
+    act(() => {
+      exposed.handle!.clearSelection();
+    });
+    expect(exposed.handle!.getSelectedIds().size).toBe(0);
+    expect(getByTestId('sel-count').textContent).toBe('0');
+    expect(changeSpy).toHaveBeenCalledTimes(2);
+
+    unmount();
+    expect(exposed.handle!.getSelectedIds().size).toBe(0);
   });
 });
 

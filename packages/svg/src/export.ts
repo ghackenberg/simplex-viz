@@ -313,6 +313,7 @@ function shouldSkipInliningSubtree(
   if (!cls) return false;
   const tokens = cls.split(/\s+/);
   if (tokens.includes('sv-measure-bin')) return true;
+  if (tokens.includes('sv-marquee-overlay')) return true;
   if (!includeFocusRing && tokens.includes('sv-a11y-focus-ring')) return true;
   return false;
 }
@@ -542,6 +543,11 @@ export function prepareStandaloneSvg(
   // Strip internal measurement bin (positioned at translate(-99999, -99999))
   for (const bin of Array.from(clone.querySelectorAll('g.sv-measure-bin'))) {
     bin.remove();
+  }
+
+  // Strip transient marquee overlay if an export occurs mid-drag
+  for (const marquee of Array.from(clone.querySelectorAll('g.sv-marquee-overlay'))) {
+    marquee.remove();
   }
 
   // Strip keyboard focus ring unless explicitly requested

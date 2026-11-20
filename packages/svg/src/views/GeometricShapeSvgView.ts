@@ -61,6 +61,11 @@ export interface GeometricShapeSvgViewOptions {
    */
   readonly hoverRingColor?: string;
   /**
+   * Optional stroke color for the multi-selection ring (`path.sv-geom-selection-ring`).
+   * Defaults to `#a78bfa` (dark) / `#7c3aed` (light), distinct from hover, highlight, and focus rings.
+   */
+  readonly selectionRingColor?: string;
+  /**
    * Optional opacity multiplier in `[0, 1]` applied on the outer node `<g>` when dimmed
    * (and not hovered). Defaults to `0.34`.
    */
@@ -386,21 +391,27 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
   private ensureElements(groupEl: SVGGElement): {
     pathEl: SVGPathElement;
     ringEl: SVGPathElement;
+    selectionRingEl: SVGPathElement;
   } {
     let pathEl = groupEl.querySelector<SVGPathElement>('path.sv-geom-shape');
     let ringEl = groupEl.querySelector<SVGPathElement>('path.sv-geom-ring');
-    if (!pathEl || !ringEl) {
+    let selectionRingEl = groupEl.querySelector<SVGPathElement>('path.sv-geom-selection-ring');
+    if (!pathEl || !ringEl || !selectionRingEl) {
       while (groupEl.firstChild) groupEl.removeChild(groupEl.firstChild);
       const doc = groupEl.ownerDocument;
+      selectionRingEl = doc.createElementNS(SVG_NS, 'path');
+      selectionRingEl.setAttribute('class', 'sv-geom-selection-ring');
+      selectionRingEl.setAttribute('fill', 'none');
       ringEl = doc.createElementNS(SVG_NS, 'path');
       ringEl.setAttribute('class', 'sv-geom-ring');
       ringEl.setAttribute('fill', 'none');
       pathEl = doc.createElementNS(SVG_NS, 'path');
       pathEl.setAttribute('class', 'sv-geom-shape');
+      groupEl.appendChild(selectionRingEl);
       groupEl.appendChild(ringEl);
       groupEl.appendChild(pathEl);
     }
-    return { pathEl, ringEl };
+    return { pathEl, ringEl, selectionRingEl };
   }
 
   mountOrUpdate(
@@ -408,7 +419,7 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
     visual: GeometricShapeVisual,
     state: NodeRenderState<GeometricShapeVisual>,
   ): void {
-    const { pathEl, ringEl } = this.ensureElements(groupEl);
+    const { pathEl, ringEl, selectionRingEl } = this.ensureElements(groupEl);
     const resolved = resolveEffectiveGeometry(visual, this.options);
     const pts = sampleShapePerimeter(resolved, visual.radius);
     const d = pointsToSvgPath(pts);
@@ -417,6 +428,9 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
     const restStroke = this.options.strokeColor ?? visual.strokeHex ?? defaultStroke;
     const hoverStroke = isLight ? '#0f172a' : '#f8fafc';
     const accentRing = this.options.hoverRingColor ?? (isLight ? '#0891b2' : '#22d3ee');
+    const selectionRing =
+      this.options.selectionRingColor ?? (isLight ? '#7c3aed' : '#a78bfa');
+    const isSelected = Boolean(state.interaction.isSelected);
     const baseStrokeWidth =
       this.options.strokeWidth !== undefined && Number.isFinite(this.options.strokeWidth)
         ? Math.max(0, this.options.strokeWidth)
@@ -431,18 +445,24 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
         ? '#f59e0b'
         : state.interaction.isHovered
           ? hoverStroke
-          : restStroke,
+          : isSelected
+            ? selectionRing
+            : restStroke,
     );
     pathEl.setAttribute(
       'stroke-width',
       String(
-        state.interaction.isHovered || state.interaction.isPinned
+        state.interaction.isHovered || state.interaction.isPinned || isSelected
           ? activeStrokeWidth
           : baseStrokeWidth,
       ),
     );
 
-    if (state.interaction.isHovered || state.interaction.isPinned || state.interaction.isHighlighted) {
+    const hasInnerRing =
+      state.interaction.isHovered ||
+      state.interaction.isPinned ||
+      state.interaction.isHighlighted;
+    if (hasInnerRing) {
       const outerPts = sampleShapePerimeter(resolved, visual.radius + 4.5);
       ringEl.setAttribute('d', pointsToSvgPath(outerPts));
       ringEl.setAttribute('stroke', state.interaction.isPinned ? '#f59e0b' : accentRing);
@@ -450,6 +470,17 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
       ringEl.setAttribute('stroke-opacity', '0.9');
     } else {
       ringEl.setAttribute('d', '');
+    }
+
+    if (isSelected) {
+      const selOffset = hasInnerRing ? 7.2 : 4.6;
+      const selPts = sampleShapePerimeter(resolved, visual.radius + selOffset);
+      selectionRingEl.setAttribute('d', pointsToSvgPath(selPts));
+      selectionRingEl.setAttribute('stroke', selectionRing);
+      selectionRingEl.setAttribute('stroke-width', '2.1');
+      selectionRingEl.setAttribute('stroke-opacity', '0.96');
+    } else {
+      selectionRingEl.setAttribute('d', '');
     }
   }
 
@@ -460,7 +491,7 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
     progress: number,
     state: NodeRenderState<GeometricShapeVisual>,
   ): boolean {
-    const { pathEl, ringEl } = this.ensureElements(groupEl);
+    const { pathEl, ringEl, selectionRingEl } = this.ensureElements(groupEl);
     const ptsA = sampleShapePerimeter(
       resolveEffectiveGeometry(from, this.options),
       from.radius,
@@ -497,6 +528,7 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
     );
     pathEl.setAttribute('stroke-width', String(baseStrokeWidth));
     ringEl.setAttribute('d', '');
+    selectionRingEl.setAttribute('d', '');
     return true;
   }
 }
