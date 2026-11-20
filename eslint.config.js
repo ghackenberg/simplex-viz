@@ -58,6 +58,8 @@ export default tseslint.config(
                 'react-dom/*',
                 '@simplex-viz/svg',
                 '@simplex-viz/react',
+                '@simplex-viz/wc',
+                '@simplex-viz/wc/*',
               ],
               message:
                 '@simplex-viz/core must remain completely headless and free of React/DOM/SVG dependencies.',
@@ -86,9 +88,34 @@ export default tseslint.config(
         {
           patterns: [
             {
+              group: [
+                'react',
+                'react/*',
+                'react-dom',
+                'react-dom/*',
+                '@simplex-viz/react',
+                '@simplex-viz/wc',
+                '@simplex-viz/wc/*',
+              ],
+              message:
+                '@simplex-viz/svg must remain framework-agnostic and never import React, @simplex-viz/react, or @simplex-viz/wc.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['packages/wc/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
               group: ['react', 'react/*', 'react-dom', 'react-dom/*', '@simplex-viz/react'],
               message:
-                '@simplex-viz/svg must remain framework-agnostic and never import React or @simplex-viz/react.',
+                '@simplex-viz/wc must remain framework-agnostic and never import React or @simplex-viz/react.',
             },
           ],
         },

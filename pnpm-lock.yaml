@@ -165,6 +165,15 @@ importers:
         specifier: workspace:^
         version: link:../core
 
+  packages/wc:
+    dependencies:
+      '@simplex-viz/core':
+        specifier: workspace:^
+        version: link:../core
+      '@simplex-viz/svg':
+        specifier: workspace:^
+        version: link:../svg
+
 packages:
 
   '@astrojs/compiler-binding-android-arm64@0.5.3':

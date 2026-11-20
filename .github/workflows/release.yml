@@ -36,7 +36,7 @@ jobs:
         run: |
           VERSION="$(node -e '
             const fs = require("node:fs");
-            const pkgs = ["packages/core/package.json", "packages/svg/package.json", "packages/react/package.json"];
+            const pkgs = ["packages/core/package.json", "packages/svg/package.json", "packages/react/package.json", "packages/wc/package.json"];
             const versions = pkgs.map((p) => JSON.parse(fs.readFileSync(p, "utf8")).version);
             if (new Set(versions).size !== 1) {
               console.error("Workspace package versions do not match:", versions);
@@ -70,7 +70,7 @@ jobs:
           fi
 
           UNPUBLISHED="false"
-          for pkg in @simplex-viz/core @simplex-viz/svg @simplex-viz/react; do
+          for pkg in @simplex-viz/core @simplex-viz/svg @simplex-viz/react @simplex-viz/wc; do
             if ! npm view "${pkg}@${VERSION}" version >/dev/null 2>&1; then
               UNPUBLISHED="true"
               break
@@ -131,7 +131,7 @@ jobs:
           if [ -n "$NPM_TOKEN" ]; then
             npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
           fi
-          for dir in packages/core packages/svg packages/react; do
+          for dir in packages/core packages/svg packages/react packages/wc; do
             NAME="$(node -p "require('./${dir}/package.json').name")"
             if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
               echo "${NAME}@${VERSION} is already published on npmjs.org; skipping."

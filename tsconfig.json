@@ -10,7 +10,9 @@
       "@/*": ["./*"],
       "@simplex-viz/core": ["./packages/core/src/index.ts"],
       "@simplex-viz/svg": ["./packages/svg/src/index.ts"],
-      "@simplex-viz/react": ["./packages/react/src/index.ts"]
+      "@simplex-viz/react": ["./packages/react/src/index.ts"],
+      "@simplex-viz/wc": ["./packages/wc/src/index.ts"],
+      "@simplex-viz/wc/define": ["./packages/wc/src/define.ts"]
     }
   },
   "include": [
@@ -18,6 +20,7 @@
     "src",
     "packages/svg/src",
     "packages/react/src",
+    "packages/wc/src",
     "packages/core/src"
   ],
   "exclude": ["dist", "node_modules", "**/dist"]

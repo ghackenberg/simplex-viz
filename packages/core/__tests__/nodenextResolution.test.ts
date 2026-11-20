@@ -5,7 +5,7 @@ import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
-const PACKAGES = ['core', 'svg', 'react'] as const;
+const PACKAGES = ['core', 'svg', 'react', 'wc'] as const;
 
 function ensureBuiltDist(): void {
   const allBuilt = PACKAGES.every((pkg) =>
@@ -26,7 +26,7 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
   }, 60_000);
 
   it(
-    'resolves @simplex-viz/core, @simplex-viz/svg, and @simplex-viz/react cleanly under moduleResolution: nodenext (both skipLibCheck: true and skipLibCheck: false)',
+    'resolves @simplex-viz/core, @simplex-viz/svg, @simplex-viz/react, and @simplex-viz/wc cleanly under moduleResolution: nodenext (both skipLibCheck: true and skipLibCheck: false)',
     () => {
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'simplex-viz-nodenext-'));
       try {
@@ -40,10 +40,10 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
             path.join(REPO_ROOT, 'packages', pkg, 'package.json'),
             path.join(pkgTargetDir, 'package.json'),
           );
-          fs.symlinkSync(
+          fs.cpSync(
             path.join(REPO_ROOT, 'packages', pkg, 'dist'),
             path.join(pkgTargetDir, 'dist'),
-            'dir',
+            { recursive: true },
           );
         }
 
@@ -94,6 +94,12 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
           '  useSimplexGraphController,',
           '  solveSimplexSnapshot as reactSolveSnapshot,',
           '} from "@simplex-viz/react";',
+          'import {',
+          '  SimplexTopicGraphElement,',
+          '  defineSimplexTopicGraphElement,',
+          '  solveSimplexSnapshot as wcSolveSnapshot,',
+          '} from "@simplex-viz/wc";',
+          'import { DEFAULT_SIMPLEX_TAG_NAME } from "@simplex-viz/wc/define";',
           '',
           'type IsAny<T> = 0 extends 1 & T ? true : false;',
           'type AssertFalse<T extends false> = T;',
@@ -102,14 +108,16 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
           'const coreSnap = solveSimplexSnapshot(items);',
           'const svgSnap = svgSolveSnapshot(items);',
           'const reactSnap = reactSolveSnapshot(items);',
+          'const wcSnap = wcSolveSnapshot(items);',
           'const ssrSvg = renderSimplexSvgString(items, { preset: "badges" });',
           '',
           'export type CheckCoreNotAny = AssertFalse<IsAny<typeof coreSnap>>;',
           'export type CheckSvgReExportNotAny = AssertFalse<IsAny<typeof svgSnap>>;',
           'export type CheckReactReExportNotAny = AssertFalse<IsAny<typeof reactSnap>>;',
+          'export type CheckWcReExportNotAny = AssertFalse<IsAny<typeof wcSnap>>;',
           'export type CheckSsrReturnString = AssertFalse<IsAny<typeof ssrSvg>>;',
           'export const checkSnapshotAssignable: SimplexLayoutSnapshot<(typeof items)[number]> = reactSnap;',
-          'export const exportedSymbols = [createSimplexSvg, renderSimplexSvgString, estimateSsrTextWidth, SimplexTopicGraph, ReactJsxSvgView, useSimplexGraphController] as const;',
+          'export const exportedSymbols = [createSimplexSvg, renderSimplexSvgString, estimateSsrTextWidth, SimplexTopicGraph, ReactJsxSvgView, useSimplexGraphController, SimplexTopicGraphElement, defineSimplexTopicGraphElement, DEFAULT_SIMPLEX_TAG_NAME] as const;',
           '',
         ].join('\n');
         fs.writeFileSync(path.join(tmpDir, 'repro.mts'), reproSource);
@@ -146,9 +154,14 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
           path.join(REPO_ROOT, 'packages/react/dist/index.d.ts'),
           'utf8',
         );
+        const wcDts = fs.readFileSync(
+          path.join(REPO_ROOT, 'packages/wc/dist/index.d.ts'),
+          'utf8',
+        );
         expect(coreDts).toContain('./types.js');
         expect(svgDts).toContain('./SimplexSvgController.js');
         expect(reactDts).toContain('./SimplexTopicGraph.js');
+        expect(wcDts).toContain('./SimplexTopicGraphElement.js');
       } finally {
         fs.rmSync(tmpDir, { recursive: true, force: true });
       }

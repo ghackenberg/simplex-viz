@@ -10,18 +10,18 @@
     "dev": "tsx scripts/astro-runner.ts dev",
     "build": "tsx scripts/astro-runner.ts build",
     "build:demo": "tsx scripts/astro-runner.ts build",
-    "build:packages": "npm run build --prefix packages/core && npm run build --prefix packages/svg && npm run build --prefix packages/react",
+    "build:packages": "npm run build --prefix packages/core && npm run build --prefix packages/svg && npm run build --prefix packages/react && npm run build --prefix packages/wc",
     "preview": "tsx scripts/astro-runner.ts preview",
     "clean": "rm -rf dist .astro server.js packages/*/dist",
     "lint": "eslint packages src scripts && npm run typecheck",
     "lint:eslint": "eslint packages src scripts",
     "sync:brand": "tsx scripts/sync-brand.ts",
     "sync:brand:check": "tsx scripts/sync-brand.ts --check",
-    "typecheck": "tsx scripts/astro-runner.ts sync && tsc -p packages/core/tsconfig.json --noEmit && tsc -p packages/svg/tsconfig.json --noEmit && tsc -p packages/react/tsconfig.json --noEmit && tsc -p tsconfig.json --noEmit && tsc -p scripts/tsconfig.json --noEmit",
+    "typecheck": "tsx scripts/astro-runner.ts sync && tsc -p packages/core/tsconfig.json --noEmit && tsc -p packages/svg/tsconfig.json --noEmit && tsc -p packages/react/tsconfig.json --noEmit && tsc -p packages/wc/tsconfig.json --noEmit && tsc -p tsconfig.json --noEmit && tsc -p scripts/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "issue": "tsx scripts/gh-issue.ts",
-    "validate:packages": "node -e \"const { execSync } = require('node:child_process'); const has = (c) => { try { execSync(c + ' --version', { stdio: 'ignore' }); return true; } catch { return false; } }; const pack = has('pnpm') ? 'pnpm' : has('bun') ? 'bun' : 'false'; for (const p of ['packages/core', 'packages/svg', 'packages/react']) execSync('publint ' + p + ' --pack ' + pack, { stdio: 'inherit' });\""
+    "validate:packages": "node -e \"const { execSync } = require('node:child_process'); const has = (c) => { try { execSync(c + ' --version', { stdio: 'ignore' }); return true; } catch { return false; } }; const pack = has('pnpm') ? 'pnpm' : has('bun') ? 'bun' : 'false'; for (const p of ['packages/core', 'packages/svg', 'packages/react', 'packages/wc']) execSync('publint ' + p + ' --pack ' + pack, { stdio: 'inherit' });\""
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.3.9",

@@ -34,6 +34,8 @@ export default defineConfig({
         '@simplex-viz/core': path.resolve(__dirname, 'packages/core/src/index.ts'),
         '@simplex-viz/svg': path.resolve(__dirname, 'packages/svg/src/index.ts'),
         '@simplex-viz/react': path.resolve(__dirname, 'packages/react/src/index.ts'),
+        '@simplex-viz/wc/define': path.resolve(__dirname, 'packages/wc/src/define.ts'),
+        '@simplex-viz/wc': path.resolve(__dirname, 'packages/wc/src/index.ts'),
       },
     },
     server: {
