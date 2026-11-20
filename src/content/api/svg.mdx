@@ -1,7 +1,7 @@
 ---
 title: "@simplex-viz/svg API Reference"
 packageName: "@simplex-viz/svg"
-version: "0.12.1"
+version: "0.13.0"
 layerLabel: "Framework-Agnostic SVG Scene Graph, Export & Zero-DOM SSR"
 description: "Portable SVG renderer, offscreen getBBox() hull measurement, root pointer hit-testing, client-side SVG/PNG export, zero-DOM SSR string rendering (@simplex-viz/svg/ssr), 1:4 subdivision previews, and breadcrumbs."
 order: 2
@@ -23,7 +23,7 @@ exportsTable:
       new SimplexSvgController<
         TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta
       >(options: SimplexSvgOptions<...>)
-    summary: "Manages ResizeObserver (with 0x0 auto-recovery & deferInitialLayout), rAF loop, live prefers-reduced-motion subscription (reducedMotion), Shift+Click & Shift+Drag marquee multi-selection (selectedIds, marqueeSelection, onSelectionChange), deep-link getViewState()/restoreViewState(), zero-relayout itemFilter, linked-view setHighlightedItems()/focusItem()/zoomToItem(), client-side exportSvg()/exportPng(), re-entrant batch()/setOptions(), WCAG 2.1 AA keyboard navigation & aria-live announcements, mobile touchScrollLockPx/clickTolerancePx, timeline HUD, tooltips, and breadcrumbs."
+    summary: "Manages ResizeObserver (with 0x0 auto-recovery & deferInitialLayout), rAF loop, live prefers-reduced-motion subscription (reducedMotion), Shift+Click & Shift+Drag marquee multi-selection (selectedIds, shiftClickSelects, marqueeSelection, onSelectionChange), structured getLegendModel()/onLegendChange synced with zoom/filter/focus/timeline, custom DOM/HTML tooltip renderers (SimplexDomTooltipRenderer) with viewport edge-flipping, deep-link getViewState()/restoreViewState(), zero-relayout itemFilter, linked-view setHighlightedItems()/focusItem()/zoomToItem(), client-side exportSvg()/exportPng(), re-entrant batch()/setOptions(), WCAG 2.1 AA keyboard navigation & aria-live announcements, mobile touchScrollLockPx/clickTolerancePx, timeline HUD, and breadcrumbs."
   - symbol: "SvgRendererAdapter"
     kind: "Class"
     signature: "new SvgRendererAdapter(options: SvgRendererAdapterOptions)"
@@ -82,7 +82,17 @@ const controller = createSimplexSvg('#atlas', {
   itemFilterMode: 'dim',
   ariaLabel: 'Interactive knowledge simplex atlas',
   keyboardNavigation: true,
-  tooltip: true,
+  tooltip: {
+    render(target, container) {
+      if (target.kind !== 'content') return false;
+      const title = document.createElement('strong');
+      title.textContent = target.item.label;
+      container.replaceChildren(title);
+    },
+  },
+  onLegendChange: (legend) => {
+    console.log('Legend entries:', legend.entries.length, 'visible:', legend.visibleItems);
+  },
 });
 
 // Coalesce multi-property runtime updates into a single recomputation:
@@ -92,7 +102,8 @@ controller.setOptions({
   highlightedIds: ['item-1', 'item-4'],
 });
 
-// Programmatic linked-view navigation, multi-selection, deep-linking & snapshot export:
+// Programmatic linked-view navigation, legend snapshot, multi-selection, deep-linking & export:
+const legend = controller.getLegendModel();
 controller.zoomToItem('item-1', { zoom: 2.2, maxDrillSteps: 4 });
 controller.setSelectedIds(['item-1', 'item-4']);
 const snapshot = controller.getViewState();

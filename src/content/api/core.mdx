@@ -1,7 +1,7 @@
 ---
 title: "@simplex-viz/core API Reference"
 packageName: "@simplex-viz/core"
-version: "0.12.1"
+version: "0.13.0"
 layerLabel: "Headless Geometry, Clustering, OKLab & SAT Engine"
 description: "Pure ES2022 TypeScript engine with zero runtime dependencies and zero DOM globals for browsers, Node.js, Bun, Deno, and Web Workers."
 order: 1
@@ -22,7 +22,7 @@ exportsTable:
       new SimplexGraphEngine<
         TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta
       >(config: SimplexEngineConfig<...>)
-    summary: "Stateful 60 fps engine with live mutations, reduced-motion snapping (reducedMotion), independent multi-selection (selectedIds, selectItemsInScreenRect), serializable deep-link view state (getViewState, restoreViewState), zero-relayout item filtering (setItemFilter), programmatic search & linked-view navigation (setHighlightedItems, focusItem, zoomToItem), re-entrant batch() coalescing, spring transitions, deferred 0x0 viewport re-initialization, keyboard target traversal, convex/triangle hit-testing, and conformal 1:4 drill-down."
+    summary: "Stateful 60 fps engine with live mutations, reduced-motion snapping (reducedMotion), independent multi-selection (selectedIds, shiftClickSelects, selectItemsInScreenRect), structured legend snapshots & diff-gated updates (getLegendModel, onLegendChange), serializable deep-link view state (getViewState, restoreViewState), zero-relayout item filtering (setItemFilter), programmatic search & linked-view navigation (setHighlightedItems, focusItem, zoomToItem), re-entrant batch() coalescing, spring transitions, deferred 0x0 viewport re-initialization, keyboard target traversal, convex/triangle hit-testing, and conformal 1:4 drill-down."
   - symbol: "createAdaptiveHexMeshStrategy"
     kind: "Function"
     signature: |-
@@ -175,9 +175,14 @@ engine.setHighlightedItems(['item-1', 'item-4']);
 engine.focusItem('item-1', { highlight: true, hover: true });
 engine.zoomToItem('item-1', { zoom: 2.2, maxDrillSteps: 4 });
 
-// Interactive multi-selection, reduced-motion preference & deep-linking view state:
+// Interactive multi-selection, reduced-motion preference, legend model & deep-linking view state:
 engine.setSelectedIds(['item-1', 'item-2']);
+engine.setShiftClickSelects(true);
 engine.setReducedMotion('auto');
+const legend = engine.getLegendModel();
+engine.setOnLegendChange((nextLegend) => {
+  console.log('Visible legend entries:', nextLegend.entries.length);
+});
 const viewState = engine.getViewState();
 engine.restoreViewState(viewState);
 

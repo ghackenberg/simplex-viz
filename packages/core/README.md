@@ -125,7 +125,8 @@ const snapshot = solveSimplexSnapshot(samples as readonly AudioSample[], {
 | `zoomStrategy` | *(N/A — stateless single-frame solver)* | `createFreeCameraZoomStrategy()` |
 | `emptyClusterBehavior` | *(N/A)* | `'normal'` (`'normal' \| 'dim' \| 'hide'` for `0`-item clusters) |
 | `itemFilter` / `itemFilterMode` | *(N/A)* | `null` / `'dim'` (zero-relayout visual filtering via `setItemFilter(predicate, { mode })`) |
-| `selectedIds` | *(N/A)* | `[]` (independent multi-selection state via `setSelectedIds()`, `toggleSelectedId()`, `clearSelection()`, `selectItemsInScreenRect()`) |
+| `selectedIds` / `shiftClickSelects` | *(N/A)* | `[]` / `true` (independent multi-selection state via `setSelectedIds()`, `toggleSelectedId()`, `clearSelection()`, `selectItemsInScreenRect()`; `Shift+Click` toggles selection before consuming `onContentClick` unless disabled) |
+| `onLegendChange` | *(N/A)* | `undefined` (diff-gated callback synced with `getLegendModel(options?)` across zoom depth, `itemFilter`, `emptyClusterBehavior`, and cluster focus) |
 | `reducedMotion` | *(N/A)* | `'auto'` (`'auto' \| boolean` — snaps springs, camera flights, zoom transitions, and morphs immediately when active) |
 | `deferInitialSolve` | *(N/A)* | `false` (set `true` to skip initial clustering/layout until `reinitializeViewport(w, h)` is called) |
 | `onWheel` | *(N/A)* | `'zoom-to-cursor'` (blocked automatically when `zoomStrategy.mode === 'drill-down'`) |

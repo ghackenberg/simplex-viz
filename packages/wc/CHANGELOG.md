@@ -1,5 +1,17 @@
 # @simplex-viz/wc
 
+## 0.13.0
+
+### Minor Changes
+
+- Add `shift-click-selects` attribute & `shiftClickSelects` property (#27), forward custom `SimplexDomTooltipRenderer` objects via `el.tooltip` (#28), expose `el.getLegendModel(options?)`, and dispatch bubbling/composed `simplex-legend-change` `CustomEvent`s synced with zoom, filter, focus, and timeline state (#29).
+
+### Patch Changes
+
+- Updated dependencies
+  - @simplex-viz/core@0.13.0
+  - @simplex-viz/svg@0.13.0
+
 ## 0.12.1
 
 ### Patch Changes

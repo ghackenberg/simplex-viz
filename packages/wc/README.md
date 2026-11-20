@@ -89,11 +89,12 @@ defineSimplexTopicGraphElement(); // registers <simplex-topic-graph>
 | `preset` | `'geometric' \| 'badges' \| 'glyphs'` | `'geometric'` |
 | `theme` | `'dark' \| 'light'` | `'dark'` |
 | `renderer` | `'svg'` | `'svg'` |
-| `tooltip` | boolean | `false` |
+| `tooltip` | boolean (or JS property: `SimplexSvgTooltipOption` / `SimplexDomTooltipRenderer`) | `false` |
 | `aria-label` | string | `'Interactive simplex topic graph'` |
 | `keyboard-navigation` | boolean | `true` |
 | `reduced-motion` | `'auto' \| 'true' \| 'false'` | `'auto'` |
 | `marquee-selection` | boolean | `true` |
+| `shift-click-selects` | boolean | `true` |
 | `show-zoom-breadcrumbs` | boolean | `true` |
 | `show-hulls` | boolean | `false` |
 | `empty-cluster-behavior` | `'normal' \| 'dim' \| 'hide'` | `'normal'` |
@@ -121,13 +122,14 @@ All custom events bubble (`bubbles: true`, `composed: true`).
 - `simplex-timeline-change` (`detail: SimplexTimelineState`)
 - `simplex-metrics` (`detail: LayoutMetrics`)
 - `simplex-clusters-change` (`detail: readonly ClusterDescriptor[]`)
+- `simplex-legend-change` (`detail: SimplexLegendModel`)
 
 ## Imperative Methods
 
 - Data & batching: `addItems`, `removeItems`, `setItems`, `setOptions`, `batch`, `relayout`
 - Selection & filtering: `setSelectedIds`, `toggleSelectedId`, `clearSelection`, `getSelectedIds`, `selectItemsInScreenRect`, `setHighlightedIds`, `setHighlightedItems`, `getHighlightedIds`, `setPinnedIds`, `getPinnedIds`, `setItemFilter`, `getItemFilter`
 - Navigation & focus: `focusItem`, `getFocusedItemId`, `zoomToItem`, `setFocusedClusterUid`, `setFocusedTriangleIndex`, `drillDownTriangle`, `drillDownCluster`, `drillToNeighbor`, `drillUp`, `drillToDepth`, `drillToRoot`, `getZoomState`, `resetCamera`, `zoomBy`
-- Deep-linking & export: `getViewState`, `restoreViewState`, `exportSvg`, `exportPng`
+- Legend, deep-linking & export: `getLegendModel`, `getViewState`, `restoreViewState`, `exportSvg`, `exportPng`
 - Accessibility & motion: `setReducedMotion`, `getReducedMotion`, `isReducedMotionActive`, `getKeyboardFocusTarget`, `clearKeyboardFocus`
 
 ## License

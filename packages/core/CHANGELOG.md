@@ -1,5 +1,11 @@
 # @simplex-viz/core
 
+## 0.13.0
+
+### Minor Changes
+
+- Expose structured `getLegendModel(options?)` (`SimplexLegendEntry`, `SimplexLegendModel`, `SimplexLegendModelOptions`) and diff-gated `onLegendChange` / `setOnLegendChange()` synchronized with zoom depth, `itemFilter`, `emptyClusterBehavior`, and cluster focus (#29), and handle `Shift+Click` multi-selection before consuming `onContentClick` callbacks with a configurable `shiftClickSelects` option (`setShiftClickSelects()` / `getShiftClickSelects()`, default `true`, #27).
+
 ## 0.12.1
 
 ### Patch Changes

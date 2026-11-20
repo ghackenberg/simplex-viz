@@ -1,7 +1,7 @@
 ---
 title: "@simplex-viz/react API Reference"
 packageName: "@simplex-viz/react"
-version: "0.12.1"
+version: "0.13.0"
 layerLabel: "Type-Safe React 18 & 19 Bindings"
 description: "Declarative <SimplexTopicGraph /> component, JSX custom node measurement, and imperative useSimplexGraphController() hook re-exporting all SVG and Core utilities."
 order: 3
@@ -16,7 +16,7 @@ exportsTable:
       >
         {...props}
       />
-    summary: "Primary responsive React component supporting presets, shapeOptions, getShape, badgeOptions, reducedMotion, Shift+Click & Shift+Drag multi-selection (selectedIds, marqueeSelection, onSelectionChange), zero-relayout itemFilter/itemFilterMode, batched prop sync, WCAG 2.1 AA ariaLabel/keyboardNavigation, timeline playback, deferInitialLayout, mobile touchScrollLockPx/clickTolerancePx, JSX node renderers, and drill-down."
+    summary: "Primary responsive React component supporting presets, shapeOptions, getShape, badgeOptions, reducedMotion, Shift+Click & Shift+Drag multi-selection (selectedIds, shiftClickSelects, marqueeSelection, onSelectionChange), structured legend subscriptions (onLegendChange), zero-relayout itemFilter/itemFilterMode, batched prop sync, WCAG 2.1 AA ariaLabel/keyboardNavigation, timeline playback, deferInitialLayout, mobile touchScrollLockPx/clickTolerancePx, JSX node renderers, and drill-down."
   - symbol: "useSimplexGraphController"
     kind: "Hook"
     signature: |-
@@ -26,7 +26,7 @@ exportsTable:
         controllerRef: RefObject<SimplexSvgController<...> | null>;
         handle: SimplexGraphControllerHandle<TItem>;
       }
-    summary: "Provides stable imperative access to live item mutations, multi-selection (setSelectedIds/toggleSelectedId/clearSelection/selectItemsInScreenRect), deep-linking (getViewState/restoreViewState), reducedMotion controls, setItemFilter(), linked-view setHighlightedItems()/focusItem()/zoomToItem(), exportSvg()/exportPng() snapshots, batch()/setOptions(), keyboard focus helpers, camera resets, relayout(), timeline access, and drillDown / drillUp actions."
+    summary: "Provides stable imperative access to live item mutations, multi-selection (setSelectedIds/toggleSelectedId/clearSelection/selectItemsInScreenRect), structured legend snapshots (getLegendModel), deep-linking (getViewState/restoreViewState), reducedMotion controls, setItemFilter(), linked-view setHighlightedItems()/focusItem()/zoomToItem(), exportSvg()/exportPng() snapshots, batch()/setOptions(), keyboard focus helpers, camera resets, relayout(), timeline access, and drillDown / drillUp actions."
   - symbol: "useSimplexTimeline"
     kind: "Hook"
     signature: |-
@@ -97,4 +97,4 @@ Returned by `useSimplexGraphController()`:
 - **Client-Side Snapshot Export**: `handle.exportSvg(options?)`, `handle.exportPng(options?)` (`format: 'blob' | 'dataUrl'`, HiDPI `scale`)
 - **Atomic Batching & Options**: `handle.batch(fn)`, `handle.setOptions(options)`
 - **Hierarchical Drill-Down**: `handle.drillDownTriangle(index)`, `handle.drillDownCluster(uid)`, `handle.drillToNeighbor(neighborId)`, `handle.drillUp()`, `handle.drillToDepth(depth)`, `handle.drillToRoot()`, `handle.getZoomState()`
-- **Focus, Motion, Accessibility, Camera & Telemetry**: `handle.setFocusedTriangleIndex(index | null)`, `handle.setReducedMotion(pref)`, `handle.getReducedMotion()`, `handle.isReducedMotionActive()`, `handle.getKeyboardFocusTarget()`, `handle.clearKeyboardFocus()`, `handle.zoomBy(factor)`, `handle.resetCamera()`, `handle.relayout()`, `handle.getMetrics()`, `handle.getClusters()`, `handle.getTimeline()`
+- **Focus, Motion, Accessibility, Camera & Telemetry**: `handle.setFocusedTriangleIndex(index | null)`, `handle.setReducedMotion(pref)`, `handle.getReducedMotion()`, `handle.isReducedMotionActive()`, `handle.getKeyboardFocusTarget()`, `handle.clearKeyboardFocus()`, `handle.zoomBy(factor)`, `handle.resetCamera()`, `handle.relayout()`, `handle.getMetrics()`, `handle.getClusters()`, `handle.getLegendModel(options?)`, `handle.getTimeline()`

@@ -87,7 +87,8 @@ export function QuickTopicMap() {
 | `touchScrollLockPx` / `clickTolerancePx` | `8` / `12` | Embedded mobile touch direction-locking (`touch-action: pan-y`; `0` disables) and peak-displacement click suppression in CSS px. |
 | `ariaLabel` / `keyboardNavigation` | `'Interactive simplex topic graph'` / `true` | WCAG 2.1 AA single-tabstop keyboard traversal (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Shift+Enter`/`Shift+Space`, `Escape`), high-contrast double-halo SVG focus ring, semantic ARIA labels, and `aria-live="polite"` announcements. |
 | `reducedMotion` | `'auto'` | `'auto' \| boolean` — Automatically tracks OS `prefers-reduced-motion: reduce` and snaps node springs, camera flights, zoom transitions, and morphs immediately when active. |
-| `selectedIds` / `marqueeSelection` | `[]` / `true` | Independent multi-selection state supporting `Shift+Click`, `Shift+Drag` rectangular marquee, violet selection rings, and `onSelectionChange`. |
+| `selectedIds` / `shiftClickSelects` / `marqueeSelection` | `[]` / `true` / `true` | Independent multi-selection state supporting `Shift+Click` (handled before consuming `onContentClick` unless `shiftClickSelects={false}`), `Shift+Drag` rectangular marquee, violet selection rings, and `onSelectionChange`. |
+| `onLegendChange` | `undefined` | Diff-gated callback receiving structured `SimplexLegendModel` snapshots (also queryable via `handle.getLegendModel(options?)`), synced with zoom, filtering, focus, and timeline state. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode when `focused*` is uncontrolled and click is not consumed (`return true`). |
 | `tooltip` | `false` | Set `tooltip` (`true`) or pass `(target) => ReactNode` to render a floating tooltip overlay. |
 

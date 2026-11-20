@@ -1,5 +1,16 @@
 # @simplex-viz/svg
 
+## 0.13.0
+
+### Minor Changes
+
+- Add custom DOM/HTML tooltip renderer support (`SimplexDomTooltipRenderer`, `SimplexSvgTooltipTarget`, `SimplexSvgTooltipOption`, `SimplexDomTooltipRenderResult`) reusing built-in hover positioning, target-key render caching, cleanup/`onHide` teardown, dynamic viewport edge-flipping, and falsy/nullable string formatter suppression (#28); expose `controller.getLegendModel(options?)` and diff-gated `onLegendChange` / `setOnLegendChange()` synced with zoom, filtering, focus, `emptyClusterBehavior`, and `timelineStep` (#29); and handle `Shift+Click` multi-selection prior to consuming `onContentClick` callbacks via `shiftClickSelects` (default `true`, #27).
+
+### Patch Changes
+
+- Updated dependencies
+  - @simplex-viz/core@0.13.0
+
 ## 0.12.1
 
 ### Patch Changes

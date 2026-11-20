@@ -85,9 +85,10 @@ const controller = createSimplexSvg('#graph', items);
 | `touchScrollLockPx` / `clickTolerancePx` | `8` / `12` | Mobile touch direction-locking (`touch-action: pan-y`; set `0` for `touch-action: none`) and peak-displacement drag-vs-click tolerance in CSS px. |
 | `ariaLabel` / `keyboardNavigation` | `'Interactive simplex topic graph'` / `true` | WCAG 2.1 AA root `<svg>` label and built-in single-tabstop keyboard traversal (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Shift+Enter`/`Shift+Space`, `Escape`), focus ring, and `aria-live="polite"` announcements. |
 | `reducedMotion` | `'auto'` | `'auto' \| boolean` — Subscribes live to `(prefers-reduced-motion: reduce)`, sets `data-reduced-motion="true"`, and snaps springs, camera flights, zoom transitions, and morphs immediately when active. |
-| `selectedIds` / `marqueeSelection` | `[]` / `true` | Independent multi-selection state supporting `Shift+Click`, `Shift+Drag` marquee overlay (excluded from `exportSvg()`), violet selection rings, and `onSelectionChange`. |
+| `selectedIds` / `shiftClickSelects` / `marqueeSelection` | `[]` / `true` / `true` | Independent multi-selection state supporting `Shift+Click` (handled before consuming `onContentClick` unless `shiftClickSelects: false`), `Shift+Drag` marquee overlay (excluded from `exportSvg()`), violet selection rings, and `onSelectionChange`. |
+| `onLegendChange` | `undefined` | Diff-gated callback receiving structured `SimplexLegendModel` snapshots (also queryable via `controller.getLegendModel(options?)`), synced with zoom depth, `itemFilter`, `emptyClusterBehavior`, focus, and active `timelineStep`. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode unless consumed (`return true`) by a click handler. |
-| `tooltip` | `true` for `createSimplexSvg(el, items)`, `false` in options | Floating DOM hover tooltip (`boolean` or custom `(target) => string` formatter). |
+| `tooltip` | `true` for `createSimplexSvg(el, items)`, `false` in options | Floating DOM hover tooltip: `boolean`, nullable string formatter `(target) => string \| null \| undefined`, or custom `SimplexDomTooltipRenderer` (`{ render(target, container), onHide?, className?, unstyled?, pointerEvents? }`) reusing built-in positioning and dynamic viewport edge-flipping. |
 
 ---
 

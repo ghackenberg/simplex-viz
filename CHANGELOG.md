@@ -2,6 +2,24 @@
 
 All notable changes to **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`, `@simplex-viz/wc`, and the documentation/showcase site) are documented in this file following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), coordinated with per-package release notes via `@changesets/cli`.
 
+## [0.13.0] - 2026-11-20
+
+### Added
+- **`@simplex-viz/core`**:
+  - **Structured Legend Data Model & Diff-Gated Updates ([#29](https://github.com/ghackenberg/simplex-viz/issues/29))**: Added `SimplexLegendEntry`, `SimplexLegendModel`, `SimplexLegendModelOptions`, `engine.getLegendModel(options?)`, and diff-gated `onLegendChange` / `engine.setOnLegendChange()`. Exposes per-cluster swatches, labels, roles, tags, active/visible item counts, visibility, and focus state synchronized with hierarchical drill-down, zero-relayout `itemFilter`, `emptyClusterBehavior`, and cluster focus without duplicating geometry/state logic.
+  - **Configurable `Shift+Click` Multi-Selection Option ([#27](https://github.com/ghackenberg/simplex-viz/issues/27))**: Added `shiftClickSelects` (default `true`) on `SimplexGraphEngineConfig` with `setShiftClickSelects()` / `getShiftClickSelects()` so Shift-modified content clicks are handled consistently before consumer click callbacks while allowing explicit opt-out.
+- **`@simplex-viz/svg`**:
+  - **Custom DOM/HTML Tooltip Renderer Reusing Built-In Positioning ([#28](https://github.com/ghackenberg/simplex-viz/issues/28))**: Added `SimplexDomTooltipRenderer`, `SimplexSvgTooltipTarget`, `SimplexSvgTooltipOption`, and `SimplexDomTooltipRenderResult` so consumers can pass a `{ render(target, container), onHide?, className?, unstyled?, pointerEvents? }` renderer object alongside `boolean` or nullable/falsy string formatters (`SimplexTooltipFormatter` returning `null | undefined | ''` suppresses the tooltip). Includes target-key render caching during hover movement, automatic cleanup/onHide lifecycle handling, and dynamic viewport edge-flipping based on measured tooltip dimensions.
+  - **Structured Legend Model & Diff-Gated `onLegendChange` ([#29](https://github.com/ghackenberg/simplex-viz/issues/29))**: Added `controller.getLegendModel(options?)`, `onLegendChange` option, and `controller.setOnLegendChange()` synchronizing legend snapshots across zoom depth, `itemFilter`, `emptyClusterBehavior`, focus, and active `timelineStep`.
+- **`@simplex-viz/react`**:
+  - **Legend Subscription, Custom DOM Tooltips & `shiftClickSelects` ([#27](https://github.com/ghackenberg/simplex-viz/issues/27), [#28](https://github.com/ghackenberg/simplex-viz/issues/28), [#29](https://github.com/ghackenberg/simplex-viz/issues/29))**: Added `shiftClickSelects` and `onLegendChange` props on `<SimplexTopicGraph />`, exposed `getLegendModel(options?)` on `useSimplexGraphController().handle`, and re-exported `SimplexLegendEntry`, `SimplexLegendModel`, `SimplexLegendModelOptions`, `SimplexDomTooltipRenderer`, `SimplexSvgTooltipTarget`, `SimplexSvgTooltipOption`, and `SimplexDomTooltipRenderResult`.
+- **`@simplex-viz/wc`**:
+  - **Legend Model, Custom DOM Tooltips & `shift-click-selects` ([#27](https://github.com/ghackenberg/simplex-viz/issues/27), [#28](https://github.com/ghackenberg/simplex-viz/issues/28), [#29](https://github.com/ghackenberg/simplex-viz/issues/29))**: Added the `shift-click-selects` HTML attribute & `shiftClickSelects` property, forwarded `SimplexDomTooltipRenderer` objects via `el.tooltip`, added `el.getLegendModel(options?)`, and dispatched bubbling/composed `simplex-legend-change` `CustomEvent`s (`detail: SimplexLegendModel`).
+
+### Fixed
+- **`@simplex-viz/core` & `@simplex-viz/svg`**:
+  - **`Shift+Click` Multi-Selection Precedence ([#27](https://github.com/ghackenberg/simplex-viz/issues/27))**: Handled `Shift+Click` content multi-selection before invoking user `onContentClick` callbacks when `shiftClickSelects` is `true` (default), preventing consuming click handlers (such as detail-drawer triggers) from swallowing Shift+Click cohort selection.
+
 ## [0.12.1] - 2026-11-20
 
 ### Documentation & Brand Assets

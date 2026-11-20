@@ -1,5 +1,17 @@
 # @simplex-viz/react
 
+## 0.13.0
+
+### Minor Changes
+
+- Add `shiftClickSelects` (#27) and `onLegendChange` (#29) props on `<SimplexTopicGraph />`, expose `getLegendModel(options?)` on `useSimplexGraphController().handle`, and re-export all new legend and custom DOM tooltip types (`SimplexLegendEntry`, `SimplexLegendModel`, `SimplexLegendModelOptions`, `SimplexDomTooltipRenderer`, `SimplexSvgTooltipTarget`, `SimplexSvgTooltipOption`, `SimplexDomTooltipRenderResult`, #28, #29).
+
+### Patch Changes
+
+- Updated dependencies
+  - @simplex-viz/core@0.13.0
+  - @simplex-viz/svg@0.13.0
+
 ## 0.12.1
 
 ### Patch Changes

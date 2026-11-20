@@ -1,9 +1,9 @@
 ---
 title: "@simplex-viz/wc API Reference"
 packageName: "@simplex-viz/wc"
-version: "0.12.1"
+version: "0.13.0"
 layerLabel: "Framework-Agnostic Web Component (<simplex-topic-graph>)"
-description: "Dedicated Custom Element package with zero React dependency, SSR-safe registration (@simplex-viz/wc/define), 23 reactive HTML attributes, inline JSON support, standard CustomEvents, and full imperative delegation."
+description: "Dedicated Custom Element package with zero React dependency, SSR-safe registration (@simplex-viz/wc/define), 24 reactive HTML attributes, inline JSON support, custom DOM tooltip renderers, structured legend snapshots, standard CustomEvents, and full imperative delegation."
 order: 4
 zeroRuntimeDeps: false
 installCommand: "npm install @simplex-viz/wc"
@@ -14,7 +14,7 @@ exportsTable:
       class SimplexTopicGraphElement<
         TItem = DefaultTaggedItem
       > extends HTMLElement
-    summary: "Light-DOM Custom Element (<simplex-topic-graph>) mounting SimplexSvgController inside .sv-wc-stage (preserving getBBox(), webfonts, CSS inheritance, and SVG/PNG export) with pre-upgrade property preservation, 23 reactive HTML attributes, inline <script type=\"application/json\"> data parsing, standard bubbling CustomEvents, and full imperative delegation."
+    summary: "Light-DOM Custom Element (<simplex-topic-graph>) mounting SimplexSvgController inside .sv-wc-stage (preserving getBBox(), webfonts, CSS inheritance, and SVG/PNG export) with pre-upgrade property preservation, 24 reactive HTML attributes, inline <script type=\"application/json\"> data parsing, custom SimplexDomTooltipRenderer support, getLegendModel()/simplex-legend-change, standard bubbling CustomEvents, and full imperative delegation."
   - symbol: "defineSimplexTopicGraphElement"
     kind: "Function"
     signature: |-
@@ -80,6 +80,6 @@ For static pages, blogs, or Markdown/Astro embeds without writing imperative Jav
 
 ## Reactive Attributes & Standard `CustomEvent`s
 
-- **Observed Attributes (23)**: `preset`, `theme`, `renderer` (`'svg'`), `tooltip`, `aria-label`, `keyboard-navigation`, `reduced-motion`, `marquee-selection`, `show-zoom-breadcrumbs`, `show-hulls`, `empty-cluster-behavior`, `defer-initial-layout`, `item-filter-mode`, `touch-scroll-lock-px`, `click-tolerance-px`, `focus-on-cluster-click`, `focus-on-triangle-click`, `relayout-on-font-load`, `timeline`, `items`, `selected-ids`, `highlighted-ids`, `pinned-ids`.
-- **Bubbling & Composed Events**: `simplex-click` *(cancelable via `preventDefault()`)*, `simplex-hover` *(cancelable)*, `simplex-selection-change` (`{ selectedIds, ids }`), `simplex-zoom`, `simplex-timeline-change`, `simplex-metrics`, and `simplex-clusters-change`.
-- **Imperative Methods**: `getViewState()`, `restoreViewState()`, `exportSvg()`, `exportPng()`, `setSelectedIds()`, `toggleSelectedId()`, `clearSelection()`, `selectItemsInScreenRect()`, `setHighlightedItems()`, `focusItem()`, `zoomToItem()`, `setItemFilter()`, `drillDownTriangle()`, `drillDownCluster()`, `drillUp()`, `drillToRoot()`, `resetCamera()`, `zoomBy()`, `setReducedMotion()`, `batch()`, `setOptions()`, and `relayout()`.
+- **Observed Attributes (24)**: `preset`, `theme`, `renderer` (`'svg'`), `tooltip`, `aria-label`, `keyboard-navigation`, `reduced-motion`, `marquee-selection`, `shift-click-selects`, `show-zoom-breadcrumbs`, `show-hulls`, `empty-cluster-behavior`, `defer-initial-layout`, `item-filter-mode`, `touch-scroll-lock-px`, `click-tolerance-px`, `focus-on-cluster-click`, `focus-on-triangle-click`, `relayout-on-font-load`, `timeline`, `items`, `selected-ids`, `highlighted-ids`, `pinned-ids`.
+- **Bubbling & Composed Events**: `simplex-click` *(cancelable via `preventDefault()`)*, `simplex-hover` *(cancelable)*, `simplex-selection-change` (`{ selectedIds, ids }`), `simplex-zoom`, `simplex-timeline-change`, `simplex-metrics`, `simplex-clusters-change`, and `simplex-legend-change` (`SimplexLegendModel`).
+- **Imperative Methods**: `getLegendModel()`, `getViewState()`, `restoreViewState()`, `exportSvg()`, `exportPng()`, `setSelectedIds()`, `toggleSelectedId()`, `clearSelection()`, `selectItemsInScreenRect()`, `setHighlightedItems()`, `focusItem()`, `zoomToItem()`, `setItemFilter()`, `drillDownTriangle()`, `drillDownCluster()`, `drillUp()`, `drillToRoot()`, `resetCamera()`, `zoomBy()`, `setReducedMotion()`, `batch()`, `setOptions()`, and `relayout()`.
