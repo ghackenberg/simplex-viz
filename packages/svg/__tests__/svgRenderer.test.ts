@@ -3213,6 +3213,146 @@ describe('@simplex-viz/svg integration', () => {
     controller.destroy();
     container.remove();
   });
+
+  it('supports linked-view search highlighting, focusItem(), and free-camera zoomToItem() (Issue #19)', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 520, right: 800, bottom: 520 }),
+    });
+    document.body.appendChild(container);
+
+    const items = [
+      { id: 'doc-1', label: 'Convex Hulls', tags: ['geometry', 'collision'] },
+      { id: 'doc-2', label: 'OKLab Mixing', tags: ['color', 'perception'] },
+      { id: 'doc-3', label: 'Simplex Mesh', tags: ['geometry', 'lattice'] },
+      { id: 'doc-4', label: 'Color Contrast', tags: ['color', 'accessibility'] },
+    ];
+
+    const hoveredIds: (string | null)[] = [];
+    const controller = createSimplexSvg(container, {
+      items,
+      preset: 'geometric',
+      shapeOptions: { dimmedOpacity: 0.25 },
+      tooltip: true,
+      layoutOptions: { seed: 42 },
+      interactions: {
+        onContentHover: (ev) => {
+          hoveredIds.push(ev ? ev.layoutContext.id : null);
+        },
+      },
+    });
+    for (let i = 0; i < 40; i++) controller.stepForTest(20);
+
+    const svg = controller.getSvgElement();
+    const getOpacity = (id: string) =>
+      parseFloat(
+        svg.querySelector(`g.sv-node-item[data-node-id="${id}"]`)!.getAttribute('opacity') ?? '1',
+      );
+
+    // 1) setHighlightedItems accepts any Iterable<string> and dims non-matches
+    controller.setHighlightedItems(new Set(['doc-1', 'doc-3']));
+    expect([...controller.getHighlightedItems()].sort()).toEqual(['doc-1', 'doc-3']);
+    expect(getOpacity('doc-1')).toBeCloseTo(1, 2);
+    expect(getOpacity('doc-3')).toBeCloseTo(1, 2);
+    expect(getOpacity('doc-2')).toBeCloseTo(0.25, 2);
+
+    // 2) focusItem focuses a single item, triggers hover + tooltip + optional announcement,
+    //    and clearing focusItem(null) preserves the active search highlight set!
+    const focused = controller.focusItem('doc-1', { announce: true });
+    expect(focused).toBe(true);
+    expect(controller.getFocusedItemId()).toBe('doc-1');
+    expect(hoveredIds.at(-1)).toBe('doc-1');
+    const tooltip = container.querySelector('.sv-tooltip') as HTMLDivElement | null;
+    expect(tooltip?.style.display).toBe('block');
+    expect(tooltip?.textContent).toContain('Convex Hulls');
+    const announcer = container.querySelector('.sv-sr-announcer') as HTMLDivElement | null;
+    expect(announcer?.textContent).toContain('Focused item: Convex Hulls');
+
+    controller.focusItem(null);
+    expect(controller.getFocusedItemId()).toBeNull();
+    expect(tooltip?.style.display).toBe('none');
+    expect([...controller.getHighlightedItems()].sort()).toEqual(['doc-1', 'doc-3']);
+    expect(getOpacity('doc-2')).toBeCloseTo(0.25, 2);
+
+    // Clearing highlights with null restores full opacity for all items
+    controller.setHighlightedItems(null);
+    expect(controller.getHighlightedItems().size).toBe(0);
+    expect(getOpacity('doc-2')).toBeCloseTo(1, 2);
+
+    // Missing item or item hidden via setItemFilter(mode: 'hide') returns false
+    expect(controller.focusItem('does-not-exist')).toBe(false);
+    controller.setItemFilter((it) => it.id !== 'doc-4', { mode: 'hide' });
+    expect(controller.focusItem('doc-4')).toBe(false);
+    expect(controller.zoomToItem('doc-4')).toBe(false);
+    controller.setItemFilter(null);
+
+    // 3) zoomToItem in free-camera mode centers and zooms camera onto target item + focuses it
+    const zoomed = controller.zoomToItem('doc-2', { zoom: 2.2 });
+    expect(zoomed).toBe(true);
+    expect(controller.getFocusedItemId()).toBe('doc-2');
+    const cam = controller.camera.getState();
+    expect(cam.zoom).toBeCloseTo(2.2, 3);
+    const doc2Group = svg.querySelector('g.sv-node-item[data-node-id="doc-2"]')!;
+    const match = doc2Group
+      .getAttribute('transform')
+      ?.match(/translate\(\s*([0-9.-]+)[,\s]+([0-9.-]+)/);
+    expect(match).not.toBeNull();
+    const screenPos = controller.camera.worldToScreen(parseFloat(match![1]!), parseFloat(match![2]!));
+    expect(screenPos.x).toBeCloseTo(400, 1);
+    expect(screenPos.y).toBeCloseTo(260, 1);
+
+    // Escape clears programmatic item focus at root
+    svg.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(controller.getFocusedItemId()).toBeNull();
+
+    controller.destroy();
+    container.remove();
+  });
+
+  it('drills down and switches branches cleanly via zoomToItem() in drill-down mode (Issue #19)', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+    });
+    document.body.appendChild(container);
+
+    const items = Array.from({ length: 24 }, (_, i) => ({
+      id: `item-${i}`,
+      label: `Item ${i}`,
+      tags: ['alpha', 'beta', 'gamma', `topic-${i % 4}`],
+    }));
+
+    const controller = createSimplexSvg(container, {
+      items,
+      preset: 'geometric',
+      zoomStrategy: createBarycentricZoomStrategy({ stopWhenFullScale: false }),
+      layoutOptions: { seed: 42 },
+      tooltip: true,
+    });
+    for (let i = 0; i < 35; i++) controller.stepForTest(20);
+
+    expect(controller.getZoomState().depth).toBe(0);
+
+    // Drill down to item-0 with maxDrillSteps: 2
+    const ok1 = controller.zoomToItem('item-0', { maxDrillSteps: 2 });
+    expect(ok1).toBe(true);
+    expect(controller.getZoomState().depth).toBeGreaterThanOrEqual(1);
+    expect(controller.getFocusedItemId()).toBe('item-0');
+    const breadcrumbs = container.querySelector('.sv-zoom-breadcrumbs') as HTMLElement | null;
+    expect(breadcrumbs?.style.display).toBe('flex');
+
+    // Now jump to another item that may live in a different branch — zoomToItem walks up and re-drills cleanly
+    const ok2 = controller.zoomToItem('item-17', { maxDrillSteps: 2 });
+    expect(ok2).toBe(true);
+    expect(controller.getFocusedItemId()).toBe('item-17');
+    expect(controller.getZoomState().depth).toBeGreaterThanOrEqual(1);
+
+    // Missing item returns false without crashing
+    expect(controller.zoomToItem('nonexistent-id')).toBe(false);
+
+    controller.destroy();
+    container.remove();
+  });
 });
 
 

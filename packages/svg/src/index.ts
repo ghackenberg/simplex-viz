@@ -100,6 +100,7 @@ export {
   type FinalSeededLayoutOptions,
   type FinalSeededLayoutScaleMode,
   type FixedScaleControllerOptions,
+  type FocusItemOptions,
   type HitTarget,
   type IdentifiedItem,
   type InteractionHandlers,
@@ -189,5 +190,6 @@ export {
   type ZoomStrategyMode,
   type ZoomTargetEvaluationContext,
   type ZoomTargetEvaluationResult,
+  type ZoomToItemOptions,
   type ZoomTriangleDrillContext,
 } from '@simplex-viz/core';

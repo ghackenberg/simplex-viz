@@ -41,6 +41,7 @@ import type {
   ConvexGeometry,
   DefaultTaggedItem,
   EmptyClusterBehavior,
+  FocusItemOptions,
   HitTarget,
   IdentifiedItem,
   InteractionHandlers,
@@ -65,6 +66,7 @@ import type {
   SimplexMesh,
   SimplexRendererAdapter,
   VisualResolver,
+  ZoomToItemOptions,
 } from './types.js';
 import {
   IDENTITY_ZOOM_AFFINE,
@@ -490,6 +492,8 @@ export class SimplexGraphEngine<
   private hoveredTriangleIndex: number | null = null;
   private pinnedIds = new Set<string>();
   private highlightedIds = new Set<string>();
+  private focusedItemId: string | null = null;
+  private focusedItemHighlight = false;
   private focusedClusterUid: string | null = null;
   private focusedTriangleIndex: number | null = null;
   private neighborReturnHighlight:
@@ -681,6 +685,10 @@ export class SimplexGraphEngine<
     const list = typeof ids === 'string' ? [ids] : ids;
     if (list.length === 0) return;
     const removeSet = new Set(list.map((id) => id.trim()));
+    if (this.focusedItemId !== null && removeSet.has(this.focusedItemId)) {
+      this.focusedItemId = null;
+      this.focusedItemHighlight = false;
+    }
     const filtered = this.rawItems.filter((it) => !removeSet.has(this.getIdFn(it).trim()));
     if (filtered.length === this.rawItems.length) return;
     this.rawItems = filtered;
@@ -691,6 +699,13 @@ export class SimplexGraphEngine<
   /** Replaces the entire item collection while smoothly morphing matching clusters & items. */
   setItems(items: readonly TItem[]): void {
     this.rawItems = [...items];
+    if (
+      this.focusedItemId !== null &&
+      !this.rawItems.some((it) => this.getIdFn(it).trim() === this.focusedItemId)
+    ) {
+      this.focusedItemId = null;
+      this.focusedItemHighlight = false;
+    }
     if (this.awaitingInitialSolve) return;
     this.requestPipeline('items');
   }
@@ -1178,6 +1193,8 @@ export class SimplexGraphEngine<
     this.hoveredClusterUid = null;
     this.hoveredContextClusterId = null;
     this.hoveredContentId = null;
+    this.focusedItemId = null;
+    this.focusedItemHighlight = false;
     this.focusedTriangleIndex = null;
     this.focusedClusterUid = null;
     this.neighborReturnHighlight = null;
@@ -1401,6 +1418,16 @@ export class SimplexGraphEngine<
     const filteredChanged = this.refreshItemFilterCache();
 
     if (
+      this.focusedItemId !== null &&
+      this.itemFilterPredicate !== null &&
+      this.itemFilterMode === 'hide' &&
+      this.filteredOutItemIds.has(this.focusedItemId)
+    ) {
+      this.focusedItemId = null;
+      this.focusedItemHighlight = false;
+    }
+
+    if (
       this.hoveredContentId !== null &&
       this.itemFilterPredicate !== null &&
       this.itemFilterMode === 'hide' &&
@@ -1481,13 +1508,239 @@ export class SimplexGraphEngine<
     this.dirtyRender = true;
   }
 
-  /** Sets highlighted item IDs for visual emphasis / dimming others. */
-  setHighlightedIds(ids: ReadonlySet<string> | readonly string[]): void {
-    this.highlightedIds = new Set(ids);
+  /** Sets highlighted item IDs for visual emphasis / dimming others (`null` clears highlights). */
+  setHighlightedIds(ids: Iterable<string> | null): void {
+    this.highlightedIds = ids === null ? new Set() : new Set(ids);
     if (this.highlightedIds.size > 0) {
       this.neighborReturnHighlight = null;
     }
     this.dirtyRender = true;
+  }
+
+  /** Alias for `setHighlightedIds(ids)` for search & linked-view highlighting (`null` clears). */
+  setHighlightedItems(ids: Iterable<string> | null): void {
+    this.setHighlightedIds(ids);
+  }
+
+  /** Returns the currently highlighted item IDs. */
+  getHighlightedIds(): ReadonlySet<string> {
+    return new Set(this.highlightedIds);
+  }
+
+  /** Alias for `getHighlightedIds()`. */
+  getHighlightedItems(): ReadonlySet<string> {
+    return this.getHighlightedIds();
+  }
+
+  /** Returns the currently programmatically focused item ID, or `null`. */
+  getFocusedItemId(): string | null {
+    return this.focusedItemId;
+  }
+
+  /**
+   * Programmatically focuses a specific content item (highlighting it and optionally dispatching
+   * hover/tooltip callbacks), or clears item focus when passed `null`.
+   *
+   * Unlike `setHighlightedItems(...)`, programmatic `focusItem(...)` tracks focus independently so
+   * hovering or selecting a single item in a linked list/table does not erase an active search highlight set.
+   *
+   * @returns `true` if `itemId` was active and focused; `false` when clearing (`null`) or if not currently visible.
+   */
+  focusItem(itemId: string | null, options?: FocusItemOptions): boolean {
+    if (itemId === null) {
+      const hadFocus = this.focusedItemId !== null;
+      this.focusedItemId = null;
+      this.focusedItemHighlight = false;
+      if (hadFocus) {
+        if (options?.hover !== false) {
+          this.hoverInteractiveTarget(null);
+        }
+        this.dirtyRender = true;
+      }
+      return false;
+    }
+
+    const node = this.itemNodes.get(itemId);
+    if (
+      !node ||
+      node.status !== 'active' ||
+      (this.itemFilterPredicate !== null &&
+        this.itemFilterMode === 'hide' &&
+        this.filteredOutItemIds.has(itemId))
+    ) {
+      return false;
+    }
+
+    this.focusedItemId = itemId;
+    this.focusedItemHighlight = options?.highlight !== false;
+    this.neighborReturnHighlight = null;
+    if (options?.hover !== false) {
+      this.hoverInteractiveTarget({ kind: 'item', id: itemId });
+    }
+    this.dirtyRender = true;
+    return true;
+  }
+
+  /**
+   * Programmatically navigates to a specific content item:
+   * - In **`free-camera` mode**: centers and zooms the camera smoothly onto the item's solved position.
+   * - In **`drill-down` mode**: automatically navigates to the ancestor frame containing the item
+   *   (if currently drilled into another branch) and drills down into its covering triangle or cluster
+   *   until reaching leaf level (up to `options.maxDrillSteps`, default `4`).
+   *
+   * Optionally focuses the item afterwards (`options.focus !== false`).
+   *
+   * @returns `true` if the item was found and navigated to; `false` if missing or hidden by an active `'hide'` filter.
+   */
+  zoomToItem(itemId: string, options?: ZoomToItemOptions): boolean {
+    if (this.destroyed || this.awaitingInitialSolve) return false;
+
+    const rawMatch = this.rawItems.find((it) => this.getIdFn(it).trim() === itemId);
+    if (
+      rawMatch !== undefined &&
+      this.itemFilterPredicate !== null &&
+      this.itemFilterMode === 'hide' &&
+      !this.itemFilterPredicate(rawMatch)
+    ) {
+      return false;
+    }
+
+    if (this.zoomStrategy.mode !== 'drill-down') {
+      const node = this.itemNodes.get(itemId);
+      if (
+        !node ||
+        node.status !== 'active' ||
+        (this.itemFilterPredicate !== null &&
+          this.itemFilterMode === 'hide' &&
+          this.filteredOutItemIds.has(itemId))
+      ) {
+        return false;
+      }
+
+      const curCam = this.camera.getState();
+      const targetZoom =
+        options?.zoom !== undefined && Number.isFinite(options.zoom)
+          ? Math.max(0.25, Math.min(6, options.zoom))
+          : Math.max(curCam.zoom, 1.85);
+      const panX = this.viewportWidth / 2 - node.x.target * targetZoom;
+      const panY = this.viewportHeight / 2 - node.y.target * targetZoom;
+      this.camera.setState({ zoom: targetZoom, panX, panY });
+
+      if (options?.focus !== false) {
+        this.focusItem(itemId, options?.focusOptions);
+      }
+      this.dirtyRender = true;
+      return true;
+    }
+
+    // Drill-down mode: ensure item is present in the active frame (walk up stack if needed)
+    let activeNode = this.itemNodes.get(itemId);
+    if (!activeNode || activeNode.status !== 'active') {
+      let ancestorDepth = -1;
+      for (let d = this.zoomStack.length - 2; d >= 0; d--) {
+        const frame = this.zoomStack[d];
+        if (frame && frame.items.some((it) => it.id === itemId)) {
+          ancestorDepth = d;
+          break;
+        }
+      }
+      if (ancestorDepth < 0) {
+        return false;
+      }
+      this.drillToDepth(ancestorDepth);
+      activeNode = this.itemNodes.get(itemId);
+      if (!activeNode || activeNode.status !== 'active') {
+        return false;
+      }
+    }
+
+    if (
+      this.itemFilterPredicate !== null &&
+      this.itemFilterMode === 'hide' &&
+      this.filteredOutItemIds.has(itemId)
+    ) {
+      return false;
+    }
+
+    const maxSteps =
+      options?.maxDrillSteps !== undefined && Number.isFinite(options.maxDrillSteps)
+        ? Math.max(0, Math.floor(options.maxDrillSteps))
+        : 4;
+
+    for (let step = 0; step < maxSteps; step++) {
+      const node = this.itemNodes.get(itemId);
+      if (!node || node.status !== 'active') break;
+      const zState = this.currentZoomState;
+
+      if (zState.drillableTriangleIndices.length > 0) {
+        const drillableSet = new Set(zState.drillableTriangleIndices);
+        const triIdx = this.resolveContainingTriangleIndexForItem(node, drillableSet);
+        if (triIdx !== null) {
+          const prevDepth = this.zoomStack.length;
+          if (this.drillDownTriangle(triIdx)) {
+            const afterNode = this.itemNodes.get(itemId);
+            if (!afterNode || afterNode.status !== 'active') {
+              if (this.zoomStack.length > prevDepth) {
+                this.drillUp();
+              }
+              break;
+            }
+            continue;
+          }
+          break;
+        }
+      }
+
+      if (
+        zState.activeFrameKind !== 'triangle-focus' &&
+        zState.focusableTriangleIndices.length > 0
+      ) {
+        const focusableSet = new Set(zState.focusableTriangleIndices);
+        const focusTriIdx = this.resolveContainingTriangleIndexForItem(node, focusableSet);
+        if (focusTriIdx !== null) {
+          const prevDepth = this.zoomStack.length;
+          if (this.drillDownTriangle(focusTriIdx)) {
+            const afterNode = this.itemNodes.get(itemId);
+            if (!afterNode || afterNode.status !== 'active') {
+              if (this.zoomStack.length > prevDepth) {
+                this.drillUp();
+              }
+            }
+          }
+          break;
+        }
+      }
+
+      if (this.zoomStack.length === 1) {
+        const primaryCluster = node.domain.layoutContext.unitClusters[0]?.cluster;
+        if (
+          primaryCluster &&
+          zState.drillableClusterUids.includes(primaryCluster.clusterUid)
+        ) {
+          const prevDepth = this.zoomStack.length;
+          if (this.drillDownCluster(primaryCluster.clusterUid)) {
+            const afterNode = this.itemNodes.get(itemId);
+            if (!afterNode || afterNode.status !== 'active') {
+              if (this.zoomStack.length > prevDepth) {
+                this.drillUp();
+              }
+            }
+          }
+        }
+      }
+      break;
+    }
+
+    const finalNode = this.itemNodes.get(itemId);
+    if (!finalNode || finalNode.status !== 'active') {
+      return false;
+    }
+
+    if (options?.focus !== false) {
+      this.focusItem(itemId, options?.focusOptions);
+    }
+    this.dirtyRender = true;
+    return true;
   }
 
   /** Focuses a specific cluster UID (dimming unrelated nodes) or clears focus with `null`. */
@@ -3557,10 +3810,13 @@ export class SimplexGraphEngine<
         ? this.neighborReturnHighlight.clusterUid
         : null;
 
+    const hasFocusedItemHighlight =
+      this.focusedItemId !== null && this.focusedItemHighlight;
     const hasTriangleOnlyFocus =
       this.focusedTriangleIndex !== null &&
       this.focusedClusterUid === null &&
-      this.highlightedIds.size === 0;
+      this.highlightedIds.size === 0 &&
+      !hasFocusedItemHighlight;
     const focusedTriangle =
       this.focusedTriangleIndex !== null
         ? this.triangleStates[this.focusedTriangleIndex]
@@ -3578,6 +3834,7 @@ export class SimplexGraphEngine<
 
     const hasHighlightFocus =
       this.highlightedIds.size > 0 ||
+      hasFocusedItemHighlight ||
       this.focusedClusterUid !== null ||
       hasTriangleOnlyFocus;
 
@@ -3776,7 +4033,11 @@ export class SimplexGraphEngine<
             { x: iNode.x.value, y: iNode.y.value },
             drillableTriSetForItems,
           ) !== null);
-      const isHovered = !isPassThrough && this.hoveredContentId === iNode.id;
+      const isProgrammaticallyFocused =
+        !isHiddenByFilter && this.focusedItemId === iNode.id;
+      const isHovered =
+        (!isPassThrough || isProgrammaticallyFocused) &&
+        this.hoveredContentId === iNode.id;
       const isPinned = this.pinnedIds.has(iNode.id);
       const belongsToFocusedCluster =
         this.focusedClusterUid !== null &&
@@ -3793,6 +4054,7 @@ export class SimplexGraphEngine<
       const isHighlighted =
         !isHiddenByFilter &&
         (this.highlightedIds.has(iNode.id) ||
+          (isProgrammaticallyFocused && this.focusedItemHighlight) ||
           belongsToFocusedCluster ||
           belongsToFocusedTriangle);
       const isDimmed =
@@ -3802,7 +4064,9 @@ export class SimplexGraphEngine<
       const effectiveItemOpacity = isHiddenByFilter
         ? 0
         : !this.activeFlight
-          ? isPinned || this.highlightedIds.has(iNode.id)
+          ? isPinned ||
+            this.highlightedIds.has(iNode.id) ||
+            (isProgrammaticallyFocused && this.focusedItemHighlight)
             ? Math.max(iNode.opacity.value, 1)
             : isHovered
               ? Math.max(iNode.opacity.value, 0.92)
@@ -4045,6 +4309,57 @@ export class SimplexGraphEngine<
       if (nearestCoveringTri && drillableTriSet.has(nearestCoveringTri.index)) {
         return nearestCoveringTri;
       }
+    }
+
+    return null;
+  }
+
+  /**
+   * Finds the best candidate triangle index containing or covering `node` using its solved
+   * target coordinates `(node.x.target, node.y.target)` so multi-step `zoomToItem` works
+   * synchronously even while spring/flight animations are in progress.
+   */
+  private resolveContainingTriangleIndexForItem(
+    node: AnimatedNodeRecord<
+      TContentVisual,
+      ComputedItemPlacement<TItem, TTagMeta, TClusterMeta>
+    >,
+    candidateTriSet: ReadonlySet<number>,
+  ): number | null {
+    const tx = node.x.target;
+    const ty = node.y.target;
+
+    for (let i = this.triangleStates.length - 1; i >= 0; i--) {
+      const tr = this.triangleStates[i]!;
+      if (!candidateTriSet.has(tr.index)) continue;
+      if (isPointInTriangle(tx, ty, tr.points[0], tr.points[1], tr.points[2])) {
+        return tr.index;
+      }
+    }
+
+    const unitClusters = node.domain.layoutContext.unitClusters;
+    if (unitClusters.length > 0) {
+      let bestIdx: number | null = null;
+      let bestDistSq = Infinity;
+      for (const tr of this.triangleStates) {
+        if (!candidateTriSet.has(tr.index)) continue;
+        const [va, vb, vc] = tr.vertexIndices;
+        const covers = unitClusters.every(
+          (uc) =>
+            uc.cluster.clusterIndex === va ||
+            uc.cluster.clusterIndex === vb ||
+            uc.cluster.clusterIndex === vc,
+        );
+        if (!covers) continue;
+        const dx = tx - tr.centroid.x;
+        const dy = ty - tr.centroid.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < bestDistSq) {
+          bestDistSq = distSq;
+          bestIdx = tr.index;
+        }
+      }
+      if (bestIdx !== null) return bestIdx;
     }
 
     return null;
@@ -4572,7 +4887,10 @@ export class SimplexGraphEngine<
     ) {
       return null;
     }
-    const worldPosition: Point2D = { x: node.x.value, y: node.y.value };
+    const worldPosition: Point2D =
+      this.activeFlight !== null
+        ? { x: node.x.target, y: node.y.target }
+        : { x: node.x.value, y: node.y.value };
     const screenPosition = this.camera.worldToScreen(worldPosition.x, worldPosition.y);
     return {
       kind: 'content',

@@ -1092,6 +1092,68 @@ describe('@simplex-viz/react integration', () => {
 
     unmount();
   });
+
+  it('exposes linked-view setHighlightedItems, focusItem, and zoomToItem on useSimplexGraphController handle (Issue #19)', () => {
+    const items = [
+      { id: 'r1', label: 'Alpha Item', tags: ['alpha', 'beta'] },
+      { id: 'r2', label: 'Beta Item', tags: ['beta', 'gamma'] },
+      { id: 'r3', label: 'Gamma Item', tags: ['gamma', 'delta'] },
+      { id: 'r4', label: 'Delta Item', tags: ['alpha', 'delta'] },
+    ];
+
+    const exposed: {
+      handle: ReturnType<typeof useSimplexGraphController<(typeof items)[number]>>['handle'] | null;
+    } = { handle: null };
+
+    const Host = ({ highlightedIds }: { highlightedIds?: Iterable<string> | null }) => {
+      const { controllerRef, handle } = useSimplexGraphController<(typeof items)[number]>();
+      exposed.handle = handle;
+      return (
+        <div style={{ width: 640, height: 420 }}>
+          <SimplexTopicGraph
+            controllerRef={controllerRef}
+            items={items}
+            highlightedIds={highlightedIds}
+            shapeOptions={{ dimmedOpacity: 0.25 }}
+            tooltip
+          />
+        </div>
+      );
+    };
+
+    const { container, rerender, unmount } = render(<Host highlightedIds={['r1', 'r2']} />);
+
+    expect([...exposed.handle!.getHighlightedItems()].sort()).toEqual(['r1', 'r2']);
+
+    // Imperative focusItem triggers React floating tooltip overlay
+    act(() => {
+      expect(exposed.handle!.focusItem('r1')).toBe(true);
+    });
+    expect(exposed.handle!.getFocusedItemId()).toBe('r1');
+    const tooltip = container.querySelector('[role="tooltip"]');
+    expect(tooltip).not.toBeNull();
+    expect(tooltip?.textContent).toContain('Alpha Item');
+
+    // Imperative zoomToItem centers & zooms camera on r3 and updates focus
+    act(() => {
+      expect(exposed.handle!.zoomToItem('r3', { zoom: 2.0 })).toBe(true);
+    });
+    expect(exposed.handle!.getFocusedItemId()).toBe('r3');
+    expect(exposed.handle!.getRawController()!.camera.getState().zoom).toBeCloseTo(2.0, 2);
+
+    // Passing highlightedIds={null} clears search highlights declaratively
+    rerender(<Host highlightedIds={null} />);
+    expect(exposed.handle!.getHighlightedItems().size).toBe(0);
+
+    // Clearing focus hides React tooltip
+    act(() => {
+      exposed.handle!.focusItem(null);
+    });
+    expect(exposed.handle!.getFocusedItemId()).toBeNull();
+    expect(container.querySelector('[role="tooltip"]')).toBeNull();
+
+    unmount();
+  });
 });
 
 

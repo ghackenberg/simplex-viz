@@ -2,6 +2,7 @@ import type {
   CameraController,
   ClusterDescriptor,
   DefaultTaggedItem,
+  FocusItemOptions,
   ItemFilterOptions,
   ItemFilterPredicate,
   ItemFilterState,
@@ -14,6 +15,7 @@ import type {
   SimplexTimelineController,
   SimplexZoomState,
   SimplexZoomStrategy,
+  ZoomToItemOptions,
 } from '@simplex-viz/core';
 import type {
   SimplexSvgController,
@@ -70,6 +72,16 @@ export interface SimplexGraphHandle<
     options?: ItemFilterOptions,
   ): void;
   getItemFilter(): ItemFilterState<TItem> | null;
+  setHighlightedIds(ids: Iterable<string> | null): void;
+  setHighlightedItems(ids: Iterable<string> | null): void;
+  getHighlightedIds(): ReadonlySet<string>;
+  getHighlightedItems(): ReadonlySet<string>;
+  focusItem(
+    itemId: string | null,
+    options?: FocusItemOptions & { readonly announce?: boolean },
+  ): boolean;
+  getFocusedItemId(): string | null;
+  zoomToItem(itemId: string, options?: ZoomToItemOptions): boolean;
   getKeyboardFocusTarget(): SimplexKeyboardFocusTarget | null;
   clearKeyboardFocus(): void;
   relayout(): void;
@@ -254,6 +266,43 @@ export function useSimplexGraphController<
     return controllerRef.current?.getItemFilter() ?? null;
   }, []);
 
+  const setHighlightedIds = useCallback((ids: Iterable<string> | null) => {
+    controllerRef.current?.setHighlightedIds(ids);
+  }, []);
+
+  const setHighlightedItems = useCallback((ids: Iterable<string> | null) => {
+    controllerRef.current?.setHighlightedItems(ids);
+  }, []);
+
+  const getHighlightedIds = useCallback((): ReadonlySet<string> => {
+    return controllerRef.current?.getHighlightedIds() ?? new Set();
+  }, []);
+
+  const getHighlightedItems = useCallback((): ReadonlySet<string> => {
+    return controllerRef.current?.getHighlightedItems() ?? new Set();
+  }, []);
+
+  const focusItem = useCallback(
+    (
+      itemId: string | null,
+      options?: FocusItemOptions & { readonly announce?: boolean },
+    ): boolean => {
+      return controllerRef.current?.focusItem(itemId, options) ?? false;
+    },
+    [],
+  );
+
+  const getFocusedItemId = useCallback((): string | null => {
+    return controllerRef.current?.getFocusedItemId() ?? null;
+  }, []);
+
+  const zoomToItem = useCallback(
+    (itemId: string, options?: ZoomToItemOptions): boolean => {
+      return controllerRef.current?.zoomToItem(itemId, options) ?? false;
+    },
+    [],
+  );
+
   const getKeyboardFocusTarget = useCallback(() => {
     return controllerRef.current?.getKeyboardFocusTarget() ?? null;
   }, []);
@@ -309,6 +358,13 @@ export function useSimplexGraphController<
       setOptions,
       setItemFilter,
       getItemFilter,
+      setHighlightedIds,
+      setHighlightedItems,
+      getHighlightedIds,
+      getHighlightedItems,
+      focusItem,
+      getFocusedItemId,
+      zoomToItem,
       getKeyboardFocusTarget,
       clearKeyboardFocus,
       relayout,

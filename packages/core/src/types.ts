@@ -307,6 +307,46 @@ export interface ItemFilterState<TItem = DefaultTaggedItem> {
   readonly mode: ItemFilterMode;
 }
 
+/**
+ * Options for programmatic item focus (`focusItem(itemId, options)`).
+ */
+export interface FocusItemOptions {
+  /**
+   * When `true` (default), emphasizes the focused item and dims unrelated items while active.
+   * Set `false` to trigger hover/tooltip emphasis without dimming other items.
+   */
+  readonly highlight?: boolean;
+  /**
+   * When `true` (default), dispatches hover callbacks (including built-in hover tooltips)
+   * for the focused item.
+   */
+  readonly hover?: boolean;
+}
+
+/**
+ * Options for programmatic navigation to a specific item (`zoomToItem(itemId, options)`).
+ */
+export interface ZoomToItemOptions {
+  /**
+   * Target camera zoom scale in `free-camera` mode (clamped to `[0.25, 6]`).
+   * Defaults to `Math.max(currentZoom, 1.85)` so the item is framed clearly without zooming out.
+   */
+  readonly zoom?: number;
+  /**
+   * Maximum number of hierarchical drill-down steps to perform in `drill-down` mode.
+   * Defaults to `4`.
+   */
+  readonly maxDrillSteps?: number;
+  /**
+   * When `true` (default), calls `focusItem(itemId, focusOptions)` after zooming/drilling to the item.
+   */
+  readonly focus?: boolean;
+  /**
+   * Optional `FocusItemOptions` forwarded when `focus` is `true`.
+   */
+  readonly focusOptions?: FocusItemOptions;
+}
+
 export interface Point2D {
   readonly x: number;
   readonly y: number;

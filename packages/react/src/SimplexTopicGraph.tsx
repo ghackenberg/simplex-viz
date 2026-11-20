@@ -238,7 +238,7 @@ export type SimplexTopicGraphProps<
      */
     readonly itemFilterMode?: ItemFilterMode;
     readonly pinnedIds?: ReadonlySet<string> | readonly string[];
-    readonly highlightedIds?: ReadonlySet<string> | readonly string[];
+    readonly highlightedIds?: Iterable<string> | null;
     readonly focusedClusterUid?: string | null;
     readonly focusedTriangleIndex?: number | null;
     /**

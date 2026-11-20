@@ -16,6 +16,7 @@ import {
   type DefaultTaggedItem,
   type EmptyClusterBehavior,
   type FinalSeededLayoutScaleMode,
+  type FocusItemOptions,
   type InteractionHandlers,
   type ItemFilterMode,
   type ItemFilterOptions,
@@ -37,6 +38,7 @@ import {
   type StrategyItemIdentityConfig,
   type TriangleHoverEvent,
   type VisualResolver,
+  type ZoomToItemOptions,
 } from '@simplex-viz/core';
 import { SVG_NS } from './hullMeasure.js';
 import {
@@ -389,7 +391,9 @@ export interface SimplexSvgUpdateOptions<
     TClusterMeta
   >;
   readonly pinnedIds?: ReadonlySet<string> | readonly string[];
-  readonly highlightedIds?: ReadonlySet<string> | readonly string[];
+  readonly highlightedIds?: Iterable<string> | null;
+  readonly highlightedItems?: Iterable<string> | null;
+  readonly focusedItemId?: string | null;
   readonly focusedClusterUid?: string | null;
   readonly focusedTriangleIndex?: number | null;
 }
@@ -993,6 +997,9 @@ export class SimplexSvgController<
           }
           if (this.focusedTriangleIndexState !== null) {
             this.setFocusedTriangleIndex(null);
+          }
+          if (this.engine.getFocusedItemId() !== null) {
+            this.focusItem(null);
           }
         }
         return false;
@@ -1726,8 +1733,16 @@ export class SimplexSvgController<
         this.engine.setPinnedIds(options.pinnedIds);
         needsRenderNow = true;
       }
-      if (options.highlightedIds !== undefined) {
-        this.engine.setHighlightedIds(options.highlightedIds);
+      if ('highlightedIds' in options) {
+        this.engine.setHighlightedIds(options.highlightedIds ?? null);
+        needsRenderNow = true;
+      }
+      if ('highlightedItems' in options) {
+        this.engine.setHighlightedItems(options.highlightedItems ?? null);
+        needsRenderNow = true;
+      }
+      if ('focusedItemId' in options) {
+        this.engine.focusItem(options.focusedItemId ?? null);
         needsRenderNow = true;
       }
       if ('focusedClusterUid' in options) {
@@ -2060,9 +2075,79 @@ export class SimplexSvgController<
     this.ensureLoopRunning();
   }
 
-  setHighlightedIds(ids: ReadonlySet<string> | readonly string[]): void {
+  /** Sets highlighted item IDs (dimming non-matches), or pass `null` to clear. */
+  setHighlightedIds(ids: Iterable<string> | null): void {
     this.engine.setHighlightedIds(ids);
+    this.engine.renderNow();
     this.ensureLoopRunning();
+  }
+
+  /** Alias for `setHighlightedIds(ids)` for linked search bars and sidebars (`null` clears). */
+  setHighlightedItems(ids: Iterable<string> | null): void {
+    this.setHighlightedIds(ids);
+  }
+
+  /** Returns the currently highlighted item IDs. */
+  getHighlightedIds(): ReadonlySet<string> {
+    return this.engine.getHighlightedIds();
+  }
+
+  /** Alias for `getHighlightedIds()`. */
+  getHighlightedItems(): ReadonlySet<string> {
+    return this.engine.getHighlightedItems();
+  }
+
+  /** Returns the currently programmatically focused item ID, or `null`. */
+  getFocusedItemId(): string | null {
+    return this.engine.getFocusedItemId();
+  }
+
+  /**
+   * Programmatically focuses a specific content item (highlighting it and dispatching hover/tooltip
+   * callbacks), or clears item focus when passed `null`.
+   */
+  focusItem(
+    itemId: string | null,
+    options?: FocusItemOptions & { readonly announce?: boolean },
+  ): boolean {
+    if (itemId === null) {
+      this.engine.focusItem(null, options);
+      if (options?.hover !== false) {
+        this.hideTooltip();
+      }
+      this.engine.renderNow();
+      this.ensureLoopRunning();
+      return false;
+    }
+    const ok = this.engine.focusItem(itemId, options);
+    if (!ok) return false;
+    if (options?.announce) {
+      const rec = this.engine.getItemLayoutById(itemId);
+      const label = rec
+        ? extractDefaultItemLabel(rec.item, itemId, this.getLabelExtractor)
+        : itemId;
+      this.announce(`Focused item: ${label}`);
+    }
+    this.engine.renderNow();
+    this.ensureLoopRunning();
+    return true;
+  }
+
+  /**
+   * Programmatically zooms or drills down to a specific content item:
+   * - In `free-camera` mode: pans and zooms the camera onto the item.
+   * - In `drill-down` mode: navigates to the item's ancestor frame (if needed) and drills down
+   *   into its covering triangle or cluster up to `options.maxDrillSteps` (default `4`).
+   *
+   * Optionally focuses the item afterwards (`options.focus !== false`).
+   */
+  zoomToItem(itemId: string, options?: ZoomToItemOptions): boolean {
+    const ok = this.engine.zoomToItem(itemId, options);
+    if (!ok) return false;
+    this.syncZoomOverlays(this.engine.getZoomState());
+    this.engine.renderNow();
+    this.ensureLoopRunning();
+    return true;
   }
 
   setFocusedClusterUid(clusterUid: string | null): void {
@@ -3269,7 +3354,8 @@ export class SimplexSvgController<
       }
       if (
         this.focusedClusterUidState !== null ||
-        this.focusedTriangleIndexState !== null
+        this.focusedTriangleIndexState !== null ||
+        this.engine.getFocusedItemId() !== null
       ) {
         e.preventDefault();
         if (this.focusedClusterUidState !== null) {
@@ -3277,6 +3363,9 @@ export class SimplexSvgController<
         }
         if (this.focusedTriangleIndexState !== null) {
           this.setFocusedTriangleIndex(null);
+        }
+        if (this.engine.getFocusedItemId() !== null) {
+          this.focusItem(null);
         }
         this.announce('Cleared focus');
         return;
