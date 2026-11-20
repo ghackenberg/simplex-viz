@@ -26,6 +26,7 @@ import {
   type LayoutSolverOptions,
   type MeshOptions,
   type ReducedMotionPreference,
+  type RestoreViewStateOptions,
   type SelectInRectOptions,
   type SimplexClusteringStrategy,
   type SimplexColorStrategy,
@@ -35,6 +36,7 @@ import {
   type SimplexMeshStrategy,
   type SimplexTimelineOptions,
   type SimplexTimelineState,
+  type SimplexViewState,
   type SimplexZoomState,
   type SimplexZoomStrategy,
   type StrategyItemIdentityConfig,
@@ -2298,6 +2300,58 @@ export class SimplexSvgController<
     this.focusedTriangleIndexState = triangleIndex;
     this.engine.setFocusedTriangleIndex(triangleIndex);
     this.ensureLoopRunning();
+  }
+
+  /**
+   * Captures a plain JSON-serializable snapshot of the graph's interactive view state
+   * (camera pan/zoom, drill-down path, focus, highlights, multi-selection, pins, and
+   * active `timelineStep` when a timeline is configured).
+   */
+  getViewState(): SimplexViewState {
+    const base = this.engine.getViewState();
+    if (!this.timelineController) {
+      return base;
+    }
+    return {
+      ...base,
+      timelineStep: this.timelineController.getState().step,
+    };
+  }
+
+  /**
+   * Restores a previously serialized `SimplexViewState` snapshot (for deep-linking,
+   * browser history navigation, or session persistence).
+   *
+   * When a timeline controller is attached and `state.timelineStep` is provided,
+   * pauses playback and seeks to the target step before restoring drill-down, camera,
+   * focus, highlights, pins, and multi-selection.
+   */
+  restoreViewState(
+    state: Partial<SimplexViewState> | null | undefined,
+    options?: RestoreViewStateOptions,
+  ): boolean {
+    if (this.destroyed || !state || typeof state !== 'object') return false;
+    if (state.version !== undefined && state.version !== 1) return false;
+
+    if (
+      this.timelineController &&
+      typeof state.timelineStep === 'number' &&
+      Number.isFinite(state.timelineStep)
+    ) {
+      this.timelineController.pause();
+      this.timelineController.seek(Math.round(state.timelineStep));
+      this.syncTimelineOverlay(this.timelineController.getState());
+    }
+
+    const ok = this.engine.restoreViewState(state, options);
+    if (!ok) return false;
+
+    this.focusedClusterUidState = this.engine.getFocusedClusterUid();
+    this.focusedTriangleIndexState = this.engine.getFocusedTriangleIndex();
+    this.hideTooltip();
+    this.syncZoomOverlays(this.engine.getZoomState());
+    this.ensureLoopRunning();
+    return true;
   }
 
   /** Updates the touch direction-locking threshold in CSS pixels (`0` disables scroll-yielding). */

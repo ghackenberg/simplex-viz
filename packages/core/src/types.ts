@@ -1051,6 +1051,59 @@ export interface SelectInRectOptions {
 }
 
 /**
+ * Single replayable drill-down step in a serialized `SimplexViewState.zoomPath`.
+ */
+export type SimplexViewZoomStep =
+  | {
+      readonly kind: 'triangle';
+      readonly index: number;
+    }
+  | {
+      readonly kind: 'cluster';
+      readonly clusterIndex: number;
+      readonly clusterUid?: string;
+      readonly label?: string;
+    };
+
+/**
+ * Plain JSON-serializable snapshot of a simplex graph's interactive view state
+ * for deep-linking (URL query/hash), browser history navigation, and session persistence.
+ */
+export interface SimplexViewState {
+  readonly version: 1;
+  /** Free-camera pan & zoom transform (`{ zoom, panX, panY }`). */
+  readonly camera: CameraState;
+  /** Ordered replayable drill-down path from root (`[]` at root overview). */
+  readonly zoomPath: readonly SimplexViewZoomStep[];
+  /** Focused topic cluster UID, or `null`. */
+  readonly focusedClusterUid: string | null;
+  /** Focused mesh triangle index, or `null`. */
+  readonly focusedTriangleIndex: number | null;
+  /** Programmatically focused content item ID, or `null`. */
+  readonly focusedItemId: string | null;
+  /** Sorted array of highlighted item IDs. */
+  readonly highlightedIds: readonly string[];
+  /** Sorted array of multi-selected item IDs. */
+  readonly selectedIds: readonly string[];
+  /** Sorted array of pinned item/cluster IDs. */
+  readonly pinnedIds: readonly string[];
+  /** Optional active timeline step index when a timeline controller is attached. */
+  readonly timelineStep?: number;
+}
+
+/**
+ * Options for `restoreViewState(state, options)`.
+ */
+export interface RestoreViewStateOptions {
+  /**
+   * Whether to animate drill-down/layout transitions while restoring view state.
+   * Default: `false` (snaps immediately for crisp deep-link hydration and history navigation).
+   * Always snaps when `reducedMotion` is active.
+   */
+  readonly animate?: boolean;
+}
+
+/**
  * Complete configuration object for creating a `SimplexGraphEngine`.
  */
 export type SimplexEngineConfig<

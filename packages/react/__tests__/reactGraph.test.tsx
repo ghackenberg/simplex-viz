@@ -1360,5 +1360,66 @@ describe('@simplex-viz/react integration', () => {
     unmount();
     expect(exposed.handle!.getSelectedIds().size).toBe(0);
   });
+
+  it('exposes getViewState() and restoreViewState() on useSimplexGraphController handle (Issue #24)', () => {
+    const items = [
+      { id: 'v1', label: 'Alpha', tags: ['a', 'b'] },
+      { id: 'v2', label: 'Beta', tags: ['b', 'c'] },
+      { id: 'v3', label: 'Gamma', tags: ['a', 'c'] },
+      { id: 'v4', label: 'Delta', tags: ['a', 'd'] },
+    ];
+
+    const exposed: {
+      handle: ReturnType<typeof useSimplexGraphController<(typeof items)[number]>>['handle'] | null;
+    } = { handle: null };
+
+    const Host = () => {
+      const { controllerRef, handle } = useSimplexGraphController<(typeof items)[number]>();
+      exposed.handle = handle;
+      return (
+        <div style={{ width: 640, height: 420 }}>
+          <SimplexTopicGraph controllerRef={controllerRef} items={items} preset="geometric" />
+        </div>
+      );
+    };
+
+    const { unmount } = render(<Host />);
+
+    // Modify camera, selection, highlights, and focus, then capture JSON snapshot
+    act(() => {
+      exposed.handle!.getRawController()!.camera.setState({ zoom: 1.8, panX: 45, panY: -30 });
+      exposed.handle!.setSelectedIds(['v1', 'v3']);
+      exposed.handle!.setHighlightedIds(['v2']);
+      exposed.handle!.focusItem('v4');
+    });
+
+    const savedJson = JSON.stringify(exposed.handle!.getViewState());
+    expect(savedJson).toContain('"version":1');
+
+    // Reset everything to clean defaults
+    act(() => {
+      exposed.handle!.resetCamera();
+      exposed.handle!.clearSelection();
+      exposed.handle!.setHighlightedIds(null);
+      exposed.handle!.focusItem(null);
+    });
+    expect(exposed.handle!.getSelectedIds().size).toBe(0);
+    expect(exposed.handle!.getFocusedItemId()).toBeNull();
+
+    // Restore from parsed JSON
+    act(() => {
+      expect(exposed.handle!.restoreViewState(JSON.parse(savedJson))).toBe(true);
+    });
+
+    expect(exposed.handle!.getViewState()).toEqual(JSON.parse(savedJson));
+    expect([...exposed.handle!.getSelectedIds()].sort()).toEqual(['v1', 'v3']);
+    expect([...exposed.handle!.getHighlightedIds()]).toEqual(['v2']);
+    expect(exposed.handle!.getFocusedItemId()).toBe('v4');
+
+    unmount();
+    expect(exposed.handle!.getViewState()).toBeNull();
+    expect(exposed.handle!.restoreViewState(JSON.parse(savedJson))).toBe(false);
+  });
 });
+
 

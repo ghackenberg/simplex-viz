@@ -39,6 +39,7 @@ import {
 } from './strategies.js';
 import type {
   CameraController,
+  CameraState,
   ClusterDerivationContext,
   ClusterDescriptor,
   ContentLayoutContext,
@@ -63,6 +64,7 @@ import type {
   NormalizedWheelEvent,
   Point2D,
   ReducedMotionPreference,
+  RestoreViewStateOptions,
   SceneFrameSnapshot,
   SelectInRectOptions,
   SimplexEngineConfig,
@@ -71,6 +73,8 @@ import type {
   SimplexKeyboardFocusTarget,
   SimplexMesh,
   SimplexRendererAdapter,
+  SimplexViewState,
+  SimplexViewZoomStep,
   VisualResolver,
   ZoomToItemOptions,
 } from './types.js';
@@ -425,6 +429,7 @@ export class SimplexGraphEngine<
   private rootClusters: readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[] = [];
   private rootPlacements: readonly ComputedItemPlacement<TItem, TTagMeta, TClusterMeta>[] = [];
   private zoomStack: ZoomFrameSpec<TItem, TTagMeta, TClusterMeta>[] = [];
+  private zoomStepPath: SimplexViewZoomStep[] = [];
   private lastSolvedScaleRatios = new Map<string, number>();
   private currentZoomState: SimplexZoomState = {
     strategyName: 'free-camera',
@@ -857,6 +862,7 @@ export class SimplexGraphEngine<
       this.currentMesh = this.rootMesh;
       this.applyColorsAndDeriveDescriptors('strategy');
       this.zoomStack = [this.buildRootZoomFrame()];
+      this.zoomStepPath = [];
       this.neighborReturnHighlight = null;
       if (wasZoomed) {
         this.camera.reset();
@@ -868,7 +874,7 @@ export class SimplexGraphEngine<
   private applyZoomStrategyChange(): void {
     const rootFrame = this.zoomStack[0];
     if (this.zoomStack.length > 1 && rootFrame) {
-      this.executeDrillTransition([rootFrame]);
+      this.executeDrillTransition([rootFrame], null, []);
     } else {
       this.refreshZoomState();
       this.dirtyRender = true;
@@ -898,6 +904,7 @@ export class SimplexGraphEngine<
       if (pendingZoomReset && this.zoomStack.length > 1 && this.zoomStack[0]) {
         const rootFrame = this.zoomStack[0];
         this.zoomStack = [rootFrame];
+        this.zoomStepPath = [];
         this.activateZoomFrame(rootFrame);
         this.neighborReturnHighlight = null;
         this.camera.reset();
@@ -968,7 +975,11 @@ export class SimplexGraphEngine<
     });
     if (!outcome) return false;
 
-    this.executeDrillTransition([...this.zoomStack, outcome.nextFrame]);
+    this.executeDrillTransition(
+      [...this.zoomStack, outcome.nextFrame],
+      null,
+      [...this.zoomStepPath, { kind: 'triangle', index: triangleIndex }],
+    );
     return true;
   }
 
@@ -983,6 +994,7 @@ export class SimplexGraphEngine<
       (c) => c.clusterUid === clusterUid,
     );
     if (clusterIndex < 0) return false;
+    const targetCluster = parentFrame.clusters[clusterIndex];
 
     // Inside an active 1-ring cluster star:
     // - Clicking the already-focused center cluster (index 0) toggles back up one level (`drillUp`).
@@ -1020,10 +1032,19 @@ export class SimplexGraphEngine<
     });
     if (!outcome) return false;
 
+    const clusterStep: SimplexViewZoomStep = {
+      kind: 'cluster',
+      clusterIndex,
+      clusterUid,
+      label: targetCluster?.subclusterLabel ?? targetCluster?.defaultLabel,
+    };
     const nextStack = outcome.replaceTop
       ? [...this.zoomStack.slice(0, -1), outcome.nextFrame]
       : [...this.zoomStack, outcome.nextFrame];
-    this.executeDrillTransition(nextStack);
+    const nextStepPath = outcome.replaceTop
+      ? [...this.zoomStepPath.slice(0, -1), clusterStep]
+      : [...this.zoomStepPath, clusterStep];
+    this.executeDrillTransition(nextStack, null, nextStepPath);
     return true;
   }
 
@@ -1056,9 +1077,14 @@ export class SimplexGraphEngine<
 
     const ancestorFrame = this.zoomStack[ancestorDepth]!;
     const childFrameAtLevel = this.zoomStack[ancestorDepth + 1]!;
+    const ancestorStepPrefix = this.zoomStepPath.slice(0, ancestorDepth);
 
     if (localTarget === 'frame') {
-      this.executeDrillTransition(this.zoomStack.slice(0, ancestorDepth + 1));
+      this.executeDrillTransition(
+        this.zoomStack.slice(0, ancestorDepth + 1),
+        null,
+        ancestorStepPrefix,
+      );
       return true;
     }
 
@@ -1073,10 +1099,29 @@ export class SimplexGraphEngine<
     });
 
     if (outcome) {
-      this.executeDrillTransition([
-        ...this.zoomStack.slice(0, ancestorDepth + 1),
-        outcome.nextFrame,
-      ]);
+      let nextStep: SimplexViewZoomStep | null = null;
+      if (localTarget.startsWith('tri:')) {
+        const triIdx = parseInt(localTarget.slice(4), 10);
+        if (Number.isFinite(triIdx) && triIdx >= 0) {
+          nextStep = { kind: 'triangle', index: triIdx };
+        }
+      } else if (localTarget.startsWith('cluster:')) {
+        const cIdx = parseInt(localTarget.slice(8), 10);
+        if (Number.isFinite(cIdx) && cIdx >= 0) {
+          const targetCluster = ancestorFrame.clusters[cIdx];
+          nextStep = {
+            kind: 'cluster',
+            clusterIndex: cIdx,
+            clusterUid: targetCluster?.clusterUid,
+            label: targetCluster?.subclusterLabel ?? targetCluster?.defaultLabel,
+          };
+        }
+      }
+      this.executeDrillTransition(
+        [...this.zoomStack.slice(0, ancestorDepth + 1), outcome.nextFrame],
+        null,
+        nextStep ? [...ancestorStepPrefix, nextStep] : ancestorStepPrefix,
+      );
       return true;
     }
 
@@ -1090,10 +1135,14 @@ export class SimplexGraphEngine<
         triIdx >= 0 &&
         triIdx < ancestorFrame.mesh.triangles.length
       ) {
-        this.executeDrillTransition(this.zoomStack.slice(0, ancestorDepth + 1), {
-          kind: 'triangle',
-          triangleIndex: triIdx,
-        });
+        this.executeDrillTransition(
+          this.zoomStack.slice(0, ancestorDepth + 1),
+          {
+            kind: 'triangle',
+            triangleIndex: triIdx,
+          },
+          ancestorStepPrefix,
+        );
         return true;
       }
     } else if (localTarget.startsWith('cluster:')) {
@@ -1109,6 +1158,7 @@ export class SimplexGraphEngine<
           targetCluster
             ? { kind: 'cluster', clusterUid: targetCluster.clusterUid }
             : null,
+          ancestorStepPrefix,
         );
         return true;
       }
@@ -1128,7 +1178,11 @@ export class SimplexGraphEngine<
     const targetDepth = Math.max(0, Math.min(this.zoomStack.length - 1, depth));
     if (targetDepth >= this.zoomStack.length - 1) return false;
 
-    this.executeDrillTransition(this.zoomStack.slice(0, targetDepth + 1));
+    this.executeDrillTransition(
+      this.zoomStack.slice(0, targetDepth + 1),
+      null,
+      this.zoomStepPath.slice(0, targetDepth),
+    );
     return true;
   }
 
@@ -1200,6 +1254,7 @@ export class SimplexGraphEngine<
       | { readonly kind: 'triangle'; readonly triangleIndex: number }
       | { readonly kind: 'cluster'; readonly clusterUid: string }
       | null = null,
+    nextStepPath?: SimplexViewZoomStep[],
   ): void {
     const oldRootTransform = this.getCurrentScreenRootTransform();
     const clusterDomainByNodeId = new Map<
@@ -1234,6 +1289,11 @@ export class SimplexGraphEngine<
     const snapshot = this.buildFrameSnapshot();
 
     this.zoomStack = nextStack;
+    if (nextStepPath !== undefined) {
+      this.zoomStepPath = nextStepPath;
+    } else if (nextStack.length <= 1) {
+      this.zoomStepPath = [];
+    }
     const active = this.zoomStack[this.zoomStack.length - 1]!;
     this.activateZoomFrame(active);
     this.neighborReturnHighlight = nextNeighborHighlight;
@@ -1424,6 +1484,7 @@ export class SimplexGraphEngine<
     this.rootClusters = [];
     this.rootPlacements = [];
     this.zoomStack = [];
+    this.zoomStepPath = [];
     this.lastSolvedScaleRatios = new Map();
     this.clusterNodes.clear();
     this.itemNodes.clear();
@@ -1613,6 +1674,11 @@ export class SimplexGraphEngine<
   setPinnedIds(ids: ReadonlySet<string> | readonly string[]): void {
     this.pinnedIds = new Set(ids);
     this.dirtyRender = true;
+  }
+
+  /** Returns the currently pinned item/cluster IDs. */
+  getPinnedIds(): ReadonlySet<string> {
+    return new Set(this.pinnedIds);
   }
 
   /** Sets highlighted item IDs for visual emphasis / dimming others (`null` clears highlights). */
@@ -1992,6 +2058,11 @@ export class SimplexGraphEngine<
     return true;
   }
 
+  /** Returns the currently focused cluster UID, or `null` if none. */
+  getFocusedClusterUid(): string | null {
+    return this.focusedClusterUid;
+  }
+
   /** Focuses a specific cluster UID (dimming unrelated nodes) or clears focus with `null`. */
   setFocusedClusterUid(clusterUid: string | null): void {
     if (clusterUid !== null) {
@@ -1999,6 +2070,11 @@ export class SimplexGraphEngine<
     }
     this.focusedClusterUid = clusterUid;
     this.dirtyRender = true;
+  }
+
+  /** Returns the currently focused mesh triangle index, or `null` if none. */
+  getFocusedTriangleIndex(): number | null {
+    return this.focusedTriangleIndex;
   }
 
   /** Focuses a specific mesh triangle face by index (dimming unrelated faces, clusters, and items) or clears with `null`. */
@@ -2015,6 +2091,227 @@ export class SimplexGraphEngine<
     if (this.focusedTriangleIndex === valid) return;
     this.focusedTriangleIndex = valid;
     this.dirtyRender = true;
+  }
+
+  /**
+   * Captures a plain JSON-serializable snapshot of the graph's interactive view state
+   * (camera pan/zoom, drill-down path, focus, highlights, multi-selection, and pins).
+   */
+  getViewState(): SimplexViewState {
+    const cam = this.camera.getState();
+    const zoomPath: SimplexViewZoomStep[] = this.zoomStepPath.map((step) =>
+      step.kind === 'triangle'
+        ? { kind: 'triangle', index: step.index }
+        : {
+            kind: 'cluster',
+            clusterIndex: step.clusterIndex,
+            ...(step.clusterUid !== undefined ? { clusterUid: step.clusterUid } : {}),
+            ...(step.label !== undefined ? { label: step.label } : {}),
+          },
+    );
+    return {
+      version: 1,
+      camera: {
+        zoom: cam.zoom,
+        panX: cam.panX,
+        panY: cam.panY,
+      },
+      zoomPath,
+      focusedClusterUid: this.focusedClusterUid,
+      focusedTriangleIndex: this.focusedTriangleIndex,
+      focusedItemId: this.focusedItemId,
+      highlightedIds: Array.from(this.highlightedIds).sort(),
+      selectedIds: Array.from(this.selectedIds).sort(),
+      pinnedIds: Array.from(this.pinnedIds).sort(),
+    };
+  }
+
+  /**
+   * Restores a previously serialized `SimplexViewState` snapshot (for deep-linking,
+   * browser history navigation, or session persistence).
+   *
+   * Degrades gracefully when the dataset or zoom strategy has changed: stale IDs and
+   * unreachable zoom steps are safely skipped without throwing.
+   *
+   * @returns `true` if a valid state object was applied, `false` if input was invalid or engine is unavailable.
+   */
+  restoreViewState(
+    state: Partial<SimplexViewState> | null | undefined,
+    options?: RestoreViewStateOptions,
+  ): boolean {
+    if (this.destroyed || this.awaitingInitialSolve) return false;
+    if (!state || typeof state !== 'object') return false;
+    if (state.version !== undefined && state.version !== 1) return false;
+
+    const shouldSnap = !options?.animate || this.reducedMotionActive;
+    const prevReducedMotion = this.reducedMotionActive;
+    if (shouldSnap) {
+      this.reducedMotionActive = true;
+    }
+
+    try {
+      // 1. Replay drill-down path from root (when specified)
+      if (Array.isArray(state.zoomPath)) {
+        if (this.zoomStack.length > 1) {
+          this.drillToRoot();
+        }
+        if (this.zoomStrategy.mode === 'drill-down' && state.zoomPath.length > 0) {
+          for (const rawStep of state.zoomPath) {
+            if (!rawStep || typeof rawStep !== 'object') break;
+            if (rawStep.kind === 'triangle') {
+              if (
+                typeof rawStep.index !== 'number' ||
+                !Number.isInteger(rawStep.index) ||
+                rawStep.index < 0
+              ) {
+                break;
+              }
+              if (!this.drillDownTriangle(rawStep.index)) break;
+            } else if (rawStep.kind === 'cluster') {
+              const targetCluster = this.resolveClusterForViewStep(rawStep);
+              if (!targetCluster) break;
+              if (!this.drillDownCluster(targetCluster.clusterUid)) break;
+            } else {
+              break;
+            }
+          }
+        }
+      }
+
+      // 2. Restore free-camera transform
+      if (state.camera && typeof state.camera === 'object') {
+        const nextZoom =
+          typeof state.camera.zoom === 'number' && Number.isFinite(state.camera.zoom)
+            ? state.camera.zoom
+            : undefined;
+        const nextPanX =
+          typeof state.camera.panX === 'number' && Number.isFinite(state.camera.panX)
+            ? state.camera.panX
+            : undefined;
+        const nextPanY =
+          typeof state.camera.panY === 'number' && Number.isFinite(state.camera.panY)
+            ? state.camera.panY
+            : undefined;
+        if (nextZoom !== undefined || nextPanX !== undefined || nextPanY !== undefined) {
+          const nextCam: Partial<CameraState> = {
+            ...(nextZoom !== undefined ? { zoom: nextZoom } : {}),
+            ...(nextPanX !== undefined ? { panX: nextPanX } : {}),
+            ...(nextPanY !== undefined ? { panY: nextPanY } : {}),
+          };
+          this.camera.setState(nextCam);
+        }
+      }
+
+      // Build valid ID lookup sets so stale deep-link IDs degrade cleanly
+      const knownItemIds = new Set(
+        extractIdentifiedItems(this.rawItems, this.getIdFn).map((it) => it.id),
+      );
+      const knownClusterUids = new Set<string>();
+      for (const c of this.currentClusters) {
+        knownClusterUids.add(c.clusterUid);
+      }
+
+      // 3. Restore pinned, highlighted, and multi-selected ID sets
+      if (Array.isArray(state.pinnedIds)) {
+        const validPinned: string[] = [];
+        for (const id of state.pinnedIds) {
+          if (typeof id === 'string' && (knownItemIds.has(id) || knownClusterUids.has(id))) {
+            validPinned.push(id);
+          }
+        }
+        this.setPinnedIds(validPinned);
+      }
+
+      if (Array.isArray(state.highlightedIds)) {
+        const validHighlighted: string[] = [];
+        for (const id of state.highlightedIds) {
+          if (typeof id === 'string' && knownItemIds.has(id)) {
+            validHighlighted.push(id);
+          }
+        }
+        this.setHighlightedIds(validHighlighted);
+      }
+
+      if (Array.isArray(state.selectedIds)) {
+        const validSelected: string[] = [];
+        for (const id of state.selectedIds) {
+          if (typeof id === 'string' && knownItemIds.has(id)) {
+            validSelected.push(id);
+          }
+        }
+        this.setSelectedIds(validSelected);
+      }
+
+      // 4. Restore cluster, triangle, and item focus
+      if (state.focusedClusterUid !== undefined) {
+        if (
+          typeof state.focusedClusterUid === 'string' &&
+          knownClusterUids.has(state.focusedClusterUid)
+        ) {
+          this.setFocusedClusterUid(state.focusedClusterUid);
+        } else {
+          this.setFocusedClusterUid(null);
+        }
+      }
+
+      if (state.focusedTriangleIndex !== undefined) {
+        if (
+          typeof state.focusedTriangleIndex === 'number' &&
+          Number.isInteger(state.focusedTriangleIndex)
+        ) {
+          this.setFocusedTriangleIndex(state.focusedTriangleIndex);
+        } else {
+          this.setFocusedTriangleIndex(null);
+        }
+      }
+
+      if (state.focusedItemId !== undefined) {
+        this.focusItem(null, { hover: false });
+        if (typeof state.focusedItemId === 'string') {
+          this.focusItem(state.focusedItemId, { hover: false });
+        }
+      }
+
+      if (shouldSnap) {
+        this.snapAnimationsToTarget();
+      } else {
+        this.dirtyRender = true;
+      }
+      this.renderNow();
+    } finally {
+      this.reducedMotionActive = prevReducedMotion;
+    }
+
+    return true;
+  }
+
+  private resolveClusterForViewStep(
+    step: Extract<SimplexViewZoomStep, { readonly kind: 'cluster' }>,
+  ): ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | null {
+    if (typeof step.clusterUid === 'string' && step.clusterUid.length > 0) {
+      const byUid = this.currentClusters.find((c) => c.clusterUid === step.clusterUid);
+      if (byUid) return byUid;
+    }
+    const hasIndex =
+      typeof step.clusterIndex === 'number' &&
+      Number.isInteger(step.clusterIndex) &&
+      step.clusterIndex >= 0;
+    const hasLabel = typeof step.label === 'string' && step.label.length > 0;
+    if (hasIndex && hasLabel) {
+      const byBoth = this.currentClusters.find(
+        (c) => c.clusterIndex === step.clusterIndex && c.defaultLabel === step.label,
+      );
+      if (byBoth) return byBoth;
+    }
+    if (hasLabel) {
+      const byLabel = this.currentClusters.find((c) => c.defaultLabel === step.label);
+      if (byLabel) return byLabel;
+    }
+    if (hasIndex) {
+      const byIndex = this.currentClusters.find((c) => c.clusterIndex === step.clusterIndex);
+      if (byIndex) return byIndex;
+    }
+    return null;
   }
 
   /** Forces an immediate frame render using the current snapshot (deferred until batch end when inside `batch()`). */
@@ -2184,6 +2481,7 @@ export class SimplexGraphEngine<
     this.applyColorsAndDeriveDescriptors(reason);
     this.rootMesh = mesh;
     this.zoomStack = [this.buildRootZoomFrame()];
+    this.zoomStepPath = [];
     if (this.zoomStrategy.mode === 'drill-down') {
       this.camera.reset();
     }

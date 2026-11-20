@@ -8,6 +8,7 @@ import type {
   ItemFilterState,
   LayoutMetrics,
   ReducedMotionPreference,
+  RestoreViewStateOptions,
   SelectInRectOptions,
   SimplexClusteringStrategy,
   SimplexColorStrategy,
@@ -15,6 +16,7 @@ import type {
   SimplexLayoutStrategy,
   SimplexMeshStrategy,
   SimplexTimelineController,
+  SimplexViewState,
   SimplexZoomState,
   SimplexZoomStrategy,
   ZoomToItemOptions,
@@ -104,6 +106,11 @@ export interface SimplexGraphHandle<
   setReducedMotion(preference: ReducedMotionPreference): void;
   getReducedMotion(): ReducedMotionPreference;
   isReducedMotionActive(): boolean;
+  getViewState(): SimplexViewState | null;
+  restoreViewState(
+    state: Partial<SimplexViewState> | null | undefined,
+    options?: RestoreViewStateOptions,
+  ): boolean;
   relayout(): void;
   exportSvg(options?: ExportSvgOptions): string | null;
   exportPng(options: ExportPngDataUrlOptions): Promise<string | null>;
@@ -379,6 +386,20 @@ export function useSimplexGraphController<
     return controllerRef.current?.isReducedMotionActive() ?? false;
   }, []);
 
+  const getViewState = useCallback((): SimplexViewState | null => {
+    return controllerRef.current?.getViewState() ?? null;
+  }, []);
+
+  const restoreViewState = useCallback(
+    (
+      state: Partial<SimplexViewState> | null | undefined,
+      options?: RestoreViewStateOptions,
+    ): boolean => {
+      return controllerRef.current?.restoreViewState(state, options) ?? false;
+    },
+    [],
+  );
+
   const relayout = useCallback(() => {
     controllerRef.current?.relayout();
   }, []);
@@ -462,6 +483,8 @@ export function useSimplexGraphController<
       setReducedMotion,
       getReducedMotion,
       isReducedMotionActive,
+      getViewState,
+      restoreViewState,
       relayout,
       exportSvg,
       exportPng,

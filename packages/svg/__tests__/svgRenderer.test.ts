@@ -3861,7 +3861,106 @@ describe('@simplex-viz/svg integration', () => {
       container.remove();
     }
   });
+
+  it('serializes and restores complete view state including timelineStep, drill-down breadcrumbs, camera, focus, and selection (Issue #24)', () => {
+    const mountContainer = () => {
+      const el = document.createElement('div');
+      Object.defineProperty(el, 'getBoundingClientRect', {
+        value: () => ({ left: 0, top: 0, width: 760, height: 520, right: 760, bottom: 520 }),
+      });
+      document.body.appendChild(el);
+      return el;
+    };
+
+    interface DatedItem {
+      readonly id: string;
+      readonly label: string;
+      readonly tags: readonly string[];
+      readonly year: number;
+    }
+
+    const items: readonly DatedItem[] = Array.from({ length: 36 }, (_, i) => ({
+      id: `vs-${i}`,
+      label: `Entry ${i}`,
+      tags: [
+        i % 3 === 0 ? 'alpha' : i % 3 === 1 ? 'beta' : 'gamma',
+        i % 2 === 0 ? 'beta' : 'gamma',
+        `sub-${i % 4}`,
+      ],
+      year: 2020 + (i % 3),
+    }));
+
+    const containerA = mountContainer();
+    const containerB = mountContainer();
+
+    const makeController = (el: HTMLDivElement) =>
+      createSimplexSvg<DatedItem>(el, {
+        items,
+        preset: 'geometric',
+        showZoomBreadcrumbs: true,
+        zoomStrategy: createBarycentricZoomStrategy({
+          subdivision: '1:4',
+          stopWhenFullScale: false,
+        }),
+        layoutOptions: { seed: 29, sizeMultiplier: 1.8 },
+        timeline: {
+          getTimestamp: (it) => it.year,
+          autoFinalSeed: true,
+        },
+      });
+
+    const ctrlA = makeController(containerA);
+    const ctrlB = makeController(containerB);
+    try {
+      for (let i = 0; i < 35; i++) {
+        ctrlA.stepForTest(20);
+        ctrlB.stepForTest(20);
+      }
+
+      // Seek timeline to step 1 (year 2021), drill into a triangle, select & highlight items
+      ctrlA.timeline!.seek(1);
+      for (let i = 0; i < 20; i++) ctrlA.stepForTest(20);
+      const drillTri = ctrlA.getZoomState().drillableTriangleIndices[0]!;
+      expect(drillTri).toBeDefined();
+      expect(ctrlA.drillDownTriangle(drillTri)).toBe(true);
+      for (let i = 0; i < 35; i++) ctrlA.stepForTest(20);
+
+      ctrlA.setSelectedIds(['vs-1', 'vs-4']);
+      ctrlA.setHighlightedIds(['vs-0']);
+      const clusterUid = ctrlA.getClusters()[0]!.clusterUid;
+      ctrlA.setFocusedClusterUid(clusterUid);
+
+      const serialized = JSON.stringify(ctrlA.getViewState());
+      const parsed = JSON.parse(serialized);
+      expect(parsed.version).toBe(1);
+      expect(parsed.timelineStep).toBe(1);
+      expect(parsed.zoomPath).toEqual([{ kind: 'triangle', index: drillTri }]);
+      expect(parsed.selectedIds).toEqual(['vs-1', 'vs-4']);
+
+      // Start playback on B to confirm restoreViewState pauses playback and restores exact state
+      ctrlB.timeline!.play();
+      expect(ctrlB.timeline!.getState().playing).toBe(true);
+      expect(ctrlB.restoreViewState(parsed)).toBe(true);
+
+      expect(ctrlB.timeline!.getState().playing).toBe(false);
+      expect(ctrlB.timeline!.getState().step).toBe(1);
+      expect(ctrlB.getZoomState().depth).toBe(1);
+      expect([...ctrlB.getSelectedIds()].sort()).toEqual(['vs-1', 'vs-4']);
+      expect([...ctrlB.getHighlightedIds()]).toEqual(['vs-0']);
+      expect(ctrlB.getViewState()).toEqual(parsed);
+
+      // Breadcrumb overlay in containerB is synced to depth 1
+      const crumbButtons = containerB.querySelectorAll('.sv-zoom-breadcrumbs button');
+      expect(crumbButtons.length).toBe(2);
+    } finally {
+      ctrlA.destroy();
+      ctrlB.destroy();
+      containerA.remove();
+      containerB.remove();
+    }
+  });
 });
+
 
 
 
