@@ -4029,6 +4029,334 @@ describe('@simplex-viz/svg integration', () => {
       containerB.remove();
     }
   });
+
+  it('supports custom DOM/HTML tooltip renderer with target-level caching, cleanup lifecycle, suppression, themeable chrome, and dynamic edge flipping (Issue #28)', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 760, configurable: true });
+    Object.defineProperty(container, 'clientHeight', { value: 500, configurable: true });
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+    });
+    document.body.appendChild(container);
+
+    const items = [
+      { id: 'tip-a', title: 'Alpha Entry', tags: ['alpha', 'beta'] },
+      { id: 'tip-b', title: 'Beta Entry', tags: ['beta', 'gamma'] },
+      { id: 'tip-c', title: 'Gamma Entry', tags: ['gamma', 'delta'] },
+      { id: 'tip-d', title: 'Delta Entry', tags: ['delta', 'alpha'] },
+      { id: 'tip-e', title: 'Cross Entry', tags: ['alpha', 'gamma'] },
+    ];
+
+    const renderLog: string[] = [];
+    const cleanupLog: string[] = [];
+    let hideCount = 0;
+
+    const controller = createSimplexSvg(container, {
+      items,
+      preset: 'geometric',
+      theme: 'dark',
+      layoutOptions: { seed: 42 },
+      tooltip: {
+        className: 'host-card-tip',
+        offset: { x: 16, y: 12 },
+        margin: 10,
+        render(target, el) {
+          if (target.kind === 'triangle') {
+            renderLog.push(`triangle:${target.triangle.index}:suppressed`);
+            return false;
+          }
+          const key =
+            target.kind === 'content'
+              ? `content:${target.item.id}`
+              : `cluster:${target.cluster.clusterUid}`;
+          renderLog.push(key);
+          const card = document.createElement('article');
+          card.className = 'custom-card';
+          card.textContent =
+            target.kind === 'content' ? target.item.title : target.cluster.defaultLabel;
+          el.appendChild(card);
+          return () => {
+            cleanupLog.push(key);
+          };
+        },
+        onHide() {
+          hideCount += 1;
+        },
+      },
+    });
+
+    try {
+      for (let i = 0; i < 40; i++) controller.stepForTest(20);
+
+      const svg = controller.getSvgElement();
+      Object.defineProperty(svg, 'getBoundingClientRect', {
+        value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+      });
+
+      const parseTranslate = (el: Element): { x: number; y: number } => {
+        const m = el
+          .getAttribute('transform')
+          ?.match(/translate\(\s*([0-9.-]+)[,\s]+([0-9.-]+)/);
+        return { x: parseFloat(m![1]!), y: parseFloat(m![2]!) };
+      };
+
+      const itemGroups = [...svg.querySelectorAll('g.sv-node-item')];
+      expect(itemGroups.length).toBeGreaterThanOrEqual(2);
+      const firstGroup = itemGroups[0]!;
+      const secondGroup = itemGroups[1]!;
+      const firstId = firstGroup.getAttribute('data-node-id')!;
+      const secondId = secondGroup.getAttribute('data-node-id')!;
+      const firstPos = parseTranslate(firstGroup);
+      const secondPos = parseTranslate(secondGroup);
+
+      // 1) Hover first item -> renders custom DOM with unstyled default & className
+      svg.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: firstPos.x,
+          clientY: firstPos.y,
+          bubbles: true,
+        }),
+      );
+
+      const tipEl = container.querySelector<HTMLDivElement>('.sv-tooltip')!;
+      expect(tipEl).not.toBeNull();
+      expect(tipEl.className).toBe('sv-tooltip host-card-tip');
+      expect(tipEl.getAttribute('role')).toBe('tooltip');
+      expect(tipEl.dataset.tooltipMode).toBe('custom');
+      expect(tipEl.style.display).toBe('block');
+      expect(tipEl.style.position).toBe('absolute');
+      expect(tipEl.style.pointerEvents).toBe('none');
+      // Unstyled default: no built-in card chrome
+      expect(tipEl.style.padding).toBe('');
+      expect(tipEl.style.background).toBe('');
+      expect(tipEl.style.maxWidth).toBe('');
+      expect(tipEl.querySelector('article.custom-card')).not.toBeNull();
+      expect(renderLog).toEqual([`content:${firstId}`]);
+      expect(cleanupLog).toEqual([]);
+      expect(hideCount).toBe(0);
+
+      // Theme change must NOT stamp built-in background/border onto unstyled custom tooltips
+      controller.setTheme('light');
+      expect(tipEl.style.background).toBe('');
+      expect(tipEl.style.border).toBe('');
+      controller.setTheme('dark');
+
+      // 2) Move pointer slightly within the SAME item -> repositions WITHOUT calling render() again
+      const prevLeft = tipEl.style.left;
+      svg.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: firstPos.x + 2,
+          clientY: firstPos.y + 1,
+          bubbles: true,
+        }),
+      );
+      expect(renderLog).toEqual([`content:${firstId}`]);
+      expect(cleanupLog).toEqual([]);
+      expect(tipEl.style.left).not.toBe(prevLeft);
+
+      // 3) Dynamic edge-flipping when tooltip would overflow right/bottom container edges
+      Object.defineProperty(tipEl, 'offsetWidth', { value: 260, configurable: true });
+      Object.defineProperty(tipEl, 'offsetHeight', { value: 140, configurable: true });
+      // Pick the rightmost item or force a tight container width so preferred (x + 16 + 260) overflows
+      Object.defineProperty(container, 'clientWidth', {
+        value: Math.max(320, Math.round(firstPos.x + 180)),
+        configurable: true,
+      });
+      Object.defineProperty(container, 'clientHeight', {
+        value: Math.max(220, Math.round(firstPos.y + 100)),
+        configurable: true,
+      });
+      svg.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: firstPos.x + 1,
+          clientY: firstPos.y + 2,
+          bubbles: true,
+        }),
+      );
+      const flippedLeft = parseFloat(tipEl.style.left);
+      const flippedTop = parseFloat(tipEl.style.top);
+      expect(flippedLeft).toBeLessThan(firstPos.x);
+      expect(flippedTop).toBeLessThan(firstPos.y);
+      expect(flippedLeft).toBeGreaterThanOrEqual(10);
+      expect(flippedTop).toBeGreaterThanOrEqual(10);
+
+      // Restore container dimensions
+      Object.defineProperty(container, 'clientWidth', { value: 760, configurable: true });
+      Object.defineProperty(container, 'clientHeight', { value: 500, configurable: true });
+
+      // 4) Switch directly to second item -> runs first cleanup before rendering second; onHide stays 0
+      svg.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: secondPos.x,
+          clientY: secondPos.y,
+          bubbles: true,
+        }),
+      );
+      expect(cleanupLog).toEqual([`content:${firstId}`]);
+      expect(renderLog).toEqual([`content:${firstId}`, `content:${secondId}`]);
+      expect(hideCount).toBe(0);
+      expect(tipEl.querySelectorAll('article.custom-card').length).toBe(1);
+
+      // 5) Move to empty background -> runs cleanup + onHide once; subsequent empty moves do not spam onHide
+      svg.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: 2,
+          clientY: 2,
+          bubbles: true,
+        }),
+      );
+      expect(tipEl.style.display).toBe('none');
+      expect(cleanupLog).toEqual([`content:${firstId}`, `content:${secondId}`]);
+      expect(hideCount).toBe(1);
+
+      svg.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: 3,
+          clientY: 3,
+          bubbles: true,
+        }),
+      );
+      expect(hideCount).toBe(1);
+
+      // 6) Hover a cluster node -> renders cluster DOM tooltip
+      const clusterGroup = svg.querySelector('g.sv-node-cluster')!;
+      const clusterPos = parseTranslate(clusterGroup);
+      svg.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: clusterPos.x,
+          clientY: clusterPos.y,
+          bubbles: true,
+        }),
+      );
+      expect(tipEl.style.display).toBe('block');
+      expect(renderLog.at(-1)).toMatch(/^cluster:/);
+
+      // 7) Returning false for triangles suppresses the tooltip
+      const triPoly = svg.querySelector('g.sv-mesh-triangle polygon')!;
+      const triPts = triPoly
+        .getAttribute('points')!
+        .trim()
+        .split(/\s+/)
+        .map((pair) => {
+          const [x, y] = pair.split(',').map(Number);
+          return { x: x!, y: y! };
+        });
+      // Sample near centroid (offset slightly if an item sits on centroid)
+      const tcx = (triPts[0]!.x + triPts[1]!.x + triPts[2]!.x) / 3;
+      const tcy = (triPts[0]!.y + triPts[1]!.y + triPts[2]!.y) / 3;
+      const triSample = [
+        { x: tcx, y: tcy },
+        { x: (triPts[0]!.x * 0.7 + tcx * 0.3), y: (triPts[0]!.y * 0.7 + tcy * 0.3) },
+        { x: (triPts[1]!.x * 0.7 + tcx * 0.3), y: (triPts[1]!.y * 0.7 + tcy * 0.3) },
+      ];
+      for (const pt of triSample) {
+        svg.dispatchEvent(
+          new PointerEvent('pointermove', {
+            pointerId: 1,
+            pointerType: 'mouse',
+            clientX: pt.x,
+            clientY: pt.y,
+            bubbles: true,
+          }),
+        );
+        if (renderLog.at(-1)?.startsWith('triangle:')) break;
+      }
+      expect(renderLog.at(-1)).toMatch(/^triangle:\d+:suppressed$/);
+      expect(tipEl.style.display).toBe('none');
+
+      // 8) Switching via setTooltip({ unstyled: false, ... }) applies built-in theme chrome & updates on setTheme
+      let styledDestroyCleanups = 0;
+      controller.setTooltip({
+        unstyled: false,
+        render(target, el) {
+          const span = document.createElement('span');
+          span.textContent = target.kind;
+          el.appendChild(span);
+          return () => {
+            styledDestroyCleanups += 1;
+          };
+        },
+      });
+      expect(tipEl.dataset.tooltipMode).toBe('styled');
+      expect(tipEl.style.padding).toBe('7px 10px');
+      expect(tipEl.style.background).toContain('9, 13, 22');
+
+      controller.setTheme('light');
+      expect(tipEl.style.background).toContain('255, 255, 255');
+
+      // Hover first item so tooltip is active when destroy() runs -> cleanup must fire!
+      svg.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: firstPos.x,
+          clientY: firstPos.y,
+          bubbles: true,
+        }),
+      );
+      expect(tipEl.style.display).toBe('block');
+
+      // Also verify string formatter returning null suppresses tooltip
+      controller.setTooltip((t) => (t.kind === 'content' ? null : 'cluster-only'));
+      expect(styledDestroyCleanups).toBe(1);
+      svg.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: firstPos.x,
+          clientY: firstPos.y,
+          bubbles: true,
+        }),
+      );
+      expect(tipEl.style.display).toBe('none');
+
+      // Restore DOM renderer and confirm destroy() invokes cleanup while visible
+      let finalCleanups = 0;
+      let finalHides = 0;
+      controller.setTooltip({
+        render(_t, el) {
+          el.innerHTML = '<b>Destroy check</b>';
+          return () => {
+            finalCleanups += 1;
+          };
+        },
+        onHide() {
+          finalHides += 1;
+        },
+      });
+      svg.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: firstPos.x,
+          clientY: firstPos.y,
+          bubbles: true,
+        }),
+      );
+      expect(tipEl.style.display).toBe('block');
+
+      controller.destroy();
+      expect(finalCleanups).toBe(1);
+      expect(finalHides).toBe(1);
+    } finally {
+      controller.destroy();
+      container.remove();
+    }
+  });
 });
 
 

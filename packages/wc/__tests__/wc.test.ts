@@ -346,4 +346,115 @@ describe('@simplex-viz/wc (<simplex-topic-graph>) (Issue #26)', () => {
       el.remove();
     }
   });
+
+  it('supports custom DOM/HTML tooltip renderer on <simplex-topic-graph> with cancelable hover and teardown cleanup (Issue #28)', () => {
+    defineSimplexTopicGraphElement();
+
+    const wrapper = document.createElement('div');
+    sizeElement(wrapper, 720, 480);
+    const el = document.createElement('simplex-topic-graph') as SimplexTopicGraphElement;
+    sizeElement(el, 720, 480);
+
+    let renderCalls = 0;
+    let cleanupCalls = 0;
+    let hideCalls = 0;
+
+    el.items = SAMPLE_ITEMS;
+    el.layoutOptions = { seed: 13 };
+    el.tooltip = {
+      className: 'wc-rich-tip',
+      render(target, containerEl) {
+        renderCalls += 1;
+        const badge = document.createElement('div');
+        badge.className = 'wc-tip-body';
+        badge.textContent =
+          target.kind === 'content'
+            ? target.item.id
+            : target.kind === 'cluster'
+              ? target.cluster.code
+              : `tri-${target.triangle.index}`;
+        containerEl.appendChild(badge);
+        return () => {
+          cleanupCalls += 1;
+        };
+      },
+      onHide() {
+        hideCalls += 1;
+      },
+    };
+
+    let blockHover = false;
+    el.addEventListener('simplex-hover', (ev) => {
+      if (blockHover) ev.preventDefault();
+    });
+
+    wrapper.appendChild(el);
+    document.body.appendChild(wrapper);
+
+    try {
+      for (let i = 0; i < 30; i++) el.stepForTest(20);
+      const svg = el.getSvgElement()!;
+      sizeElement(svg as unknown as HTMLElement, 720, 480);
+
+      const firstItem = svg.querySelector('g.sv-node-item')!;
+      const m = firstItem
+        .getAttribute('transform')!
+        .match(/translate\(\s*([0-9.-]+)[,\s]+([0-9.-]+)/)!;
+      const x = parseFloat(m[1]!);
+      const y = parseFloat(m[2]!);
+
+      svg.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+        }),
+      );
+
+      const tipEl = el.querySelector<HTMLDivElement>('.sv-tooltip.wc-rich-tip')!;
+      expect(tipEl).not.toBeNull();
+      expect(tipEl.style.display).toBe('block');
+      expect(tipEl.querySelector('.wc-tip-body')?.textContent).toBe(
+        firstItem.getAttribute('data-node-id'),
+      );
+      expect(renderCalls).toBe(1);
+
+      // Cancelable simplex-hover prevents tooltip display
+      blockHover = true;
+      svg.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: x + 1,
+          clientY: y + 1,
+          bubbles: true,
+        }),
+      );
+      expect(tipEl.style.display).toBe('none');
+      expect(cleanupCalls).toBe(1);
+      expect(hideCalls).toBe(1);
+
+      // Re-enable hover, show tooltip, and confirm disconnect triggers cleanup
+      blockHover = false;
+      svg.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+        }),
+      );
+      expect(tipEl.style.display).toBe('block');
+      expect(renderCalls).toBe(2);
+
+      el.remove();
+      expect(cleanupCalls).toBe(2);
+      expect(hideCalls).toBe(2);
+    } finally {
+      wrapper.remove();
+    }
+  });
 });

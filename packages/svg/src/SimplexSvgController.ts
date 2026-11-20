@@ -79,6 +79,31 @@ let nextA11yInstanceSeq = 0;
 
 const DEFAULT_ARIA_LABEL = 'Interactive simplex topic graph';
 
+export type SimplexSvgTooltipTarget<
+  TItem = DefaultTaggedItem,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> =
+  | ({ readonly kind: 'content' } & ContentHoverEvent<
+      TItem,
+      TContentVisual,
+      TTagMeta,
+      TClusterMeta
+    >)
+  | ({ readonly kind: 'cluster' } & ClusterHoverEvent<
+      TItem,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >)
+  | ({ readonly kind: 'triangle' } & TriangleHoverEvent<
+      TItem,
+      TTagMeta,
+      TClusterMeta
+    >);
+
 export type SimplexTooltipFormatter<
   TItem = DefaultTaggedItem,
   TContentVisual = DefaultContentPresetVisual,
@@ -86,25 +111,107 @@ export type SimplexTooltipFormatter<
   TTagMeta = undefined,
   TClusterMeta = undefined,
 > = (
-  target:
-    | ({ readonly kind: 'content' } & ContentHoverEvent<
-        TItem,
-        TContentVisual,
-        TTagMeta,
-        TClusterMeta
-      >)
-    | ({ readonly kind: 'cluster' } & ClusterHoverEvent<
-        TItem,
-        TClusterVisual,
-        TTagMeta,
-        TClusterMeta
-      >)
-    | ({ readonly kind: 'triangle' } & TriangleHoverEvent<
-        TItem,
-        TTagMeta,
-        TClusterMeta
-      >),
-) => string;
+  target: SimplexSvgTooltipTarget<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >,
+) => string | null | undefined | false;
+
+/**
+ * Return value of `SimplexDomTooltipRenderer.render(target, containerEl)`:
+ * - `false` or `null`: suppresses the tooltip for the current hovered target.
+ * - `() => void`: optional teardown callback invoked before the next target render, on hide,
+ *   on `setTooltip()`, and on `destroy()` (useful for Preact/Vue/Svelte mounts or listeners).
+ * - `void` / `undefined` / `true`: shows the tooltip using the DOM rendered inside `containerEl`.
+ */
+export type SimplexDomTooltipRenderResult = void | boolean | null | (() => void);
+
+/**
+ * Custom DOM/HTML tooltip renderer that reuses `SimplexSvgController`'s built-in overlay
+ * container, pointer-following, dynamic viewport edge-flipping, and hover lifecycle.
+ */
+export interface SimplexDomTooltipRenderer<
+  TItem = DefaultTaggedItem,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> {
+  /**
+   * Populates `containerEl` with custom DOM/HTML for the hovered target.
+   * Only invoked when the hovered target changes (not on every pointermove pixel within the
+   * same target), while positioning continues to follow the pointer smoothly.
+   * Return `false` or `null` to suppress the tooltip for this target, or return a cleanup
+   * callback `() => void` to unmount components or detach listeners.
+   */
+  readonly render: (
+    target: SimplexSvgTooltipTarget<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+    containerEl: HTMLDivElement,
+  ) => SimplexDomTooltipRenderResult;
+  /**
+   * When `true` (default for custom DOM renderers), suppresses the built-in card chrome
+   * (background, border, padding, max-width, typography) so the host controls full styling
+   * while retaining overlay positioning (`position: absolute; pointer-events: none; z-index: 20`).
+   * Set to `false` to inherit the built-in theme-adaptive tooltip card styles.
+   */
+  readonly unstyled?: boolean;
+  /** Cursor offset in CSS pixels. Default: `{ x: 14, y: 14 }`. */
+  readonly offset?: { readonly x?: number; readonly y?: number };
+  /** Minimum clearance from container edges in CSS pixels. Default: `8`. */
+  readonly margin?: number;
+  /** Optional CSS class name(s) appended to the floating `.sv-tooltip` container element. */
+  readonly className?: string;
+  /** Optional callback invoked whenever the tooltip transitions from visible to hidden. */
+  readonly onHide?: (containerEl: HTMLDivElement) => void;
+}
+
+export type SimplexSvgTooltipOption<
+  TItem = DefaultTaggedItem,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> =
+  | boolean
+  | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>
+  | SimplexDomTooltipRenderer<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
+
+function isDomTooltipRenderer<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+>(
+  option: SimplexSvgTooltipOption<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >,
+): option is SimplexDomTooltipRenderer<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta
+> {
+  return (
+    typeof option === 'object' &&
+    option !== null &&
+    typeof option.render === 'function'
+  );
+}
 
 /**
  * Configuration options for the built-in optional timeline / frame-stepping player
@@ -292,10 +399,18 @@ export interface SimplexSvgControllerResolvedOptions<
    * unless consumed (`return true`) by a click interaction handler. Default: `true`.
    */
   readonly focusOnTriangleClick?: boolean;
-  /** Enables a built-in floating DOM hover tooltip (or supply a custom text formatter). Default: `false`. */
-  readonly tooltip?:
-    | boolean
-    | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
+  /**
+   * Enables a built-in floating DOM hover tooltip, a custom text formatter, or a custom
+   * DOM/HTML renderer object (`SimplexDomTooltipRenderer`) reusing built-in positioning and
+   * viewport edge-clamping. Default: `false`.
+   */
+  readonly tooltip?: SimplexSvgTooltipOption<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >;
   /**
    * Accessible label applied to the root `<svg role="application">` element for screen readers.
    * Default: `'Interactive simplex topic graph'`.
@@ -413,9 +528,13 @@ export interface SimplexSvgUpdateOptions<
   readonly itemFilterMode?: ItemFilterMode;
   readonly showZoomBreadcrumbs?: boolean;
   readonly timeline?: boolean | TimelinePlayerOptions<TItem>;
-  readonly tooltip?:
-    | boolean
-    | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
+  readonly tooltip?: SimplexSvgTooltipOption<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >;
   readonly ariaLabel?: string;
   readonly keyboardNavigation?: boolean;
   readonly reducedMotion?: ReducedMotionPreference;
@@ -502,10 +621,18 @@ export class SimplexSvgController<
   private shapeOptions?: GeometricShapeSvgViewOptions;
   private usesCustomContentView: boolean;
   private usesCustomClusterView: boolean;
-  private tooltipOption:
-    | boolean
-    | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
+  private tooltipOption: SimplexSvgTooltipOption<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >;
   private tooltipEl: HTMLDivElement | null = null;
+  private tooltipCleanup: (() => void) | null = null;
+  private activeTooltipTargetKey: string | null = null;
+  private activeTooltipSuppressed = false;
+  private tooltipVisible = false;
   private breadcrumbOverlayEl: HTMLDivElement | null = null;
   private srAnnouncerEl: HTMLDivElement | null = null;
   private ariaLabel: string;
@@ -959,11 +1086,7 @@ export class SimplexSvgController<
       onContentHover: (ev) => {
         const consumed = userInteractions?.onContentHover?.(ev);
         if (ev && consumed !== true) {
-          this.showTooltip(
-            ev.screenPosition.x,
-            ev.screenPosition.y,
-            this.formatContentTooltip(ev),
-          );
+          this.showTooltipForTarget({ kind: 'content', ...ev });
         } else {
           this.hideTooltip();
         }
@@ -972,11 +1095,7 @@ export class SimplexSvgController<
       onClusterHover: (ev) => {
         const consumed = userInteractions?.onClusterHover?.(ev);
         if (ev && consumed !== true) {
-          this.showTooltip(
-            ev.screenPosition.x,
-            ev.screenPosition.y,
-            this.formatClusterTooltip(ev),
-          );
+          this.showTooltipForTarget({ kind: 'cluster', ...ev });
         } else {
           this.hideTooltip();
         }
@@ -985,11 +1104,7 @@ export class SimplexSvgController<
       onTriangleHover: (ev) => {
         const consumed = userInteractions?.onTriangleHover?.(ev);
         if (ev && consumed !== true) {
-          this.showTooltip(
-            ev.screenPosition.x,
-            ev.screenPosition.y,
-            this.formatTriangleTooltip(ev),
-          );
+          this.showTooltipForTarget({ kind: 'triangle', ...ev });
         } else {
           this.hideTooltip();
         }
@@ -1134,7 +1249,7 @@ export class SimplexSvgController<
 
   private formatContentTooltip(
     ev: ContentHoverEvent<TItem, TContentVisual, TTagMeta, TClusterMeta>,
-  ): string {
+  ): string | null | undefined | false {
     if (typeof this.tooltipOption === 'function') {
       return this.tooltipOption({ kind: 'content', ...ev });
     }
@@ -1166,7 +1281,7 @@ export class SimplexSvgController<
 
   private formatClusterTooltip(
     ev: ClusterHoverEvent<TItem, TClusterVisual, TTagMeta, TClusterMeta>,
-  ): string {
+  ): string | null | undefined | false {
     if (typeof this.tooltipOption === 'function') {
       return this.tooltipOption({ kind: 'cluster', ...ev });
     }
@@ -1177,7 +1292,7 @@ export class SimplexSvgController<
 
   private formatTriangleTooltip(
     ev: TriangleHoverEvent<TItem, TTagMeta, TClusterMeta>,
-  ): string {
+  ): string | null | undefined | false {
     if (typeof this.tooltipOption === 'function') {
       return this.tooltipOption({ kind: 'triangle', ...ev });
     }
@@ -1205,7 +1320,12 @@ export class SimplexSvgController<
     return `Triangle #${ev.triangle.index + 1} (${corners})\n${count} ${count === 1 ? 'item' : 'items'}${actionHint}`;
   }
 
+  private isTooltipUnstyled(): boolean {
+    return isDomTooltipRenderer(this.tooltipOption) && this.tooltipOption.unstyled !== false;
+  }
+
   private applyTooltipThemeStyles(el: HTMLDivElement): void {
+    if (this.isTooltipUnstyled()) return;
     const isLight = this.currentTheme === 'light';
     el.style.background = isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(9, 13, 22, 0.94)';
     el.style.border = isLight
@@ -1215,6 +1335,44 @@ export class SimplexSvgController<
     el.style.boxShadow = isLight
       ? '0 10px 24px rgba(15, 23, 42, 0.12)'
       : '0 10px 24px rgba(0, 0, 0, 0.45)';
+  }
+
+  private applyTooltipPresentationStyles(el: HTMLDivElement): void {
+    const domRenderer = isDomTooltipRenderer(this.tooltipOption)
+      ? this.tooltipOption
+      : null;
+    const customClass = domRenderer?.className?.trim();
+    el.className = customClass ? `sv-tooltip ${customClass}` : 'sv-tooltip';
+    el.setAttribute('role', 'tooltip');
+    el.style.position = 'absolute';
+    el.style.pointerEvents = 'none';
+    el.style.zIndex = '20';
+
+    if (this.isTooltipUnstyled()) {
+      el.dataset.tooltipMode = 'custom';
+      el.style.maxWidth = '';
+      el.style.padding = '';
+      el.style.borderRadius = '';
+      el.style.fontFamily = '';
+      el.style.fontSize = '';
+      el.style.lineHeight = '';
+      el.style.whiteSpace = '';
+      el.style.background = '';
+      el.style.border = '';
+      el.style.color = '';
+      el.style.boxShadow = '';
+      return;
+    }
+
+    el.dataset.tooltipMode = 'styled';
+    el.style.maxWidth = '240px';
+    el.style.padding = '7px 10px';
+    el.style.borderRadius = '8px';
+    el.style.fontFamily = 'Plus Jakarta Sans, ui-sans-serif, system-ui, sans-serif';
+    el.style.fontSize = '12px';
+    el.style.lineHeight = '1.4';
+    el.style.whiteSpace = domRenderer ? '' : 'pre-line';
+    this.applyTooltipThemeStyles(el);
   }
 
   private ensureTooltipElement(): HTMLDivElement | null {
@@ -1231,38 +1389,184 @@ export class SimplexSvgController<
     }
 
     const el = doc.createElement('div');
-    el.className = 'sv-tooltip';
-    el.style.position = 'absolute';
-    el.style.pointerEvents = 'none';
-    el.style.zIndex = '20';
     el.style.display = 'none';
-    el.style.maxWidth = '240px';
-    el.style.padding = '7px 10px';
-    el.style.borderRadius = '8px';
-    el.style.fontFamily = 'Plus Jakarta Sans, ui-sans-serif, system-ui, sans-serif';
-    el.style.fontSize = '12px';
-    el.style.lineHeight = '1.4';
-    el.style.whiteSpace = 'pre-line';
-    this.applyTooltipThemeStyles(el);
+    this.applyTooltipPresentationStyles(el);
     this.containerEl.appendChild(el);
     this.tooltipEl = el;
     return el;
   }
 
-  private showTooltip(screenX: number, screenY: number, text: string): void {
+  private getTooltipTargetKey(
+    target: SimplexSvgTooltipTarget<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): string {
+    if (target.kind === 'content') {
+      return `content:${target.layoutContext.id}:${target.neighborId ?? ''}`;
+    }
+    if (target.kind === 'cluster') {
+      return `cluster:${target.cluster.clusterUid}:${target.neighborId ?? ''}`;
+    }
+    return `triangle:${target.triangle.index}:${target.triangle.neighborId ?? ''}:${target.triangle.isContext ? 1 : 0}`;
+  }
+
+  private runTooltipCleanup(): void {
+    const cleanup = this.tooltipCleanup;
+    this.tooltipCleanup = null;
+    if (cleanup) {
+      cleanup();
+    }
+  }
+
+  private positionTooltipElement(
+    el: HTMLDivElement,
+    screenX: number,
+    screenY: number,
+    measureUnconstrained = false,
+  ): void {
+    const domRenderer = isDomTooltipRenderer(this.tooltipOption)
+      ? this.tooltipOption
+      : null;
+    const offsetX = domRenderer?.offset?.x ?? 14;
+    const offsetY = domRenderer?.offset?.y ?? 14;
+    const margin = Math.max(0, domRenderer?.margin ?? 8);
+
+    if (measureUnconstrained) {
+      el.style.left = '0px';
+      el.style.top = '0px';
+    }
+
+    const containerRect =
+      typeof this.containerEl.getBoundingClientRect === 'function'
+        ? this.containerEl.getBoundingClientRect()
+        : null;
+    const containerW =
+      this.containerEl.clientWidth || (containerRect ? Math.round(containerRect.width) : 0) || 960;
+    const containerH =
+      this.containerEl.clientHeight || (containerRect ? Math.round(containerRect.height) : 0) || 600;
+
+    const tipRect =
+      typeof el.getBoundingClientRect === 'function' ? el.getBoundingClientRect() : null;
+    const measuredW = el.offsetWidth || (tipRect ? Math.ceil(tipRect.width) : 0);
+    const measuredH = el.offsetHeight || (tipRect ? Math.ceil(tipRect.height) : 0);
+    const tipW = measuredW > 0 ? measuredW : 240;
+    const tipH = measuredH > 0 ? measuredH : 64;
+
+    const maxLeft = Math.max(margin, containerW - margin - tipW);
+    let left = screenX + offsetX;
+    if (left + tipW > containerW - margin) {
+      left = screenX - offsetX - tipW;
+    }
+    left = Math.min(Math.max(margin, Math.round(left)), Math.round(maxLeft));
+
+    const maxTop = Math.max(margin, containerH - margin - tipH);
+    let top = screenY + offsetY;
+    if (top + tipH > containerH - margin) {
+      top = screenY - offsetY - tipH;
+    }
+    top = Math.min(Math.max(margin, Math.round(top)), Math.round(maxTop));
+
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+  }
+
+  private showTooltipForTarget(
+    target: SimplexSvgTooltipTarget<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): void {
     const el = this.ensureTooltipElement();
-    if (!el || !text) return;
+    if (!el) return;
+
+    const targetKey = this.getTooltipTargetKey(target);
+
+    if (isDomTooltipRenderer(this.tooltipOption)) {
+      if (targetKey === this.activeTooltipTargetKey) {
+        if (this.activeTooltipSuppressed) return;
+        el.style.display = 'block';
+        this.tooltipVisible = true;
+        this.positionTooltipElement(el, target.screenPosition.x, target.screenPosition.y);
+        return;
+      }
+
+      this.runTooltipCleanup();
+      el.textContent = '';
+      this.activeTooltipTargetKey = targetKey;
+
+      const result = this.tooltipOption.render(target, el);
+      if (result === false || result === null) {
+        this.activeTooltipSuppressed = true;
+        if (this.tooltipVisible) {
+          el.style.display = 'none';
+          this.tooltipVisible = false;
+          this.tooltipOption.onHide?.(el);
+        }
+        return;
+      }
+
+      if (typeof result === 'function') {
+        this.tooltipCleanup = result;
+      }
+      this.activeTooltipSuppressed = false;
+      el.style.display = 'block';
+      this.tooltipVisible = true;
+      this.positionTooltipElement(
+        el,
+        target.screenPosition.x,
+        target.screenPosition.y,
+        true,
+      );
+      return;
+    }
+
+    const text =
+      target.kind === 'content'
+        ? this.formatContentTooltip(target)
+        : target.kind === 'cluster'
+          ? this.formatClusterTooltip(target)
+          : this.formatTriangleTooltip(target);
+
+    if (!text) {
+      this.hideTooltip();
+      return;
+    }
+
+    const targetChanged = targetKey !== this.activeTooltipTargetKey;
+    this.activeTooltipTargetKey = targetKey;
+    this.activeTooltipSuppressed = false;
     el.textContent = text;
     el.style.display = 'block';
-    const maxLeft = Math.max(8, (this.containerEl.clientWidth || 960) - 256);
-    const maxTop = Math.max(8, (this.containerEl.clientHeight || 600) - 72);
-    el.style.left = `${Math.min(Math.max(8, Math.round(screenX + 14)), maxLeft)}px`;
-    el.style.top = `${Math.min(Math.max(8, Math.round(screenY + 14)), maxTop)}px`;
+    this.tooltipVisible = true;
+    this.positionTooltipElement(
+      el,
+      target.screenPosition.x,
+      target.screenPosition.y,
+      targetChanged,
+    );
   }
 
   private hideTooltip(): void {
+    const domRenderer = isDomTooltipRenderer(this.tooltipOption)
+      ? this.tooltipOption
+      : null;
+    const wasVisible = this.tooltipVisible;
+    this.runTooltipCleanup();
+    this.activeTooltipTargetKey = null;
+    this.activeTooltipSuppressed = false;
+    this.tooltipVisible = false;
     if (this.tooltipEl) {
       this.tooltipEl.style.display = 'none';
+      if (wasVisible && domRenderer?.onHide) {
+        domRenderer.onHide(this.tooltipEl);
+      }
     }
   }
 
@@ -2035,13 +2339,19 @@ export class SimplexSvgController<
   }
 
   setTooltip(
-    tooltip:
-      | boolean
-      | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>,
+    tooltip: SimplexSvgTooltipOption<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
   ): void {
+    this.hideTooltip();
     this.tooltipOption = tooltip;
-    if (!tooltip) {
-      this.hideTooltip();
+    if (this.tooltipEl) {
+      this.tooltipEl.textContent = '';
+      this.applyTooltipPresentationStyles(this.tooltipEl);
     }
   }
 
@@ -4328,6 +4638,7 @@ export class SimplexSvgController<
     this.marqueeRectEl = null;
     this.detachSvgListeners();
     this.engine.destroy();
+    this.hideTooltip();
     if (this.tooltipEl && this.tooltipEl.parentElement === this.containerEl) {
       this.containerEl.removeChild(this.tooltipEl);
       this.tooltipEl = null;

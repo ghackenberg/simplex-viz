@@ -47,9 +47,9 @@ import {
   type PresetBadgeClusterOptions,
   type PresetContentShapeOption,
   type SimplexSvgControllerOptions,
+  type SimplexSvgTooltipOption,
   type SimplexSvgUpdateOptions,
   type SimplexTheme,
-  type SimplexTooltipFormatter,
   type SimplexVisualPreset,
   type SvgEdgeView,
   type SvgNodeView,
@@ -409,15 +409,13 @@ export class SimplexTopicGraphElement<
   private _clickTolerancePx?: number;
   private _focusOnClusterClick = true;
   private _focusOnTriangleClick = true;
-  private _tooltip:
-    | boolean
-    | SimplexTooltipFormatter<
-        TItem,
-        TContentVisual,
-        TClusterVisual,
-        TTagMeta,
-        TClusterMeta
-      > = false;
+  private _tooltip: SimplexSvgTooltipOption<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  > = false;
   private _ariaLabel?: string;
   private _keyboardNavigation = true;
   private _reducedMotion: ReducedMotionPreference = 'auto';
@@ -817,27 +815,23 @@ export class SimplexTopicGraphElement<
     this._focusOnTriangleClick = Boolean(value);
   }
 
-  get tooltip():
-    | boolean
-    | SimplexTooltipFormatter<
-        TItem,
-        TContentVisual,
-        TClusterVisual,
-        TTagMeta,
-        TClusterMeta
-      > {
+  get tooltip(): SimplexSvgTooltipOption<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  > {
     return this._tooltip;
   }
   set tooltip(
-    value:
-      | boolean
-      | SimplexTooltipFormatter<
-          TItem,
-          TContentVisual,
-          TClusterVisual,
-          TTagMeta,
-          TClusterMeta
-        >,
+    value: SimplexSvgTooltipOption<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
   ) {
     this._tooltip = value;
     this._controller?.setOptions({ tooltip: value });
