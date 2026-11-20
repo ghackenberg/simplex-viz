@@ -4,7 +4,7 @@ shortTitle: Quickstart
 description: Install SimplexViz in under two minutes, understand its strict headless/SVG/React package separation, and inspect every default setting.
 section: Getting Started
 order: 1
-updatedDate: "2026-11-19"
+updatedDate: "2026-11-20"
 summaryPoints:
   - Zero-config defaults solve 60-degree equilateral simplex layouts with guaranteed 0.0 px convex overlap.
   - Works identically for tagged records, single- or multi-modal vector embeddings, and pairwise similarity kernels.
@@ -21,7 +21,7 @@ Each higher-level package re-exports all strategies, views, and TypeScript types
 | Package | Runtime & Dependencies | Primary Entry Points |
 | --- | --- | --- |
 | `@simplex-viz/react` | React 18 / 19 | `<SimplexTopicGraph />`, `useSimplexGraphController()`, `useSimplexTimeline()` |
-| `@simplex-viz/svg` | Vanilla TS, Vue, Svelte, Angular, Web Components | `createSimplexSvg()`, `SimplexSvgController`, `SvgRendererAdapter` |
+| `@simplex-viz/svg` | Vanilla TS, Vue, Svelte, Angular, Web Components, Node.js SSR (`@simplex-viz/svg/ssr`) | `createSimplexSvg()`, `SimplexSvgController`, `SvgRendererAdapter`, `renderSimplexSvgString()` |
 | `@simplex-viz/core` | Browser, Node.js, Bun, Deno, Web Workers (`0` deps, no DOM) | `solveSimplexSnapshot()`, `SimplexGraphEngine`, `createSimplexTimeline()` |
 
 ## React Quickstart

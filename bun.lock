@@ -55,11 +55,11 @@
     },
     "packages/core": {
       "name": "@simplex-viz/core",
-      "version": "0.6.0",
+      "version": "0.11.0",
     },
     "packages/react": {
       "name": "@simplex-viz/react",
-      "version": "0.6.0",
+      "version": "0.11.0",
       "dependencies": {
         "@simplex-viz/core": "workspace:^",
         "@simplex-viz/svg": "workspace:^",
@@ -71,7 +71,7 @@
     },
     "packages/svg": {
       "name": "@simplex-viz/svg",
-      "version": "0.6.0",
+      "version": "0.11.0",
       "dependencies": {
         "@simplex-viz/core": "workspace:^",
       },

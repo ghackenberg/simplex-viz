@@ -28,7 +28,8 @@ While `@simplex-viz/core` computes pure spatial coordinates, `@simplex-viz/svg` 
 - **Automatic offscreen `getBBox()` hull measurement**: Omit `measureConvexHull` on any `SvgNodeView` and `@simplex-viz/svg` automatically renders it in a hidden measurement bin, reads `getBBox()`, and caches a tight convex polygon for `0.0 px` overlap layout.
 - **Smooth 60 fps transitions**: Critically damped spring motion + specialized parametric `morph()` or automatic dual-layer crossfade when switching visual presets, drilling into sub-levels, or mutating items.
 - **Primary & `'intermediate'` bridge cluster styling**: `BadgeClusterSvgView` and `ClusterAnchorSvgView` automatically render compact chamfered bridge badges/anchors for synthesized zoom midpoints (`cluster.role === 'intermediate'`).
-- **Zero-relayout filtering, atomic `batch()`/`setOptions()` & WCAG 2.1 AA accessibility**: Dim or hide non-matching items without moving any SAT node (`itemFilter`, `itemFilterMode`, `setItemFilter()`), coalesce multi-property updates into a single recomputation (`batch()`, `setOptions()`), and navigate clusters, items, and triangles via single-tabstop keyboard traversal (`role="application"`, `aria-activedescendant`, zoom-adaptive double-halo SVG focus ring, semantic ARIA labels, and polite `aria-live` announcements).
+- **Zero-relayout filtering, atomic `batch()`/`setOptions()`, linked views & WCAG 2.1 AA accessibility**: Dim or hide non-matching items without moving any SAT node (`itemFilter`, `itemFilterMode`, `setItemFilter()`), synchronize external search/table UIs (`setHighlightedItems()`, `focusItem()`, `zoomToItem()`), coalesce multi-property updates into a single recomputation (`batch()`, `setOptions()`), and navigate clusters, items, and triangles via single-tabstop keyboard traversal (`role="application"`, `aria-activedescendant`, zoom-adaptive double-halo SVG focus ring, semantic ARIA labels, and polite `aria-live` announcements).
+- **Client-side SVG/PNG export & zero-DOM SSR string rendering**: Export standalone `<svg>` strings (`exportSvg()`) or HiDPI PNG `Blob` / `dataUrl` snapshots (`exportPng()`) directly from a live controller, or render complete SVG strings server-side in pure Node.js without Puppeteer via `@simplex-viz/svg/ssr` (`renderSimplexSvgString()`).
 
 ## Installation
 
@@ -367,6 +368,38 @@ controller.batch(() => {
 });
 ```
 
+### Step 9 — Linked-View Navigation, Client-Side SVG/PNG Export & Headless SSR (`@simplex-viz/svg/ssr`)
+
+Drive external search/table synchronization, export crisp standalone SVG or HiDPI PNG snapshots from the browser, or render zero-DOM `<svg>` strings on the server:
+
+```ts
+// Programmatic search & linked-view navigation:
+controller.setHighlightedItems(['article-1', 'article-4']);
+controller.focusItem('article-1', { highlight: true, hover: true, announce: true });
+controller.zoomToItem('article-1', { zoom: 2.2, maxDrillSteps: 4 });
+
+// Client-side standalone SVG & 2x HiDPI PNG snapshot export:
+const standaloneSvg = controller.exportSvg({ padding: 24, title: 'Topic Atlas' });
+const pngBlob = await controller.exportPng({ scale: 2, padding: 24 });
+const pngDataUrl = await controller.exportPng({ format: 'dataUrl', scale: 2 });
+```
+
+```ts
+// Pure Node.js / SSR rendering without DOM or Puppeteer (pairs directly with @resvg/resvg-js):
+import { renderSimplexSvgString } from '@simplex-viz/svg/ssr';
+
+const svgString = renderSimplexSvgString(articles, {
+  getId: (a) => a.slug,
+  getTags: (a) => a.topics,
+  getLabel: (a) => a.headline,
+  width: 1200,
+  height: 720,
+  preset: 'badges',
+  theme: 'dark',
+  padding: 24,
+});
+```
+
 ---
 
 ## API Reference (`createSimplexSvg` & `SimplexSvgController`)
@@ -398,9 +431,13 @@ controller.batch(() => {
 | `tooltip` / `setTooltip(tooltip)` | Enables a floating DOM hover tooltip (`boolean` or `(target) => string`). |
 | `addItems(items)` / `removeItems(ids)` / `setItems(items)` | Mutates the dataset live with interruptible spring transitions. |
 | `setSizeMultiplier(multiplier)` / `setShowHulls(show)` | Uniformly scales node sizes or toggles convex hull wireframes. |
-| `setPinnedIds(ids)` / `setHighlightedIds(ids)` | Controls pinned and highlighted visual emphasis states. |
+| `setPinnedIds(ids)` / `setHighlightedIds(ids)` / `setHighlightedItems(ids)` | Controls pinned and highlighted visual emphasis states (`highlightedIds` accepts `Iterable<string> \| null`; read via `getHighlightedIds()` / `getHighlightedItems()`). |
+| `focusItem(itemId \| null, options?)` / `getFocusedItemId()` | Programmatically focuses an item (`{ highlight?, hover?, announce? }`) with synchronized hover tooltip, SVG focus ring, and polite screen-reader announcement. |
+| `zoomToItem(itemId, options?)` | Smoothly centers & zooms onto an item in `free-camera` mode (`zoom`) or automatically drills down across covering triangles (`maxDrillSteps`) in `drill-down` mode. |
+| `exportSvg(options?)` / `exportPng(options?)` | Exports a standalone `<svg>` string (`includeBackground`, `backgroundColor`, `padding`, `width`, `height`, `inlineStyles`, `includeFocusRing`, `title`, `xmlDeclaration`) or rasterized HiDPI PNG `Blob` / `dataUrl` (`scale`, `format`, `mimeType`, `quality`). |
+| `renderSimplexSvgString(itemsOrSnapshot, options?)` | Zero-DOM SSR SVG string renderer exported from `@simplex-viz/svg/ssr` (and `@simplex-viz/svg`) supporting raw items or `SimplexLayoutSnapshot`, deterministic font metrics (`estimateSsrTextWidth`, `createSsrPresetHullMeasurers`, pluggable `measureText`), all presets/themes/filters/highlights, and custom SVG string render hooks. |
 | `itemFilter` / `itemFilterMode` / `setItemFilter(predicate, options?)` / `getItemFilter()` | Zero-relayout item filtering (`'dim' \| 'hide'`); `'hide'` suppresses visuals, hit-testing, and keyboard traversal while preserving exact SAT node positions. |
-| `batch(fn)` / `setOptions(opts)` | Coalesces multiple runtime option or strategy updates (`SimplexSvgUpdateOptions`) into a single minimal pipeline recomputation (re-entrant). |
+| `batch(fn)` / `setOptions(opts)` | Coalesces multiple runtime option or strategy updates (`SimplexSvgUpdateOptions`, including `highlightedIds` and `focusedItemId`) into a single minimal pipeline recomputation (re-entrant). |
 | `ariaLabel` / `setAriaLabel(label)` | Sets the accessible `aria-label` on the root `<svg role="application">` element. |
 | `keyboardNavigation` / `setKeyboardNavigation(enabled)` | Enables/disables single-tabstop keyboard traversal (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Escape`), high-contrast double-halo SVG focus ring, and `aria-live="polite"` announcements (`default: true`). |
 | `getKeyboardFocusTarget()` / `clearKeyboardFocus()` / `getInteractiveTargets()` | Inspects or clears the active keyboard focus target (`SimplexKeyboardFocusTarget`) or lists deterministic navigable targets. |

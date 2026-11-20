@@ -1,9 +1,9 @@
 ---
 title: "@simplex-viz/svg API Reference"
 packageName: "@simplex-viz/svg"
-version: "0.10.0"
-layerLabel: "Framework-Agnostic SVG Scene Graph & Controller"
-description: "Portable SVG renderer, offscreen getBBox() hull measurement, root pointer hit-testing, 1:4 subdivision previews, and breadcrumbs for Vanilla TS, Vue, Svelte, or Angular."
+version: "0.11.0"
+layerLabel: "Framework-Agnostic SVG Scene Graph, Export & Zero-DOM SSR"
+description: "Portable SVG renderer, offscreen getBBox() hull measurement, root pointer hit-testing, client-side SVG/PNG export, zero-DOM SSR string rendering (@simplex-viz/svg/ssr), 1:4 subdivision previews, and breadcrumbs."
 order: 2
 zeroRuntimeDeps: false
 installCommand: "npm install @simplex-viz/svg"
@@ -23,7 +23,7 @@ exportsTable:
       new SimplexSvgController<
         TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta
       >(options: SimplexSvgOptions<...>)
-    summary: "Manages ResizeObserver (with 0x0 auto-recovery & deferInitialLayout), rAF loop, zero-relayout itemFilter, re-entrant batch()/setOptions(), WCAG 2.1 AA keyboard navigation & aria-live announcements, mobile touchScrollLockPx/clickTolerancePx, timeline HUD, tooltips, and breadcrumbs."
+    summary: "Manages ResizeObserver (with 0x0 auto-recovery & deferInitialLayout), rAF loop, zero-relayout itemFilter, linked-view setHighlightedItems()/focusItem()/zoomToItem(), client-side exportSvg()/exportPng(), re-entrant batch()/setOptions(), WCAG 2.1 AA keyboard navigation & aria-live announcements, mobile touchScrollLockPx/clickTolerancePx, timeline HUD, tooltips, and breadcrumbs."
   - symbol: "SvgRendererAdapter"
     kind: "Class"
     signature: "new SvgRendererAdapter(options: SvgRendererAdapterOptions)"
@@ -48,6 +48,14 @@ exportsTable:
     kind: "View Plugin"
     signature: "new DashedMeshEdgeSvgView(options?: DashedMeshEdgeOptions)"
     summary: "Default dashed 60-degree mesh edge view, automatically reused for internal 1:4 drillable triangle subdivision lines."
+  - symbol: "renderSimplexSvgString"
+    kind: "Function"
+    signature: |-
+      renderSimplexSvgString<TItem, TTagMeta, TClusterMeta>(
+        itemsOrSnapshot: readonly TItem[] | SimplexLayoutSnapshot<TItem, TTagMeta, TClusterMeta>,
+        options?: RenderSimplexSvgStringOptions<TItem, TTagMeta, TClusterMeta>,
+      ): string
+    summary: "Zero-DOM SSR SVG string renderer exported from @simplex-viz/svg/ssr (and @simplex-viz/svg) supporting deterministic font metrics (estimateSsrTextWidth, createSsrPresetHullMeasurers, pluggable measureText), all presets, themes, filters, highlights, and custom SVG string hooks."
 ---
 
 ## Mounting in Vanilla TypeScript, Vue, Svelte, or Angular
@@ -81,10 +89,32 @@ const controller = createSimplexSvg('#atlas', {
 controller.setOptions({
   theme: 'light',
   itemFilterMode: 'hide',
+  highlightedIds: ['item-1', 'item-4'],
 });
+
+// Programmatic linked-view navigation & client-side SVG/PNG snapshot export:
+controller.zoomToItem('item-1', { zoom: 2.2, maxDrillSteps: 4 });
+const svgMarkup = controller.exportSvg({ padding: 24, title: 'Knowledge Atlas' });
+const pngBlob = await controller.exportPng({ scale: 2, padding: 24 });
 
 // Clean up on unmount:
 // controller.destroy();
+```
+
+## Headless Zero-DOM SSR (`@simplex-viz/svg/ssr`)
+
+Import `renderSimplexSvgString` from `@simplex-viz/svg/ssr` in Node.js, Edge runtimes, Astro/Next.js builds, or headless PNG pipelines (such as `@resvg/resvg-js`) without bundling browser controller code or running Puppeteer:
+
+```ts
+import { renderSimplexSvgString } from '@simplex-viz/svg/ssr';
+
+const svg = renderSimplexSvgString(items, {
+  width: 1200,
+  height: 720,
+  preset: 'badges',
+  theme: 'dark',
+  padding: 24,
+});
 ```
 
 ## Custom `SvgNodeView` Contract

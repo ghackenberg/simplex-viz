@@ -57,8 +57,8 @@ flowchart LR
 | Package | Role | Documentation |
 | --- | --- | --- |
 | [`@simplex-viz/core`](./packages/core) | Pure TypeScript triangulation, clustering, OKLab color science, composable 2-phase convex SAT solver, `1:4` zoom/drill-down strategies, headless `SimplexTimelineController`, spring animation, and convex + triangle hit-testing. Zero DOM/SVG/React dependencies (`ES2022`). | [Core README](./packages/core/README.md) |
-| [`@simplex-viz/svg`](./packages/svg) | Framework-agnostic SVG engine (`Vanilla TS`, `Vue`, `Angular`, `Svelte`, Web Components) with root-SVG hit-testing, offscreen `getBBox()` hull measurement, pluggable node/triangle/edge `Svg*View` plugins, `1:4` subdivision previews, breadcrumbs, built-in timeline HUD, and dual-layer crossfading. | [SVG README](./packages/svg/README.md) |
-| [`@simplex-viz/react`](./packages/react) | Thin, end-to-end type-safe React bindings (`<SimplexTopicGraph />`, `useSimplexGraphController`, `useSimplexTimeline`) supporting portable `SvgNodeView` / `SvgTriangleView` / `SvgEdgeView` plugins, declarative JSX node renderers, chronological timeline playback, and hierarchical drill-down props & hooks. | [React README](./packages/react/README.md) |
+| [`@simplex-viz/svg`](./packages/svg) | Framework-agnostic SVG engine (`Vanilla TS`, `Vue`, `Angular`, `Svelte`, Web Components) with root-SVG hit-testing, offscreen `getBBox()` hull measurement, pluggable node/triangle/edge `Svg*View` plugins, `1:4` subdivision previews, breadcrumbs, timeline HUD, client-side `exportSvg()`/`exportPng()`, and zero-DOM SSR string rendering via `@simplex-viz/svg/ssr`. | [SVG README](./packages/svg/README.md) |
+| [`@simplex-viz/react`](./packages/react) | Thin, end-to-end type-safe React bindings (`<SimplexTopicGraph />`, `useSimplexGraphController`, `useSimplexTimeline`) supporting portable `SvgNodeView` / `SvgTriangleView` / `SvgEdgeView` plugins, declarative JSX node renderers, linked-view controls, SVG/PNG export, chronological timeline playback, and hierarchical drill-down. | [React README](./packages/react/README.md) |
 
 ## Quickstart (Zero-Config)
 
@@ -465,9 +465,36 @@ controller.setOptions({
 });
 ```
 
-### Headless One-Shot Layout (`solveSimplexSnapshot`)
+### Step 12 — Linked-View Search, Programmatic Focus/Zoom & Client-Side SVG/PNG Export
 
-For static SVG generation, server-side rendering, Node.js workers, or HTML5 `<canvas>` prototypes without setting up a renderer adapter, compute solved `(x, y)` coordinates and OKLab colors synchronously:
+Synchronize external search boxes, tables, or sidebars with the graph (`setHighlightedItems`, `focusItem`, `zoomToItem`) and export publication-grade vector SVG or HiDPI PNG snapshots directly from the live scene (`exportSvg`, `exportPng`):
+
+```ts
+// Highlight search matches, focus a specific result, or zoom/drill right to it:
+handle.setHighlightedItems(matchingIds); // accepts Iterable<string> | null
+handle.focusItem('paper-42');            // emphasizes node + triggers tooltip/announcements
+handle.zoomToItem('paper-42', { zoom: 2.2, maxDrillSteps: 4 });
+
+// Export a self-contained SVG or 2x HiDPI PNG Blob / dataUrl:
+const svgMarkup = handle.exportSvg({ padding: 24, title: 'Research Atlas' });
+const pngBlob = await handle.exportPng({ scale: 2, padding: 24 });
+```
+
+### Headless One-Shot Layout & Zero-DOM SSR SVG Rendering (`solveSimplexSnapshot` & `@simplex-viz/svg/ssr`)
+
+For static site generation (Astro, Next.js, Eleventy), OG/social card pipelines, or headless PNG rasterization with `@resvg/resvg-js` without Puppeteer, render a complete `<svg>` string directly in Node.js via `@simplex-viz/svg/ssr`—or compute raw solved coordinates via `solveSimplexSnapshot` from `@simplex-viz/core`:
+
+```ts
+import { renderSimplexSvgString } from '@simplex-viz/svg/ssr';
+
+const svg = renderSimplexSvgString(
+  [
+    { id: '1', label: 'Simplex Mesh', tags: ['geometry', 'math'] },
+    { id: '2', label: 'OKLab Mixing', tags: ['geometry', 'color'] },
+  ],
+  { width: 1200, height: 720, preset: 'badges', theme: 'dark', padding: 24 },
+);
+```
 
 ```ts
 import { solveSimplexSnapshot } from '@simplex-viz/core';

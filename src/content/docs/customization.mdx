@@ -4,12 +4,12 @@ shortTitle: Views, Timeline & SSR
 description: Customize content nodes, cluster anchors, triangle faces, mesh edges, chronological timeline playback, and headless Node.js/Worker snapshots.
 section: Customization
 order: 2
-updatedDate: "2026-11-19"
+updatedDate: "2026-11-20"
 summaryPoints:
   - Measure arbitrary React JSX cards or custom SVG glyphs automatically via offscreen getBBox() convex hull extraction.
   - Swap SvgTriangleView and SvgEdgeView plugins independently—internal 1:4 drillable previews automatically inherit your SvgEdgeView.
   - Enable chronological timeline playback with pinned full-corpus clusters, optional final-seeded item positions (pinned or adaptive), and configurable empty-cluster dimming.
-  - Run solveSimplexSnapshot() synchronously in Node.js, Bun, Deno, or Web Workers with zero DOM dependencies.
+  - Render zero-DOM SSR SVG strings via @simplex-viz/svg/ssr (ready for @resvg/resvg-js without Puppeteer), export client-side SVG/PNG snapshots, and synchronize external search/table linked views.
 relatedApiSlug: svg
 ---
 
@@ -53,9 +53,27 @@ Both `@simplex-viz/svg` and `@simplex-viz/react` accept reusable view classes fo
 
 Whenever `triangle.isDrillable` is `true`, `SvgRendererAdapter` automatically renders the 3 internal `1:4` midpoint edges through your active `edgeView`, keeping outer and inner triangulation visually unified.
 
-## 3. Headless SSR, Canvas & Worker Execution (`solveSimplexSnapshot`)
+## 3. Headless SSR SVG Rendering (`@simplex-viz/svg/ssr`) & `solveSimplexSnapshot`
 
-Need static SVG generation at build time, server-side rendering, or HTML5 `<canvas>` / WebGL coordinates inside a Web Worker? Call `solveSimplexSnapshot` from `@simplex-viz/core`:
+Need static SVG generation at build time (Astro, Next.js, Eleventy), OG/social cards, or headless PNG rasterization with `@resvg/resvg-js` without Puppeteer? Import `renderSimplexSvgString` from the dedicated zero-DOM subpath `@simplex-viz/svg/ssr`—it solves overlap-free layouts deterministically (including `'badges'` via built-in proportional/monospace font metrics or a custom `measureText` callback) or renders a pre-solved `SimplexLayoutSnapshot`:
+
+```ts
+import { renderSimplexSvgString } from '@simplex-viz/svg/ssr';
+
+const svg = renderSimplexSvgString(records, {
+  width: 1200,
+  height: 720,
+  getId: (r) => r.slug,
+  getTags: (r) => r.topics,
+  getLabel: (r) => r.title,
+  preset: 'badges',
+  theme: 'dark',
+  padding: 24,
+  title: 'Research Topics Atlas',
+});
+```
+
+For custom HTML5 `<canvas>` / WebGL renderers or raw coordinate solving inside a Web Worker, call `solveSimplexSnapshot` from `@simplex-viz/core`:
 
 ```ts
 import { solveSimplexSnapshot, rectToConvexPolygon } from '@simplex-viz/core';
@@ -182,4 +200,20 @@ Three production ergonomics features keep interactive dashboards responsive, det
   keyboardNavigation
   tooltip
 />
+```
+
+## 8. Linked-View Search, Programmatic Focus/Zoom & Client-Side SVG/PNG Export
+
+Synchronize external search boxes, tables, or detail panels with the graph without mutating dataset layout, and export publication-grade SVG or HiDPI PNG snapshots directly from the live canvas:
+
+- **Programmatic Search & Linked-View API (`setHighlightedItems`, `focusItem`, `zoomToItem`)**: Pass any `Iterable<string> | null` to `setHighlightedItems()` / `setHighlightedIds()` (or the React `highlightedIds` prop) to emphasize matching items. Call `focusItem(itemId, { highlight?, hover?, announce? })` to focus a node with synchronized hover tooltip, SVG focus ring, and polite screen-reader announcement. Call `zoomToItem(itemId, { zoom?, maxDrillSteps?, focus? })` to smoothly frame an item in `free-camera` mode or automatically drill down across covering triangles in `drill-down` mode.
+- **Client-Side Snapshot Export (`exportSvg`, `exportPng`)**: `exportSvg(options?)` clones the live SVG, inlines resolved CSS custom properties and visual styles (`inlineStyles: true`), injects a theme-matched or custom background `<rect>` (`includeBackground: true`), expands `viewBox` by `padding`, strips transient focus rings by default (`includeFocusRing: false`), and returns a standalone `<svg>` string. `exportPng(options?)` rasterizes that SVG on an offscreen HiDPI `<canvas>` (`scale: 2` default) and resolves to a `Blob` (`format: 'blob'`, default) or base64 `data:` URL (`format: 'dataUrl'`).
+
+```ts
+// From a search bar, table row click, or export button:
+handle.setHighlightedItems(searchResultIds);
+handle.zoomToItem(selectedId, { zoom: 2.2, maxDrillSteps: 4 });
+
+const svgString = handle.exportSvg({ padding: 24, title: 'Publications Atlas' });
+const pngBlob = await handle.exportPng({ scale: 2, padding: 24 });
 ```

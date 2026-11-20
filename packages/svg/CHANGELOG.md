@@ -1,5 +1,16 @@
 # @simplex-viz/svg
 
+## 0.11.0
+
+### Minor Changes
+
+- Add headless zero-DOM SSR SVG string renderer via the dedicated `@simplex-viz/svg/ssr` subpath export (also re-exported from `@simplex-viz/svg`), including `renderSimplexSvgString(itemsOrSnapshot, options?)`, `estimateSsrTextWidth()`, `createSsrPresetHullMeasurers()`, pluggable `measureText` metrics, full preset/theme/filter/highlight/hull parity, and custom SVG string render hooks ready for SSR embedding or `@resvg/resvg-js` rasterization without Puppeteer (#18); add programmatic search & linked-view methods on `SimplexSvgController` (`setHighlightedIds`, `setHighlightedItems`, `getHighlightedIds`, `getHighlightedItems`, `focusItem`, `getFocusedItemId`, `zoomToItem`, plus `highlightedIds` / `focusedItemId` in `setOptions()`, #19); and add client-side `exportSvg(options?)` and HiDPI `exportPng(options?)` snapshot helpers (`ExportSvgOptions`, `ExportPngOptions`, `resolveThemeBackgroundColor`, #20).
+
+### Patch Changes
+
+- Updated dependencies
+  - @simplex-viz/core@0.11.0
+
 ## 0.10.0
 
 ### Minor Changes

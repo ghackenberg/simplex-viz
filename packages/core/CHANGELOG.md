@@ -1,5 +1,11 @@
 # @simplex-viz/core
 
+## 0.11.0
+
+### Minor Changes
+
+- Add programmatic search and linked-view navigation APIs (`FocusItemOptions`, `ZoomToItemOptions`, `setHighlightedIds()` / `setHighlightedItems()` accepting `Iterable<string> | null`, `getHighlightedIds()` / `getHighlightedItems()`, `focusItem(itemId, options?)`, `getFocusedItemId()`, and `zoomToItem(itemId, options?)` supporting smooth camera framing in `free-camera` mode and automatic multi-step triangle drill-down in `drill-down` mode, #19).
+
 ## 0.10.0
 
 ### Minor Changes

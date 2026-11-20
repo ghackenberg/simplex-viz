@@ -28,7 +28,7 @@ In React, `<SimplexTopicGraph />` lets you drop custom JSX directly into cluster
   2. **Portable `Svg*View` Plugins** (`contentView`, `clusterView`, `triangleView`, `edgeView` from `@simplex-viz/svg`): Direct SVG DOM updates with zero React reconciliation overhead per animation frame.
 - **5 Pluggable Strategy Axes (`Mesh`, `Clustering`, `Color`, `Layout`, `Zoom`)**: Swap tag clustering, soft-simplex clustering, multi-modal embeddings, pairwise similarity, composable layout (`Seeder × Relaxer × ScaleController`), and conformal **`1:4` hierarchical drill-down** (`zoomStrategy`) via declarative props.
 - **Full generic type inference**: Infers `<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>` end-to-end across `items`, `getId`, `getTags`, `deriveClusterMeta`, `visualResolver`, `renderContentNode`, `renderClusterNode`, tooltips, hover events, and click targets.
-- **Chronological Timeline Playback, Zero-Relayout Filtering & Batched Sync**: Opt-in `timeline` prop with built-in floating Play/Pause/Step/Scrubber HUD, zero-relayout `itemFilter` / `itemFilterMode` (`'dim' | 'hide'`), unified batched React prop synchronization (`controller.batch(...)` per render commit), built-in WCAG 2.1 AA keyboard navigation & screen-reader announcements (`ariaLabel`, `keyboardNavigation`), and reactive `useSimplexTimeline()` alongside `useSimplexGraphController()`.
+- **Chronological Timeline Playback, Linked Views, Export & Batched Sync**: Opt-in `timeline` prop with built-in floating Play/Pause/Step/Scrubber HUD, zero-relayout `itemFilter` / `itemFilterMode` (`'dim' | 'hide'`), programmatic search/focus/zoom (`setHighlightedItems`, `focusItem`, `zoomToItem`), client-side `exportSvg()` / `exportPng()` snapshots, unified batched React prop synchronization (`controller.batch(...)` per render commit), built-in WCAG 2.1 AA keyboard navigation & screen-reader announcements (`ariaLabel`, `keyboardNavigation`), and reactive `useSimplexTimeline()` alongside `useSimplexGraphController()`.
 
 ## Installation
 
@@ -381,9 +381,9 @@ export function TimelineAtlas({ items }: { items: readonly { id: string; tags: s
 }
 ```
 
-### Step 8 — Zero-Relayout Item Filtering, Batched Updates & Keyboard Accessibility
+### Step 8 — Zero-Relayout Filtering, Linked-View Search, SVG/PNG Export & Accessibility
 
-Filter items visually without re-clustering or shifting any SAT positions (`itemFilter`, `itemFilterMode`), rely on automatic single-batch prop synchronization across simultaneous React prop updates (or call `handle.batch(...)` / `handle.setOptions(...)` imperatively), and provide descriptive screen-reader labels via `ariaLabel`:
+Filter items visually without re-clustering or shifting any SAT positions (`itemFilter`, `itemFilterMode`), drive external search/table linked views (`highlightedIds`, `handle.focusItem`, `handle.zoomToItem`), export standalone SVG or HiDPI PNG snapshots (`handle.exportSvg`, `handle.exportPng`), and rely on automatic single-batch prop synchronization and WCAG 2.1 AA keyboard navigation:
 
 ```tsx
 <SimplexTopicGraph
@@ -391,10 +391,15 @@ Filter items visually without re-clustering or shifting any SAT positions (`item
   items={items}
   itemFilter={(item) => item.year >= minYear}
   itemFilterMode="dim" // 'dim' | 'hide' — zero relayout
+  highlightedIds={matchingIds}
   ariaLabel="Interactive publication topic graph"
   keyboardNavigation
   tooltip
 />
+
+// From a search bar or export toolbar:
+// handle.zoomToItem('paper-42', { zoom: 2.2 });
+// const pngBlob = await handle.exportPng({ scale: 2, padding: 24 });
 ```
 
 ---
@@ -448,7 +453,7 @@ Filter items visually without re-clustering or shifting any SAT positions (`item
 | `emptyClusterBehavior` | `'normal'` | `'normal' \| 'dim' \| 'hide'` — Controls how clusters with `0` active member items render (e.g. future clusters during timeline playback). |
 | `itemFilter` | `null` | `((item: TItem) => boolean) \| null` — Zero-relayout visual item filter predicate preserving exact SAT node positions. |
 | `itemFilterMode` | `'dim'` | `'dim' \| 'hide'` — Controls whether filtered-out items dim in place or hide completely (suppressing hit-testing and keyboard traversal). |
-| `pinnedIds` / `highlightedIds` | — | `ReadonlySet<string> \| readonly string[]` of pinned or highlighted item IDs. |
+| `pinnedIds` / `highlightedIds` | — | `ReadonlySet<string> \| readonly string[]` (`pinnedIds`) or `Iterable<string> \| null` (`highlightedIds`) of pinned or highlighted item IDs. |
 | `focusedClusterUid` / `focusedTriangleIndex` | `null` | Controlled cluster UID or triangle index isolation in `free-camera` mode. |
 | `className` / `style` | — | Styling forwarded to the outer container `<div>` (`width: 100%; height: 100%`). |
 
@@ -476,6 +481,9 @@ Filter items visually without re-clustering or shifting any SAT positions (`item
 
 - `handle.addItems(items)` / `handle.removeItems(ids)` / `handle.setItems(items)` — Live dataset mutations.
 - `handle.setItemFilter(predicate, options?)` / `handle.getItemFilter()` — Zero-relayout item filtering (`'dim' | 'hide'`).
+- `handle.setHighlightedIds(ids)` / `handle.setHighlightedItems(ids)` / `handle.getHighlightedIds()` / `handle.getHighlightedItems()` — Programmatic multi-item search & linked-view highlighting (`Iterable<string> | null`).
+- `handle.focusItem(itemId | null, options?)` / `handle.getFocusedItemId()` / `handle.zoomToItem(itemId, options?)` — Programmatic item focus (with synchronized tooltip & screen-reader announcements) and camera framing / multi-step drill-down navigation.
+- `handle.exportSvg(options?)` / `handle.exportPng(options?)` — Client-side standalone `<svg>` serialization and HiDPI PNG (`Blob` or `dataUrl`) rasterization.
 - `handle.batch(fn)` / `handle.setOptions(options)` — Coalesces multiple imperative updates into a single minimal pipeline recomputation.
 - `handle.setMeshStrategy(s)` / `handle.setClusteringStrategy(s)` / `handle.setColorStrategy(s)` / `handle.setLayoutStrategy(s)` / `handle.setZoomStrategy(s)` — Hot-swaps any of the 5 pipeline stages imperatively.
 - `handle.drillDownTriangle(index)` / `handle.drillDownCluster(uid)` / `handle.drillToNeighbor(neighborId)` / `handle.drillUp()` / `handle.drillToDepth(depth)` / `handle.drillToRoot()` / `handle.getZoomState()` — Programmatic drill-down navigation and state inspection.
@@ -484,7 +492,7 @@ Filter items visually without re-clustering or shifting any SAT positions (`item
 - `handle.zoomBy(factor)` / `handle.resetCamera()` / `handle.relayout()` — Camera zoom/reset and manual hull re-measurement + relayout.
 - `handle.getMetrics()` / `handle.getClusters()` / `handle.getTimeline()` / `handle.getRawController()` — Live solver telemetry, active timeline controller, and raw controller access.
 
-`useSimplexTimeline(controllerRef | timelineController)` returns reactive `{ state, isReady, play, pause, toggle, stepBy, seek, resetToEnd, setSpeed, setStepIntervalMs, setLoop, getController }` for building custom declarative React playback toolbars.
+`useSimplexTimeline(controllerRef | timelineController)` returns reactive `{ state, isReady, play, pause, toggle, stepBy, seek, resetToEnd, setSpeed, setStepIntervalMs, setLoop, getController }` for building custom declarative React playback toolbars. Server-side rendering helpers (`renderSimplexSvgString`, `estimateSsrTextWidth`, `createSsrPresetHullMeasurers`) are also re-exported directly from `@simplex-viz/react` (or import `@simplex-viz/svg/ssr` for minimal server bundles).
 
 ## License
 

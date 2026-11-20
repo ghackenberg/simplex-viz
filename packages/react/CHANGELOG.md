@@ -1,5 +1,18 @@
 # @simplex-viz/react
 
+## 0.11.0
+
+### Minor Changes
+
+- Extend `highlightedIds` on `<SimplexTopicGraph />` to accept `Iterable<string> | null` and expose programmatic search/linked-view controls (`setHighlightedIds`, `setHighlightedItems`, `getHighlightedIds`, `getHighlightedItems`, `focusItem`, `getFocusedItemId`, `zoomToItem`, #19) plus client-side snapshot export helpers (`exportSvg`, `exportPng`, #20) on `useSimplexGraphController().handle`; re-export headless SSR utilities (`renderSimplexSvgString`, `estimateSsrTextWidth`, `createSsrPresetHullMeasurers`, #18) and all new `@simplex-viz/svg` and `@simplex-viz/core` types.
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @simplex-viz/core@0.11.0
+  - @simplex-viz/svg@0.11.0
+
 ## 0.10.0
 
 ### Minor Changes

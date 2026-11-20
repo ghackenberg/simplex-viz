@@ -2,6 +2,20 @@
 
 All notable changes to **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`, and the documentation/showcase site) are documented in this file following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), coordinated with per-package release notes via `@changesets/cli`.
 
+## [0.11.0] - 2026-11-20
+
+### Added
+- **`@simplex-viz/core`**:
+  - **Programmatic Search & Linked-View Navigation ([#19](https://github.com/ghackenberg/simplex-viz/issues/19))**: Added `FocusItemOptions`, `ZoomToItemOptions`, `setHighlightedIds()` / `setHighlightedItems()` accepting `Iterable<string> | null`, `getHighlightedIds()` / `getHighlightedItems()`, `focusItem(itemId, options?)`, `getFocusedItemId()`, and `zoomToItem(itemId, options?)`. In `free-camera` mode, `zoomToItem()` smoothly centers and zooms onto the target item; in `drill-down` mode, it drills down across covering triangles (up to `maxDrillSteps`) and optionally focuses the item.
+- **`@simplex-viz/svg`**:
+  - **Programmatic Search & Linked-View Navigation ([#19](https://github.com/ghackenberg/simplex-viz/issues/19))**: Added `setHighlightedIds()` / `setHighlightedItems()`, `getHighlightedIds()` / `getHighlightedItems()`, `focusItem(itemId, { highlight?, hover?, announce? })`, `getFocusedItemId()`, and `zoomToItem(itemId, options?)` on `SimplexSvgController`, plus `highlightedIds` and `focusedItemId` support in `setOptions()` (`SimplexSvgUpdateOptions`) with synchronized keyboard focus ring & screen-reader announcements.
+  - **Client-Side SVG & PNG Snapshot Export ([#20](https://github.com/ghackenberg/simplex-viz/issues/20))**: Added `controller.exportSvg(options?)` (`ExportSvgOptions`: `includeBackground`, `backgroundColor`, `padding`, `width`, `height`, `inlineStyles`, `includeFocusRing`, `title`, `xmlDeclaration`) and `controller.exportPng(options?)` (`ExportPngOptions`: HiDPI `scale` default `2`, `format: 'blob' | 'dataUrl'`, `mimeType: 'image/png' | 'image/jpeg' | 'image/webp'`, `quality`), together with `resolveThemeBackgroundColor()`.
+  - **Headless Zero-DOM SSR SVG String Renderer ([#18](https://github.com/ghackenberg/simplex-viz/issues/18))**: Added a dedicated `@simplex-viz/svg/ssr` subpath export (also re-exported from `@simplex-viz/svg`) providing `renderSimplexSvgString(itemsOrSnapshot, options?)`, `estimateSsrTextWidth()`, and `createSsrPresetHullMeasurers()` without any DOM globals (`window`/`document`). Solves overlap-free layouts (including `'badges'` via deterministic font metrics or a pluggable `measureText` callback) or renders pre-solved `SimplexLayoutSnapshot` objects across all built-in presets, themes, filters, highlights, hulls, and custom SVG string render hooks (`renderTriangle`, `renderEdge`, `renderCluster`, `renderContent`)—ready for SSR embedding or headless rasterization via `@resvg/resvg-js` without Puppeteer.
+- **`@simplex-viz/react`**:
+  - **Linked Views, Snapshot Export & SSR Re-Exports ([#18](https://github.com/ghackenberg/simplex-viz/issues/18), [#19](https://github.com/ghackenberg/simplex-viz/issues/19), [#20](https://github.com/ghackenberg/simplex-viz/issues/20))**: Extended `highlightedIds` on `<SimplexTopicGraph />` to accept `Iterable<string> | null`; exposed `setHighlightedIds`, `setHighlightedItems`, `getHighlightedIds`, `getHighlightedItems`, `focusItem`, `getFocusedItemId`, `zoomToItem`, `exportSvg`, and `exportPng` on `useSimplexGraphController().handle`; and re-exported `renderSimplexSvgString`, `estimateSsrTextWidth`, `createSsrPresetHullMeasurers`, `resolveThemeBackgroundColor`, and all new option/context types.
+- **Documentation & READMEs**:
+  - Updated all four `README.md` files, Astro documentation guides (`quickstart`, `customization`), and package API references (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`) for `0.11.0`.
+
 ## [0.10.0] - 2026-11-19
 
 ### Added
