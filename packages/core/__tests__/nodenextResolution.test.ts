@@ -87,6 +87,7 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
         const reproSource = [
           'import { solveSimplexSnapshot, type SimplexLayoutSnapshot } from "@simplex-viz/core";',
           'import { createSimplexSvg, solveSimplexSnapshot as svgSolveSnapshot } from "@simplex-viz/svg";',
+          'import { renderSimplexSvgString, estimateSsrTextWidth } from "@simplex-viz/svg/ssr";',
           'import {',
           '  SimplexTopicGraph,',
           '  ReactJsxSvgView,',
@@ -101,12 +102,14 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
           'const coreSnap = solveSimplexSnapshot(items);',
           'const svgSnap = svgSolveSnapshot(items);',
           'const reactSnap = reactSolveSnapshot(items);',
+          'const ssrSvg = renderSimplexSvgString(items, { preset: "badges" });',
           '',
           'export type CheckCoreNotAny = AssertFalse<IsAny<typeof coreSnap>>;',
           'export type CheckSvgReExportNotAny = AssertFalse<IsAny<typeof svgSnap>>;',
           'export type CheckReactReExportNotAny = AssertFalse<IsAny<typeof reactSnap>>;',
+          'export type CheckSsrReturnString = AssertFalse<IsAny<typeof ssrSvg>>;',
           'export const checkSnapshotAssignable: SimplexLayoutSnapshot<(typeof items)[number]> = reactSnap;',
-          'export const exportedSymbols = [createSimplexSvg, SimplexTopicGraph, ReactJsxSvgView, useSimplexGraphController] as const;',
+          'export const exportedSymbols = [createSimplexSvg, renderSimplexSvgString, estimateSsrTextWidth, SimplexTopicGraph, ReactJsxSvgView, useSimplexGraphController] as const;',
           '',
         ].join('\n');
         fs.writeFileSync(path.join(tmpDir, 'repro.mts'), reproSource);
