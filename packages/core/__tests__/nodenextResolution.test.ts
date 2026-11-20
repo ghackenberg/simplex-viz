@@ -5,7 +5,7 @@ import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
-const PACKAGES = ['core', 'svg', 'react', 'wc'] as const;
+const PACKAGES = ['core', 'svg', 'canvas', 'react', 'wc'] as const;
 
 function ensureBuiltDist(): void {
   const allBuilt = PACKAGES.every((pkg) =>
@@ -96,6 +96,12 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
           'import { createSimplexSvg, solveSimplexSnapshot as svgSolveSnapshot } from "@simplex-viz/svg";',
           'import { renderSimplexSvgString, estimateSsrTextWidth } from "@simplex-viz/svg/ssr";',
           'import {',
+          '  createSimplexCanvas,',
+          '  CanvasRendererAdapter,',
+          '  renderSimplexSnapshotToCanvas,',
+          '  solveSimplexSnapshot as canvasSolveSnapshot,',
+          '} from "@simplex-viz/canvas";',
+          'import {',
           '  SimplexTopicGraph,',
           '  ReactJsxSvgView,',
           '  useSimplexGraphController,',
@@ -116,6 +122,7 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
           'const workerClient: SimplexWorkerClient = createSimplexWorkerClient(null);',
           'const asyncSnapPromise = solveSimplexSnapshotAsync(items, { client: workerClient });',
           'const svgSnap = svgSolveSnapshot(items);',
+          'const canvasSnap = canvasSolveSnapshot(items);',
           'const reactSnap = reactSolveSnapshot(items);',
           'const wcSnap = wcSolveSnapshot(items);',
           'const ssrSvg = renderSimplexSvgString(items, { preset: "badges" });',
@@ -123,11 +130,12 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
           'export type CheckCoreNotAny = AssertFalse<IsAny<typeof coreSnap>>;',
           'export type CheckWorkerPromiseNotAny = AssertFalse<IsAny<typeof asyncSnapPromise>>;',
           'export type CheckSvgReExportNotAny = AssertFalse<IsAny<typeof svgSnap>>;',
+          'export type CheckCanvasReExportNotAny = AssertFalse<IsAny<typeof canvasSnap>>;',
           'export type CheckReactReExportNotAny = AssertFalse<IsAny<typeof reactSnap>>;',
           'export type CheckWcReExportNotAny = AssertFalse<IsAny<typeof wcSnap>>;',
           'export type CheckSsrReturnString = AssertFalse<IsAny<typeof ssrSvg>>;',
           'export const checkSnapshotAssignable: SimplexLayoutSnapshot<(typeof items)[number]> = reactSnap;',
-          'export const exportedSymbols = [SIMPLEX_WORKER_PROTOCOL_VERSION, attachSimplexWorkerHandler, createSimplexWorkerClient, solveSimplexSnapshotAsync, createSimplexSvg, renderSimplexSvgString, estimateSsrTextWidth, SimplexTopicGraph, ReactJsxSvgView, useSimplexGraphController, SimplexTopicGraphElement, defineSimplexTopicGraphElement, DEFAULT_SIMPLEX_TAG_NAME] as const;',
+          'export const exportedSymbols = [SIMPLEX_WORKER_PROTOCOL_VERSION, attachSimplexWorkerHandler, createSimplexWorkerClient, solveSimplexSnapshotAsync, createSimplexSvg, createSimplexCanvas, CanvasRendererAdapter, renderSimplexSnapshotToCanvas, renderSimplexSvgString, estimateSsrTextWidth, SimplexTopicGraph, ReactJsxSvgView, useSimplexGraphController, SimplexTopicGraphElement, defineSimplexTopicGraphElement, DEFAULT_SIMPLEX_TAG_NAME] as const;',
           '',
         ].join('\n');
         fs.writeFileSync(path.join(tmpDir, 'repro.mts'), reproSource);
@@ -160,6 +168,10 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
           path.join(REPO_ROOT, 'packages/svg/dist/index.d.ts'),
           'utf8',
         );
+        const canvasDts = fs.readFileSync(
+          path.join(REPO_ROOT, 'packages/canvas/dist/index.d.ts'),
+          'utf8',
+        );
         const reactDts = fs.readFileSync(
           path.join(REPO_ROOT, 'packages/react/dist/index.d.ts'),
           'utf8',
@@ -170,6 +182,7 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
         );
         expect(coreDts).toContain('./types.js');
         expect(svgDts).toContain('./SimplexSvgController.js');
+        expect(canvasDts).toContain('./SimplexCanvasController.js');
         expect(reactDts).toContain('./SimplexTopicGraph.js');
         expect(wcDts).toContain('./SimplexTopicGraphElement.js');
       } finally {

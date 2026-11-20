@@ -25,7 +25,7 @@ const docs = defineCollection({
     stageNumber: z.number().int().min(1).max(5).optional(),
     updatedDate: z.string(),
     summaryPoints: z.array(z.string()).min(2).max(5),
-    relatedApiSlug: z.enum(['core', 'svg', 'react', 'wc']).optional(),
+    relatedApiSlug: z.enum(['core', 'svg', 'canvas', 'react', 'wc']).optional(),
   }),
 });
 
@@ -61,6 +61,7 @@ const api = defineCollection({
     packageName: z.enum([
       '@simplex-viz/core',
       '@simplex-viz/svg',
+      '@simplex-viz/canvas',
       '@simplex-viz/react',
       '@simplex-viz/wc',
     ]),

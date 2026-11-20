@@ -57,6 +57,7 @@ export default tseslint.config(
                 'react-dom',
                 'react-dom/*',
                 '@simplex-viz/svg',
+                '@simplex-viz/canvas',
                 '@simplex-viz/react',
                 '@simplex-viz/wc',
                 '@simplex-viz/wc/*',
@@ -99,6 +100,33 @@ export default tseslint.config(
               ],
               message:
                 '@simplex-viz/svg must remain framework-agnostic and never import React, @simplex-viz/react, or @simplex-viz/wc.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['packages/canvas/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                'react',
+                'react/*',
+                'react-dom',
+                'react-dom/*',
+                '@simplex-viz/svg',
+                '@simplex-viz/svg/*',
+                '@simplex-viz/react',
+                '@simplex-viz/wc',
+                '@simplex-viz/wc/*',
+              ],
+              message:
+                '@simplex-viz/canvas must remain framework-agnostic and depend only on @simplex-viz/core.',
             },
           ],
         },

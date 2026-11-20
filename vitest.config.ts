@@ -6,6 +6,7 @@ export default defineConfig({
     alias: {
       '@simplex-viz/core': path.resolve(import.meta.dirname, 'packages/core/src/index.ts'),
       '@simplex-viz/svg': path.resolve(import.meta.dirname, 'packages/svg/src/index.ts'),
+      '@simplex-viz/canvas': path.resolve(import.meta.dirname, 'packages/canvas/src/index.ts'),
       '@simplex-viz/react': path.resolve(import.meta.dirname, 'packages/react/src/index.ts'),
       '@simplex-viz/wc/define': path.resolve(import.meta.dirname, 'packages/wc/src/define.ts'),
       '@simplex-viz/wc': path.resolve(import.meta.dirname, 'packages/wc/src/index.ts'),

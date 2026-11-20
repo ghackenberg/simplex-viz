@@ -10,6 +10,7 @@
       "@/*": ["./*"],
       "@simplex-viz/core": ["./packages/core/src/index.ts"],
       "@simplex-viz/svg": ["./packages/svg/src/index.ts"],
+      "@simplex-viz/canvas": ["./packages/canvas/src/index.ts"],
       "@simplex-viz/react": ["./packages/react/src/index.ts"],
       "@simplex-viz/wc": ["./packages/wc/src/index.ts"],
       "@simplex-viz/wc/define": ["./packages/wc/src/define.ts"]
@@ -19,6 +20,7 @@
     ".astro/types.d.ts",
     "src",
     "packages/svg/src",
+    "packages/canvas/src",
     "packages/react/src",
     "packages/wc/src",
     "packages/core/src"
