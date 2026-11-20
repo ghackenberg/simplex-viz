@@ -40,6 +40,14 @@ import {
   type VisualResolver,
   type ZoomToItemOptions,
 } from '@simplex-viz/core';
+import {
+  exportSvgElementToPng,
+  prepareStandaloneSvg,
+  type ExportPngBlobOptions,
+  type ExportPngDataUrlOptions,
+  type ExportPngOptions,
+  type ExportSvgOptions,
+} from './export.js';
 import { SVG_NS } from './hullMeasure.js';
 import {
   createPresetViews,
@@ -2183,6 +2191,44 @@ export class SimplexSvgController<
     this.adapter.invalidateHulls();
     this.engine.relayout();
     this.ensureLoopRunning();
+  }
+
+  /**
+   * Serializes the current simplex view (including zoomed sub-levels, camera framing,
+   * filters, highlights, and timeline frames) as a standalone, publication-ready `<svg>` string
+   * with resolved inline styles and active theme background.
+   */
+  exportSvg(options?: ExportSvgOptions): string {
+    if (this.destroyed) {
+      throw new Error('SimplexSvgController.exportSvg: cannot export after destroy().');
+    }
+    this.engine.renderNow();
+    return prepareStandaloneSvg(
+      this.svgEl,
+      { theme: this.currentTheme },
+      options,
+    ).svgString;
+  }
+
+  /**
+   * Rasterizes the current simplex view onto an offscreen HiDPI `<canvas>` and returns
+   * a PNG `Blob` (default) or base64 `data:` URL string (`{ format: 'dataUrl' }`).
+   */
+  exportPng(options: ExportPngDataUrlOptions): Promise<string>;
+  exportPng(options?: ExportPngBlobOptions): Promise<Blob>;
+  exportPng(options?: ExportPngOptions): Promise<Blob | string>;
+  exportPng(options?: ExportPngOptions): Promise<Blob | string> {
+    if (this.destroyed) {
+      return Promise.reject(
+        new Error('SimplexSvgController.exportPng: cannot export after destroy().'),
+      );
+    }
+    this.engine.renderNow();
+    return exportSvgElementToPng(
+      this.svgEl,
+      { theme: this.currentTheme },
+      options,
+    );
   }
 
   /** Deterministically advances simulation & timeline clocks in tests without waiting for rAF. */

@@ -2,6 +2,7 @@ export * from './types.js';
 export * from './colorContrast.js';
 export * from './hullMeasure.js';
 export * from './presets.js';
+export * from './export.js';
 export * from './SvgRendererAdapter.js';
 export * from './SimplexSvgController.js';
 export * from './views/GeometricShapeSvgView.js';

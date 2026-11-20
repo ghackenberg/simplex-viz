@@ -18,6 +18,10 @@ import type {
   ZoomToItemOptions,
 } from '@simplex-viz/core';
 import type {
+  ExportPngBlobOptions,
+  ExportPngDataUrlOptions,
+  ExportPngOptions,
+  ExportSvgOptions,
   SimplexSvgController,
   SimplexSvgUpdateOptions,
   SvgEdgeView,
@@ -85,6 +89,10 @@ export interface SimplexGraphHandle<
   getKeyboardFocusTarget(): SimplexKeyboardFocusTarget | null;
   clearKeyboardFocus(): void;
   relayout(): void;
+  exportSvg(options?: ExportSvgOptions): string | null;
+  exportPng(options: ExportPngDataUrlOptions): Promise<string | null>;
+  exportPng(options?: ExportPngBlobOptions): Promise<Blob | null>;
+  exportPng(options?: ExportPngOptions): Promise<Blob | string | null>;
   getMetrics(): LayoutMetrics | null;
   getClusters(): readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[];
   getTimeline(): SimplexTimelineController<TItem> | null;
@@ -315,6 +323,25 @@ export function useSimplexGraphController<
     controllerRef.current?.relayout();
   }, []);
 
+  const exportSvg = useCallback((options?: ExportSvgOptions): string | null => {
+    return controllerRef.current?.exportSvg(options) ?? null;
+  }, []);
+
+  const exportPng = useCallback(
+    ((options?: ExportPngOptions): Promise<Blob | string | null> => {
+      const ctrl = controllerRef.current;
+      if (!ctrl) return Promise.resolve(null);
+      return ctrl.exportPng(options);
+    }) as SimplexGraphHandle<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >['exportPng'],
+    [],
+  );
+
   const getMetrics = useCallback(() => {
     return controllerRef.current?.getMetrics() ?? null;
   }, []);
@@ -368,6 +395,8 @@ export function useSimplexGraphController<
       getKeyboardFocusTarget,
       clearKeyboardFocus,
       relayout,
+      exportSvg,
+      exportPng,
       getMetrics,
       getClusters,
       getTimeline,

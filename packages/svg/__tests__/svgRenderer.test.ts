@@ -3353,6 +3353,231 @@ describe('@simplex-viz/svg integration', () => {
     controller.destroy();
     container.remove();
   });
+
+  it('exports standalone SVG snapshots with theme background, padding, aspect sizing, style inlining, and cleanup (Issue #20)', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+    document.body.appendChild(container);
+
+    const styleEl = document.createElement('style');
+    styleEl.textContent = `.custom-export-dot { fill: #ff3366; stroke: #112233; stroke-width: 3px; }`;
+    document.head.appendChild(styleEl);
+
+    const items: DefaultTaggedItem[] = [
+      { id: 'e1', label: 'Alpha', tags: ['math', 'geometry'] },
+      { id: 'e2', label: 'Beta', tags: ['geometry', 'color'] },
+      { id: 'e3', label: 'Gamma', tags: ['color', 'layout'] },
+      { id: 'e4', label: 'Delta', tags: ['math', 'layout'] },
+    ];
+
+    const customContentView = {
+      mountOrUpdate(groupEl: SVGGElement, _visual: unknown) {
+        while (groupEl.firstChild) groupEl.removeChild(groupEl.firstChild);
+        const circle = groupEl.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('r', '10');
+        circle.setAttribute('class', 'custom-export-dot');
+        groupEl.appendChild(circle);
+      },
+    };
+
+    const controller = createSimplexSvg(container, {
+      items,
+      preset: 'badges',
+      theme: 'dark',
+      contentView: customContentView,
+      triangleView: new GradientTriangleSvgView(),
+      layoutOptions: { seed: 11 },
+    });
+    for (let i = 0; i < 35; i++) controller.stepForTest(20);
+
+    // Focus via keyboard so g.sv-a11y-focus-ring is populated in live DOM
+    const liveSvg = controller.getSvgElement();
+    liveSvg.focus();
+    liveSvg.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    expect(liveSvg.querySelector('g.sv-a11y-focus-ring')?.children.length).toBeGreaterThan(0);
+
+    // 1) Default export: dark theme background, cleaned DOM, preserved gradient defs, inlined CSS
+    const defaultSvg = controller.exportSvg();
+    expect(defaultSvg).toContain('xmlns="http://www.w3.org/2000/svg"');
+    expect(defaultSvg).toContain('viewBox="0 0 800 600"');
+    expect(defaultSvg).toContain('width="800"');
+    expect(defaultSvg).toContain('height="600"');
+    expect(defaultSvg).toContain('class="sv-export-background"');
+    expect(defaultSvg).toContain('fill="#07090e"');
+    expect(defaultSvg).not.toContain('sv-measure-bin');
+    expect(defaultSvg).not.toContain('-99999');
+    expect(defaultSvg).not.toContain('sv-a11y-focus-ring');
+    expect(defaultSvg).not.toContain('tabindex=');
+    expect(defaultSvg).not.toContain('aria-activedescendant=');
+    expect(defaultSvg).not.toContain('id="sv-a11y-');
+    // GradientTriangleSvgView <defs><linearGradient> preserved intact
+    expect(defaultSvg).toContain('<linearGradient');
+    expect(defaultSvg).toContain('url(#');
+    // Host CSS rule inlined onto custom view circle
+    expect(defaultSvg).toMatch(/fill="(rgb\(255,\s*51,\s*102\)|#ff3366)"/i);
+
+    // 2) Light theme switches default background to #ffffff; padding + single-axis width preserves aspect
+    controller.setTheme('light');
+    const lightPaddedSvg = controller.exportSvg({
+      padding: 20,
+      width: 1260,
+      title: 'Simplex Publication Figure',
+      xmlDeclaration: true,
+      includeFocusRing: true,
+    });
+    expect(lightPaddedSvg.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true);
+    expect(lightPaddedSvg).toContain('<title>Simplex Publication Figure</title>');
+    expect(lightPaddedSvg).toContain('viewBox="-20 -20 840 640"');
+    expect(lightPaddedSvg).toContain('width="1260"');
+    expect(lightPaddedSvg).toContain('height="960"');
+    expect(lightPaddedSvg).toContain('fill="#ffffff"');
+    expect(lightPaddedSvg).toContain('sv-a11y-focus-ring');
+
+    // 3) Dual width + height with a wider aspect ratio expands centered viewBox cleanly (zero letterboxing)
+    const widescreenSvg = controller.exportSvg({
+      width: 1600,
+      height: 900,
+      backgroundColor: '#101420',
+    });
+    expect(widescreenSvg).toContain('width="1600"');
+    expect(widescreenSvg).toContain('height="900"');
+    expect(widescreenSvg).toContain('fill="#101420"');
+    // 600 * (1600/900) = 1066.67 width centered around [0..800] -> minX ≈ -133.33
+    expect(widescreenSvg).toContain('viewBox="-133.33 0 1066.67 600"');
+
+    // 4) Transparent export omits background rect and captures live camera transforms
+    controller.camera.zoomToCursor(400, 300, 1.5);
+    const transparentSvg = controller.exportSvg({ includeBackground: false });
+    expect(transparentSvg).not.toContain('sv-export-background');
+    expect(transparentSvg).toContain('scale(1.5000)');
+
+    controller.destroy();
+    expect(() => controller.exportSvg()).toThrow(/after destroy/i);
+
+    styleEl.remove();
+    container.remove();
+  });
+
+  it('rasterizes HiDPI PNG snapshots as Blob or data URL via exportPng() (Issue #20)', async () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+    document.body.appendChild(container);
+
+    const items: DefaultTaggedItem[] = [
+      { id: 'p1', tags: ['alpha', 'beta'] },
+      { id: 'p2', tags: ['beta', 'gamma'] },
+      { id: 'p3', tags: ['gamma', 'alpha'] },
+    ];
+
+    const controller = createSimplexSvg(container, {
+      items,
+      preset: 'geometric',
+      theme: 'dark',
+      layoutOptions: { seed: 7 },
+    });
+    for (let i = 0; i < 30; i++) controller.stepForTest(20);
+
+    // Mock Image decoding & Canvas 2D context in happy-dom
+    const drawCalls: Array<{ w: number; h: number; src: string }> = [];
+    const createdCanvases: Array<{ width: number; height: number }> = [];
+    let lastDecodedSvgSrc = '';
+
+    const OriginalImage = window.Image;
+    class MockImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      private _src = '';
+      get src(): string {
+        return this._src;
+      }
+      set src(val: string) {
+        this._src = val;
+        lastDecodedSvgSrc = val;
+        queueMicrotask(() => {
+          this.onload?.();
+        });
+      }
+    }
+    Object.defineProperty(window, 'Image', {
+      configurable: true,
+      writable: true,
+      value: MockImage,
+    });
+
+    const origCreateElement = document.createElement.bind(document);
+    const createElementSpy = vi
+      .spyOn(document, 'createElement')
+      .mockImplementation(((tagName: string, options?: ElementCreationOptions) => {
+        const el = origCreateElement(tagName, options);
+        if (tagName.toLowerCase() === 'canvas') {
+          const canvas = el as HTMLCanvasElement;
+          const record = { width: 0, height: 0 };
+          createdCanvases.push(record);
+          Object.defineProperty(canvas, 'getContext', {
+            configurable: true,
+            value: () => ({
+              imageSmoothingEnabled: false,
+              imageSmoothingQuality: 'low',
+              clearRect: vi.fn(),
+              drawImage: (_img: unknown, _x: number, _y: number, w: number, h: number) => {
+                record.width = canvas.width;
+                record.height = canvas.height;
+                drawCalls.push({ w, h, src: lastDecodedSvgSrc });
+              },
+            }),
+          });
+          Object.defineProperty(canvas, 'toBlob', {
+            configurable: true,
+            value: (cb: BlobCallback, type?: string) => {
+              cb(new Blob(['fake-png-bytes'], { type: type ?? 'image/png' }));
+            },
+          });
+          Object.defineProperty(canvas, 'toDataURL', {
+            configurable: true,
+            value: (type?: string) =>
+              `data:${type ?? 'image/png'};base64,ZmFrZS1wbmctYnl0ZXM=`,
+          });
+        }
+        return el;
+      }) as typeof document.createElement);
+
+    try {
+      // 1) Default scale: 2 -> 1600x1200 PNG Blob
+      const blob = await controller.exportPng();
+      expect(blob).toBeInstanceOf(Blob);
+      expect(blob.type).toBe('image/png');
+      expect(blob.size).toBeGreaterThan(0);
+      expect(drawCalls[0]).toMatchObject({ w: 1600, h: 1200 });
+      expect(createdCanvases[0]).toEqual({ width: 1600, height: 1200 });
+
+      // 2) Custom scale: 3 + padding: 10 + format: 'dataUrl' -> (820*3)x(620*3) = 2460x1860
+      const dataUrl = await controller.exportPng({
+        scale: 3,
+        padding: 10,
+        includeBackground: false,
+        format: 'dataUrl',
+        mimeType: 'image/webp',
+        quality: 0.9,
+      });
+      expect(dataUrl).toBe('data:image/webp;base64,ZmFrZS1wbmctYnl0ZXM=');
+      expect(drawCalls[1]).toMatchObject({ w: 2460, h: 1860 });
+
+      controller.destroy();
+      await expect(controller.exportPng()).rejects.toThrow(/after destroy/i);
+    } finally {
+      createElementSpy.mockRestore();
+      Object.defineProperty(window, 'Image', {
+        configurable: true,
+        writable: true,
+        value: OriginalImage,
+      });
+      container.remove();
+    }
+  });
 });
 
 

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { act, render } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   BarycentricSectorTriangleSvgView,
   ClusterTintedEdgeSvgView,
@@ -1154,7 +1154,93 @@ describe('@simplex-viz/react integration', () => {
 
     unmount();
   });
+
+  it('exposes exportSvg() and exportPng() on useSimplexGraphController handle (Issue #20)', async () => {
+    const items = [
+      { id: 'x1', label: 'Node One', tags: ['alpha', 'beta'] },
+      { id: 'x2', label: 'Node Two', tags: ['beta', 'gamma'] },
+      { id: 'x3', label: 'Node Three', tags: ['alpha', 'gamma'] },
+    ];
+
+    const exposed: {
+      handle: ReturnType<typeof useSimplexGraphController<(typeof items)[number]>>['handle'] | null;
+    } = { handle: null };
+
+    const Host = ({ theme = 'light' as const }: { theme?: 'dark' | 'light' }) => {
+      const { controllerRef, handle } = useSimplexGraphController<(typeof items)[number]>();
+      exposed.handle = handle;
+      return (
+        <div style={{ width: 640, height: 420 }}>
+          <SimplexTopicGraph
+            controllerRef={controllerRef}
+            items={items}
+            theme={theme}
+            preset="badges"
+          />
+        </div>
+      );
+    };
+
+    const { unmount } = render(<Host theme="light" />);
+
+    const svgStr = exposed.handle!.exportSvg({ padding: 12, title: 'React Snapshot' });
+    expect(svgStr).not.toBeNull();
+    expect(svgStr).toContain('xmlns="http://www.w3.org/2000/svg"');
+    expect(svgStr).toContain('<title>React Snapshot</title>');
+    expect(svgStr).toContain('fill="#ffffff"');
+    expect(svgStr).not.toContain('sv-measure-bin');
+
+    const OriginalImage = window.Image;
+    class MockImage {
+      onload: (() => void) | null = null;
+      set src(_val: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    Object.defineProperty(window, 'Image', {
+      configurable: true,
+      writable: true,
+      value: MockImage,
+    });
+    const origCreateElement = document.createElement.bind(document);
+    const spy = vi
+      .spyOn(document, 'createElement')
+      .mockImplementation(((tag: string, opts?: ElementCreationOptions) => {
+        const el = origCreateElement(tag, opts);
+        if (tag.toLowerCase() === 'canvas') {
+          Object.defineProperty(el, 'getContext', {
+            configurable: true,
+            value: () => ({ clearRect: vi.fn(), drawImage: vi.fn() }),
+          });
+          Object.defineProperty(el, 'toBlob', {
+            configurable: true,
+            value: (cb: BlobCallback, type?: string) =>
+              cb(new Blob(['png'], { type: type ?? 'image/png' })),
+          });
+          Object.defineProperty(el, 'toDataURL', {
+            configurable: true,
+            value: () => 'data:image/png;base64,cG5n',
+          });
+        }
+        return el;
+      }) as typeof document.createElement);
+
+    try {
+      const blob = await exposed.handle!.exportPng({ scale: 2 });
+      expect(blob).toBeInstanceOf(Blob);
+      const dataUrl = await exposed.handle!.exportPng({ format: 'dataUrl' });
+      expect(dataUrl).toBe('data:image/png;base64,cG5n');
+    } finally {
+      spy.mockRestore();
+      Object.defineProperty(window, 'Image', {
+        configurable: true,
+        writable: true,
+        value: OriginalImage,
+      });
+    }
+
+    unmount();
+    expect(exposed.handle!.exportSvg()).toBeNull();
+    expect(await exposed.handle!.exportPng()).toBeNull();
+  });
 });
-
-
-
