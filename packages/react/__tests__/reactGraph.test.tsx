@@ -1420,6 +1420,67 @@ describe('@simplex-viz/react integration', () => {
     expect(exposed.handle!.getViewState()).toBeNull();
     expect(exposed.handle!.restoreViewState(JSON.parse(savedJson))).toBe(false);
   });
+
+  it('exposes getLegendModel() on handle and emits onLegendChange on filter and focus changes (Issue #29)', () => {
+    const items = [
+      { id: 'rl1', kind: 'post' as const, tags: ['alpha', 'beta'] },
+      { id: 'rl2', kind: 'note' as const, tags: ['beta', 'gamma'] },
+      { id: 'rl3', kind: 'post' as const, tags: ['gamma', 'delta'] },
+      { id: 'rl4', kind: 'note' as const, tags: ['delta', 'alpha'] },
+    ];
+
+    const legendModels: Array<NonNullable<ReturnType<NonNullable<typeof exposed.handle>['getLegendModel']>>> = [];
+    const exposed: {
+      handle: ReturnType<typeof useSimplexGraphController<(typeof items)[number]>>['handle'] | null;
+    } = { handle: null };
+
+    const Host = ({
+      itemFilter,
+      focusedClusterUid,
+    }: {
+      itemFilter?: ((it: (typeof items)[number]) => boolean) | null;
+      focusedClusterUid?: string | null;
+    }) => {
+      const { controllerRef, handle } = useSimplexGraphController<(typeof items)[number]>();
+      exposed.handle = handle;
+      return (
+        <div style={{ width: 640, height: 420 }}>
+          <SimplexTopicGraph
+            controllerRef={controllerRef}
+            items={items}
+            itemFilter={itemFilter}
+            focusedClusterUid={focusedClusterUid}
+            onLegendChange={(model) => {
+              legendModels.push(model);
+            }}
+          />
+        </div>
+      );
+    };
+
+    const { rerender, unmount } = render(<Host />);
+    const initial = exposed.handle!.getLegendModel();
+    expect(initial).not.toBeNull();
+    expect(initial!.totalItems).toBe(4);
+    expect(initial!.visibleItems).toBe(4);
+    expect(initial!.entries.length).toBeGreaterThanOrEqual(3);
+    expect(legendModels.length).toBeGreaterThanOrEqual(1);
+
+    const targetUid = initial!.entries[0]!.clusterUid;
+    rerender(
+      <Host itemFilter={(it) => it.kind === 'post'} focusedClusterUid={targetUid} />,
+    );
+    const updated = exposed.handle!.getLegendModel()!;
+    expect(updated.hasActiveFilter).toBe(true);
+    expect(updated.visibleItems).toBe(2);
+    expect(updated.focusedClusterUid).toBe(targetUid);
+    expect(updated.entries.find((e) => e.clusterUid === targetUid)?.isFocused).toBe(true);
+    expect(legendModels.at(-1)?.visibleItems).toBe(2);
+    expect(legendModels.at(-1)?.focusedClusterUid).toBe(targetUid);
+
+    unmount();
+    expect(exposed.handle!.getLegendModel()).toBeNull();
+  });
 });
 
 

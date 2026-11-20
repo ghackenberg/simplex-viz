@@ -221,6 +221,97 @@ export interface ClusterDescriptor<
 }
 
 /**
+ * Single cluster entry in a structured `SimplexLegendModel` snapshot, synchronized with
+ * active zoom/drill-down frames, item filters, `emptyClusterBehavior`, and cluster focus.
+ */
+export interface SimplexLegendEntry<
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> {
+  /** Stable cluster identifier (`cluster.clusterUid`). */
+  readonly clusterUid: string;
+  /** Short cluster code (e.g. `"T1"`, or `"T1·T2"` for intermediate midpoints). */
+  readonly code: string;
+  /** Human-readable display label (`subclusterLabel || defaultLabel`). */
+  readonly label: string;
+  /** Optional parent cluster context label preserved on zoomed outer corners. */
+  readonly parentContextLabel?: string;
+  /** Assigned perceptual sRGB hex color (`cluster.colorHex`). */
+  readonly colorHex: string;
+  /** Total active member items belonging to this cluster in the current frame (before `itemFilter`). */
+  readonly totalCount: number;
+  /**
+   * Member items passing the active `itemFilter` in the current frame.
+   * Equals `totalCount` when no `itemFilter` is active.
+   */
+  readonly visibleCount: number;
+  /** `true` when `visibleCount === 0` (either empty in this frame/timeline step or all members filtered out). */
+  readonly isEmpty: boolean;
+  /** `true` when visually hidden via `emptyClusterBehavior: 'hide'` (`totalCount === 0`). */
+  readonly isHidden: boolean;
+  /** `true` when this cluster is currently focused (`focusedClusterUid === clusterUid`). */
+  readonly isFocused: boolean;
+  /** `true` for dimmed neighboring context clusters outside the active drilled-in frame. */
+  readonly isContext: boolean;
+  /** `true` for intermediate bridge/midpoint clusters (`cluster.role === 'intermediate'`). */
+  readonly isMidpoint: boolean;
+  /** Underlying typed `ClusterDescriptor` for accessing `coreTags`, `members`, `meta`, etc. */
+  readonly cluster: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>;
+}
+
+/**
+ * Structured, live-synced legend model representing the clusters and item counts visible
+ * in the current graph state (zoom depth, item filter, empty-cluster behavior, cluster focus,
+ * and optional timeline step).
+ */
+export interface SimplexLegendModel<
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> {
+  /** Ordered legend entries for the active frame (plus optional context neighbors). */
+  readonly entries: readonly SimplexLegendEntry<TItem, TTagMeta, TClusterMeta>[];
+  /** Active drill-down zoom depth (`0` at root/free-camera). */
+  readonly zoomDepth: number;
+  /** Total active content items in the current frame (before `itemFilter`). */
+  readonly totalItems: number;
+  /** Active content items matching the current `itemFilter` (equals `totalItems` when unfiltered). */
+  readonly visibleItems: number;
+  /** `true` when an `itemFilter` predicate is currently active. */
+  readonly hasActiveFilter: boolean;
+  /** Active `itemFilterMode` (`'dim' | 'hide'`). */
+  readonly itemFilterMode: ItemFilterMode;
+  /** Active `emptyClusterBehavior` (`'normal' | 'dim' | 'hide'`). */
+  readonly emptyClusterBehavior: EmptyClusterBehavior;
+  /** Currently focused cluster UID, or `null`. */
+  readonly focusedClusterUid: string | null;
+  /** Active 0-based timeline step index when timeline mode is active on a controller, or `null`. */
+  readonly timelineStep: number | null;
+}
+
+/**
+ * Optional filtering flags for `getLegendModel(options?)`.
+ */
+export interface SimplexLegendModelOptions {
+  /**
+   * Include dimmed neighboring context clusters from adjacent triangles/frames during drill-down.
+   * Default: `false`.
+   */
+  readonly includeContext?: boolean;
+  /**
+   * Include intermediate midpoint/bridge clusters (`role === 'intermediate'`) generated during
+   * 1:4 barycentric drill-down. Default: `true`.
+   */
+  readonly includeMidpoints?: boolean;
+  /**
+   * Include clusters currently hidden via `emptyClusterBehavior: 'hide'` (marked with `isHidden: true`).
+   * Default: `true`.
+   */
+  readonly includeHidden?: boolean;
+}
+
+/**
  * Layout and semantic context passed to `VisualResolver.resolveContentVisual` for each item.
  */
 export interface ContentLayoutContext<
@@ -1037,6 +1128,13 @@ export interface SimplexEngineResolvedConfig<
   readonly onZoomStateChange?: (state: SimplexZoomState) => void;
   /** Invoked whenever the active multi-selection set changes via user interaction or API calls. */
   readonly onSelectionChange?: (selectedIds: ReadonlySet<string>) => void;
+  /**
+   * Invoked whenever the structured legend model changes (clusters, zoom depth, item filter counts,
+   * `emptyClusterBehavior`, or focused cluster). Deduplicated so no-op updates and animation ticks do not fire.
+   */
+  readonly onLegendChange?: (
+    model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
+  ) => void;
 }
 
 /**

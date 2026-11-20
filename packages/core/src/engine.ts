@@ -71,6 +71,9 @@ import type {
   SimplexEngineResolvedConfig,
   SimplexInteractiveTarget,
   SimplexKeyboardFocusTarget,
+  SimplexLegendEntry,
+  SimplexLegendModel,
+  SimplexLegendModelOptions,
   SimplexMesh,
   SimplexRendererAdapter,
   SimplexViewState,
@@ -506,6 +509,10 @@ export class SimplexGraphEngine<
   private highlightedIds = new Set<string>();
   private selectedIds = new Set<string>();
   private onSelectionChange?: (selectedIds: ReadonlySet<string>) => void;
+  private onLegendChange?: (
+    model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
+  ) => void;
+  private lastEmittedLegendSig: string | null = null;
   private focusedItemId: string | null = null;
   private focusedItemHighlight = false;
   private focusedClusterUid: string | null = null;
@@ -539,6 +546,7 @@ export class SimplexGraphEngine<
   private batchPendingLayout = false;
   private batchPendingZoomReset = false;
   private batchPendingRenderNow = false;
+  private batchPendingLegendEmit = false;
 
   constructor(
     config: SimplexEngineConfig<
@@ -596,6 +604,7 @@ export class SimplexGraphEngine<
     this.onClustersChange = config.onClustersChange;
     this.onZoomStateChange = config.onZoomStateChange;
     this.onSelectionChange = config.onSelectionChange;
+    this.onLegendChange = config.onLegendChange;
     this.shiftClickSelectsEnabled = config.shiftClickSelects ?? true;
     if (config.selectedIds != null) {
       for (const id of config.selectedIds) {
@@ -661,6 +670,151 @@ export class SimplexGraphEngine<
   /** Returns the current computed topic clusters with typed metadata and member references. */
   getClusters(): readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[] {
     return this.currentClusters;
+  }
+
+  /** Updates the structured legend model change listener. */
+  setOnLegendChange(
+    cb?: (model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>) => void,
+  ): void {
+    this.onLegendChange = cb;
+    this.lastEmittedLegendSig = null;
+  }
+
+  /**
+   * Builds a structured legend model synchronized with the active zoom/drill-down frame,
+   * item filter counts, `emptyClusterBehavior`, and focused cluster state.
+   */
+  getLegendModel(
+    options?: SimplexLegendModelOptions,
+  ): SimplexLegendModel<TItem, TTagMeta, TClusterMeta> {
+    const includeContext = options?.includeContext ?? false;
+    const includeMidpoints = options?.includeMidpoints ?? true;
+    const includeHidden = options?.includeHidden ?? true;
+    const predicate = this.itemFilterPredicate;
+    const hasActiveFilter = predicate !== null;
+
+    const countVisibleMembers = (
+      cluster: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>,
+    ): number => {
+      if (!predicate) return cluster.members.length;
+      let count = 0;
+      for (const m of cluster.members) {
+        const isFilteredOut = this.itemNodes.has(m.itemId)
+          ? this.filteredOutItemIds.has(m.itemId)
+          : !predicate(m.item);
+        if (!isFilteredOut) count += 1;
+      }
+      return count;
+    };
+
+    const entries: SimplexLegendEntry<TItem, TTagMeta, TClusterMeta>[] = [];
+
+    for (const cluster of this.currentClusters) {
+      const isMidpoint = cluster.role === 'intermediate';
+      if (isMidpoint && !includeMidpoints) continue;
+      const totalCount = cluster.members.length;
+      const visibleCount = countVisibleMembers(cluster);
+      const isHidden = totalCount === 0 && this.emptyClusterBehavior === 'hide';
+      if (isHidden && !includeHidden) continue;
+
+      entries.push({
+        clusterUid: cluster.clusterUid,
+        code: cluster.code,
+        label: cluster.subclusterLabel || cluster.defaultLabel,
+        ...(cluster.parentContextLabel !== undefined
+          ? { parentContextLabel: cluster.parentContextLabel }
+          : {}),
+        colorHex: cluster.colorHex,
+        totalCount,
+        visibleCount,
+        isEmpty: visibleCount === 0,
+        isHidden,
+        isFocused:
+          this.focusedClusterUid !== null &&
+          this.focusedClusterUid === cluster.clusterUid,
+        isContext: false,
+        isMidpoint,
+        cluster,
+      });
+    }
+
+    if (includeContext && this.contextClusterNodes.length > 0) {
+      for (const cc of this.contextClusterNodes) {
+        const cluster = cc.cluster;
+        const isMidpoint = cluster.role === 'intermediate';
+        if (isMidpoint && !includeMidpoints) continue;
+        const totalCount = cluster.members.length;
+        const visibleCount = countVisibleMembers(cluster);
+
+        entries.push({
+          clusterUid: cluster.clusterUid,
+          code: cluster.code,
+          label: cluster.subclusterLabel || cluster.defaultLabel,
+          ...(cluster.parentContextLabel !== undefined
+            ? { parentContextLabel: cluster.parentContextLabel }
+            : {}),
+          colorHex: cluster.colorHex,
+          totalCount,
+          visibleCount,
+          isEmpty: visibleCount === 0,
+          isHidden: false,
+          isFocused: false,
+          isContext: true,
+          isMidpoint,
+          cluster,
+        });
+      }
+    }
+
+    const totalItems = this.currentPlacements.length;
+    let visibleItems = totalItems;
+    if (predicate) {
+      visibleItems = 0;
+      for (const placement of this.currentPlacements) {
+        const isFilteredOut = this.itemNodes.has(placement.id)
+          ? this.filteredOutItemIds.has(placement.id)
+          : !predicate(placement.item);
+        if (!isFilteredOut) visibleItems += 1;
+      }
+    }
+
+    return {
+      entries,
+      zoomDepth: this.currentZoomState.depth,
+      totalItems,
+      visibleItems,
+      hasActiveFilter,
+      itemFilterMode: this.itemFilterMode,
+      emptyClusterBehavior: this.emptyClusterBehavior,
+      focusedClusterUid: this.focusedClusterUid,
+      timelineStep: null,
+    };
+  }
+
+  private computeLegendSignature(
+    model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
+  ): string {
+    const entrySig = model.entries
+      .map(
+        (e) =>
+          `${e.clusterUid}|${e.code}|${e.label}|${e.parentContextLabel ?? ''}|${e.colorHex}|${e.totalCount}|${e.visibleCount}|${e.isEmpty ? 1 : 0}|${e.isHidden ? 1 : 0}|${e.isFocused ? 1 : 0}|${e.isContext ? 1 : 0}|${e.isMidpoint ? 1 : 0}`,
+      )
+      .join(';');
+    return `${model.zoomDepth}|${model.totalItems}|${model.visibleItems}|${model.hasActiveFilter ? 1 : 0}|${model.itemFilterMode}|${model.emptyClusterBehavior}|${model.focusedClusterUid ?? ''}|${model.timelineStep ?? ''}|${entrySig}`;
+  }
+
+  private emitLegendChangeIfNeeded(): void {
+    if (this.destroyed || this.awaitingInitialSolve) return;
+    if (this.batchDepth > 0) {
+      this.batchPendingLegendEmit = true;
+      return;
+    }
+    if (!this.onLegendChange) return;
+    const model = this.getLegendModel();
+    const sig = this.computeLegendSignature(model);
+    if (sig === this.lastEmittedLegendSig) return;
+    this.lastEmittedLegendSig = sig;
+    this.onLegendChange(model);
   }
 
   /** Returns the current simplex mesh geometry. */
@@ -889,12 +1043,14 @@ export class SimplexGraphEngine<
     const pendingLayout = this.batchPendingLayout;
     const pendingZoomReset = this.batchPendingZoomReset;
     const pendingRenderNow = this.batchPendingRenderNow;
+    const pendingLegendEmit = this.batchPendingLegendEmit;
 
     this.batchPendingPipelineReason = null;
     this.batchPendingRecolor = false;
     this.batchPendingLayout = false;
     this.batchPendingZoomReset = false;
     this.batchPendingRenderNow = false;
+    this.batchPendingLegendEmit = false;
 
     if (this.destroyed || this.awaitingInitialSolve) return;
 
@@ -914,6 +1070,10 @@ export class SimplexGraphEngine<
       this.recomputeLayoutOnly('strategy');
     } else if (pendingZoomReset) {
       this.applyZoomStrategyChange();
+    }
+
+    if (pendingLegendEmit) {
+      this.emitLegendChangeIfNeeded();
     }
 
     if (pendingRenderNow && this.dirtyRender) {
@@ -1558,6 +1718,7 @@ export class SimplexGraphEngine<
       }
     }
     this.dirtyRender = true;
+    this.emitLegendChangeIfNeeded();
     this.renderNow();
   }
 
@@ -1583,6 +1744,7 @@ export class SimplexGraphEngine<
   ): void {
     const nextMode: ItemFilterMode = options?.mode ?? 'dim';
     const prevMode = this.itemFilterMode;
+    const prevHadFilter = this.itemFilterPredicate !== null;
     this.itemFilterPredicate = predicate;
     this.itemFilterMode = nextMode;
     const filteredChanged = this.refreshItemFilterCache();
@@ -1608,8 +1770,11 @@ export class SimplexGraphEngine<
     }
 
     if (this.destroyed || this.awaitingInitialSolve) return;
-    if (!filteredChanged && prevMode === nextMode) return;
+    if (!filteredChanged && prevMode === nextMode && prevHadFilter === (predicate !== null)) {
+      return;
+    }
     this.dirtyRender = true;
+    this.emitLegendChangeIfNeeded();
     this.renderNow();
   }
 
@@ -2082,6 +2247,7 @@ export class SimplexGraphEngine<
     }
     this.focusedClusterUid = clusterUid;
     this.dirtyRender = true;
+    this.emitLegendChangeIfNeeded();
   }
 
   /** Returns the currently focused mesh triangle index, or `null` if none. */
@@ -3921,6 +4087,7 @@ export class SimplexGraphEngine<
     };
     this.onMetricsChange?.(this.currentMetrics);
     this.refreshZoomState();
+    this.emitLegendChangeIfNeeded();
     this.dirtyRender = true;
 
     if (snapImmediately || drillFlight) {

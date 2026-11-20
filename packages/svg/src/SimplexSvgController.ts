@@ -33,6 +33,9 @@ import {
   type SimplexInteractiveTarget,
   type SimplexKeyboardFocusTarget,
   type SimplexLayoutStrategy,
+  type SimplexLegendEntry,
+  type SimplexLegendModel,
+  type SimplexLegendModelOptions,
   type SimplexMeshStrategy,
   type SimplexTimelineOptions,
   type SimplexTimelineState,
@@ -459,6 +462,13 @@ export interface SimplexSvgControllerResolvedOptions<
   readonly onZoomStateChange?: (state: SimplexZoomState) => void;
   /** Invoked whenever the active multi-selection set changes via user interaction or API calls. */
   readonly onSelectionChange?: (selectedIds: ReadonlySet<string>) => void;
+  /**
+   * Invoked whenever the structured legend model changes (clusters, zoom depth, item filter counts,
+   * `emptyClusterBehavior`, focused cluster, or timeline step). Deduplicated against no-op updates.
+   */
+  readonly onLegendChange?: (
+    model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
+  ) => void;
   readonly onFpsUpdate?: (fps: number) => void;
 }
 
@@ -554,6 +564,9 @@ export interface SimplexSvgUpdateOptions<
   readonly marqueeSelection?: boolean;
   readonly shiftClickSelects?: boolean;
   readonly onSelectionChange?: (selectedIds: ReadonlySet<string>) => void;
+  readonly onLegendChange?: (
+    model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
+  ) => void;
   readonly focusedItemId?: string | null;
   readonly focusedClusterUid?: string | null;
   readonly focusedTriangleIndex?: number | null;
@@ -610,6 +623,10 @@ export class SimplexSvgController<
   private readonly resizeObserver: ResizeObserver | null = null;
   private readonly onFpsUpdate?: (fps: number) => void;
   private onZoomStateChangeCallback?: (state: SimplexZoomState) => void;
+  private onLegendChangeCallback?: (
+    model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
+  ) => void;
+  private lastEmittedLegendSig: string | null = null;
   private readonly focusOnClusterClick: boolean;
   private readonly focusOnTriangleClick: boolean;
   private showZoomBreadcrumbs: boolean;
@@ -746,6 +763,7 @@ export class SimplexSvgController<
     this.containerEl = resolveContainerElement(containerEl);
     this.onFpsUpdate = options.onFpsUpdate;
     this.onZoomStateChangeCallback = options.onZoomStateChange;
+    this.onLegendChangeCallback = options.onLegendChange;
     this.focusOnClusterClick = options.focusOnClusterClick ?? true;
     this.focusOnTriangleClick = options.focusOnTriangleClick ?? true;
     this.showZoomBreadcrumbs = options.showZoomBreadcrumbs ?? true;
@@ -930,6 +948,9 @@ export class SimplexSvgController<
       onMetricsChange: options.onMetricsChange,
       onClustersChange: options.onClustersChange,
       onSelectionChange: options.onSelectionChange,
+      onLegendChange: (model) => {
+        this.emitControllerLegendChange(model);
+      },
       onZoomStateChange: (state) => {
         this.syncZoomOverlays(state);
         this.handleZoomStateAccessibility(state);
@@ -1679,6 +1700,7 @@ export class SimplexSvgController<
       this.engine.setItems(activeItems);
       this.attachTimelineController(this.timelineController);
     });
+    this.emitControllerLegendChange();
   }
 
   getSvgElement(): SVGSVGElement {
@@ -1691,6 +1713,59 @@ export class SimplexSvgController<
 
   getClusters(): readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[] {
     return this.engine.getClusters();
+  }
+
+  /**
+   * Returns a structured legend model synchronized with the active zoom/drill-down frame,
+   * item filter counts, `emptyClusterBehavior`, focused cluster, and active timeline step.
+   */
+  getLegendModel(
+    options?: SimplexLegendModelOptions,
+  ): SimplexLegendModel<TItem, TTagMeta, TClusterMeta> {
+    const base = this.engine.getLegendModel(options);
+    const timelineStep = this.timelineController
+      ? this.timelineController.getState().step
+      : null;
+    return timelineStep === base.timelineStep
+      ? base
+      : { ...base, timelineStep };
+  }
+
+  /** Updates the structured legend model change listener at runtime. */
+  setOnLegendChange(
+    cb?: (model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>) => void,
+  ): void {
+    this.onLegendChangeCallback = cb;
+    this.lastEmittedLegendSig = null;
+  }
+
+  private computeLegendSignature(
+    model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
+  ): string {
+    const entrySig = model.entries
+      .map(
+        (e: SimplexLegendEntry<TItem, TTagMeta, TClusterMeta>) =>
+          `${e.clusterUid}|${e.code}|${e.label}|${e.parentContextLabel ?? ''}|${e.colorHex}|${e.totalCount}|${e.visibleCount}|${e.isEmpty ? 1 : 0}|${e.isHidden ? 1 : 0}|${e.isFocused ? 1 : 0}|${e.isContext ? 1 : 0}|${e.isMidpoint ? 1 : 0}`,
+      )
+      .join(';');
+    return `${model.zoomDepth}|${model.totalItems}|${model.visibleItems}|${model.hasActiveFilter ? 1 : 0}|${model.itemFilterMode}|${model.emptyClusterBehavior}|${model.focusedClusterUid ?? ''}|${model.timelineStep ?? ''}|${entrySig}`;
+  }
+
+  private emitControllerLegendChange(
+    engineModel?: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
+  ): void {
+    if (this.destroyed || !this.onLegendChangeCallback) return;
+    const base = engineModel ?? this.engine?.getLegendModel();
+    if (!base) return;
+    const timelineStep = this.timelineController
+      ? this.timelineController.getState().step
+      : null;
+    const model =
+      timelineStep === base.timelineStep ? base : { ...base, timelineStep };
+    const sig = this.computeLegendSignature(model);
+    if (sig === this.lastEmittedLegendSig) return;
+    this.lastEmittedLegendSig = sig;
+    this.onLegendChangeCallback(model);
   }
 
   getItems(): readonly TItem[] {
@@ -2117,6 +2192,9 @@ export class SimplexSvgController<
       }
       if ('onSelectionChange' in options) {
         this.engine.setOnSelectionChange(options.onSelectionChange);
+      }
+      if ('onLegendChange' in options) {
+        this.setOnLegendChange(options.onLegendChange);
       }
       if ('selectedIds' in options) {
         this.engine.setSelectedIds(options.selectedIds ?? null);
@@ -3156,11 +3234,13 @@ export class SimplexSvgController<
       }
       this.syncTimelineOverlay(state);
       this.notifyTimelineListeners(state);
+      this.emitControllerLegendChange();
       this.ensureLoopRunning();
     });
     const initialState = controller.getState();
     this.syncTimelineOverlay(initialState);
     this.notifyTimelineListeners(initialState);
+    this.emitControllerLegendChange();
   }
 
   private createTimelineIconSvg(

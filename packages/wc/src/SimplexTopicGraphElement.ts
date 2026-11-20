@@ -24,6 +24,8 @@ import type {
   SimplexColorStrategy,
   SimplexKeyboardFocusTarget,
   SimplexLayoutStrategy,
+  SimplexLegendModel,
+  SimplexLegendModelOptions,
   SimplexMeshStrategy,
   SimplexTimelineController,
   SimplexTimelineState,
@@ -1290,6 +1292,12 @@ export class SimplexTopicGraphElement<
     return this._controller?.getClusters() ?? [];
   }
 
+  getLegendModel(
+    options?: SimplexLegendModelOptions,
+  ): SimplexLegendModel<TItem, TTagMeta, TClusterMeta> | null {
+    return this._controller?.getLegendModel(options) ?? null;
+  }
+
   getSvgElement(): SVGSVGElement | null {
     return this._controller?.getSvgElement() ?? null;
   }
@@ -1573,6 +1581,14 @@ export class SimplexTopicGraphElement<
           selectedIds: snapshot,
           ids: Array.from(snapshot).sort(),
         });
+      },
+      onLegendChange: (
+        model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
+      ) => {
+        this.emitEvent<SimplexLegendModel<TItem, TTagMeta, TClusterMeta>>(
+          'simplex-legend-change',
+          model,
+        );
       },
     } as unknown as SimplexSvgControllerOptions<
       TItem,

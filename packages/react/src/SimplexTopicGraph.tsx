@@ -21,6 +21,7 @@ import {
   type ReducedMotionPreference,
   type SimplexColorStrategy,
   type SimplexLayoutStrategy,
+  type SimplexLegendModel,
   type SimplexMeshStrategy,
   type SimplexTimelineState,
   type SimplexZoomState,
@@ -385,6 +386,13 @@ export type SimplexTopicGraphProps<
     readonly onZoomStateChange?: (state: SimplexZoomState) => void;
     /** Invoked whenever the active multi-selection set changes via user interaction or API calls. */
     readonly onSelectionChange?: (selectedIds: ReadonlySet<string>) => void;
+    /**
+     * Invoked whenever the structured legend model changes (clusters, zoom depth, item filter counts,
+     * `emptyClusterBehavior`, focused cluster, or timeline step).
+     */
+    readonly onLegendChange?: (
+      model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
+    ) => void;
     /** Invoked whenever the timeline playback state changes (when `timeline` is enabled). */
     readonly onTimelineStateChange?: (state: SimplexTimelineState<TItem>) => void;
     readonly onFpsUpdate?: (fps: number) => void;
@@ -875,6 +883,7 @@ export function SimplexTopicGraph<
       onClustersChange: (c) => latestPropsRef.current.onClustersChange?.(c),
       onZoomStateChange: (z) => latestPropsRef.current.onZoomStateChange?.(z),
       onSelectionChange: (s) => latestPropsRef.current.onSelectionChange?.(s),
+      onLegendChange: (l) => latestPropsRef.current.onLegendChange?.(l),
       onFpsUpdate: (fps) => latestPropsRef.current.onFpsUpdate?.(fps),
     });
     ctrlRef.current = ctrl;

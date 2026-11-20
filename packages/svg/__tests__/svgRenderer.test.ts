@@ -4357,6 +4357,158 @@ describe('@simplex-viz/svg integration', () => {
       container.remove();
     }
   });
+
+  it('exposes structured getLegendModel() and diff-gated onLegendChange synced with zoom, itemFilter, emptyClusterBehavior, focus, and timeline (Issue #29)', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+    });
+    document.body.appendChild(container);
+
+    interface LegendItem {
+      readonly id: string;
+      readonly category: 'a' | 'b';
+      readonly tags: readonly string[];
+      readonly year: number;
+    }
+
+    const items: readonly LegendItem[] = Array.from({ length: 30 }, (_, i) => ({
+      id: `lg-${i}`,
+      category: i % 3 === 0 ? 'a' : 'b',
+      tags:
+        i < 10
+          ? ['alpha', 'beta', `t-${i % 2}`]
+          : i < 20
+            ? ['beta', 'gamma', `t-${i % 2}`]
+            : ['gamma', 'delta', 'epsilon', `t-${i % 2}`],
+      year: i < 10 ? 2020 : i < 20 ? 2021 : 2022,
+    }));
+
+    const emitted: Array<ReturnType<typeof controller.getLegendModel>> = [];
+
+    const controller = createSimplexSvg<LegendItem>(container, {
+      items,
+      preset: 'geometric',
+      layoutOptions: { seed: 31, sizeMultiplier: 1.8 },
+      zoomStrategy: createBarycentricZoomStrategy({
+        subdivision: '1:4',
+        stopWhenFullScale: false,
+      }),
+      timeline: {
+        getTimestamp: (it) => it.year,
+        autoFinalSeed: true,
+        emptyClusterBehavior: 'hide',
+      },
+      onLegendChange: (model) => {
+        emitted.push(model);
+      },
+    });
+
+    try {
+      // Initial emission should have fired once with timelineStep pointing to the final frame (step 2)
+      expect(emitted.length).toBe(1);
+      const initial = controller.getLegendModel();
+      expect(initial.zoomDepth).toBe(0);
+      expect(initial.totalItems).toBe(items.length);
+      expect(initial.visibleItems).toBe(items.length);
+      expect(initial.hasActiveFilter).toBe(false);
+      expect(initial.emptyClusterBehavior).toBe('hide');
+      expect(initial.focusedClusterUid).toBeNull();
+      expect(initial.timelineStep).toBe(2);
+      expect(initial.entries.length).toBeGreaterThanOrEqual(3);
+      expect(initial.entries.every((e) => !e.isContext && !e.isMidpoint && !e.isFocused)).toBe(
+        true,
+      );
+      expect(initial.entries.every((e) => e.visibleCount === e.totalCount)).toBe(true);
+
+      // Stepping animation frames & camera pan/zoom must NOT emit duplicate legend changes
+      const countBeforeAnim = emitted.length;
+      for (let i = 0; i < 30; i++) controller.stepForTest(20);
+      controller.camera.setState({ zoom: 1.4, panX: 20, panY: -10 });
+      controller.camera.reset();
+      expect(emitted.length).toBe(countBeforeAnim);
+
+      // 1) Timeline seek to step 0 (year 2020: only 10 items) -> updates timelineStep, totalItems, and marks empty clusters isHidden
+      controller.timeline!.seek(0);
+      for (let i = 0; i < 20; i++) controller.stepForTest(20);
+      const step0 = controller.getLegendModel();
+      expect(step0.timelineStep).toBe(0);
+      expect(step0.totalItems).toBe(10);
+      expect(step0.visibleItems).toBe(10);
+      const hiddenEntries = step0.entries.filter((e) => e.isHidden);
+      expect(hiddenEntries.length).toBeGreaterThan(0);
+      expect(hiddenEntries.every((e) => e.totalCount === 0 && e.isEmpty)).toBe(true);
+      // includeHidden: false filters out hidden clusters
+      const withoutHidden = controller.getLegendModel({ includeHidden: false });
+      expect(withoutHidden.entries.length).toBe(step0.entries.length - hiddenEntries.length);
+      expect(withoutHidden.entries.every((e) => !e.isHidden)).toBe(true);
+      expect(emitted.at(-1)?.timelineStep).toBe(0);
+
+      // Seek back to full corpus (step 2)
+      controller.timeline!.seek(2);
+      for (let i = 0; i < 25; i++) controller.stepForTest(20);
+
+      // 2) Item filter updates visibleItems & per-cluster visibleCount / isEmpty without changing totalCount
+      const beforeFilterCount = emitted.length;
+      controller.setItemFilter((it) => it.category === 'a', { mode: 'hide' });
+      expect(emitted.length).toBe(beforeFilterCount + 1);
+      const filtered = controller.getLegendModel();
+      expect(filtered.hasActiveFilter).toBe(true);
+      expect(filtered.itemFilterMode).toBe('hide');
+      expect(filtered.totalItems).toBe(items.length);
+      expect(filtered.visibleItems).toBe(items.filter((it) => it.category === 'a').length);
+      expect(filtered.entries.some((e) => e.visibleCount < e.totalCount)).toBe(true);
+
+      // Clear filter
+      controller.setItemFilter(null);
+      expect(controller.getLegendModel().hasActiveFilter).toBe(false);
+      expect(controller.getLegendModel().visibleItems).toBe(items.length);
+
+      // 3) Focus cluster updates focusedClusterUid & entry.isFocused; batched updates coalesce into 1 emission
+      const firstUid = controller.getLegendModel().entries[0]!.clusterUid;
+      const beforeBatch = emitted.length;
+      controller.batch(() => {
+        controller.setFocusedClusterUid(firstUid);
+        controller.setItemFilter((it) => it.category === 'a', { mode: 'dim' });
+      });
+      expect(emitted.length).toBe(beforeBatch + 1);
+      const afterBatch = emitted.at(-1)!;
+      expect(afterBatch.focusedClusterUid).toBe(firstUid);
+      expect(afterBatch.hasActiveFilter).toBe(true);
+      expect(afterBatch.entries.find((e) => e.clusterUid === firstUid)?.isFocused).toBe(true);
+
+      // Reset focus & filter before drill-down
+      controller.batch(() => {
+        controller.setFocusedClusterUid(null);
+        controller.setItemFilter(null);
+      });
+
+      // 4) Drill down into a 1:4 triangle -> zoomDepth=1, includes midpoints, optional includeMidpoints/includeContext flags
+      const drillTri = controller.getZoomState().drillableTriangleIndices[0]!;
+      expect(drillTri).toBeDefined();
+      expect(controller.drillDownTriangle(drillTri)).toBe(true);
+      for (let i = 0; i < 30; i++) controller.stepForTest(20);
+
+      const drilled = controller.getLegendModel();
+      expect(drilled.zoomDepth).toBe(1);
+      expect(drilled.entries.some((e) => e.isMidpoint)).toBe(true);
+      expect(drilled.entries.every((e) => !e.isContext)).toBe(true);
+      expect(emitted.at(-1)?.zoomDepth).toBe(1);
+
+      const noMidpoints = controller.getLegendModel({ includeMidpoints: false });
+      expect(noMidpoints.entries.every((e) => !e.isMidpoint)).toBe(true);
+      expect(noMidpoints.entries.length).toBeLessThan(drilled.entries.length);
+
+      const withContext = controller.getLegendModel({ includeContext: true });
+      expect(withContext.entries.length).toBeGreaterThanOrEqual(drilled.entries.length);
+      if (withContext.entries.length > drilled.entries.length) {
+        expect(withContext.entries.some((e) => e.isContext)).toBe(true);
+      }
+    } finally {
+      controller.destroy();
+      container.remove();
+    }
+  });
 });
 
 

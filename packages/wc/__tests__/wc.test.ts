@@ -457,4 +457,84 @@ describe('@simplex-viz/wc (<simplex-topic-graph>) (Issue #26)', () => {
       wrapper.remove();
     }
   });
+
+  it('exposes getLegendModel() and dispatches simplex-legend-change CustomEvent across filter, focus, and timeline changes (Issue #29)', () => {
+    defineSimplexTopicGraphElement();
+
+    interface DatedWcItem {
+      readonly id: string;
+      readonly label: string;
+      readonly tags: readonly string[];
+      readonly year: number;
+    }
+
+    const datedItems: readonly DatedWcItem[] = [
+      { id: 'wc-1', label: 'Topology', tags: ['geometry', 'math'], year: 2020 },
+      { id: 'wc-2', label: 'Shaders', tags: ['graphics', 'math'], year: 2020 },
+      { id: 'wc-3', label: 'OKLab', tags: ['color', 'graphics'], year: 2021 },
+      { id: 'wc-4', label: 'Simplices', tags: ['geometry', 'color'], year: 2021 },
+      { id: 'wc-5', label: 'Layout', tags: ['geometry', 'graphics'], year: 2022 },
+      { id: 'wc-6', label: 'Shaders II', tags: ['graphics', 'color'], year: 2022 },
+    ];
+
+    const wrapper = document.createElement('div');
+    sizeElement(wrapper, 720, 480);
+    const el = document.createElement(
+      'simplex-topic-graph',
+    ) as SimplexTopicGraphElement<DatedWcItem>;
+    sizeElement(el, 720, 480);
+
+    const legendEvents: Array<
+      NonNullable<ReturnType<SimplexTopicGraphElement<DatedWcItem>['getLegendModel']>>
+    > = [];
+    el.addEventListener('simplex-legend-change', (ev) => {
+      legendEvents.push(
+        (
+          ev as CustomEvent<
+            NonNullable<ReturnType<SimplexTopicGraphElement<DatedWcItem>['getLegendModel']>>
+          >
+        ).detail,
+      );
+    });
+
+    el.items = datedItems;
+    el.layoutOptions = { seed: 19 };
+    el.timeline = { getTimestamp: (it) => it.year };
+
+    wrapper.appendChild(el);
+    document.body.appendChild(wrapper);
+
+    try {
+      const initial = el.getLegendModel()!;
+      expect(initial).not.toBeNull();
+      expect(initial.totalItems).toBe(datedItems.length);
+      expect(initial.visibleItems).toBe(datedItems.length);
+      expect(initial.timelineStep).toBe(2);
+      expect(legendEvents.length).toBeGreaterThanOrEqual(1);
+
+      // Item filter updates legend model and dispatches simplex-legend-change
+      const countBeforeFilter = legendEvents.length;
+      el.setItemFilter((it) => it.year === 2021, { mode: 'hide' });
+      expect(legendEvents.length).toBe(countBeforeFilter + 1);
+      expect(el.getLegendModel()!.hasActiveFilter).toBe(true);
+      expect(el.getLegendModel()!.visibleItems).toBe(2);
+
+      // Focus cluster updates focusedClusterUid
+      const uid = el.getLegendModel()!.entries[0]!.clusterUid;
+      el.setFocusedClusterUid(uid);
+      expect(el.getLegendModel()!.focusedClusterUid).toBe(uid);
+      expect(legendEvents.at(-1)?.focusedClusterUid).toBe(uid);
+
+      // Timeline seek updates timelineStep and item count
+      el.timelineController!.seek(0);
+      expect(el.getLegendModel()!.timelineStep).toBe(0);
+      expect(el.getLegendModel()!.totalItems).toBe(2);
+      expect(legendEvents.at(-1)?.timelineStep).toBe(0);
+
+      el.remove();
+      expect(el.getLegendModel()).toBeNull();
+    } finally {
+      wrapper.remove();
+    }
+  });
 });

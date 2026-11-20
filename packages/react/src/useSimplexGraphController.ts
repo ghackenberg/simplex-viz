@@ -14,6 +14,8 @@ import type {
   SimplexColorStrategy,
   SimplexKeyboardFocusTarget,
   SimplexLayoutStrategy,
+  SimplexLegendModel,
+  SimplexLegendModelOptions,
   SimplexMeshStrategy,
   SimplexTimelineController,
   SimplexViewState,
@@ -118,6 +120,9 @@ export interface SimplexGraphHandle<
   exportPng(options?: ExportPngOptions): Promise<Blob | string | null>;
   getMetrics(): LayoutMetrics | null;
   getClusters(): readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[];
+  getLegendModel(
+    options?: SimplexLegendModelOptions,
+  ): SimplexLegendModel<TItem, TTagMeta, TClusterMeta> | null;
   getTimeline(): SimplexTimelineController<TItem> | null;
   getRawController(): SimplexSvgController<
     TItem,
@@ -431,6 +436,10 @@ export function useSimplexGraphController<
     return controllerRef.current?.getClusters() ?? [];
   }, []);
 
+  const getLegendModel = useCallback((options?: SimplexLegendModelOptions) => {
+    return controllerRef.current?.getLegendModel(options) ?? null;
+  }, []);
+
   const getTimeline = useCallback(() => {
     return controllerRef.current?.getTimeline() ?? null;
   }, []);
@@ -490,6 +499,7 @@ export function useSimplexGraphController<
       exportPng,
       getMetrics,
       getClusters,
+      getLegendModel,
       getTimeline,
       getRawController,
     },
