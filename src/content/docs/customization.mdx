@@ -90,6 +90,29 @@ const snapshot = solveSimplexSnapshot(records, {
 console.assert(snapshot.metrics.overlapCount === 0);
 ```
 
+To keep the main thread at 60 fps on large corpora (`500+` items or high-dimensional embeddings), offload QAP annealing and PBD/SAT solving via the dedicated **`@simplex-viz/core/worker`** subpath (`attachSimplexWorkerHandler` + `createSimplexWorkerClient` / `solveSimplexSnapshotAsync`). It cancels stale generations automatically during rapid resize or filter bursts, rehydrates non-cloneable domain `TItem` references on the main thread, and falls back asynchronously in SSR environments without a `Worker` global:
+
+```ts
+// worker.ts
+import { attachSimplexWorkerHandler } from '@simplex-viz/core/worker';
+attachSimplexWorkerHandler();
+
+// main.ts
+import { createSimplexWorkerClient } from '@simplex-viz/core/worker';
+
+const workerClient = createSimplexWorkerClient(
+  () => new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }),
+);
+
+const { snapshot } = await workerClient.solve(records, {
+  width: 1280,
+  height: 800,
+  getId: (r) => r.slug,
+  getTags: (r) => r.topics,
+  layoutStrategy: { kind: 'collision-driven' },
+});
+```
+
 ## 4. Composable Interactions, Mobile Touch-Scroll & Zero-Size Mount Recovery
 
 Every interaction handler across `@simplex-viz/core`, `@simplex-viz/svg`, and `@simplex-viz/react` (`onContentClick`, `onClusterClick`, `onTriangleClick`, `onBackgroundClick`, `onLeftClick`, `onRightClick`, `onContentHover`, `onClusterHover`, `onTriangleHover`, and custom `onWheel`) follows one uniform contract:

@@ -131,6 +131,29 @@ exportsTable:
         options?: SimplexTimelineOptions<TItem>,
       ): SimplexTimelineController<TItem>
     summary: "Zero-DOM headless chronological frame grouper and playback controller with play/pause/step/seek/speed APIs."
+  - symbol: "createSimplexWorkerClient"
+    kind: "Function"
+    signature: |-
+      createSimplexWorkerClient(
+        workerOrFactory?: SimplexWorkerPort | (() => SimplexWorkerPort) | null,
+        options?: SimplexWorkerClientOptions,
+      ): SimplexWorkerClient
+    summary: "Subpath @simplex-viz/core/worker — generation-aware Web Worker / worker_threads client with stale-request cancellation, AbortSignal, zero-copy embedding buffer transfer, main-thread TItem rehydration, and SSR async fallback."
+  - symbol: "attachSimplexWorkerHandler"
+    kind: "Function"
+    signature: |-
+      attachSimplexWorkerHandler(
+        options?: AttachSimplexWorkerHandlerOptions,
+      ): () => void
+    summary: "Subpath @simplex-viz/core/worker — attaches the protocol handler inside a Web Worker or Node worker_threads script with a pluggable solver hook (WASM-ready)."
+  - symbol: "solveSimplexSnapshotAsync"
+    kind: "Function"
+    signature: |-
+      solveSimplexSnapshotAsync<TItem>(
+        items: readonly TItem[],
+        options?: SolveSimplexSnapshotAsyncOptions<TItem>,
+      ): Promise<SimplexLayoutSnapshot<TItem>>
+    summary: "Subpath @simplex-viz/core/worker — async counterpart to solveSimplexSnapshot() delegating to an optional SimplexWorkerClient or a yielded macrotask turn."
 ---
 
 ## Overview & Runtime Guarantees
@@ -192,6 +215,37 @@ engine.drillDownCluster(clusterUid);
 engine.drillUp();
 engine.drillToRoot();
 const targets = engine.getInteractiveTargets();
+```
+
+## Web Worker Offloading (`@simplex-viz/core/worker`)
+
+Offload QAP annealing and SAT/PBD layout solving off the UI thread with automatic stale-generation cancellation (`SUPERSEDED` / `AbortSignal`), main-thread `TItem` reference rehydration, optional `Float32Array` `ArrayBuffer` transfers, and a pluggable `solver` hook ready for future Rust/WASM backends:
+
+```ts
+// worker.ts
+import { attachSimplexWorkerHandler } from '@simplex-viz/core/worker';
+attachSimplexWorkerHandler();
+
+// main.ts
+import {
+  createSimplexWorkerClient,
+  isSimplexWorkerCancelledError,
+} from '@simplex-viz/core/worker';
+
+const client = createSimplexWorkerClient(
+  () => new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }),
+);
+
+try {
+  const { snapshot } = await client.solve(items, {
+    width: 1200,
+    height: 780,
+    clusteringStrategy: { kind: 'soft-simplex-tag' },
+    layoutStrategy: { kind: 'collision-driven' },
+  });
+} catch (err) {
+  if (!isSimplexWorkerCancelledError(err)) throw err;
+}
 ```
 
 ## Low-Level Pure Math Primitives

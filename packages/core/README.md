@@ -108,6 +108,43 @@ const snapshot = solveSimplexSnapshot(samples as readonly AudioSample[], {
 });
 ```
 
+### Off-Main-Thread Solving with `@simplex-viz/core/worker`
+
+Offload heavy QAP annealing and PBD/SAT layout passes to a Web Worker (or Node.js `worker_threads`) using the zero-dependency `@simplex-viz/core/worker` subpath. It uses a flat, structured-cloneable wire protocol (`SIMPLEX_WORKER_PROTOCOL_VERSION`), rehydrates original `TItem` object references on the main thread, cancels stale generations automatically during rapid resize/filter updates (`SUPERSEDED` / `AbortSignal`), supports zero-copy `Float32Array` `ArrayBuffer` transfers (`transferEmbeddings: true`), and falls back gracefully to async in-thread solving in SSR environments:
+
+```ts
+// worker.ts
+import { attachSimplexWorkerHandler } from '@simplex-viz/core/worker';
+
+// Optional: pass `{ solver }` to plug in a custom or future WASM backend
+attachSimplexWorkerHandler();
+```
+
+```ts
+// main.ts
+import {
+  createSimplexWorkerClient,
+  isSimplexWorkerCancelledError,
+} from '@simplex-viz/core/worker';
+
+const client = createSimplexWorkerClient(
+  () => new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }),
+);
+
+try {
+  const { snapshot, durationMs, usedWorker } = await client.solve(items, {
+    width: 1200,
+    height: 760,
+    clusteringStrategy: { kind: 'soft-simplex-tag', triangleSpread: 0.45 },
+    layoutStrategy: { kind: 'collision-driven' },
+    colorStrategy: { kind: 'theme-adaptive-oklab' },
+  });
+  console.log({ items: snapshot.items.length, durationMs, usedWorker });
+} catch (err) {
+  if (!isSimplexWorkerCancelledError(err)) throw err;
+}
+```
+
 ### Quickstart Default Settings (`solveSimplexSnapshot` & `SimplexGraphEngine`)
 
 | Option | `solveSimplexSnapshot` Default | `SimplexGraphEngine` Default |
