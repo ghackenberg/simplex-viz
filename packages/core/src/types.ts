@@ -308,6 +308,15 @@ export interface ItemFilterState<TItem = DefaultTaggedItem> {
 }
 
 /**
+ * Motion reduction preference for spring animations, `1:4` drill-down flights,
+ * and visual transitions:
+ * - `'auto'` (default): Respects the user's OS `prefers-reduced-motion: reduce` setting in browser controllers (`false` in headless core).
+ * - `true`: Always snaps layout, zoom, and timeline transitions immediately without spatial motion.
+ * - `false`: Always runs full spring and zoom flight animations regardless of OS preference.
+ */
+export type ReducedMotionPreference = 'auto' | boolean;
+
+/**
  * Options for programmatic item focus (`focusItem(itemId, options)`).
  */
 export interface FocusItemOptions {
@@ -993,6 +1002,13 @@ export interface SimplexEngineResolvedConfig<
    * is called with real viewport dimensions (e.g. from a `ResizeObserver` on a hidden container).
    */
   readonly deferInitialSolve?: boolean;
+  /**
+   * Motion reduction preference (`'auto' | boolean`). When `true`, snaps spring, zoom-flight,
+   * and visual transitions immediately without spatial animation. In headless `@simplex-viz/core`,
+   * `'auto'` defaults to `false`; browser controllers (`@simplex-viz/svg`) resolve `'auto'`
+   * dynamically via `matchMedia('(prefers-reduced-motion: reduce)')`. Default: `'auto'`.
+   */
+  readonly reducedMotion?: ReducedMotionPreference;
   readonly showHulls?: boolean;
   readonly interactions?: InteractionHandlers<
     TItem,

@@ -1243,4 +1243,57 @@ describe('@simplex-viz/react integration', () => {
     expect(exposed.handle!.exportSvg()).toBeNull();
     expect(await exposed.handle!.exportPng()).toBeNull();
   });
+
+  it('wires reducedMotion prop and exposes reducedMotion methods on useSimplexGraphController (Issue #23)', () => {
+    const items = [
+      { id: 'm1', label: 'Motion One', tags: ['alpha', 'beta'] },
+      { id: 'm2', label: 'Motion Two', tags: ['beta', 'gamma'] },
+      { id: 'm3', label: 'Motion Three', tags: ['alpha', 'gamma'] },
+    ];
+
+    const exposed: {
+      handle: ReturnType<typeof useSimplexGraphController<(typeof items)[number]>>['handle'] | null;
+    } = { handle: null };
+
+    const Host = ({ reducedMotion }: { reducedMotion?: 'auto' | boolean }) => {
+      const { controllerRef, handle } = useSimplexGraphController<(typeof items)[number]>();
+      exposed.handle = handle;
+      return (
+        <div style={{ width: 640, height: 420 }}>
+          <SimplexTopicGraph
+            controllerRef={controllerRef}
+            items={items}
+            preset="geometric"
+            reducedMotion={reducedMotion}
+          />
+        </div>
+      );
+    };
+
+    const { container, rerender, unmount } = render(<Host reducedMotion={true} />);
+    const svgEl = container.querySelector('svg')!;
+
+    expect(exposed.handle!.getReducedMotion()).toBe(true);
+    expect(exposed.handle!.isReducedMotionActive()).toBe(true);
+    expect(svgEl.getAttribute('data-reduced-motion')).toBe('true');
+
+    // Declarative prop change updates controller cleanly
+    rerender(<Host reducedMotion={false} />);
+    expect(exposed.handle!.getReducedMotion()).toBe(false);
+    expect(exposed.handle!.isReducedMotionActive()).toBe(false);
+    expect(svgEl.getAttribute('data-reduced-motion')).toBeNull();
+
+    // Imperative handle update works too
+    act(() => {
+      exposed.handle!.setReducedMotion(true);
+    });
+    expect(exposed.handle!.getReducedMotion()).toBe(true);
+    expect(exposed.handle!.isReducedMotionActive()).toBe(true);
+    expect(svgEl.getAttribute('data-reduced-motion')).toBe('true');
+
+    unmount();
+    expect(exposed.handle!.getReducedMotion()).toBe('auto');
+    expect(exposed.handle!.isReducedMotionActive()).toBe(false);
+  });
 });
+

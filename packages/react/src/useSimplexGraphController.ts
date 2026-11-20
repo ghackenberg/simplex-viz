@@ -7,6 +7,7 @@ import type {
   ItemFilterPredicate,
   ItemFilterState,
   LayoutMetrics,
+  ReducedMotionPreference,
   SimplexClusteringStrategy,
   SimplexColorStrategy,
   SimplexKeyboardFocusTarget,
@@ -88,6 +89,9 @@ export interface SimplexGraphHandle<
   zoomToItem(itemId: string, options?: ZoomToItemOptions): boolean;
   getKeyboardFocusTarget(): SimplexKeyboardFocusTarget | null;
   clearKeyboardFocus(): void;
+  setReducedMotion(preference: ReducedMotionPreference): void;
+  getReducedMotion(): ReducedMotionPreference;
+  isReducedMotionActive(): boolean;
   relayout(): void;
   exportSvg(options?: ExportSvgOptions): string | null;
   exportPng(options: ExportPngDataUrlOptions): Promise<string | null>;
@@ -319,6 +323,18 @@ export function useSimplexGraphController<
     controllerRef.current?.clearKeyboardFocus();
   }, []);
 
+  const setReducedMotion = useCallback((preference: ReducedMotionPreference) => {
+    controllerRef.current?.setReducedMotion(preference);
+  }, []);
+
+  const getReducedMotion = useCallback((): ReducedMotionPreference => {
+    return controllerRef.current?.getReducedMotion() ?? 'auto';
+  }, []);
+
+  const isReducedMotionActive = useCallback((): boolean => {
+    return controllerRef.current?.isReducedMotionActive() ?? false;
+  }, []);
+
   const relayout = useCallback(() => {
     controllerRef.current?.relayout();
   }, []);
@@ -394,6 +410,9 @@ export function useSimplexGraphController<
       zoomToItem,
       getKeyboardFocusTarget,
       clearKeyboardFocus,
+      setReducedMotion,
+      getReducedMotion,
+      isReducedMotionActive,
       relayout,
       exportSvg,
       exportPng,

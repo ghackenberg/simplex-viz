@@ -58,6 +58,7 @@ import type {
   NormalizedPointerEvent,
   NormalizedWheelEvent,
   Point2D,
+  ReducedMotionPreference,
   SceneFrameSnapshot,
   SimplexEngineConfig,
   SimplexEngineResolvedConfig,
@@ -516,6 +517,8 @@ export class SimplexGraphEngine<
 
   private dirtyRender = true;
   private awaitingInitialSolve = false;
+  private reducedMotionPreference: ReducedMotionPreference = 'auto';
+  private reducedMotionActive = false;
   private destroyed = false;
   private batchDepth = 0;
   private batchPendingPipelineReason: PipelineUpdateReason | null = null;
@@ -573,6 +576,8 @@ export class SimplexGraphEngine<
       ? [...config.canonicalSeedItems]
       : null;
     this.showHulls = config.showHulls ?? false;
+    this.reducedMotionPreference = config.reducedMotion ?? 'auto';
+    this.reducedMotionActive = this.reducedMotionPreference === true;
     this.interactions = config.interactions ?? {};
     this.onMetricsChange = config.onMetricsChange;
     this.onClustersChange = config.onClustersChange;
@@ -1251,6 +1256,84 @@ export class SimplexGraphEngine<
     this.theme = theme;
     if (this.awaitingInitialSolve) return;
     this.requestRecolor();
+  }
+
+  /**
+   * Updates reduced-motion mode (`'auto' | boolean`). When enabled (`true`), immediately snaps
+   * any in-flight spring, zoom flight, or visual transition to its settled target state and
+   * suppresses spatial motion on subsequent updates.
+   */
+  setReducedMotion(preference: ReducedMotionPreference): void {
+    this.reducedMotionPreference = preference;
+    const nextActive = preference === true;
+    const wasActive = this.reducedMotionActive;
+    this.reducedMotionActive = nextActive;
+    if (nextActive && (!wasActive || this.activeFlight !== null || !this.currentMetrics.isSettled)) {
+      this.snapAnimationsToTarget();
+    }
+  }
+
+  /** Returns the configured `reducedMotion` preference (`'auto' | boolean`). */
+  getReducedMotion(): ReducedMotionPreference {
+    return this.reducedMotionPreference;
+  }
+
+  /** Returns `true` when motion reduction is currently active on this engine. */
+  isReducedMotion(): boolean {
+    return this.reducedMotionActive;
+  }
+
+  /**
+   * Snaps all active springs, zoom flights, visual crossfades, and OKLab triangle blends
+   * directly to their target state without intermediate motion frames.
+   */
+  private snapAnimationsToTarget(): void {
+    if (this.destroyed || this.awaitingInitialSolve) return;
+    if (this.activeFlight) {
+      this.syncActiveFlightState(1);
+      this.activeFlight = null;
+    }
+
+    const snapMap = <TVisual, TDomain>(
+      map: Map<string, AnimatedNodeRecord<TVisual, TDomain>>,
+    ) => {
+      const toDelete: string[] = [];
+      for (const [key, node] of map) {
+        if (node.status === 'exiting') {
+          toDelete.push(key);
+          continue;
+        }
+        node.x.value = node.x.target;
+        node.x.velocity = 0;
+        node.y.value = node.y.target;
+        node.y.velocity = 0;
+        node.scale.value = node.scale.target;
+        node.scale.velocity = 0;
+        node.opacity.value = node.opacity.target;
+        node.opacity.velocity = 0;
+        node.transition = null;
+      }
+      for (const key of toDelete) {
+        map.delete(key);
+      }
+    };
+
+    snapMap(this.clusterNodes);
+    snapMap(this.itemNodes);
+
+    for (const tr of this.triangleStates) {
+      tr.currentOklab[0] = tr.targetOklab[0];
+      tr.currentOklab[1] = tr.targetOklab[1];
+      tr.currentOklab[2] = tr.targetOklab[2];
+      tr.fillHex = lerpOklabHex(tr.targetOklab, tr.targetOklab, 1);
+    }
+
+    if (!this.currentMetrics.isSettled) {
+      this.currentMetrics = { ...this.currentMetrics, isSettled: true };
+      this.onMetricsChange?.(this.currentMetrics);
+    }
+    this.dirtyRender = true;
+    this.renderNow();
   }
 
   /** Swaps the `VisualResolver` at runtime (e.g. changing node visual presets) with smooth crossfade. */
@@ -2550,6 +2633,9 @@ export class SimplexGraphEngine<
         ? this.zoomStack[this.zoomStack.length - 1]
         : undefined;
 
+    const snapImmediately = isInitial || this.reducedMotionActive;
+    const effectiveDrillFlight = this.reducedMotionActive ? undefined : drillFlight;
+
     // 3. Reconcile triangle background OKLab tints, centroids, and density counts
     const prevTriMap = new Map<number, AnimatedTriangleRecord>();
     for (const tr of this.triangleStates) {
@@ -2572,7 +2658,7 @@ export class SimplexGraphEngine<
       ]);
       const prev = prevTriMap.get(tri.index);
       const startOklab: [number, number, number] =
-        prev && !isInitial && !drillFlight
+        prev && !snapImmediately && !effectiveDrillFlight
           ? [...prev.currentOklab]
           : [mixed.oklab[0], mixed.oklab[1], mixed.oklab[2]];
 
@@ -2615,7 +2701,7 @@ export class SimplexGraphEngine<
         interiorItemCount,
         currentOklab: startOklab,
         targetOklab: mixed.oklab,
-        fillHex: lerpOklabHex(startOklab, mixed.oklab, isInitial || drillFlight ? 1 : 0),
+        fillHex: lerpOklabHex(startOklab, mixed.oklab, snapImmediately || effectiveDrillFlight ? 1 : 0),
       };
     });
 
@@ -2776,9 +2862,9 @@ export class SimplexGraphEngine<
     }
 
     // 4. Reconcile cluster & item nodes (either continuous drill flight OR normal springs)
-    if (drillFlight) {
+    if (effectiveDrillFlight) {
       const { snapshot: prevSnap, clusterDomainByNodeId, flightTransform, invFlight } =
-        drillFlight;
+        effectiveDrillFlight;
       const S = Math.max(0.02, Math.min(50, flightTransform.scale));
 
       // Index previous rendered clusters (active, context, and any mid-flight departing clusters)
@@ -3162,6 +3248,7 @@ export class SimplexGraphEngine<
       };
       this.syncActiveFlightState(0);
     } else {
+      this.activeFlight = null;
       const activeClusterIds = new Set<string>();
       resolvedClusters.forEach((rc, idx) => {
         const placed = solved.clusters[idx]!;
@@ -3173,19 +3260,19 @@ export class SimplexGraphEngine<
             : 1;
 
         const existing = this.clusterNodes.get(uid);
-        if (!existing) {
+        if (!existing || snapImmediately) {
           this.clusterNodes.set(uid, {
             id: uid,
             status: 'active',
             x: { value: placed.x, velocity: 0, target: placed.x },
             y: { value: placed.y, velocity: 0, target: placed.y },
             scale: {
-              value: isInitial ? placed.scale : placed.scale * 0.72,
+              value: snapImmediately ? placed.scale : placed.scale * 0.72,
               velocity: 0,
               target: placed.scale,
             },
             opacity: {
-              value: isInitial ? clusterTargetOpacity : 0,
+              value: snapImmediately ? clusterTargetOpacity : 0,
               velocity: 0,
               target: clusterTargetOpacity,
             },
@@ -3220,7 +3307,7 @@ export class SimplexGraphEngine<
 
       for (const [uid, node] of this.clusterNodes) {
         if (!activeClusterIds.has(uid)) {
-          if (isInitial) {
+          if (snapImmediately) {
             this.clusterNodes.delete(uid);
           } else {
             node.status = 'exiting';
@@ -3241,27 +3328,27 @@ export class SimplexGraphEngine<
         activeItemIds.add(id);
 
         const existing = this.itemNodes.get(id);
-        if (!existing) {
+        if (!existing || snapImmediately) {
           this.itemNodes.set(id, {
             id,
             status: 'active',
             x: {
-              value: isInitial ? placed.x : ri.placement.anchorX,
+              value: snapImmediately ? placed.x : ri.placement.anchorX,
               velocity: 0,
               target: placed.x,
             },
             y: {
-              value: isInitial ? placed.y : ri.placement.anchorY,
+              value: snapImmediately ? placed.y : ri.placement.anchorY,
               velocity: 0,
               target: placed.y,
             },
             scale: {
-              value: isInitial ? placed.scale : placed.scale * 0.5,
+              value: snapImmediately ? placed.scale : placed.scale * 0.5,
               velocity: 0,
               target: placed.scale,
             },
             opacity: {
-              value: isInitial ? targetOpacity : 0,
+              value: snapImmediately ? targetOpacity : 0,
               velocity: 0,
               target: targetOpacity,
             },
@@ -3296,7 +3383,7 @@ export class SimplexGraphEngine<
 
       for (const [id, node] of this.itemNodes) {
         if (!activeItemIds.has(id)) {
-          if (isInitial) {
+          if (snapImmediately) {
             this.itemNodes.delete(id);
           } else {
             node.status = 'exiting';
@@ -3352,7 +3439,7 @@ export class SimplexGraphEngine<
       contentScale: solved.contentScale,
       overlapCount: solved.overlapCount,
       maxPenetrationPx: solved.maxPenetrationPx,
-      isSettled: isInitial && !this.activeFlight,
+      isSettled: snapImmediately && !this.activeFlight,
       meshSideLength: mesh.sideLength,
       areaEfficiency: mesh.areaEfficiency,
     };
@@ -3360,7 +3447,7 @@ export class SimplexGraphEngine<
     this.refreshZoomState();
     this.dirtyRender = true;
 
-    if (isInitial || drillFlight) {
+    if (snapImmediately || drillFlight) {
       this.renderNow();
     }
   }
@@ -3537,6 +3624,12 @@ export class SimplexGraphEngine<
    */
   step(dtMs: number): boolean {
     if (this.destroyed || this.awaitingInitialSolve) return true;
+    if (this.reducedMotionActive) {
+      if (this.activeFlight || !this.currentMetrics.isSettled || this.dirtyRender) {
+        this.snapAnimationsToTarget();
+      }
+      return true;
+    }
     const dtSec = Math.min(0.05, Math.max(0.001, dtMs / 1000));
     let allSettled = true;
 

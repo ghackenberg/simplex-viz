@@ -3578,6 +3578,111 @@ describe('@simplex-viz/svg integration', () => {
       container.remove();
     }
   });
+
+  it('respects prefers-reduced-motion live under auto, supports boolean overrides, and cleans up on destroy (Issue #23)', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+    document.body.appendChild(container);
+
+    // Mock window.matchMedia('(prefers-reduced-motion: reduce)')
+    const originalMatchMedia = window.matchMedia;
+    let currentMatches = true;
+    const listeners = new Set<(event: { matches: boolean }) => void>();
+    const addSpy = vi.fn((_type: string, cb: (event: { matches: boolean }) => void) => {
+      listeners.add(cb);
+    });
+    const removeSpy = vi.fn((_type: string, cb: (event: { matches: boolean }) => void) => {
+      listeners.delete(cb);
+    });
+    const emitMatchMediaChange = (nextMatches: boolean) => {
+      currentMatches = nextMatches;
+      for (const cb of [...listeners]) {
+        cb({ matches: nextMatches });
+      }
+    };
+
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: vi.fn((query: string) => ({
+        media: query,
+        get matches() {
+          return query.includes('prefers-reduced-motion') ? currentMatches : false;
+        },
+        addEventListener: addSpy,
+        removeEventListener: removeSpy,
+      })),
+    });
+
+    const items: DefaultTaggedItem[] = Array.from({ length: 18 }, (_, i) => ({
+      id: `rm-${i}`,
+      tags: [`g-${i % 6}`, `g-${(i + 1) % 6}`],
+    }));
+
+    try {
+      // 1) Default 'auto' with OS prefers-reduced-motion: reduce -> active immediately
+      const ctrl = createSimplexSvg(container, {
+        items,
+        preset: 'geometric',
+        layoutOptions: { seed: 11 },
+      });
+      const svgEl = container.querySelector('svg')!;
+      expect(ctrl.getReducedMotion()).toBe('auto');
+      expect(ctrl.isReducedMotionActive()).toBe(true);
+      expect(svgEl.getAttribute('data-reduced-motion')).toBe('true');
+      expect(listeners.size).toBe(1);
+
+      // Mutation snaps immediately with zero exiting nodes remaining
+      ctrl.removeItems('rm-0');
+      expect(ctrl.getMetrics().isSettled).toBe(true);
+      expect(svgEl.querySelector('[data-item-id="rm-0"]')).toBeNull();
+
+      // 2) Live OS preference change to no-preference disables reduced motion dynamically
+      emitMatchMediaChange(false);
+      expect(ctrl.isReducedMotionActive()).toBe(false);
+      expect(svgEl.getAttribute('data-reduced-motion')).toBeNull();
+
+      // 3) Live OS preference change back to reduce re-enables reduced motion
+      emitMatchMediaChange(true);
+      expect(ctrl.isReducedMotionActive()).toBe(true);
+      expect(svgEl.getAttribute('data-reduced-motion')).toBe('true');
+
+      // 4) Explicit false via setOptions overrides OS reduce: true and detaches listener
+      ctrl.setOptions({ reducedMotion: false });
+      expect(ctrl.getReducedMotion()).toBe(false);
+      expect(ctrl.isReducedMotionActive()).toBe(false);
+      expect(svgEl.getAttribute('data-reduced-motion')).toBeNull();
+      expect(listeners.size).toBe(0);
+
+      // 5) Explicit true via setReducedMotion overrides OS reduce: false
+      currentMatches = false;
+      ctrl.setReducedMotion(true);
+      expect(ctrl.getReducedMotion()).toBe(true);
+      expect(ctrl.isReducedMotionActive()).toBe(true);
+      expect(svgEl.getAttribute('data-reduced-motion')).toBe('true');
+
+      // 6) Switching back to 'auto' re-subscribes and destroy() cleanly unsubscribes
+      ctrl.setReducedMotion('auto');
+      expect(ctrl.isReducedMotionActive()).toBe(false);
+      expect(listeners.size).toBe(1);
+
+      ctrl.destroy();
+      expect(listeners.size).toBe(0);
+      expect(removeSpy).toHaveBeenCalled();
+
+      // Emitting a change after destroy must be a safe no-op
+      expect(() => emitMatchMediaChange(true)).not.toThrow();
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        writable: true,
+        value: originalMatchMedia,
+      });
+      container.remove();
+    }
+  });
 });
 
 

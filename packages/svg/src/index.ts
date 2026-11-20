@@ -132,6 +132,7 @@ export {
   type PositionRelaxationOutput,
   type PositionRelaxer,
   type PreviousNodeLayout,
+  type ReducedMotionPreference,
   type ScaleControlContext,
   type ScaleControlResult,
   type ScaleController,

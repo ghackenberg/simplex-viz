@@ -25,6 +25,7 @@ import {
   type LayoutMetrics,
   type LayoutSolverOptions,
   type MeshOptions,
+  type ReducedMotionPreference,
   type SimplexClusteringStrategy,
   type SimplexColorStrategy,
   type SimplexInteractiveTarget,
@@ -303,6 +304,14 @@ export interface SimplexSvgControllerResolvedOptions<
    * Default: `true`.
    */
   readonly keyboardNavigation?: boolean;
+  /**
+   * Motion reduction preference for spring, zoom-flight, and timeline layout transitions:
+   * - `'auto'` (default): Follows `window.matchMedia('(prefers-reduced-motion: reduce)')`
+   *   and reacts live to OS accessibility changes.
+   * - `true`: Always snaps layout, zoom, and timeline transitions immediately without spatial motion.
+   * - `false`: Always runs full animations regardless of OS preference.
+   */
+  readonly reducedMotion?: ReducedMotionPreference;
   readonly interactions?: InteractionHandlers<
     TItem,
     TContentVisual,
@@ -389,6 +398,7 @@ export interface SimplexSvgUpdateOptions<
     | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
   readonly ariaLabel?: string;
   readonly keyboardNavigation?: boolean;
+  readonly reducedMotion?: ReducedMotionPreference;
   readonly touchScrollLockPx?: number;
   readonly clickTolerancePx?: number;
   readonly interactions?: InteractionHandlers<
@@ -547,6 +557,9 @@ export class SimplexSvgController<
   private wheelPinchAccum = 0;
   private wheelPinchCooldownUntil = 0;
   private fontLoadCleanup: (() => void) | null = null;
+  private reducedMotionPreference: ReducedMotionPreference = 'auto';
+  private reducedMotionActive = false;
+  private reducedMotionMediaCleanup: (() => void) | null = null;
   private pendingInitialViewport = false;
   private deferFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -586,6 +599,8 @@ export class SimplexSvgController<
     this.tooltipOption = options.tooltip ?? false;
     this.ariaLabel = options.ariaLabel?.trim() || DEFAULT_ARIA_LABEL;
     this.keyboardNavigationEnabled = options.keyboardNavigation ?? true;
+    this.reducedMotionPreference = options.reducedMotion ?? 'auto';
+    this.reducedMotionActive = this.computeReducedMotionActive();
     this.getIdExtractor =
       options.getId ??
       ((item: TItem) =>
@@ -637,6 +652,7 @@ export class SimplexSvgController<
     this.syncSvgTouchAction();
     this.svgEl.style.userSelect = 'none';
     this.syncSvgAccessibilityAttributes();
+    this.syncReducedMotionAttribute();
     this.containerEl.appendChild(this.svgEl);
     this.ensureSrAnnouncerElement();
 
@@ -746,6 +762,7 @@ export class SimplexSvgController<
       itemFilterMode: options.itemFilterMode,
       canonicalSeedItems: this.timelineController ? this.fullCorpusItems : undefined,
       deferInitialSolve: shouldDeferSolve,
+      reducedMotion: this.reducedMotionActive,
       interactions: this.wrapInteractions(options.interactions),
       onMetricsChange: options.onMetricsChange,
       onClustersChange: options.onClustersChange,
@@ -795,6 +812,7 @@ export class SimplexSvgController<
     };
 
     this.attachSvgListeners();
+    this.syncReducedMotionMediaSubscription();
 
     if (canObserveResize) {
       this.resizeObserver = new ResizeObserver((entries) => {
@@ -1770,6 +1788,9 @@ export class SimplexSvgController<
       if (options.keyboardNavigation !== undefined) {
         this.setKeyboardNavigation(options.keyboardNavigation);
       }
+      if (options.reducedMotion !== undefined) {
+        this.setReducedMotion(options.reducedMotion);
+      }
       if (options.touchScrollLockPx !== undefined) {
         this.setTouchScrollLockPx(options.touchScrollLockPx);
       }
@@ -2180,6 +2201,94 @@ export class SimplexSvgController<
   /** Updates the maximum drag-vs-click pointer displacement tolerance in CSS pixels. */
   setClickTolerancePx(px: number): void {
     this.clickTolerancePx = Number.isFinite(px) ? Math.max(0, px) : 12;
+  }
+
+  /**
+   * Updates the reduced-motion preference (`'auto' | boolean`).
+   * Under `'auto'`, tracks `window.matchMedia('(prefers-reduced-motion: reduce)')` live.
+   */
+  setReducedMotion(preference: ReducedMotionPreference): void {
+    if (this.destroyed) return;
+    this.reducedMotionPreference = preference;
+    this.syncReducedMotionMediaSubscription();
+    this.applyReducedMotionState(this.computeReducedMotionActive());
+  }
+
+  /** Returns the configured `reducedMotion` preference (`'auto' | boolean`). */
+  getReducedMotion(): ReducedMotionPreference {
+    return this.reducedMotionPreference;
+  }
+
+  /** Returns `true` when motion reduction is currently active (explicit `true` or OS `reduce` under `'auto'`). */
+  isReducedMotionActive(): boolean {
+    return this.reducedMotionActive;
+  }
+
+  private computeReducedMotionActive(): boolean {
+    if (this.reducedMotionPreference === true) return true;
+    if (this.reducedMotionPreference === false) return false;
+    const win = this.containerEl.ownerDocument?.defaultView ??
+      (typeof window !== 'undefined' ? window : null);
+    if (!win || typeof win.matchMedia !== 'function') return false;
+    try {
+      return Boolean(win.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    } catch {
+      return false;
+    }
+  }
+
+  private syncReducedMotionAttribute(): void {
+    if (this.reducedMotionActive) {
+      this.svgEl.setAttribute('data-reduced-motion', 'true');
+    } else {
+      this.svgEl.removeAttribute('data-reduced-motion');
+    }
+  }
+
+  private applyReducedMotionState(active: boolean): void {
+    this.reducedMotionActive = active;
+    this.syncReducedMotionAttribute();
+    this.engine.setReducedMotion(active);
+  }
+
+  private detachReducedMotionMediaSubscription(): void {
+    this.reducedMotionMediaCleanup?.();
+    this.reducedMotionMediaCleanup = null;
+  }
+
+  private syncReducedMotionMediaSubscription(): void {
+    this.detachReducedMotionMediaSubscription();
+    if (this.destroyed || this.reducedMotionPreference !== 'auto') return;
+    const win = this.containerEl.ownerDocument?.defaultView ??
+      (typeof window !== 'undefined' ? window : null);
+    if (!win || typeof win.matchMedia !== 'function') return;
+
+    let mql: MediaQueryList;
+    try {
+      mql = win.matchMedia('(prefers-reduced-motion: reduce)');
+    } catch {
+      return;
+    }
+    if (!mql) return;
+
+    const handleChange = (event?: { readonly matches?: boolean }) => {
+      if (this.destroyed || this.reducedMotionPreference !== 'auto') return;
+      const matches =
+        typeof event?.matches === 'boolean' ? event.matches : Boolean(mql.matches);
+      this.applyReducedMotionState(matches);
+    };
+
+    if (typeof mql.addEventListener === 'function') {
+      mql.addEventListener('change', handleChange);
+      this.reducedMotionMediaCleanup = () => {
+        mql.removeEventListener('change', handleChange);
+      };
+    } else if (typeof mql.addListener === 'function') {
+      mql.addListener(handleChange);
+      this.reducedMotionMediaCleanup = () => {
+        mql.removeListener(handleChange);
+      };
+    }
   }
 
   /**
@@ -3893,6 +4002,7 @@ export class SimplexSvgController<
     this.resizeObserver?.disconnect();
     this.fontLoadCleanup?.();
     this.fontLoadCleanup = null;
+    this.detachReducedMotionMediaSubscription();
     this.detachSvgListeners();
     this.engine.destroy();
     if (this.tooltipEl && this.tooltipEl.parentElement === this.containerEl) {

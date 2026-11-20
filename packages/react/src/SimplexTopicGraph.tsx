@@ -18,6 +18,7 @@ import {
   type MeshOptions,
   type NodeRenderState,
   type NormalizedPointerEvent,
+  type ReducedMotionPreference,
   type SimplexColorStrategy,
   type SimplexLayoutStrategy,
   type SimplexMeshStrategy,
@@ -298,6 +299,11 @@ export type SimplexTopicGraphProps<
      * `Escape`), visible focus rings, and `aria-activedescendant` tracking. Default: `true`.
      */
     readonly keyboardNavigation?: boolean;
+    /**
+     * Motion reduction preference (`'auto' | boolean`). Default: `'auto'` (tracks OS
+     * `prefers-reduced-motion: reduce` live and snaps spring/zoom/timeline motion when active).
+     */
+    readonly reducedMotion?: ReducedMotionPreference;
     /** Return `true` to suppress the built-in hover tooltip for this content node. */
     readonly onContentHover?: (
       event: ContentHoverEvent<TItem, TContentVisual, TTagMeta, TClusterMeta> | null,
@@ -842,6 +848,7 @@ export function SimplexTopicGraph<
       clickTolerancePx: p.clickTolerancePx,
       ariaLabel: p.ariaLabel,
       keyboardNavigation: p.keyboardNavigation,
+      reducedMotion: p.reducedMotion,
       focusOnClusterClick: false,
       focusOnTriangleClick: false,
       interactions: buildReactInteractions(p.onWheel),
@@ -1211,6 +1218,12 @@ export function SimplexTopicGraph<
       ctrlRef.current?.setKeyboardNavigation(props.keyboardNavigation);
     }
   }, [props.keyboardNavigation]);
+
+  useEffect(() => {
+    if (props.reducedMotion !== undefined) {
+      ctrlRef.current?.setReducedMotion(props.reducedMotion);
+    }
+  }, [props.reducedMotion]);
 
   // Sync wheel policy so `'none'`, `'pan-vertical'`, `'zoom-to-cursor'`, and custom callbacks stay live
   useEffect(() => {
