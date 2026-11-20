@@ -2,6 +2,14 @@
 
 All notable changes to **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`, `@simplex-viz/wc`, and the documentation/showcase site) are documented in this file following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), coordinated with per-package release notes via `@changesets/cli`.
 
+## [0.12.1] - 2026-11-20
+
+### Documentation & Brand Assets
+- **`@simplex-viz/wc`**:
+  - Added the dedicated Emerald-accented banner logo (`docs/assets/logo-wc.svg` / `logo-wc.png`) and Light-/Dark-mode-compatible architecture showcase (`docs/assets/preview-wc.svg` / `preview-wc.png`) to the brand-sync pipeline and embedded both visuals into `packages/wc/README.md` so the published npm package page matches `@simplex-viz/core`, `@simplex-viz/svg`, and `@simplex-viz/react`.
+- **Workspace Lockstep**:
+  - Synchronized `@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`, `@simplex-viz/wc`, and the API reference metadata to `0.12.1`.
+
 ## [0.12.0] - 2026-11-20
 
 ### Added

@@ -47,10 +47,11 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(SCRIPT_DIR, '..');
 
 /**
- * Canonical 3-vertex SimplexViz brand palette:
+ * Canonical SimplexViz brand palette:
  * - Top (Cyan): `#06B6D4` (`Viz`, `@simplex-viz/core`)
  * - Bottom-Left (Amber): `#F59E0B` (`@simplex-viz/svg`)
  * - Bottom-Right (Magenta): `#D946EF` (`@simplex-viz/react`)
+ * - Accent (Emerald): `#10B981` (`@simplex-viz/wc`)
  */
 export const BRAND_COLORS = {
   cyan: {
@@ -67,6 +68,11 @@ export const BRAND_COLORS = {
     core: '#D946EF',
     ring: '#86198F',
     brightEdge: '#E879F9',
+  },
+  emerald: {
+    core: '#10B981',
+    ring: '#065F46',
+    brightEdge: '#34D399',
   },
   neutral: {
     wordmark: '#6B7F99',
@@ -849,6 +855,18 @@ const BANNER_LOGOS: readonly BannerLogoSpec[] = [
     subtitleFontSize: 13,
     subtitleLetterSpacing: 0.9,
   },
+  {
+    svgPath: 'docs/assets/logo-wc.svg',
+    pngPath: 'docs/assets/logo-wc.png',
+    width: 580,
+    height: 160,
+    pngWidth: 1160,
+    wordmarkComment: 'Wordmark synced to Web Component accent Emerald',
+    titleXml: `<tspan fill="${BRAND_COLORS.neutral.wordmark}">SimplexViz</tspan><tspan fill="${BRAND_COLORS.neutral.slate}" font-weight="400"> / </tspan><tspan fill="${BRAND_COLORS.emerald.core}" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="38" font-weight="700">wc</tspan>`,
+    subtitle: 'FRAMEWORK-AGNOSTIC WEB COMPONENT',
+    subtitleFontSize: 13,
+    subtitleLetterSpacing: 0.9,
+  },
 ];
 
 const SCENE_SVGS: readonly SceneSvgTarget[] = [
@@ -883,6 +901,11 @@ const STATIC_PREVIEWS: readonly StaticPreviewSpec[] = [
   {
     svgPath: 'docs/assets/preview-react.svg',
     pngPath: 'docs/assets/preview-react.png',
+    width: 1600,
+  },
+  {
+    svgPath: 'docs/assets/preview-wc.svg',
+    pngPath: 'docs/assets/preview-wc.png',
     width: 1600,
   },
 ];

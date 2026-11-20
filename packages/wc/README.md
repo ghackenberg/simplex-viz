@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/logo-wc.png" width="525" alt="SimplexViz / wc — @simplex-viz/wc" />
+</p>
+
 # `@simplex-viz/wc`
 
 Framework-agnostic Web Component (`<simplex-topic-graph>`) for **SimplexViz** — drop interactive 60° simplicial topic atlases into plain HTML, Vue, Svelte, Angular, Astro, Hugo, or any standard DOM environment with zero React dependency.
@@ -5,6 +9,16 @@ Framework-agnostic Web Component (`<simplex-topic-graph>`) for **SimplexViz** �
 - **Live Demo:** <https://hackenberg.tech/simplex-viz/>
 - **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/wc>
 - **Companion Packages:** [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core) · [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg) · [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react)
+
+## Custom Element & Light DOM Architecture
+
+`<simplex-topic-graph>` wraps `@simplex-viz/core` and `@simplex-viz/svg` in a standard, SSR-safe Custom Element that renders directly into Light DOM — supporting declarative HTML attributes, inline `<script type="application/json">` data, imperative controller methods, and bubbling `CustomEvent`s:
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/preview-wc.png" width="100%" alt="@simplex-viz/wc preview showing declarative HTML <simplex-topic-graph> markup, reactive attributes, bubbling CustomEvents, and a live 60° Light DOM simplex atlas with Shift+Drag marquee selection and hover tooltips" />
+</p>
+
+*Figure: Architecture of `@simplex-viz/wc`. Declarative HTML attributes (`preset="badges"`, `reduced-motion="auto"`, `marquee-selection`, `tooltip`), inline JSON datasets, and reactive DOM properties drive an overlap-free 60° Light DOM simplex atlas inside `<simplex-topic-graph>`, while user interactions (`Shift+Drag` marquee selection, click, hover, and zoom) emit standard bubbling `CustomEvent`s (`composed: true`) for seamless integration with HTML, Astro, Vue, Svelte, or Angular.*
 
 ## Installation
 

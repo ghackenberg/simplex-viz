@@ -1,5 +1,11 @@
 # @simplex-viz/core
 
+## 0.12.1
+
+### Patch Changes
+
+- Synchronized workspace patch release (`0.12.1`) accompanying `@simplex-viz/wc` README visual assets.
+
 ## 0.12.0
 
 ### Minor Changes

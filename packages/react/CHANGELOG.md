@@ -1,5 +1,14 @@
 # @simplex-viz/react
 
+## 0.12.1
+
+### Patch Changes
+
+- Synchronized workspace patch release (`0.12.1`) accompanying `@simplex-viz/wc` README visual assets.
+- Updated dependencies
+  - @simplex-viz/core@0.12.1
+  - @simplex-viz/svg@0.12.1
+
 ## 0.12.0
 
 ### Minor Changes

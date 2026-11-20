@@ -1,5 +1,14 @@
 # @simplex-viz/wc
 
+## 0.12.1
+
+### Patch Changes
+
+- Embed the official `SimplexViz / wc` Emerald banner logo (`logo-wc.png`) and Light DOM architecture preview (`preview-wc.png`) in `README.md` for GitHub and npmjs.org.
+- Updated dependencies
+  - @simplex-viz/core@0.12.1
+  - @simplex-viz/svg@0.12.1
+
 ## 0.12.0
 
 ### Minor Changes
