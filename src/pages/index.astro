@@ -20,18 +20,18 @@ const latestNotes = (await getCollection('notes'))
 
 const installTargets = [
   {
-    id: 'svg',
-    label: 'SVG',
-    shortCmd: 'npm install @simplex-viz/svg',
-    fullCmd: 'npm install @simplex-viz/svg',
-    hint: 'Vanilla TS · Vue · Svelte',
-  },
-  {
     id: 'core',
     label: 'Core',
     shortCmd: 'npm install @simplex-viz/core',
     fullCmd: 'npm install @simplex-viz/core',
     hint: 'Zero-dep · Headless SSR',
+  },
+  {
+    id: 'svg',
+    label: 'SVG',
+    shortCmd: 'npm install @simplex-viz/svg',
+    fullCmd: 'npm install @simplex-viz/svg',
+    hint: 'Vanilla TS · Vue · Svelte',
   },
   {
     id: 'react',
@@ -42,7 +42,7 @@ const installTargets = [
   },
   {
     id: 'wc',
-    label: 'Web Comp',
+    label: 'Web Component',
     shortCmd: 'npm install @simplex-viz/wc',
     fullCmd: 'npm install @simplex-viz/wc',
     hint: 'HTML · Astro · Vue · Svelte',
@@ -100,7 +100,7 @@ const installTargets = [
           <!-- Compact Self-Contained Package Install Bar -->
           <div class="mx-auto mt-6 max-w-md overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50/70 text-left lg:mx-0 lg:max-w-none dark:border-slate-800/90 dark:bg-[#07090E]">
             <div class="flex items-center justify-between gap-2 border-b border-slate-200/80 bg-slate-100/85 px-1.5 pt-1.5 dark:border-slate-800/80 dark:bg-[#0E131D]">
-              <div role="tablist" aria-label="Choose package layer" class="flex items-center gap-0.5">
+              <div role="tablist" aria-label="Choose package layer" class="flex shrink-0 items-center gap-0.5">
                 {
                   installTargets.map((target, idx) => (
                     <button
@@ -112,7 +112,7 @@ const installTargets = [
                       data-full-cmd={target.fullCmd}
                       data-install-hint={target.hint}
                       class:list={[
-                        'cursor-pointer rounded-t-md px-3 py-1.5 text-xs transition-colors whitespace-nowrap',
+                        'cursor-pointer rounded-t-md px-2.5 py-1.5 text-xs transition-colors whitespace-nowrap',
                         idx === 0
                           ? 'bg-slate-50 text-slate-950 font-semibold dark:bg-[#07090E] dark:text-cyan-300'
                           : 'font-medium text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-100',
@@ -126,7 +126,7 @@ const installTargets = [
 
               <span
                 id="sv-hero-install-hint"
-                class="hidden sm:inline pr-2.5 pb-1 font-mono text-[11px] text-slate-400 dark:text-slate-500 truncate"
+                class="hidden sm:inline min-w-0 pr-2.5 pb-1 font-mono text-[11px] text-slate-400 dark:text-slate-500 truncate"
               >
                 {installTargets[0].hint}
               </span>
