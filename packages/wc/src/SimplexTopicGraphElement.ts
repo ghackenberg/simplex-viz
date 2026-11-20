@@ -164,6 +164,7 @@ const OBSERVED_ATTRIBUTES = [
   'keyboard-navigation',
   'reduced-motion',
   'marquee-selection',
+  'shift-click-selects',
   'show-zoom-breadcrumbs',
   'show-hulls',
   'empty-cluster-behavior',
@@ -230,6 +231,7 @@ const UPGRADEABLE_PROPERTIES = [
   'highlightedIds',
   'pinnedIds',
   'marqueeSelection',
+  'shiftClickSelects',
   'focusedItemId',
   'focusedClusterUid',
   'focusedTriangleIndex',
@@ -420,6 +422,7 @@ export class SimplexTopicGraphElement<
   private _keyboardNavigation = true;
   private _reducedMotion: ReducedMotionPreference = 'auto';
   private _marqueeSelection = true;
+  private _shiftClickSelects = true;
 
   private _selectedIds: Iterable<string> | null = null;
   private _highlightedIds: Iterable<string> | null = null;
@@ -876,6 +879,14 @@ export class SimplexTopicGraphElement<
     this._controller?.setOptions({ marqueeSelection: this._marqueeSelection });
   }
 
+  get shiftClickSelects(): boolean {
+    return this._shiftClickSelects;
+  }
+  set shiftClickSelects(value: boolean) {
+    this._shiftClickSelects = Boolean(value);
+    this._controller?.setOptions({ shiftClickSelects: this._shiftClickSelects });
+  }
+
   get selectedIds(): ReadonlySet<string> {
     if (this._controller) return this._controller.getSelectedIds();
     return this._selectedIds ? new Set(this._selectedIds) : new Set();
@@ -1052,6 +1063,9 @@ export class SimplexTopicGraphElement<
     if (options.selectedIds !== undefined) this._selectedIds = options.selectedIds;
     if (options.marqueeSelection !== undefined) {
       this._marqueeSelection = options.marqueeSelection;
+    }
+    if (options.shiftClickSelects !== undefined) {
+      this._shiftClickSelects = options.shiftClickSelects;
     }
     if (options.focusedItemId !== undefined) this._focusedItemId = options.focusedItemId;
     if (options.focusedClusterUid !== undefined) {
@@ -1386,6 +1400,12 @@ export class SimplexTopicGraphElement<
         live?.setOptions({ marqueeSelection: enabled });
         break;
       }
+      case 'shift-click-selects': {
+        const enabled = parseBooleanAttr(newValue, true);
+        this._shiftClickSelects = enabled;
+        live?.setOptions({ shiftClickSelects: enabled });
+        break;
+      }
       case 'show-zoom-breadcrumbs': {
         const enabled = parseBooleanAttr(newValue, true);
         this._showZoomBreadcrumbs = enabled;
@@ -1539,6 +1559,7 @@ export class SimplexTopicGraphElement<
       reducedMotion: this._reducedMotion,
       selectedIds: this._selectedIds,
       marqueeSelection: this._marqueeSelection,
+      shiftClickSelects: this._shiftClickSelects,
       interactions: this.buildComposedInteractions(),
       onMetricsChange: (metrics: LayoutMetrics) => {
         this.emitEvent('simplex-metrics', metrics);

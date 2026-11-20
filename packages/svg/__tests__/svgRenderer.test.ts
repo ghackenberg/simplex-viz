@@ -3862,6 +3862,76 @@ describe('@simplex-viz/svg integration', () => {
     }
   });
 
+  it('handles Shift+Click multi-selection prior to consuming onContentClick and supports shiftClickSelects=false (Issue #27)', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+    document.body.appendChild(container);
+
+    const items = [
+      { id: 'sc-1', label: 'First', tags: ['alpha', 'beta'] },
+      { id: 'sc-2', label: 'Second', tags: ['beta', 'gamma'] },
+      { id: 'sc-3', label: 'Third', tags: ['gamma', 'alpha'] },
+    ];
+    const clickedIds: string[] = [];
+    const ctrl = new SimplexSvgController(container, {
+      items,
+      preset: 'geometric',
+      layoutOptions: { seed: 47 },
+      interactions: {
+        onContentClick: (target) => {
+          clickedIds.push(target.layoutContext.id);
+          return true;
+        },
+      },
+    });
+    const svgEl = container.querySelector('svg')!;
+    Object.defineProperty(svgEl, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+
+    const getPos = (id: string) => {
+      const g = svgEl.querySelector<SVGGElement>(`g.sv-node-item[data-node-id="${id}"]`)!;
+      const m = /translate\(([-0-9.]+),\s*([-0-9.]+)\)/.exec(g.getAttribute('transform') ?? '')!;
+      return { x: Number(m[1]), y: Number(m[2]) };
+    };
+
+    try {
+      const p1 = getPos('sc-1');
+      const p2 = getPos('sc-2');
+
+      // Plain click triggers onContentClick and does not select
+      svgEl.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: p1.x, clientY: p1.y, shiftKey: false }),
+      );
+      expect(clickedIds).toEqual(['sc-1']);
+      expect(ctrl.getSelectedIds().size).toBe(0);
+
+      // Shift+Click toggles selection BEFORE onContentClick (even though onContentClick returns true)
+      svgEl.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: p1.x, clientY: p1.y, shiftKey: true }),
+      );
+      svgEl.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: p2.x, clientY: p2.y, shiftKey: true }),
+      );
+      expect([...ctrl.getSelectedIds()].sort()).toEqual(['sc-1', 'sc-2']);
+      expect(clickedIds).toEqual(['sc-1']);
+
+      // Opt-out via setOptions({ shiftClickSelects: false }) passes Shift+Click through to onContentClick
+      ctrl.setOptions({ shiftClickSelects: false });
+      expect(ctrl.getShiftClickSelects()).toBe(false);
+      svgEl.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: p2.x, clientY: p2.y, shiftKey: true }),
+      );
+      expect(clickedIds).toEqual(['sc-1', 'sc-2']);
+      expect([...ctrl.getSelectedIds()].sort()).toEqual(['sc-1', 'sc-2']);
+    } finally {
+      ctrl.destroy();
+      container.remove();
+    }
+  });
+
   it('serializes and restores complete view state including timelineStep, drill-down breadcrumbs, camera, focus, and selection (Issue #24)', () => {
     const mountContainer = () => {
       const el = document.createElement('div');

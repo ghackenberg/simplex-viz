@@ -324,6 +324,12 @@ export interface SimplexSvgControllerResolvedOptions<
    * Does not conflict with single-button drag-to-pan or touch scrolling. Default: `true`.
    */
   readonly marqueeSelection?: boolean;
+  /**
+   * When `true` (default), `Shift+Click` (and keyboard `Shift+Enter` / `Shift+Space`) on active
+   * content items toggles multi-selection before invoking `onContentClick` / `onLeftClick`.
+   * Set to `false` to receive `Shift+Click` in `onContentClick` / `onLeftClick` instead.
+   */
+  readonly shiftClickSelects?: boolean;
   readonly interactions?: InteractionHandlers<
     TItem,
     TContentVisual,
@@ -427,6 +433,7 @@ export interface SimplexSvgUpdateOptions<
   readonly highlightedItems?: Iterable<string> | null;
   readonly selectedIds?: Iterable<string> | null;
   readonly marqueeSelection?: boolean;
+  readonly shiftClickSelects?: boolean;
   readonly onSelectionChange?: (selectedIds: ReadonlySet<string>) => void;
   readonly focusedItemId?: string | null;
   readonly focusedClusterUid?: string | null;
@@ -791,6 +798,7 @@ export class SimplexSvgController<
       deferInitialSolve: shouldDeferSolve,
       reducedMotion: this.reducedMotionActive,
       selectedIds: options.selectedIds,
+      shiftClickSelects: options.shiftClickSelects,
       interactions: this.wrapInteractions(options.interactions),
       onMetricsChange: options.onMetricsChange,
       onClustersChange: options.onClustersChange,
@@ -1813,6 +1821,9 @@ export class SimplexSvgController<
       if (options.marqueeSelection !== undefined) {
         this.setMarqueeSelection(options.marqueeSelection);
       }
+      if (options.shiftClickSelects !== undefined) {
+        this.setShiftClickSelects(options.shiftClickSelects);
+      }
       if ('focusedItemId' in options) {
         this.engine.focusItem(options.focusedItemId ?? null);
         needsRenderNow = true;
@@ -2229,6 +2240,16 @@ export class SimplexSvgController<
   /** Returns whether `Shift+Drag` marquee box selection is currently enabled. */
   isMarqueeSelectionEnabled(): boolean {
     return this.marqueeSelectionEnabled;
+  }
+
+  /** Enables or disables built-in `Shift+Click` multi-selection before `onContentClick` / `onLeftClick`. */
+  setShiftClickSelects(enabled: boolean): void {
+    this.engine.setShiftClickSelects(enabled);
+  }
+
+  /** Returns whether built-in `Shift+Click` multi-selection is currently enabled. */
+  getShiftClickSelects(): boolean {
+    return this.engine.getShiftClickSelects();
   }
 
   /** Updates the multi-selection change listener at runtime. */

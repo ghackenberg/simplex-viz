@@ -230,7 +230,12 @@ describe('@simplex-viz/wc (<simplex-topic-graph>) (Issue #26)', () => {
       const svg = el.getSvgElement()!;
       sizeElement(svg as unknown as HTMLElement, 720, 480);
 
-      // 1) Selection event
+      // 1) Selection event & shift-click-selects attribute
+      expect(el.shiftClickSelects).toBe(true);
+      el.setAttribute('shift-click-selects', 'false');
+      expect(el.shiftClickSelects).toBe(false);
+      el.setAttribute('shift-click-selects', 'true');
+      expect(el.shiftClickSelects).toBe(true);
       expect(el.toggleSelectedId('ev-0')).toBe(true);
       expect(selections.at(-1)?.ids).toEqual(['ev-0']);
 

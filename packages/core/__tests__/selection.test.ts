@@ -104,9 +104,9 @@ describe('Interactive Multi-Selection (Issue #25)', () => {
     engine.destroy();
   });
 
-  it('toggles selection on Shift+Click unless consumed by user click handlers', () => {
+  it('toggles selection on Shift+Click before onContentClick by default and supports shiftClickSelects opt-out (Issue #27)', () => {
     const { adapter, getLastSnapshot } = makeHeadlessAdapter();
-    let consumeClicks = false;
+    const onContentClick = vi.fn(() => true);
     const onSelectionChange = vi.fn();
 
     const engine = new SimplexGraphEngine({
@@ -117,7 +117,7 @@ describe('Interactive Multi-Selection (Issue #25)', () => {
       viewportHeight: 600,
       onSelectionChange,
       interactions: {
-        onContentClick: () => consumeClicks,
+        onContentClick,
       },
       layoutOptions: { seed: 23 },
     });
@@ -127,7 +127,7 @@ describe('Interactive Multi-Selection (Issue #25)', () => {
     const targetA = snap.items.find((n) => n.id === 'a1')!;
     const targetB = snap.items.find((n) => n.id === 'b1')!;
 
-    // Plain click without Shift does not select
+    // Plain click without Shift invokes onContentClick and does not select
     engine.handleLeftClick({
       screenX: targetA.x,
       screenY: targetA.y,
@@ -137,9 +137,11 @@ describe('Interactive Multi-Selection (Issue #25)', () => {
       altKey: false,
       metaKey: false,
     });
+    expect(onContentClick).toHaveBeenCalledTimes(1);
     expect(engine.getSelectedIds().size).toBe(0);
 
-    // Shift+Click selects targetA, then targetB
+    // Shift+Click selects targetA and targetB even though onContentClick returns true,
+    // without firing onContentClick for Shift-modified clicks
     engine.handleLeftClick({
       screenX: targetA.x,
       screenY: targetA.y,
@@ -159,8 +161,9 @@ describe('Interactive Multi-Selection (Issue #25)', () => {
       metaKey: false,
     });
     expect([...engine.getSelectedIds()].sort()).toEqual(['a1', 'b1']);
+    expect(onContentClick).toHaveBeenCalledTimes(1);
 
-    // Shift+Click again deselects targetA
+    // Shift+Click again deselects targetA without firing onContentClick
     engine.handleLeftClick({
       screenX: targetA.x,
       screenY: targetA.y,
@@ -171,9 +174,11 @@ describe('Interactive Multi-Selection (Issue #25)', () => {
       metaKey: false,
     });
     expect([...engine.getSelectedIds()]).toEqual(['b1']);
+    expect(onContentClick).toHaveBeenCalledTimes(1);
 
-    // Consumed onContentClick suppresses built-in Shift+Click selection
-    consumeClicks = true;
+    // Disabling shiftClickSelects routes Shift+Click directly to onContentClick without toggling selection
+    engine.setShiftClickSelects(false);
+    expect(engine.getShiftClickSelects()).toBe(false);
     engine.handleLeftClick({
       screenX: targetA.x,
       screenY: targetA.y,
@@ -183,6 +188,8 @@ describe('Interactive Multi-Selection (Issue #25)', () => {
       altKey: false,
       metaKey: false,
     });
+    expect(onContentClick).toHaveBeenCalledTimes(2);
+    expect(onContentClick.mock.calls[1]?.[1]?.shiftKey).toBe(true);
     expect([...engine.getSelectedIds()]).toEqual(['b1']);
 
     engine.destroy();

@@ -400,6 +400,7 @@ export class SimplexGraphEngine<
   private itemFilterMode: ItemFilterMode = 'dim';
   private readonly filteredOutItemIds = new Set<string>();
   private canonicalSeedItems: readonly TItem[] | null = null;
+  private shiftClickSelectsEnabled = true;
   private visualResolverRevision = 0;
   private interactions: InteractionHandlers<
     TItem,
@@ -595,6 +596,7 @@ export class SimplexGraphEngine<
     this.onClustersChange = config.onClustersChange;
     this.onZoomStateChange = config.onZoomStateChange;
     this.onSelectionChange = config.onSelectionChange;
+    this.shiftClickSelectsEnabled = config.shiftClickSelects ?? true;
     if (config.selectedIds != null) {
       for (const id of config.selectedIds) {
         const trimmed = id.trim();
@@ -1766,6 +1768,16 @@ export class SimplexGraphEngine<
   /** Clears all currently selected item IDs, emitting `onSelectionChange` if selection was non-empty. */
   clearSelection(): void {
     this.setSelectedIds(null);
+  }
+
+  /** Enables or disables built-in `Shift+Click` multi-selection before `onContentClick` / `onLeftClick`. */
+  setShiftClickSelects(enabled: boolean): void {
+    this.shiftClickSelectsEnabled = enabled;
+  }
+
+  /** Returns whether built-in `Shift+Click` multi-selection is currently enabled. */
+  getShiftClickSelects(): boolean {
+    return this.shiftClickSelectsEnabled;
   }
 
   /** Returns a snapshot of the currently multi-selected item IDs. */
@@ -5564,6 +5576,15 @@ export class SimplexGraphEngine<
       worldX: target.worldPosition.x,
       worldY: target.worldPosition.y,
     };
+    if (
+      this.shiftClickSelectsEnabled &&
+      target.kind === 'content' &&
+      !target.neighborId &&
+      fullEvent.shiftKey
+    ) {
+      this.toggleSelectedId(target.layoutContext.id);
+      return true;
+    }
     if (target.kind === 'content' && !target.neighborId) {
       if (this.interactions.onContentClick?.(target, fullEvent) === true) {
         return true;
@@ -5581,11 +5602,7 @@ export class SimplexGraphEngine<
         return true;
       }
     }
-    const consumed = this.interactions.onLeftClick?.(target, fullEvent) === true;
-    if (!consumed && target.kind === 'content' && !target.neighborId && fullEvent.shiftKey) {
-      this.toggleSelectedId(target.layoutContext.id);
-    }
-    return consumed;
+    return this.interactions.onLeftClick?.(target, fullEvent) === true;
   }
 
   /**
@@ -5661,7 +5678,9 @@ export class SimplexGraphEngine<
 
   /**
    * Dispatches left-click interaction using mathematical convex-hull hit-testing.
-   * Runs target-specific handlers (`onContentClick`, `onClusterClick`, `onTriangleClick`,
+   * When `shiftClickSelects` is enabled (default `true`), `Shift+Click` on active content nodes
+   * toggles multi-selection before invoking `onContentClick` / `onLeftClick`.
+   * Otherwise runs target-specific handlers (`onContentClick`, `onClusterClick`, `onTriangleClick`,
    * `onBackgroundClick`) first, then `onLeftClick` unless consumed (`return true`).
    * Returns `true` when any handler consumed the click.
    */

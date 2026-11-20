@@ -249,6 +249,11 @@ export type SimplexTopicGraphProps<
      * Enables `Shift+Drag` rubberband marquee box selection on pointer/mouse devices. Default: `true`.
      */
     readonly marqueeSelection?: boolean;
+    /**
+     * When `true` (default), `Shift+Click` (and keyboard `Shift+Enter` / `Shift+Space`) on active
+     * content items toggles multi-selection before invoking `onContentClick`. Default: `true`.
+     */
+    readonly shiftClickSelects?: boolean;
     readonly focusedClusterUid?: string | null;
     readonly focusedTriangleIndex?: number | null;
     /**
@@ -862,6 +867,7 @@ export function SimplexTopicGraph<
       reducedMotion: p.reducedMotion,
       selectedIds: p.selectedIds,
       marqueeSelection: p.marqueeSelection,
+      shiftClickSelects: p.shiftClickSelects,
       focusOnClusterClick: false,
       focusOnTriangleClick: false,
       interactions: buildReactInteractions(p.onWheel),
@@ -1268,6 +1274,12 @@ export function SimplexTopicGraph<
       ctrlRef.current?.setMarqueeSelection(props.marqueeSelection);
     }
   }, [props.marqueeSelection]);
+
+  useEffect(() => {
+    if (props.shiftClickSelects !== undefined) {
+      ctrlRef.current?.setShiftClickSelects(props.shiftClickSelects);
+    }
+  }, [props.shiftClickSelects]);
 
   useEffect(() => {
     if (props.focusedClusterUid !== undefined) {

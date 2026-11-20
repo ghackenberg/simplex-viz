@@ -1015,6 +1015,13 @@ export interface SimplexEngineResolvedConfig<
    * Optional initial multi-selected item IDs. Tracked independently of `highlightedIds` and `pinnedIds`.
    */
   readonly selectedIds?: Iterable<string> | null;
+  /**
+   * When `true` (default), `Shift+Click` (and keyboard `Shift+Enter` / `Shift+Space`) on active
+   * content items toggles multi-selection before invoking `onContentClick` / `onLeftClick`, so
+   * navigation click handlers cannot accidentally suppress multi-selection. Set to `false` to
+   * handle `Shift+Click` manually in `onContentClick` / `onLeftClick`.
+   */
+  readonly shiftClickSelects?: boolean;
   readonly showHulls?: boolean;
   readonly interactions?: InteractionHandlers<
     TItem,
