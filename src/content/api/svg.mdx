@@ -1,7 +1,7 @@
 ---
 title: "@simplex-viz/svg API Reference"
 packageName: "@simplex-viz/svg"
-version: "0.11.0"
+version: "0.12.0"
 layerLabel: "Framework-Agnostic SVG Scene Graph, Export & Zero-DOM SSR"
 description: "Portable SVG renderer, offscreen getBBox() hull measurement, root pointer hit-testing, client-side SVG/PNG export, zero-DOM SSR string rendering (@simplex-viz/svg/ssr), 1:4 subdivision previews, and breadcrumbs."
 order: 2
@@ -23,7 +23,7 @@ exportsTable:
       new SimplexSvgController<
         TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta
       >(options: SimplexSvgOptions<...>)
-    summary: "Manages ResizeObserver (with 0x0 auto-recovery & deferInitialLayout), rAF loop, zero-relayout itemFilter, linked-view setHighlightedItems()/focusItem()/zoomToItem(), client-side exportSvg()/exportPng(), re-entrant batch()/setOptions(), WCAG 2.1 AA keyboard navigation & aria-live announcements, mobile touchScrollLockPx/clickTolerancePx, timeline HUD, tooltips, and breadcrumbs."
+    summary: "Manages ResizeObserver (with 0x0 auto-recovery & deferInitialLayout), rAF loop, live prefers-reduced-motion subscription (reducedMotion), Shift+Click & Shift+Drag marquee multi-selection (selectedIds, marqueeSelection, onSelectionChange), deep-link getViewState()/restoreViewState(), zero-relayout itemFilter, linked-view setHighlightedItems()/focusItem()/zoomToItem(), client-side exportSvg()/exportPng(), re-entrant batch()/setOptions(), WCAG 2.1 AA keyboard navigation & aria-live announcements, mobile touchScrollLockPx/clickTolerancePx, timeline HUD, tooltips, and breadcrumbs."
   - symbol: "SvgRendererAdapter"
     kind: "Class"
     signature: "new SvgRendererAdapter(options: SvgRendererAdapterOptions)"
@@ -92,8 +92,11 @@ controller.setOptions({
   highlightedIds: ['item-1', 'item-4'],
 });
 
-// Programmatic linked-view navigation & client-side SVG/PNG snapshot export:
+// Programmatic linked-view navigation, multi-selection, deep-linking & snapshot export:
 controller.zoomToItem('item-1', { zoom: 2.2, maxDrillSteps: 4 });
+controller.setSelectedIds(['item-1', 'item-4']);
+const snapshot = controller.getViewState();
+controller.restoreViewState(snapshot);
 const svgMarkup = controller.exportSvg({ padding: 24, title: 'Knowledge Atlas' });
 const pngBlob = await controller.exportPng({ scale: 2, padding: 24 });
 

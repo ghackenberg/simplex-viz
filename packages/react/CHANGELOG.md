@@ -1,5 +1,18 @@
 # @simplex-viz/react
 
+## 0.12.0
+
+### Minor Changes
+
+- Add `reducedMotion` (#23), `selectedIds`, `marqueeSelection`, and `onSelectionChange` (#25) props to `<SimplexTopicGraph />`; expose `setReducedMotion`, `getReducedMotion`, `isReducedMotionActive`, `setSelectedIds`, `toggleSelectedId`, `clearSelection`, `getSelectedIds`, `selectItemsInScreenRect`, `getViewState`, and `restoreViewState` (#24) on `useSimplexGraphController().handle`; and re-export all new `@simplex-viz/core` and `@simplex-viz/svg` types.
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @simplex-viz/core@0.12.0
+  - @simplex-viz/svg@0.12.0
+
 ## 0.11.0
 
 ### Minor Changes

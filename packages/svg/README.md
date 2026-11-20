@@ -8,7 +8,7 @@ Framework-agnostic SVG rendering engine, hierarchical `1:4` zoom/drill-down cont
 
 - **Live Demo:** <https://hackenberg.tech/simplex-viz/>
 - **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/svg>
-- **Companion Packages:** [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core) · [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react)
+- **Companion Packages:** [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core) · [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react) · [`@simplex-viz/wc`](https://www.npmjs.com/package/@simplex-viz/wc)
 
 ## Visual Rendering Showcase
 
@@ -28,7 +28,7 @@ While `@simplex-viz/core` computes pure spatial coordinates, `@simplex-viz/svg` 
 - **Automatic offscreen `getBBox()` hull measurement**: Omit `measureConvexHull` on any `SvgNodeView` and `@simplex-viz/svg` automatically renders it in a hidden measurement bin, reads `getBBox()`, and caches a tight convex polygon for `0.0 px` overlap layout.
 - **Smooth 60 fps transitions**: Critically damped spring motion + specialized parametric `morph()` or automatic dual-layer crossfade when switching visual presets, drilling into sub-levels, or mutating items.
 - **Primary & `'intermediate'` bridge cluster styling**: `BadgeClusterSvgView` and `ClusterAnchorSvgView` automatically render compact chamfered bridge badges/anchors for synthesized zoom midpoints (`cluster.role === 'intermediate'`).
-- **Zero-relayout filtering, atomic `batch()`/`setOptions()`, linked views & WCAG 2.1 AA accessibility**: Dim or hide non-matching items without moving any SAT node (`itemFilter`, `itemFilterMode`, `setItemFilter()`), synchronize external search/table UIs (`setHighlightedItems()`, `focusItem()`, `zoomToItem()`), coalesce multi-property updates into a single recomputation (`batch()`, `setOptions()`), and navigate clusters, items, and triangles via single-tabstop keyboard traversal (`role="application"`, `aria-activedescendant`, zoom-adaptive double-halo SVG focus ring, semantic ARIA labels, and polite `aria-live` announcements).
+- **Zero-relayout filtering, atomic `batch()`/`setOptions()`, multi-selection, deep-linking, linked views & WCAG 2.1 AA accessibility**: Dim or hide non-matching items without moving any SAT node (`itemFilter`, `itemFilterMode`, `setItemFilter()`), select cohorts via `Shift+Click` or `Shift+Drag` marquee (`selectedIds`, `marqueeSelection`, `onSelectionChange`), respect `prefers-reduced-motion` automatically (`reducedMotion: 'auto'`), serialize/restore complete view snapshots (`getViewState()` / `restoreViewState()`), synchronize external search/table UIs (`setHighlightedItems()`, `focusItem()`, `zoomToItem()`), coalesce multi-property updates into a single recomputation (`batch()`, `setOptions()`), and navigate clusters, items, and triangles via single-tabstop keyboard traversal (`role="application"`, `aria-activedescendant`, zoom-adaptive double-halo SVG focus ring, semantic ARIA labels, and polite `aria-live` announcements).
 - **Client-side SVG/PNG export & zero-DOM SSR string rendering**: Export standalone `<svg>` strings (`exportSvg()`) or HiDPI PNG `Blob` / `dataUrl` snapshots (`exportPng()`) directly from a live controller, or render complete SVG strings server-side in pure Node.js without Puppeteer via `@simplex-viz/svg/ssr` (`renderSimplexSvgString()`).
 
 ## Installation
@@ -83,7 +83,9 @@ const controller = createSimplexSvg('#graph', items);
 | `relayoutOnFontLoad` | `true` | Automatically clears SVG hull caches and re-solves layout after `document.fonts.ready` / `loadingdone`. |
 | `deferInitialLayout` | `false` | Auto-recovers from `0×0` mounts on first non-zero `ResizeObserver` entry (zero spring jump); set `true` or `{ fallbackTimeoutMs }` to skip provisional `960×620` solving until visible. |
 | `touchScrollLockPx` / `clickTolerancePx` | `8` / `12` | Mobile touch direction-locking (`touch-action: pan-y`; set `0` for `touch-action: none`) and peak-displacement drag-vs-click tolerance in CSS px. |
-| `ariaLabel` / `keyboardNavigation` | `'Interactive simplex topic graph'` / `true` | WCAG 2.1 AA root `<svg>` label and built-in single-tabstop keyboard traversal (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Escape`), focus ring, and `aria-live="polite"` announcements. |
+| `ariaLabel` / `keyboardNavigation` | `'Interactive simplex topic graph'` / `true` | WCAG 2.1 AA root `<svg>` label and built-in single-tabstop keyboard traversal (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Shift+Enter`/`Shift+Space`, `Escape`), focus ring, and `aria-live="polite"` announcements. |
+| `reducedMotion` | `'auto'` | `'auto' \| boolean` — Subscribes live to `(prefers-reduced-motion: reduce)`, sets `data-reduced-motion="true"`, and snaps springs, camera flights, zoom transitions, and morphs immediately when active. |
+| `selectedIds` / `marqueeSelection` | `[]` / `true` | Independent multi-selection state supporting `Shift+Click`, `Shift+Drag` marquee overlay (excluded from `exportSvg()`), violet selection rings, and `onSelectionChange`. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode unless consumed (`return true`) by a click handler. |
 | `tooltip` | `true` for `createSimplexSvg(el, items)`, `false` in options | Floating DOM hover tooltip (`boolean` or custom `(target) => string` formatter). |
 
@@ -400,6 +402,23 @@ const svgString = renderSimplexSvgString(articles, {
 });
 ```
 
+### Step 10 — Multi-Selection (`Shift+Click` / `Shift+Drag`), Reduced Motion & Deep-Link View State
+
+```ts
+// Interactive multi-selection (Shift+Click, Shift+Drag marquee, or programmatic):
+controller.setSelectedIds(['article-1', 'article-4']);
+controller.toggleSelectedId('article-2');
+const selected = controller.getSelectedIds();
+
+// Reduced motion ('auto' tracks OS prefers-reduced-motion live):
+controller.setReducedMotion('auto');
+
+// Deep-link serialization (camera, zoomPath, focus, selection, highlights, pins, timelineStep):
+const snapshot = controller.getViewState();
+localStorage.setItem('atlas-view', JSON.stringify(snapshot));
+controller.restoreViewState(JSON.parse(localStorage.getItem('atlas-view')!));
+```
+
 ---
 
 ## API Reference (`createSimplexSvg` & `SimplexSvgController`)
@@ -431,15 +450,18 @@ const svgString = renderSimplexSvgString(articles, {
 | `tooltip` / `setTooltip(tooltip)` | Enables a floating DOM hover tooltip (`boolean` or `(target) => string`). |
 | `addItems(items)` / `removeItems(ids)` / `setItems(items)` | Mutates the dataset live with interruptible spring transitions. |
 | `setSizeMultiplier(multiplier)` / `setShowHulls(show)` | Uniformly scales node sizes or toggles convex hull wireframes. |
-| `setPinnedIds(ids)` / `setHighlightedIds(ids)` / `setHighlightedItems(ids)` | Controls pinned and highlighted visual emphasis states (`highlightedIds` accepts `Iterable<string> \| null`; read via `getHighlightedIds()` / `getHighlightedItems()`). |
+| `setPinnedIds(ids)` / `setHighlightedIds(ids)` / `setHighlightedItems(ids)` | Controls pinned and highlighted visual emphasis states (`highlightedIds` accepts `Iterable<string> \| null`; read via `getPinnedIds()` / `getHighlightedIds()` / `getHighlightedItems()`). |
+| `selectedIds` / `marqueeSelection` / `setSelectedIds(ids)` / `toggleSelectedId(id)` / `clearSelection()` / `getSelectedIds()` / `selectItemsInScreenRect(rect, options?)` | Independent interactive multi-selection state supporting `Shift+Click`, `Shift+Drag` marquee overlay (excluded from `exportSvg()`), keyboard `Shift+Enter`/`Shift+Space` & `Escape`, violet selection rings, and `onSelectionChange`. |
+| `getViewState()` / `restoreViewState(state, options?)` | Serializes and restores a JSON-safe `SimplexViewState` (`version: 1`, camera, `zoomPath`, cluster/triangle/item focus, `highlightedIds`, `selectedIds`, `pinnedIds`, `timelineStep`), snapping immediately by default and ignoring stale IDs gracefully. |
+| `reducedMotion` / `setReducedMotion(pref)` / `getReducedMotion()` / `isReducedMotionActive()` | `'auto' \| boolean` — Subscribes live to `(prefers-reduced-motion: reduce)`, sets `data-reduced-motion="true"`, and snaps springs, camera flights, zoom transitions, and morphs immediately when active. |
 | `focusItem(itemId \| null, options?)` / `getFocusedItemId()` | Programmatically focuses an item (`{ highlight?, hover?, announce? }`) with synchronized hover tooltip, SVG focus ring, and polite screen-reader announcement. |
 | `zoomToItem(itemId, options?)` | Smoothly centers & zooms onto an item in `free-camera` mode (`zoom`) or automatically drills down across covering triangles (`maxDrillSteps`) in `drill-down` mode. |
 | `exportSvg(options?)` / `exportPng(options?)` | Exports a standalone `<svg>` string (`includeBackground`, `backgroundColor`, `padding`, `width`, `height`, `inlineStyles`, `includeFocusRing`, `title`, `xmlDeclaration`) or rasterized HiDPI PNG `Blob` / `dataUrl` (`scale`, `format`, `mimeType`, `quality`). |
-| `renderSimplexSvgString(itemsOrSnapshot, options?)` | Zero-DOM SSR SVG string renderer exported from `@simplex-viz/svg/ssr` (and `@simplex-viz/svg`) supporting raw items or `SimplexLayoutSnapshot`, deterministic font metrics (`estimateSsrTextWidth`, `createSsrPresetHullMeasurers`, pluggable `measureText`), all presets/themes/filters/highlights, and custom SVG string render hooks. |
+| `renderSimplexSvgString(itemsOrSnapshot, options?)` | Zero-DOM SSR SVG string renderer exported from `@simplex-viz/svg/ssr` (and `@simplex-viz/svg`) supporting raw items or `SimplexLayoutSnapshot`, deterministic font metrics (`estimateSsrTextWidth`, `createSsrPresetHullMeasurers`, pluggable `measureText`), all presets/themes/filters/highlights/selectedIds, and custom SVG string render hooks. |
 | `itemFilter` / `itemFilterMode` / `setItemFilter(predicate, options?)` / `getItemFilter()` | Zero-relayout item filtering (`'dim' \| 'hide'`); `'hide'` suppresses visuals, hit-testing, and keyboard traversal while preserving exact SAT node positions. |
-| `batch(fn)` / `setOptions(opts)` | Coalesces multiple runtime option or strategy updates (`SimplexSvgUpdateOptions`, including `highlightedIds` and `focusedItemId`) into a single minimal pipeline recomputation (re-entrant). |
+| `batch(fn)` / `setOptions(opts)` | Coalesces multiple runtime option or strategy updates (`SimplexSvgUpdateOptions`, including `highlightedIds`, `selectedIds`, `focusedItemId`, `reducedMotion`, `marqueeSelection`) into a single minimal pipeline recomputation (re-entrant). |
 | `ariaLabel` / `setAriaLabel(label)` | Sets the accessible `aria-label` on the root `<svg role="application">` element. |
-| `keyboardNavigation` / `setKeyboardNavigation(enabled)` | Enables/disables single-tabstop keyboard traversal (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Escape`), high-contrast double-halo SVG focus ring, and `aria-live="polite"` announcements (`default: true`). |
+| `keyboardNavigation` / `setKeyboardNavigation(enabled)` | Enables/disables single-tabstop keyboard traversal (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Shift+Enter`/`Shift+Space`, `Escape`), high-contrast double-halo SVG focus ring, and `aria-live="polite"` announcements (`default: true`). |
 | `getKeyboardFocusTarget()` / `clearKeyboardFocus()` / `getInteractiveTargets()` | Inspects or clears the active keyboard focus target (`SimplexKeyboardFocusTarget`) or lists deterministic navigable targets. |
 | `setFocusedClusterUid(uid \| null)` / `setFocusedTriangleIndex(i \| null)` | Isolates a cluster or triangle face in `free-camera` mode. |
 | `deferInitialLayout` | `boolean \| { fallbackTimeoutMs?: number }` — Skips provisional `960×620` layout when mounted at `0×0` until the first non-zero `ResizeObserver` entry (auto-recovery on `0×0` mount is always active even when `false`). |

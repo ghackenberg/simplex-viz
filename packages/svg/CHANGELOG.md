@@ -1,5 +1,16 @@
 # @simplex-viz/svg
 
+## 0.12.0
+
+### Minor Changes
+
+- Add automatic `prefers-reduced-motion` media-query subscription (`reducedMotion: 'auto' | boolean`, `data-reduced-motion="true"`, `setReducedMotion()`, `getReducedMotion()`, `isReducedMotionActive()`, #23), add interactive multi-selection with `Shift+Click`, `Shift+Drag` marquee selection (`marqueeSelection: true`), keyboard `Shift+Enter`/`Shift+Space` toggle & `Escape` clear, violet selection rings across built-in views and `@simplex-viz/svg/ssr`, `selectedIds` / `onSelectionChange`, and `setSelectedIds()` / `toggleSelectedId()` / `clearSelection()` / `getSelectedIds()` / `selectItemsInScreenRect()` (#25), and add `getViewState()` / `restoreViewState()` deep-linking serialization including `timelineStep` and synchronized drill-down/focus UI (#24).
+
+### Patch Changes
+
+- Updated dependencies
+  - @simplex-viz/core@0.12.0
+
 ## 0.11.0
 
 ### Minor Changes

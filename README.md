@@ -14,7 +14,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-f59e0b.svg" alt="License: MIT" /></a>
 </p>
 
-SimplexViz partitions arbitrary collections—whether **single- or multi-modal vector embeddings** (text, images, videos, voice audio signatures, body-shape latents), **custom pairwise similarity functions**, or **tagged knowledge items**—into balanced clusters, embeds them onto an adaptive 60° simplex lattice with perceptual OKLab color mixing, resolves every convex node hull to a guaranteed `0.0 px` overlap layout, and supports continuous camera navigation, conformal **`1:4` hierarchical zoom / drill-down**, and path-independent **chronological timeline playback**. It is structured as a modular three-layer TypeScript stack—a zero-dependency headless core (`@simplex-viz/core`), a framework-agnostic SVG engine (`@simplex-viz/svg`), and type-safe React bindings (`@simplex-viz/react`).
+SimplexViz partitions arbitrary collections—whether **single- or multi-modal vector embeddings** (text, images, videos, voice audio signatures, body-shape latents), **custom pairwise similarity functions**, or **tagged knowledge items**—into balanced clusters, embeds them onto an adaptive 60° simplex lattice with perceptual OKLab color mixing, resolves every convex node hull to a guaranteed `0.0 px` overlap layout, and supports continuous camera navigation, conformal **`1:4` hierarchical zoom / drill-down**, and path-independent **chronological timeline playback**. It is structured as a modular three-layer TypeScript stack across four packages—a zero-dependency headless core (`@simplex-viz/core`), a framework-agnostic SVG engine (`@simplex-viz/svg`), type-safe React bindings (`@simplex-viz/react`), and a framework-agnostic Web Component (`@simplex-viz/wc`).
 
 ## Live Showcase
 
@@ -42,23 +42,26 @@ Classical force-directed layouts and raw UMAP/t-SNE scatters often turn multi-di
 4. **Layout & Collision Strategy (`SimplexLayoutStrategy`)**: Defaults to `createPbdUniformLayoutStrategy()`, or swaps to `createWarmStartPbdLayoutStrategy()`, `createLocalAdaptiveLayoutStrategy()`, `createCollisionDrivenLayoutStrategy()`, `createFinalSeededLayoutStrategy()` (full-corpus position pinning with `scaleMode: 'pinned' | 'adaptive'` for zero-drift chronological replay), or any custom **`LayoutSeeder` × `PositionRelaxer` × `ScaleController`** trio via `createComposedLayoutStrategy()`—strictly guaranteeing **`0.0 px` overlap** and triangle containment.
 5. **Zoom & Drill-Down Strategy (`SimplexZoomStrategy`)**: Defaults to `createFreeCameraZoomStrategy()` (wheel zoom-to-cursor, 2-finger touch pinch, and drag-to-pan), or swaps to hierarchical **`1:4` drill-down** via `createBarycentricZoomStrategy()`, `createSemanticZoomStrategy()` (`6`-vertex tag re-partitioning), or `createSubspaceZoomStrategy()` (`6`-vertex representation-agnostic subspace refinement)—featuring conformal `1:4` equilateral subdivision, single-triangle leaf focus (`'triangle-focus'`, `leafTriangleFocus: true`) with directly clickable content items, uniform `1`-ring `'incident-star'` cluster/subcluster stars with barycentric simplex-distance dimming, internal `1:4` subdivision mesh previews, dimmed clickable neighborhood context, and discrete 2-finger pinch.
 
-## Architecture (Strict 3-Package Separation)
+## Architecture (Strict 3-Layer / 4-Package Separation)
 
-The diagram and package table below summarize how domain logic, SVG DOM rendering, and framework bindings are strictly decoupled across layers so the core math engine runs anywhere while renderers remain hot-swappable:
+The diagram and package table below summarize how domain logic, SVG DOM rendering, and framework adapters are strictly decoupled across layers so the core math engine runs anywhere while renderers and UI adapters remain hot-swappable:
 
 ```mermaid
 flowchart LR
   Core["@simplex-viz/core\n(Headless, 0 Dependencies, NO DOM)"] --> Svg["@simplex-viz/svg\n(Framework-Agnostic SVG Scene Graph)"]
   Svg --> React["@simplex-viz/react\n(React Bindings & JSX Node Renderers)"]
   Core --> React
+  Svg --> Wc["@simplex-viz/wc\n(Web Component <simplex-topic-graph>)"]
+  Core --> Wc
   React --> Demo["src/demo\n(Interactive Showcase & GitHub Pages)"]
 ```
 
 | Package | Role | Documentation |
 | --- | --- | --- |
-| [`@simplex-viz/core`](./packages/core) | Pure TypeScript triangulation, clustering, OKLab color science, composable 2-phase convex SAT solver, `1:4` zoom/drill-down strategies, headless `SimplexTimelineController`, spring animation, and convex + triangle hit-testing. Zero DOM/SVG/React dependencies (`ES2022`). | [Core README](./packages/core/README.md) |
-| [`@simplex-viz/svg`](./packages/svg) | Framework-agnostic SVG engine (`Vanilla TS`, `Vue`, `Angular`, `Svelte`, Web Components) with root-SVG hit-testing, offscreen `getBBox()` hull measurement, pluggable node/triangle/edge `Svg*View` plugins, `1:4` subdivision previews, breadcrumbs, timeline HUD, client-side `exportSvg()`/`exportPng()`, and zero-DOM SSR string rendering via `@simplex-viz/svg/ssr`. | [SVG README](./packages/svg/README.md) |
-| [`@simplex-viz/react`](./packages/react) | Thin, end-to-end type-safe React bindings (`<SimplexTopicGraph />`, `useSimplexGraphController`, `useSimplexTimeline`) supporting portable `SvgNodeView` / `SvgTriangleView` / `SvgEdgeView` plugins, declarative JSX node renderers, linked-view controls, SVG/PNG export, chronological timeline playback, and hierarchical drill-down. | [React README](./packages/react/README.md) |
+| [`@simplex-viz/core`](./packages/core) | Pure TypeScript triangulation, clustering, OKLab color science, composable 2-phase convex SAT solver, `1:4` zoom/drill-down strategies, headless `SimplexTimelineController`, serializable view state, multi-selection, reduced-motion springs, and convex + triangle hit-testing. Zero DOM/SVG/React dependencies (`ES2022`). | [Core README](./packages/core/README.md) |
+| [`@simplex-viz/svg`](./packages/svg) | Framework-agnostic SVG engine (`Vanilla TS`, `Vue`, `Angular`, `Svelte`) with root-SVG hit-testing, offscreen `getBBox()` hull measurement, pluggable node/triangle/edge `Svg*View` plugins, `1:4` subdivision previews, breadcrumbs, timeline HUD, `Shift+Click`/`Shift+Drag` multi-selection, `prefers-reduced-motion`, client-side `exportSvg()`/`exportPng()`, and zero-DOM SSR string rendering via `@simplex-viz/svg/ssr`. | [SVG README](./packages/svg/README.md) |
+| [`@simplex-viz/react`](./packages/react) | Thin, end-to-end type-safe React bindings (`<SimplexTopicGraph />`, `useSimplexGraphController`, `useSimplexTimeline`) supporting portable `SvgNodeView` / `SvgTriangleView` / `SvgEdgeView` plugins, declarative JSX node renderers, linked-view controls, multi-selection, deep-link view state, SVG/PNG export, chronological timeline playback, and hierarchical drill-down. | [React README](./packages/react/README.md) |
+| [`@simplex-viz/wc`](./packages/wc) | Dedicated framework-agnostic Web Component (`<simplex-topic-graph>`, zero React dependency) with SSR-safe registration (`@simplex-viz/wc/define`), reactive HTML attributes, inline `<script type="application/json">` support, typed JS properties, standard bubbling `CustomEvent`s, and full imperative delegation. | [WC README](./packages/wc/README.md) |
 
 ## Quickstart (Zero-Config)
 
@@ -101,6 +104,27 @@ import { createSimplexSvg } from '@simplex-viz/svg';
 const controller = createSimplexSvg('#graph', items);
 ```
 
+### Web Component — Plain HTML / Astro / Vue / Svelte / Angular (`@simplex-viz/wc`)
+
+```bash
+npm install @simplex-viz/wc
+```
+
+```html
+<simplex-topic-graph preset="badges" theme="dark" tooltip style="width: 100%; height: 520px;">
+  <script type="application/json">
+    [
+      { "id": "1", "label": "Simplex Mesh", "tags": ["geometry", "triangulation", "math"] },
+      { "id": "2", "label": "OKLab Mixing", "tags": ["color", "geometry", "perception"] },
+      { "id": "3", "label": "SAT Solver", "tags": ["collision", "geometry"] }
+    ]
+  </script>
+</simplex-topic-graph>
+<script type="module">
+  import '@simplex-viz/wc/define';
+</script>
+```
+
 ### Quickstart Default Settings Reference
 
 Every setting has a deterministic zero-config default out of the box—you only specify what you want to customize:
@@ -125,7 +149,9 @@ Every setting has a deterministic zero-config default out of the box—you only 
 | `itemFilter` / `itemFilterMode` | `null` / `'dim'` | Zero-relayout item filtering (`(item) => boolean`, `'dim' \| 'hide'`) that dims or hides non-matching items without re-clustering or shifting any SAT coordinates. |
 | `deferInitialLayout` | `false` | Automatically recovers from `0×0` mounts on the first non-zero `ResizeObserver` entry (zero spring jump); pass `true` or `{ fallbackTimeoutMs }` to skip provisional `960×620` solving until visible. |
 | `touchScrollLockPx` / `clickTolerancePx` | `8` / `12` | Embedded mobile ergonomics: vertical single-finger swipes yield to page scrolling (`touch-action: pan-y`; set `0` for `touch-action: none`), and gestures exceeding `clickTolerancePx` suppress trailing clicks. |
-| `ariaLabel` / `keyboardNavigation` | `'Interactive simplex topic graph'` / `true` | WCAG 2.1 AA single-tabstop keyboard navigation (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Escape`), high-contrast double-halo SVG focus ring, semantic ARIA labels, and polite `aria-live` announcements. |
+| `ariaLabel` / `keyboardNavigation` | `'Interactive simplex topic graph'` / `true` | WCAG 2.1 AA single-tabstop keyboard navigation (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Shift+Enter`/`Shift+Space`, `Escape`), high-contrast double-halo SVG focus ring, semantic ARIA labels, and polite `aria-live` announcements. |
+| `reducedMotion` | `'auto'` | `'auto' \| boolean` — Respects OS `prefers-reduced-motion: reduce` automatically (snapping node springs, camera flights, zoom transitions, and morphs immediately without jitter). |
+| `selectedIds` / `marqueeSelection` | `[]` / `true` | Independent multi-selection state supporting `Shift+Click`, `Shift+Drag` rectangular marquee selection, keyboard `Shift+Enter`/`Shift+Space`, and high-contrast violet selection rings. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Clicking a cluster or triangle isolates its neighborhood in `free-camera` mode (clicking background clears). |
 | `tooltip` | `true` in `createSimplexSvg(el, items)`, `false` in options/React | Floating hover tooltip for `'content'`, `'cluster'`, and `'triangle'` targets (accepts `boolean` or custom formatter). |
 
@@ -480,6 +506,23 @@ const svgMarkup = handle.exportSvg({ padding: 24, title: 'Research Atlas' });
 const pngBlob = await handle.exportPng({ scale: 2, padding: 24 });
 ```
 
+### Step 13 — Multi-Selection (`Shift+Click` / `Shift+Drag`), Reduced Motion & Deep-Link View State
+
+Enable interactive cohort selection (`Shift+Click` toggles items, `Shift+Drag` draws a marquee rectangle), honor OS `prefers-reduced-motion` (`reducedMotion: 'auto'`), and persist or share the exact camera, drill-down path, timeline frame, focus, and selection in URLs or `localStorage` via `getViewState()` / `restoreViewState()`:
+
+```ts
+// Read and restore a JSON-serializable view snapshot (camera, zoomPath, focus, selection, timelineStep):
+const state = handle.getViewState();
+const encoded = encodeURIComponent(JSON.stringify(state));
+
+// Later (e.g., on page load — snaps immediately by default without dizzying flight):
+handle.restoreViewState(JSON.parse(decodeURIComponent(encoded)));
+
+// Programmatic multi-selection & motion preference:
+handle.setSelectedIds(['paper-1', 'paper-7']);
+handle.setReducedMotion('auto'); // 'auto' | true | false
+```
+
 ### Headless One-Shot Layout & Zero-DOM SSR SVG Rendering (`solveSimplexSnapshot` & `@simplex-viz/svg/ssr`)
 
 For static site generation (Astro, Next.js, Eleventy), OG/social card pipelines, or headless PNG rasterization with `@resvg/resvg-js` without Puppeteer, render a complete `<svg>` string directly in Node.js via `@simplex-viz/svg/ssr`—or compute raw solved coordinates via `solveSimplexSnapshot` from `@simplex-viz/core`:
@@ -519,7 +562,7 @@ npm install
 npm run dev                # Starts the interactive demo app at http://localhost:3000
 npm run lint               # ESLint (module boundary checks) + TypeScript typecheck
 npm test                   # Vitest invariant, type-level, and DOM integration tests
-npm run build:packages     # Builds dist/ + .d.ts for all three packages
+npm run build:packages     # Builds dist/ + .d.ts for all four packages
 npm run validate:packages  # Validates package exports with publint
 ```
 

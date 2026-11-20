@@ -1,14 +1,14 @@
 ---
 title: Quickstart & Three-Layer Architecture
 shortTitle: Quickstart
-description: Install SimplexViz in under two minutes, understand its strict headless/SVG/React package separation, and inspect every default setting.
+description: Install SimplexViz in under two minutes, understand its strict three-layer / four-package separation, and inspect every default setting.
 section: Getting Started
 order: 1
 updatedDate: "2026-11-20"
 summaryPoints:
   - Zero-config defaults solve 60-degree equilateral simplex layouts with guaranteed 0.0 px convex overlap.
   - Works identically for tagged records, single- or multi-modal vector embeddings, and pairwise similarity kernels.
-  - Strictly decoupled into @simplex-viz/core (0 dependencies, no DOM), @simplex-viz/svg, and @simplex-viz/react.
+  - Strictly decoupled across @simplex-viz/core (0 dependencies, no DOM), @simplex-viz/svg, @simplex-viz/react, and @simplex-viz/wc.
 relatedApiSlug: react
 ---
 
@@ -21,7 +21,8 @@ Each higher-level package re-exports all strategies, views, and TypeScript types
 | Package | Runtime & Dependencies | Primary Entry Points |
 | --- | --- | --- |
 | `@simplex-viz/react` | React 18 / 19 | `<SimplexTopicGraph />`, `useSimplexGraphController()`, `useSimplexTimeline()` |
-| `@simplex-viz/svg` | Vanilla TS, Vue, Svelte, Angular, Web Components, Node.js SSR (`@simplex-viz/svg/ssr`) | `createSimplexSvg()`, `SimplexSvgController`, `SvgRendererAdapter`, `renderSimplexSvgString()` |
+| `@simplex-viz/wc` | Plain HTML, Astro, Vue, Svelte, Angular (zero React) | `<simplex-topic-graph>`, `defineSimplexTopicGraphElement()`, `@simplex-viz/wc/define` |
+| `@simplex-viz/svg` | Vanilla TS, Vue, Svelte, Angular, Node.js SSR (`@simplex-viz/svg/ssr`) | `createSimplexSvg()`, `SimplexSvgController`, `SvgRendererAdapter`, `renderSimplexSvgString()` |
 | `@simplex-viz/core` | Browser, Node.js, Bun, Deno, Web Workers (`0` deps, no DOM) | `solveSimplexSnapshot()`, `SimplexGraphEngine`, `createSimplexTimeline()` |
 
 ## React Quickstart
@@ -65,6 +66,27 @@ npm install @simplex-viz/svg
 import { createSimplexSvg } from '@simplex-viz/svg';
 
 const controller = createSimplexSvg('#atlas', items);
+```
+
+## Web Component Quickstart (`@simplex-viz/wc`)
+
+```bash
+npm install @simplex-viz/wc
+```
+
+```html
+<simplex-topic-graph preset="badges" theme="dark" tooltip style="width: 100%; height: 520px;">
+  <script type="application/json">
+    [
+      { "id": "1", "label": "Simplex Mesh", "tags": ["geometry", "triangulation", "math"] },
+      { "id": "2", "label": "OKLab Mixing", "tags": ["color", "geometry", "perception"] },
+      { "id": "3", "label": "SAT Solver", "tags": ["collision", "geometry"] }
+    ]
+  </script>
+</simplex-topic-graph>
+<script type="module">
+  import '@simplex-viz/wc/define';
+</script>
 ```
 
 ## Untagged Vector Embeddings Quickstart
@@ -112,5 +134,7 @@ Every pipeline stage ships with a named deterministic default strategy out of th
 | `itemFilter` / `itemFilterMode` | **`null` / `'dim'`** | Zero-relayout item filtering (`(item) => boolean`, `'dim' \| 'hide'`) dimming or hiding non-matching items while preserving exact SAT coordinates. |
 | `deferInitialLayout` | **Auto-Recover (`false`)** | Automatically recovers from `0×0` mounts on the first non-zero `ResizeObserver` entry (zero spring jump); set `true` or `{ fallbackTimeoutMs }` to skip provisional `960×620` solving until visible. |
 | `touchScrollLockPx` / `clickTolerancePx` | **`8 px` / `12 px`** | Mobile touch direction-locking (`touch-action: pan-y`; set `0` for `touch-action: none`) and peak-displacement drag-vs-click click suppression across `free-camera` and `drill-down` modes. |
-| `ariaLabel` / `keyboardNavigation` | **Accessible (`true`)** | WCAG 2.1 AA single-tabstop keyboard navigation (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Escape`), high-contrast double-halo SVG focus ring, semantic ARIA labels, and polite `aria-live` announcements. |
+| `ariaLabel` / `keyboardNavigation` | **Accessible (`true`)** | WCAG 2.1 AA single-tabstop keyboard navigation (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Shift+Enter`/`Shift+Space`, `Escape`), high-contrast double-halo SVG focus ring, semantic ARIA labels, and polite `aria-live` announcements. |
+| `reducedMotion` | **Auto (`'auto'`)** | `'auto' \| boolean` — Subscribes live to OS `(prefers-reduced-motion: reduce)` and snaps springs, camera flights, zoom transitions, and morphs immediately when active. |
+| `selectedIds` / `marqueeSelection` | **`[]` / `true`** | Independent multi-selection state supporting `Shift+Click`, `Shift+Drag` marquee overlay, keyboard selection, and high-contrast violet selection rings. |
 | `preset` / `theme` | **Geometric Preset (Dark)** | `'geometric'` / `'dark'` — Morphing geometric SVG content shapes (customizable via `getShape` & `shapeOptions`) + cluster anchors/badges on dark canvas. |

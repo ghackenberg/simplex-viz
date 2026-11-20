@@ -13,7 +13,7 @@ summaryPoints:
 relatedApiSlug: svg
 ---
 
-SimplexViz separates **mathematical solving** (`@simplex-viz/core`) from **scene rendering** (`@simplex-viz/svg` and `@simplex-viz/react`). Every visual layer can be customized without rewriting layout or collision code.
+SimplexViz separates **mathematical solving** (`@simplex-viz/core`) from **scene rendering & framework adapters** (`@simplex-viz/svg`, `@simplex-viz/react`, and `@simplex-viz/wc`). Every visual layer can be customized without rewriting layout or collision code.
 
 ## 1. Declarative React JSX Node Renderers
 
@@ -216,4 +216,21 @@ handle.zoomToItem(selectedId, { zoom: 2.2, maxDrillSteps: 4 });
 
 const svgString = handle.exportSvg({ padding: 24, title: 'Publications Atlas' });
 const pngBlob = await handle.exportPng({ scale: 2, padding: 24 });
+```
+
+## 9. Multi-Selection (`Shift+Click` / `Shift+Drag`), Reduced Motion & Deep-Link View State
+
+Build analytical workflows and shareable URLs without custom interaction plumbing:
+
+- **Interactive Multi-Selection (`selectedIds`, `marqueeSelection`, `onSelectionChange`)**: Independent from `highlightedIds` and `pinnedIds`. Users can `Shift+Click` items to toggle selection, `Shift+Drag` to select rectangular regions with a marquee overlay (automatically excluded from `exportSvg()`), toggle selection via keyboard (`Shift+Enter`/`Shift+Space`), or press `Escape` to clear. Built-in node views and `@simplex-viz/svg/ssr` render high-contrast violet selection rings.
+- **Automatic `prefers-reduced-motion` (`reducedMotion: 'auto' | boolean`)**: Subscribes live to `(prefers-reduced-motion: reduce)`, sets `data-reduced-motion="true"`, and snaps node springs, camera flights, zoom transitions, and visual morphs immediately when active.
+- **Serializable View State (`getViewState`, `restoreViewState`)**: Captures a JSON-safe `SimplexViewState` (`version: 1`, `camera`, `zoomPath`, cluster/triangle/item focus, `highlightedIds`, `selectedIds`, `pinnedIds`, and optional `timelineStep`). `restoreViewState()` snaps immediately by default (`{ animate?: boolean }`), replays drill-down steps cleanly from root, and gracefully ignores stale IDs or unreachable steps without throwing.
+
+```ts
+// Deep-link serialization into URL hash / query params or localStorage:
+const viewState = handle.getViewState();
+const encoded = encodeURIComponent(JSON.stringify(viewState));
+
+// Restore on page load (snaps immediately, ignores stale IDs safely):
+handle.restoreViewState(JSON.parse(decodeURIComponent(encoded)));
 ```

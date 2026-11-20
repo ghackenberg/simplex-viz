@@ -8,7 +8,7 @@ End-to-end type-safe React bindings, declarative JSX node renderers, hierarchica
 
 - **Live Demo:** <https://hackenberg.tech/simplex-viz/>
 - **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/react>
-- **Companion Packages:** [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core) · [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg)
+- **Companion Packages:** [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core) · [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg) · [`@simplex-viz/wc`](https://www.npmjs.com/package/@simplex-viz/wc)
 
 ## Declarative JSX Slot Architecture
 
@@ -28,7 +28,7 @@ In React, `<SimplexTopicGraph />` lets you drop custom JSX directly into cluster
   2. **Portable `Svg*View` Plugins** (`contentView`, `clusterView`, `triangleView`, `edgeView` from `@simplex-viz/svg`): Direct SVG DOM updates with zero React reconciliation overhead per animation frame.
 - **5 Pluggable Strategy Axes (`Mesh`, `Clustering`, `Color`, `Layout`, `Zoom`)**: Swap tag clustering, soft-simplex clustering, multi-modal embeddings, pairwise similarity, composable layout (`Seeder × Relaxer × ScaleController`), and conformal **`1:4` hierarchical drill-down** (`zoomStrategy`) via declarative props.
 - **Full generic type inference**: Infers `<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>` end-to-end across `items`, `getId`, `getTags`, `deriveClusterMeta`, `visualResolver`, `renderContentNode`, `renderClusterNode`, tooltips, hover events, and click targets.
-- **Chronological Timeline Playback, Linked Views, Export & Batched Sync**: Opt-in `timeline` prop with built-in floating Play/Pause/Step/Scrubber HUD, zero-relayout `itemFilter` / `itemFilterMode` (`'dim' | 'hide'`), programmatic search/focus/zoom (`setHighlightedItems`, `focusItem`, `zoomToItem`), client-side `exportSvg()` / `exportPng()` snapshots, unified batched React prop synchronization (`controller.batch(...)` per render commit), built-in WCAG 2.1 AA keyboard navigation & screen-reader announcements (`ariaLabel`, `keyboardNavigation`), and reactive `useSimplexTimeline()` alongside `useSimplexGraphController()`.
+- **Chronological Timeline Playback, Multi-Selection, Deep-Linking, Linked Views, Export & Batched Sync**: Opt-in `timeline` prop with built-in floating Play/Pause/Step/Scrubber HUD, interactive `Shift+Click` & `Shift+Drag` marquee multi-selection (`selectedIds`, `marqueeSelection`, `onSelectionChange`), OS `prefers-reduced-motion` support (`reducedMotion: 'auto'`), JSON-serializable deep-linking (`handle.getViewState()` / `handle.restoreViewState()`), zero-relayout `itemFilter` / `itemFilterMode` (`'dim' | 'hide'`), programmatic search/focus/zoom (`setHighlightedItems`, `focusItem`, `zoomToItem`), client-side `exportSvg()` / `exportPng()` snapshots, unified batched React prop synchronization (`controller.batch(...)` per render commit), built-in WCAG 2.1 AA keyboard navigation & screen-reader announcements (`ariaLabel`, `keyboardNavigation`), and reactive `useSimplexTimeline()` alongside `useSimplexGraphController()`.
 
 ## Installation
 
@@ -85,7 +85,9 @@ export function QuickTopicMap() {
 | `relayoutOnFontLoad` | `true` | Automatically clears SVG hull caches and re-solves layout once webfonts finish loading. |
 | `deferInitialLayout` | `false` | Auto-recovers from `0×0` mounts on first non-zero `ResizeObserver` entry (zero spring jump); set `true` or `{ fallbackTimeoutMs }` to skip provisional `960×620` solving until visible. |
 | `touchScrollLockPx` / `clickTolerancePx` | `8` / `12` | Embedded mobile touch direction-locking (`touch-action: pan-y`; `0` disables) and peak-displacement click suppression in CSS px. |
-| `ariaLabel` / `keyboardNavigation` | `'Interactive simplex topic graph'` / `true` | WCAG 2.1 AA single-tabstop keyboard traversal (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Escape`), high-contrast double-halo SVG focus ring, semantic ARIA labels, and `aria-live="polite"` announcements. |
+| `ariaLabel` / `keyboardNavigation` | `'Interactive simplex topic graph'` / `true` | WCAG 2.1 AA single-tabstop keyboard traversal (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Shift+Enter`/`Shift+Space`, `Escape`), high-contrast double-halo SVG focus ring, semantic ARIA labels, and `aria-live="polite"` announcements. |
+| `reducedMotion` | `'auto'` | `'auto' \| boolean` — Automatically tracks OS `prefers-reduced-motion: reduce` and snaps node springs, camera flights, zoom transitions, and morphs immediately when active. |
+| `selectedIds` / `marqueeSelection` | `[]` / `true` | Independent multi-selection state supporting `Shift+Click`, `Shift+Drag` rectangular marquee, violet selection rings, and `onSelectionChange`. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode when `focused*` is uncontrolled and click is not consumed (`return true`). |
 | `tooltip` | `false` | Set `tooltip` (`true`) or pass `(target) => ReactNode` to render a floating tooltip overlay. |
 
@@ -381,9 +383,9 @@ export function TimelineAtlas({ items }: { items: readonly { id: string; tags: s
 }
 ```
 
-### Step 8 — Zero-Relayout Filtering, Linked-View Search, SVG/PNG Export & Accessibility
+### Step 8 — Multi-Selection, Reduced Motion, Deep-Linking, Filtering, Export & Accessibility
 
-Filter items visually without re-clustering or shifting any SAT positions (`itemFilter`, `itemFilterMode`), drive external search/table linked views (`highlightedIds`, `handle.focusItem`, `handle.zoomToItem`), export standalone SVG or HiDPI PNG snapshots (`handle.exportSvg`, `handle.exportPng`), and rely on automatic single-batch prop synchronization and WCAG 2.1 AA keyboard navigation:
+Filter items visually without re-clustering or shifting any SAT positions (`itemFilter`, `itemFilterMode`), enable `Shift+Click` & `Shift+Drag` cohort selection (`selectedIds`, `marqueeSelection`, `onSelectionChange`), honor `prefers-reduced-motion` (`reducedMotion`), persist/share URL view states (`handle.getViewState()`, `handle.restoreViewState()`), drive external search/table linked views (`highlightedIds`, `handle.focusItem`, `handle.zoomToItem`), and export standalone SVG or HiDPI PNG snapshots (`handle.exportSvg`, `handle.exportPng`):
 
 ```tsx
 <SimplexTopicGraph
@@ -392,13 +394,19 @@ Filter items visually without re-clustering or shifting any SAT positions (`item
   itemFilter={(item) => item.year >= minYear}
   itemFilterMode="dim" // 'dim' | 'hide' — zero relayout
   highlightedIds={matchingIds}
+  selectedIds={selectedIds}
+  marqueeSelection
+  onSelectionChange={(ids) => setSelectedIds(Array.from(ids))}
+  reducedMotion="auto"
   ariaLabel="Interactive publication topic graph"
   keyboardNavigation
   tooltip
 />
 
-// From a search bar or export toolbar:
+// From a search bar, deep-link router, or export toolbar:
 // handle.zoomToItem('paper-42', { zoom: 2.2 });
+// const snapshot = handle.getViewState();
+// handle.restoreViewState(snapshot);
 // const pngBlob = await handle.exportPng({ scale: 2, padding: 24 });
 ```
 
@@ -453,7 +461,9 @@ Filter items visually without re-clustering or shifting any SAT positions (`item
 | `emptyClusterBehavior` | `'normal'` | `'normal' \| 'dim' \| 'hide'` — Controls how clusters with `0` active member items render (e.g. future clusters during timeline playback). |
 | `itemFilter` | `null` | `((item: TItem) => boolean) \| null` — Zero-relayout visual item filter predicate preserving exact SAT node positions. |
 | `itemFilterMode` | `'dim'` | `'dim' \| 'hide'` — Controls whether filtered-out items dim in place or hide completely (suppressing hit-testing and keyboard traversal). |
-| `pinnedIds` / `highlightedIds` | — | `ReadonlySet<string> \| readonly string[]` (`pinnedIds`) or `Iterable<string> \| null` (`highlightedIds`) of pinned or highlighted item IDs. |
+| `pinnedIds` / `highlightedIds` / `selectedIds` | — | `ReadonlySet<string> \| readonly string[]` (`pinnedIds`) or `Iterable<string> \| null` (`highlightedIds`, `selectedIds`) for pinned, highlighted, or multi-selected item IDs. |
+| `marqueeSelection` | `true` | Enables `Shift+Drag` rectangular marquee multi-selection on the canvas. |
+| `reducedMotion` | `'auto'` | `'auto' \| boolean` — Respects OS `prefers-reduced-motion: reduce` automatically (or forces instant / animated transitions). |
 | `focusedClusterUid` / `focusedTriangleIndex` | `null` | Controlled cluster UID or triangle index isolation in `free-camera` mode. |
 | `className` / `style` | — | Styling forwarded to the outer container `<div>` (`width: 100%; height: 100%`). |
 
@@ -468,6 +478,7 @@ Filter items visually without re-clustering or shifting any SAT positions (`item
 | `touchScrollLockPx` / `clickTolerancePx` | `8` / `12` | Mobile touch direction-locking threshold (`touch-action: pan-y`; set `0` for `touch-action: none`) and peak-displacement drag-vs-click suppression tolerance in CSS px. |
 | `ariaLabel` / `keyboardNavigation` | `'Interactive simplex topic graph'` / `true` | WCAG 2.1 AA accessible `<svg>` label and built-in single-tabstop keyboard traversal (`Arrow` keys, `Home`/`End`, `Enter`/`Space`, `Escape`), high-contrast focus ring, and `aria-live="polite"` announcements. |
 | `onWheel` | `'zoom-to-cursor'` | `'zoom-to-cursor' \| 'pan-vertical' \| 'none' \| ((event, camera) => boolean \| void)` (`true` consumes built-in cursor zoom; automatically inactive in `drill-down` mode). |
+| `onSelectionChange` | — | `(selectedIds: ReadonlySet<string>) => void` — Fires whenever multi-selection changes via `Shift+Click`, `Shift+Drag` marquee, keyboard, or imperative selection calls. |
 | `onMetricsChange` | — | `(metrics: LayoutMetrics) => void` |
 | `onClustersChange` | — | `(clusters: readonly ClusterDescriptor[]) => void` |
 | `onZoomStateChange` | — | `(state: SimplexZoomState) => void` — Emits `depth`, `activeFrameKind`, `breadcrumbs`, `drillableTriangleIndices`, `focusableTriangleIndices`, `drillableClusterUids`, `isLeafReached`. |
@@ -481,6 +492,9 @@ Filter items visually without re-clustering or shifting any SAT positions (`item
 
 - `handle.addItems(items)` / `handle.removeItems(ids)` / `handle.setItems(items)` — Live dataset mutations.
 - `handle.setItemFilter(predicate, options?)` / `handle.getItemFilter()` — Zero-relayout item filtering (`'dim' | 'hide'`).
+- `handle.setSelectedIds(ids)` / `handle.toggleSelectedId(id)` / `handle.clearSelection()` / `handle.getSelectedIds()` / `handle.selectItemsInScreenRect(rect, options?)` — Interactive & programmatic multi-selection controls.
+- `handle.getViewState()` / `handle.restoreViewState(state, options?)` — JSON-serializable view state snapshot & deep-link restoration (camera, drill-down path, focus, selection, highlights, pins, timeline step).
+- `handle.setReducedMotion(pref)` / `handle.getReducedMotion()` / `handle.isReducedMotionActive()` — Runtime reduced-motion preference control (`'auto' | boolean`).
 - `handle.setHighlightedIds(ids)` / `handle.setHighlightedItems(ids)` / `handle.getHighlightedIds()` / `handle.getHighlightedItems()` — Programmatic multi-item search & linked-view highlighting (`Iterable<string> | null`).
 - `handle.focusItem(itemId | null, options?)` / `handle.getFocusedItemId()` / `handle.zoomToItem(itemId, options?)` — Programmatic item focus (with synchronized tooltip & screen-reader announcements) and camera framing / multi-step drill-down navigation.
 - `handle.exportSvg(options?)` / `handle.exportPng(options?)` — Client-side standalone `<svg>` serialization and HiDPI PNG (`Blob` or `dataUrl`) rasterization.

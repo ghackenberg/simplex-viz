@@ -2,6 +2,10 @@
 
 Framework-agnostic Web Component (`<simplex-topic-graph>`) for **SimplexViz** — drop interactive 60° simplicial topic atlases into plain HTML, Vue, Svelte, Angular, Astro, Hugo, or any standard DOM environment with zero React dependency.
 
+- **Live Demo:** <https://hackenberg.tech/simplex-viz/>
+- **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/wc>
+- **Companion Packages:** [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core) · [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg) · [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react)
+
 ## Installation
 
 ```bash
@@ -83,6 +87,9 @@ defineSimplexTopicGraphElement(); // registers <simplex-topic-graph>
 | `item-filter-mode` | `'dim' \| 'hide'` | `'dim'` |
 | `touch-scroll-lock-px` | number | `8` |
 | `click-tolerance-px` | number | `12` |
+| `focus-on-cluster-click` | boolean | `true` |
+| `focus-on-triangle-click` | boolean | `true` |
+| `relayout-on-font-load` | boolean | `true` |
 | `timeline` | boolean | `false` |
 | `items` | JSON array string | `[]` |
 | `selected-ids` | comma-separated or JSON array | `[]` |

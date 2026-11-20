@@ -125,16 +125,32 @@ jobs:
       - name: Publish packages to npmjs.org
         env:
           VERSION: ${{ needs.precheck.outputs.version }}
+          USE_OIDC_FIRST: ${{ vars.NPM_TRUSTED_PUBLISHING == 'true' }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
         run: |
-          if [ -n "$NPM_TOKEN" ]; then
+          if [ "$USE_OIDC_FIRST" != "true" ] && [ -n "$NPM_TOKEN" ]; then
             npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
           fi
           for dir in packages/core packages/svg packages/react packages/wc; do
             NAME="$(node -p "require('./${dir}/package.json').name")"
             if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
               echo "${NAME}@${VERSION} is already published on npmjs.org; skipping."
+            elif [ "$USE_OIDC_FIRST" = "true" ]; then
+              if pnpm --filter "$NAME" publish --access public --no-git-checks; then
+                continue
+              fi
+              if [ -z "$NPM_TOKEN" ]; then
+                exit 1
+              fi
+              echo "OIDC publish failed for ${NAME}@${VERSION}; retrying with NPM_TOKEN fallback..."
+              npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
+              STATUS=0
+              pnpm --filter "$NAME" publish --access public --no-git-checks || STATUS=$?
+              npm config delete //registry.npmjs.org/:_authToken || true
+              if [ "$STATUS" -ne 0 ]; then
+                exit "$STATUS"
+              fi
             else
               pnpm --filter "$NAME" publish --access public --no-git-checks
             fi

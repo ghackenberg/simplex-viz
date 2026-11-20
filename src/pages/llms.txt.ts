@@ -27,6 +27,7 @@ export const GET: APIRoute = async () => {
     '- `@simplex-viz/core`: Zero-dependency, DOM-free TypeScript engine (mesh, clustering, OKLab, convex SAT layout, 1:4 hierarchical zoom).',
     '- `@simplex-viz/svg`: Framework-agnostic SVG scene graph, view plugins, offscreen getBBox() hull measurement, and breadcrumbs.',
     '- `@simplex-viz/react`: Type-safe React 18/19 `<SimplexTopicGraph />` component and `useSimplexGraphController()` hook.',
+    '- `@simplex-viz/wc`: Framework-agnostic `<simplex-topic-graph>` Web Component (zero React dependency) with SSR-safe `@simplex-viz/wc/define` registration.',
     '',
     '## Guides & Stage Overviews',
     ...docs.map(

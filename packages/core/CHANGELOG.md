@@ -1,5 +1,11 @@
 # @simplex-viz/core
 
+## 0.12.0
+
+### Minor Changes
+
+- Add reduced-motion support (`ReducedMotionPreference`, `reducedMotion`, `setReducedMotion()`, `getReducedMotion()`, `isReducedMotionActive()`, snapping springs, camera flights, zoom transitions, and visual morphs immediately when active, #23), add independent interactive multi-selection state (`selectedIds`, `NodeInteractionState.isSelected`, `setSelectedIds()`, `toggleSelectedId()`, `clearSelection()`, `getSelectedIds()`, `selectItemsInWorldRect()`, `selectItemsInScreenRect()`, `onSelectionChange`, #25), and add serializable view state for deep-linking (`SimplexViewZoomStep`, `SimplexViewState`, `RestoreViewStateOptions`, `getPinnedIds()`, `getFocusedClusterUid()`, `getFocusedTriangleIndex()`, `getViewState()`, `restoreViewState()`, #24).
+
 ## 0.11.0
 
 ### Minor Changes

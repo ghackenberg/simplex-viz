@@ -1,0 +1,85 @@
+---
+title: "@simplex-viz/wc API Reference"
+packageName: "@simplex-viz/wc"
+version: "0.12.0"
+layerLabel: "Framework-Agnostic Web Component (<simplex-topic-graph>)"
+description: "Dedicated Custom Element package with zero React dependency, SSR-safe registration (@simplex-viz/wc/define), 23 reactive HTML attributes, inline JSON support, standard CustomEvents, and full imperative delegation."
+order: 4
+zeroRuntimeDeps: false
+installCommand: "npm install @simplex-viz/wc"
+exportsTable:
+  - symbol: "SimplexTopicGraphElement"
+    kind: "Class"
+    signature: |-
+      class SimplexTopicGraphElement<
+        TItem = DefaultTaggedItem
+      > extends HTMLElement
+    summary: "Light-DOM Custom Element (<simplex-topic-graph>) mounting SimplexSvgController inside .sv-wc-stage (preserving getBBox(), webfonts, CSS inheritance, and SVG/PNG export) with pre-upgrade property preservation, 23 reactive HTML attributes, inline <script type=\"application/json\"> data parsing, standard bubbling CustomEvents, and full imperative delegation."
+  - symbol: "defineSimplexTopicGraphElement"
+    kind: "Function"
+    signature: |-
+      defineSimplexTopicGraphElement(
+        tagName?: string,
+      ): typeof SimplexTopicGraphElement
+    summary: "SSR-safe, idempotent, and alias-safe custom element registration helper. Safely no-ops outside browsers and supports registering custom tag aliases without throwing on repeated calls."
+  - symbol: "@simplex-viz/wc/define"
+    kind: "Function"
+    signature: "import '@simplex-viz/wc/define';"
+    summary: "Dedicated side-effect subpath that automatically registers <simplex-topic-graph> on browser CustomElementRegistry while keeping the root @simplex-viz/wc entry side-effect free."
+---
+
+## Quick Usage in Plain HTML, Astro, Vue, Svelte, or Angular
+
+Import `@simplex-viz/wc/define` once to register `<simplex-topic-graph>`, or call `defineSimplexTopicGraphElement()` explicitly for SSR-safe manual control:
+
+```html
+<simplex-topic-graph
+  id="atlas"
+  preset="badges"
+  theme="dark"
+  reduced-motion="auto"
+  tooltip
+  style="width: 100%; height: 520px;"
+></simplex-topic-graph>
+
+<script type="module">
+  import '@simplex-viz/wc/define';
+
+  const el = document.getElementById('atlas');
+  el.items = [
+    { id: '1', label: 'Simplex Geometry', tags: ['geometry', 'topology'] },
+    { id: '2', label: 'Color Spaces', tags: ['color', 'perception'] },
+    { id: '3', label: 'OKLab Mixing', tags: ['geometry', 'color'] },
+  ];
+
+  el.addEventListener('simplex-click', (e) => {
+    console.log('Clicked:', e.detail);
+  });
+
+  el.addEventListener('simplex-selection-change', (e) => {
+    console.log('Selected IDs:', e.detail.ids);
+  });
+</script>
+```
+
+## Inline JSON Data (HTML-Only)
+
+For static pages, blogs, or Markdown/Astro embeds without writing imperative JavaScript, place a `<script type="application/json">` child directly inside `<simplex-topic-graph>`:
+
+```html
+<simplex-topic-graph preset="geometric" theme="light" tooltip style="height: 460px;">
+  <script type="application/json">
+    [
+      { "id": "a", "label": "Alpha", "tags": ["systems", "design"] },
+      { "id": "b", "label": "Beta", "tags": ["design", "math"] },
+      { "id": "c", "label": "Gamma", "tags": ["systems", "math"] }
+    ]
+  </script>
+</simplex-topic-graph>
+```
+
+## Reactive Attributes & Standard `CustomEvent`s
+
+- **Observed Attributes (23)**: `preset`, `theme`, `renderer` (`'svg'`), `tooltip`, `aria-label`, `keyboard-navigation`, `reduced-motion`, `marquee-selection`, `show-zoom-breadcrumbs`, `show-hulls`, `empty-cluster-behavior`, `defer-initial-layout`, `item-filter-mode`, `touch-scroll-lock-px`, `click-tolerance-px`, `focus-on-cluster-click`, `focus-on-triangle-click`, `relayout-on-font-load`, `timeline`, `items`, `selected-ids`, `highlighted-ids`, `pinned-ids`.
+- **Bubbling & Composed Events**: `simplex-click` *(cancelable via `preventDefault()`)*, `simplex-hover` *(cancelable)*, `simplex-selection-change` (`{ selectedIds, ids }`), `simplex-zoom`, `simplex-timeline-change`, `simplex-metrics`, and `simplex-clusters-change`.
+- **Imperative Methods**: `getViewState()`, `restoreViewState()`, `exportSvg()`, `exportPng()`, `setSelectedIds()`, `toggleSelectedId()`, `clearSelection()`, `selectItemsInScreenRect()`, `setHighlightedItems()`, `focusItem()`, `zoomToItem()`, `setItemFilter()`, `drillDownTriangle()`, `drillDownCluster()`, `drillUp()`, `drillToRoot()`, `resetCamera()`, `zoomBy()`, `setReducedMotion()`, `batch()`, `setOptions()`, and `relayout()`.

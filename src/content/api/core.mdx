@@ -1,7 +1,7 @@
 ---
 title: "@simplex-viz/core API Reference"
 packageName: "@simplex-viz/core"
-version: "0.11.0"
+version: "0.12.0"
 layerLabel: "Headless Geometry, Clustering, OKLab & SAT Engine"
 description: "Pure ES2022 TypeScript engine with zero runtime dependencies and zero DOM globals for browsers, Node.js, Bun, Deno, and Web Workers."
 order: 1
@@ -22,7 +22,7 @@ exportsTable:
       new SimplexGraphEngine<
         TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta
       >(config: SimplexEngineConfig<...>)
-    summary: "Stateful 60 fps engine with live mutations, zero-relayout item filtering (setItemFilter), programmatic search & linked-view navigation (setHighlightedItems, focusItem, zoomToItem), re-entrant batch() coalescing, spring transitions, deferred 0x0 viewport re-initialization, keyboard target traversal, convex/triangle hit-testing, and conformal 1:4 drill-down."
+    summary: "Stateful 60 fps engine with live mutations, reduced-motion snapping (reducedMotion), independent multi-selection (selectedIds, selectItemsInScreenRect), serializable deep-link view state (getViewState, restoreViewState), zero-relayout item filtering (setItemFilter), programmatic search & linked-view navigation (setHighlightedItems, focusItem, zoomToItem), re-entrant batch() coalescing, spring transitions, deferred 0x0 viewport re-initialization, keyboard target traversal, convex/triangle hit-testing, and conformal 1:4 drill-down."
   - symbol: "createAdaptiveHexMeshStrategy"
     kind: "Function"
     signature: |-
@@ -174,6 +174,12 @@ engine.setItemFilter((item) => item.tags.includes('geometry'), { mode: 'dim' });
 engine.setHighlightedItems(['item-1', 'item-4']);
 engine.focusItem('item-1', { highlight: true, hover: true });
 engine.zoomToItem('item-1', { zoom: 2.2, maxDrillSteps: 4 });
+
+// Interactive multi-selection, reduced-motion preference & deep-linking view state:
+engine.setSelectedIds(['item-1', 'item-2']);
+engine.setReducedMotion('auto');
+const viewState = engine.getViewState();
+engine.restoreViewState(viewState);
 
 // Navigate hierarchical drill-down or deterministic interactive targets programmatically:
 engine.drillDownTriangle(0);
