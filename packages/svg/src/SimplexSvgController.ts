@@ -224,7 +224,8 @@ export interface TimelinePlayerOptions<TItem = DefaultTaggedItem>
   extends SimplexTimelineOptions<TItem> {
   /**
    * Renders the compact, theme-adaptive Play/Pause/Step/Scrubber HUD bar inside the graph container.
-   * Set to `false` when driving playback through a custom host UI via `controller.timeline`.
+   * Set to `false` when binding an external host timeline bar via `controller.subscribeTimeline(...)`
+   * and `controller.timeline` (`play()`, `pause()`, `stepBy()`, `seek()`, `resetToEnd()`).
    * Default: `true`.
    */
   readonly showControls?: boolean;
@@ -3241,6 +3242,9 @@ export class SimplexSvgController<
     this.syncTimelineOverlay(initialState);
     this.notifyTimelineListeners(initialState);
     this.emitControllerLegendChange();
+    if (initialState.playing) {
+      this.ensureLoopRunning();
+    }
   }
 
   private createTimelineIconSvg(

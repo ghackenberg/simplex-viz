@@ -183,6 +183,43 @@ export function PublicationTimeline({ publications }: { publications: readonly P
 
 Because `estimateClusterCount(ctx)` and `ClusteringStrategyContext` receive explicit `reason` (`'initial' | 'items' | 'viewport' | 'mesh' | 'strategy'`) and viewport dimensions, resizing the canvas cleanly re-seeds both final-seeded clustering and final-seeded layout against the canonical full corpus.
 
+### Cookbook: Binding an External Host Timeline Bar (`showControls: false`)
+
+When your application already provides a site-wide scrubber or Play/Pause bar, pass `showControls: false` and `formatStepLabel` to disable the built-in HUD while letting `SimplexSvgController` (or `<simplex-topic-graph>`) manage canonical cluster seeding, item slicing, and `rAF` playback for you:
+
+```ts
+import { createSimplexSvg } from '@simplex-viz/svg';
+
+const controller = createSimplexSvg('#atlas', {
+  items: publications,
+  timeline: {
+    showControls: false,
+    getTimestamp: (p) => p.year,
+    formatStepLabel: (frame) => `${frame.timestamp} (${frame.cumulativeItems.length} items)`,
+    autoFinalSeed: true,
+    emptyClusterBehavior: 'dim',
+  },
+});
+
+// 1. Sync your existing HTML / Preact / React scrubber directly from controller state:
+const unsubscribe = controller.subscribeTimeline((state) => {
+  if (!state) return;
+  scrubber.max = String(state.totalSteps);
+  scrubber.value = String(state.step);
+  labelEl.textContent = state.activeLabel;
+  playBtn.textContent = state.playing ? 'Pause' : 'Play';
+});
+
+// 2. Drive playback without writing a manual setItems() slicing adapter:
+playBtn.onclick = () => (controller.timeline?.getState().playing ? controller.timeline.pause() : controller.timeline?.play());
+prevBtn.onclick = () => controller.timeline?.stepBy(-1);
+nextBtn.onclick = () => controller.timeline?.stepBy(1);
+resetBtn.onclick = () => controller.timeline?.resetToEnd();
+scrubber.oninput = () => controller.timeline?.seek(Number(scrubber.value));
+```
+
+The exact same binding works on `<simplex-topic-graph>` (`el.subscribeTimeline(...)` + `el.getTimeline()`) and in React via `useSimplexTimeline(controllerRef)` or `handle.subscribeTimeline(...)`.
+
 ## 7. Zero-Relayout Item Filtering, Batched Updates & WCAG 2.1 AA Accessibility
 
 Three production ergonomics features keep interactive dashboards responsive, deterministic, and accessible out of the box:

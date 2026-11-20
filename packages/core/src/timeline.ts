@@ -101,6 +101,12 @@ export interface SimplexTimelineOptions<TItem = DefaultTaggedItem> {
   readonly compareFrameKeys?: (a: string | number, b: string | number) => number;
   /** Custom formatter converting frame metadata into a concise human-readable label. */
   readonly formatFrameLabel?: (ctx: SimplexTimelineLabelContext) => string;
+  /**
+   * Custom formatter converting a full `SimplexTimelineFrame<TItem>` (including `index`,
+   * `key`, default `label`, `timestamp`, `items`, `cumulativeItems`, and `isBaseline`)
+   * into a human-readable step label. Takes precedence over `formatFrameLabel` when provided.
+   */
+  readonly formatStepLabel?: (frame: SimplexTimelineFrame<TItem>) => string;
   /** Display label for the step-0 undated baseline frame. Default: `'Baseline'`. */
   readonly baselineLabel?: string;
   /**
@@ -263,17 +269,22 @@ function buildTimelineFrames<TItem>(
         cumulativeItemCount: 0,
         isBaseline: true,
       };
+      const baseLabel = options.formatFrameLabel
+        ? options.formatFrameLabel(ctx)
+        : emptyStartLabel;
+      const baseFrame: SimplexTimelineFrame<TItem> = {
+        index: 0,
+        key: '__start__',
+        label: baseLabel,
+        items: [],
+        cumulativeItems: [],
+        isBaseline: true,
+      };
+      const label = options.formatStepLabel
+        ? options.formatStepLabel(baseFrame)
+        : baseLabel;
       return [
-        {
-          index: 0,
-          key: '__start__',
-          label: options.formatFrameLabel
-            ? options.formatFrameLabel(ctx)
-            : emptyStartLabel,
-          items: [],
-          cumulativeItems: [],
-          isBaseline: true,
-        },
+        label === baseLabel ? baseFrame : { ...baseFrame, label },
       ];
     }
     return [];
@@ -430,19 +441,23 @@ function buildTimelineFrames<TItem>(
       cumulativeItemCount: cumulativeSnapshot.length,
       isBaseline: bucket.isBaseline,
     };
-    const label = options.formatFrameLabel
+    const baseLabel = options.formatFrameLabel
       ? options.formatFrameLabel(labelCtx)
       : defaultLabel;
-
-    frames.push({
+    const baseFrame: SimplexTimelineFrame<TItem> = {
       index: stepIndex,
       key: bucket.key,
-      label,
+      label: baseLabel,
       timestamp: bucket.timestamp,
       items: bucket.items.slice(),
       cumulativeItems: cumulativeSnapshot,
       isBaseline: bucket.isBaseline,
-    });
+    };
+    const label = options.formatStepLabel
+      ? options.formatStepLabel(baseFrame)
+      : baseLabel;
+
+    frames.push(label === baseLabel ? baseFrame : { ...baseFrame, label });
   });
 
   return frames;

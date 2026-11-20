@@ -329,21 +329,30 @@ const controller = new SimplexSvgController('#graph', {
   getTags: (r) => r.tags,
   timeline: {
     getTimestamp: (r) => r.releaseYear,
+    formatStepLabel: (frame) => `${frame.timestamp} (${frame.cumulativeItems.length} items)`,
     stepIntervalMs: 850,
-    showControls: true,
+    showControls: true,              // set false when binding an external host scrubber
     position: 'bottom',              // 'bottom' | 'top'
     autoFinalSeed: true,             // pin full-corpus clusters & OKLab hues
     autoFinalSeedLayout: 'adaptive', // false | 'pinned' | 'adaptive'
     emptyClusterBehavior: 'dim',     // 'normal' | 'dim' | 'hide'
   },
   onTimelineStateChange: (state) => {
-    console.log(`Frame ${state.step}/${state.totalSteps - 1}: ${state.activeLabel}`);
+    console.log(`Frame ${state.step}/${state.totalSteps}: ${state.activeLabel}`);
   },
 });
 
-// Imperative playback controls via the headless SimplexTimelineController:
+// Headless host-UI binding (with showControls: false):
+const unsubscribe = controller.subscribeTimeline((state) => {
+  if (!state) return;
+  scrubber.max = String(state.totalSteps);
+  scrubber.value = String(state.step);
+  labelEl.textContent = state.activeLabel;
+});
 controller.timeline?.play();
+controller.timeline?.stepBy(1);
 controller.timeline?.seek(0);
+controller.timeline?.resetToEnd();
 ```
 
 ### Step 8 — Zero-Relayout Filtering, Atomic `batch()` / `setOptions()` & Keyboard Accessibility

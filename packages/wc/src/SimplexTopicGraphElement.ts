@@ -358,6 +358,9 @@ export class SimplexTopicGraphElement<
   > | null = null;
   private _stageEl: HTMLDivElement | null = null;
   private _timelineUnsubscribe: (() => void) | null = null;
+  private readonly _externalTimelineListeners = new Set<
+    (state: SimplexTimelineState<TItem> | null) => void
+  >();
   private _lastHoverWasActive = false;
 
   // Backed state (works pre-connect, pre-upgrade, and across reconnects)
@@ -1306,6 +1309,21 @@ export class SimplexTopicGraphElement<
     return this._controller?.getTimeline() ?? null;
   }
 
+  /**
+   * Subscribes an external host timeline UI directly to timeline state changes
+   * (including dynamic enable/disable via `el.timeline`). Invokes `listener`
+   * immediately with the current state (or `null`) and returns an unsubscribe handle.
+   */
+  subscribeTimeline(
+    listener: (state: SimplexTimelineState<TItem> | null) => void,
+  ): () => void {
+    this._externalTimelineListeners.add(listener);
+    listener(this._controller?.getTimeline()?.getState() ?? null);
+    return () => {
+      this._externalTimelineListeners.delete(listener);
+    };
+  }
+
   /** Deterministic frame stepping helper for unit tests and headless animations. */
   stepForTest(dtMs = 16): boolean {
     return this._controller?.stepForTest(dtMs) ?? true;
@@ -1654,13 +1672,19 @@ export class SimplexTopicGraphElement<
     this._timelineUnsubscribe?.();
     this._timelineUnsubscribe = null;
     if (!this._controller) return;
-    if (this._controller.timeline) {
-      this._timelineUnsubscribe = this._controller.subscribeTimeline((state) => {
-        if (state) {
-          this.emitEvent<SimplexTimelineState<TItem>>('simplex-timeline-change', state);
+    let isFirst = true;
+    this._timelineUnsubscribe = this._controller.subscribeTimeline((state) => {
+      if (state) {
+        this.emitEvent<SimplexTimelineState<TItem>>('simplex-timeline-change', state);
+      }
+      // Avoid duplicate synchronous callback when no timeline is active on initial mount
+      if (!isFirst || state !== null) {
+        for (const listener of this._externalTimelineListeners) {
+          listener(state);
         }
-      });
-    }
+      }
+      isFirst = false;
+    });
   }
 
   private wrapTimelineOption(

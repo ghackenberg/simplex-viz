@@ -4509,6 +4509,83 @@ describe('@simplex-viz/svg integration', () => {
       container.remove();
     }
   });
+
+  it('streamlines external host timeline HUD binding with showControls: false, formatStepLabel, subscribeTimeline, and controller.timeline (Issue #30)', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 720, height: 480, right: 720, bottom: 480 }),
+    });
+    document.body.appendChild(container);
+
+    const items = [
+      { id: 'h1', label: 'A1', tags: ['alpha', 'beta'], year: 2021 },
+      { id: 'h2', label: 'A2', tags: ['beta', 'gamma'], year: 2021 },
+      { id: 'h3', label: 'B1', tags: ['gamma', 'delta'], year: 2022 },
+      { id: 'h4', label: 'B2', tags: ['delta', 'alpha'], year: 2022 },
+      { id: 'h5', label: 'C1', tags: ['alpha', 'gamma'], year: 2023 },
+      { id: 'h6', label: 'C2', tags: ['beta', 'delta'], year: 2023 },
+    ] as const;
+
+    const controller = new SimplexSvgController(container, {
+      items,
+      layoutOptions: { seed: 29 },
+      timeline: {
+        showControls: false,
+        getTimestamp: (it) => it.year,
+        stepIntervalMs: 250,
+        formatStepLabel: (frame) =>
+          `Year ${frame.timestamp} (${frame.cumulativeItems.length} items)`,
+      },
+    });
+
+    try {
+      // Built-in HUD DOM is never mounted when showControls: false
+      expect(container.querySelector('.sv-timeline-bar')).toBeNull();
+      expect(controller.timeline).not.toBeNull();
+
+      const states: Array<
+        ReturnType<NonNullable<typeof controller.timeline>['getState']> | null
+      > = [];
+      const unsubscribe = controller.subscribeTimeline((state) => {
+        states.push(state);
+      });
+
+      // Immediate emission with formatted step label at final frame
+      expect(states.length).toBe(1);
+      expect(states[0]?.activeLabel).toBe('Year 2023 (6 items)');
+      expect(states[0]?.step).toBe(2);
+
+      // Drive playback headlessly via controller.timeline API
+      controller.timeline!.seek(0);
+      expect(states.at(-1)?.activeLabel).toBe('Year 2021 (2 items)');
+      expect(controller.getLegendModel().totalItems).toBe(2);
+
+      controller.timeline!.stepBy(1);
+      expect(states.at(-1)?.activeLabel).toBe('Year 2022 (4 items)');
+      expect(controller.getLegendModel().totalItems).toBe(4);
+
+      // Play + headless stepForTest advances frame cleanly without internal HUD
+      controller.timeline!.seek(0);
+      controller.timeline!.play();
+      expect(controller.timeline!.getState().playing).toBe(true);
+      controller.stepForTest(260);
+      expect(controller.timeline!.getState().step).toBe(1);
+      expect(container.querySelector('.sv-timeline-bar')).toBeNull();
+
+      controller.timeline!.pause();
+      expect(controller.timeline!.getState().playing).toBe(false);
+
+      controller.timeline!.resetToEnd();
+      expect(controller.timeline!.getState().atEnd).toBe(true);
+      expect(states.at(-1)?.activeLabel).toBe('Year 2023 (6 items)');
+      expect(controller.getLegendModel().totalItems).toBe(6);
+
+      unsubscribe();
+    } finally {
+      controller.destroy();
+      container.remove();
+    }
+  });
 });
 
 

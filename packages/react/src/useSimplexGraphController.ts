@@ -18,6 +18,7 @@ import type {
   SimplexLegendModelOptions,
   SimplexMeshStrategy,
   SimplexTimelineController,
+  SimplexTimelineState,
   SimplexViewState,
   SimplexZoomState,
   SimplexZoomStrategy,
@@ -124,6 +125,9 @@ export interface SimplexGraphHandle<
     options?: SimplexLegendModelOptions,
   ): SimplexLegendModel<TItem, TTagMeta, TClusterMeta> | null;
   getTimeline(): SimplexTimelineController<TItem> | null;
+  subscribeTimeline(
+    listener: (state: SimplexTimelineState<TItem> | null) => void,
+  ): () => void;
   getRawController(): SimplexSvgController<
     TItem,
     TContentVisual,
@@ -444,6 +448,18 @@ export function useSimplexGraphController<
     return controllerRef.current?.getTimeline() ?? null;
   }, []);
 
+  const subscribeTimeline = useCallback(
+    (listener: (state: SimplexTimelineState<TItem> | null) => void): (() => void) => {
+      const ctrl = controllerRef.current;
+      if (!ctrl) {
+        listener(null);
+        return () => {};
+      }
+      return ctrl.subscribeTimeline(listener);
+    },
+    [],
+  );
+
   const getRawController = useCallback(() => {
     return controllerRef.current;
   }, []);
@@ -501,6 +517,7 @@ export function useSimplexGraphController<
       getClusters,
       getLegendModel,
       getTimeline,
+      subscribeTimeline,
       getRawController,
     },
   };

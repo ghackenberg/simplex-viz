@@ -537,4 +537,67 @@ describe('@simplex-viz/wc (<simplex-topic-graph>) (Issue #26)', () => {
       wrapper.remove();
     }
   });
+
+  it('supports headless external timeline HUD binding via showControls: false, formatStepLabel, and el.subscribeTimeline() (Issue #30)', () => {
+    interface DatedWcItem {
+      readonly id: string;
+      readonly label: string;
+      readonly tags: readonly string[];
+      readonly year: number;
+    }
+
+    const datedItems: readonly DatedWcItem[] = [
+      { id: 'wct-1', label: 'A', tags: ['geometry', 'math'], year: 2020 },
+      { id: 'wct-2', label: 'B', tags: ['graphics', 'math'], year: 2020 },
+      { id: 'wct-3', label: 'C', tags: ['color', 'graphics'], year: 2021 },
+      { id: 'wct-4', label: 'D', tags: ['geometry', 'color'], year: 2022 },
+    ];
+
+    const wrapper = document.createElement('div');
+    sizeElement(wrapper, 720, 480);
+    const el = document.createElement(
+      'simplex-topic-graph',
+    ) as SimplexTopicGraphElement<DatedWcItem>;
+    sizeElement(el, 720, 480);
+
+    el.items = datedItems;
+    el.layoutOptions = { seed: 23 };
+    el.timeline = {
+      showControls: false,
+      getTimestamp: (it) => it.year,
+      formatStepLabel: (frame) => `Step ${frame.index + 1}: ${frame.timestamp}`,
+    };
+
+    const observedLabels: Array<string | null> = [];
+    const unsubscribe = el.subscribeTimeline((state) => {
+      observedLabels.push(state ? state.activeLabel : null);
+    });
+    // Pre-connect call receives null
+    expect(observedLabels).toEqual([null]);
+
+    wrapper.appendChild(el);
+    document.body.appendChild(wrapper);
+
+    try {
+      expect(el.querySelector('.sv-timeline-bar')).toBeNull();
+      expect(observedLabels.at(-1)).toBe('Step 3: 2022');
+
+      el.getTimeline()!.seek(0);
+      expect(observedLabels.at(-1)).toBe('Step 1: 2020');
+
+      el.getTimeline()!.stepBy(1);
+      expect(observedLabels.at(-1)).toBe('Step 2: 2021');
+
+      el.getTimeline()!.resetToEnd();
+      expect(observedLabels.at(-1)).toBe('Step 3: 2022');
+
+      // Disabling timeline notifies subscriber with null
+      el.timeline = false;
+      expect(observedLabels.at(-1)).toBeNull();
+
+      unsubscribe();
+    } finally {
+      wrapper.remove();
+    }
+  });
 });

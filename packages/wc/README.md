@@ -129,7 +129,7 @@ All custom events bubble (`bubbles: true`, `composed: true`).
 - Data & batching: `addItems`, `removeItems`, `setItems`, `setOptions`, `batch`, `relayout`
 - Selection & filtering: `setSelectedIds`, `toggleSelectedId`, `clearSelection`, `getSelectedIds`, `selectItemsInScreenRect`, `setHighlightedIds`, `setHighlightedItems`, `getHighlightedIds`, `setPinnedIds`, `getPinnedIds`, `setItemFilter`, `getItemFilter`
 - Navigation & focus: `focusItem`, `getFocusedItemId`, `zoomToItem`, `setFocusedClusterUid`, `setFocusedTriangleIndex`, `drillDownTriangle`, `drillDownCluster`, `drillToNeighbor`, `drillUp`, `drillToDepth`, `drillToRoot`, `getZoomState`, `resetCamera`, `zoomBy`
-- Legend, deep-linking & export: `getLegendModel`, `getViewState`, `restoreViewState`, `exportSvg`, `exportPng`
+- Legend, timeline, deep-linking & export: `getLegendModel`, `getTimeline`, `subscribeTimeline`, `getViewState`, `restoreViewState`, `exportSvg`, `exportPng`
 - Accessibility & motion: `setReducedMotion`, `getReducedMotion`, `isReducedMotionActive`, `getKeyboardFocusTarget`, `clearKeyboardFocus`
 
 ## License

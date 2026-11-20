@@ -528,6 +528,13 @@ export function SimplexTopicGraph<
             return latest ? latest(ctx) : ctx.key;
           }
         : undefined,
+      formatStepLabel: baseOpts.formatStepLabel
+        ? (frame) => {
+            const latest =
+              getLatestTimelineOpts()?.formatStepLabel ?? baseOpts.formatStepLabel;
+            return latest ? latest(frame) : frame.label;
+          }
+        : undefined,
       compareFrameKeys: baseOpts.compareFrameKeys
         ? (a, b) => {
             const latest =
@@ -1026,6 +1033,7 @@ export function SimplexTopicGraph<
         Boolean(prevTimeline.getTimestamp) === Boolean(nextTimeline.getTimestamp) &&
         Boolean(prevTimeline.getFrameKey) === Boolean(nextTimeline.getFrameKey) &&
         Boolean(prevTimeline.formatFrameLabel) === Boolean(nextTimeline.formatFrameLabel) &&
+        Boolean(prevTimeline.formatStepLabel) === Boolean(nextTimeline.formatStepLabel) &&
         Boolean(prevTimeline.compareFrameKeys) === Boolean(nextTimeline.compareFrameKeys)
       );
 

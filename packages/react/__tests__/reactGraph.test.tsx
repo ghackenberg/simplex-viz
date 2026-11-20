@@ -1481,6 +1481,58 @@ describe('@simplex-viz/react integration', () => {
     unmount();
     expect(exposed.handle!.getLegendModel()).toBeNull();
   });
+
+  it('supports headless external timeline HUD binding with showControls: false, formatStepLabel, and handle.subscribeTimeline (Issue #30)', () => {
+    const items = [
+      { id: 'rt1', year: 2020, tags: ['alpha', 'beta'] },
+      { id: 'rt2', year: 2020, tags: ['beta', 'gamma'] },
+      { id: 'rt3', year: 2021, tags: ['gamma', 'delta'] },
+      { id: 'rt4', year: 2022, tags: ['delta', 'alpha'] },
+    ];
+
+    const exposed: {
+      handle: ReturnType<typeof useSimplexGraphController<(typeof items)[number]>>['handle'] | null;
+    } = { handle: null };
+
+    const Host = () => {
+      const { controllerRef, handle } = useSimplexGraphController<(typeof items)[number]>();
+      exposed.handle = handle;
+      return (
+        <div style={{ width: 640, height: 420 }}>
+          <SimplexTopicGraph
+            controllerRef={controllerRef}
+            items={items}
+            timeline={{
+              showControls: false,
+              getTimestamp: (it) => it.year,
+              formatStepLabel: (frame) => `${frame.timestamp} · ${frame.cumulativeItems.length}`,
+            }}
+          />
+        </div>
+      );
+    };
+
+    const { container, unmount } = render(<Host />);
+    expect(container.querySelector('.sv-timeline-bar')).toBeNull();
+
+    const labels: string[] = [];
+    const unsubscribe = exposed.handle!.subscribeTimeline((state) => {
+      if (state) labels.push(state.activeLabel);
+    });
+    expect(labels).toEqual(['2022 · 4']);
+
+    act(() => {
+      exposed.handle!.getTimeline()!.seek(0);
+      exposed.handle!.getTimeline()!.stepBy(1);
+      exposed.handle!.getTimeline()!.resetToEnd();
+    });
+
+    expect(labels).toEqual(['2022 · 4', '2020 · 2', '2021 · 3', '2022 · 4']);
+    expect(container.querySelector('.sv-timeline-bar')).toBeNull();
+
+    unsubscribe();
+    unmount();
+  });
 });
 
 

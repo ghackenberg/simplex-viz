@@ -521,4 +521,37 @@ describe('SimplexTimelineController & createSimplexTimeline (Issue #8)', () => {
 
     engine.destroy();
   });
+
+  it('supports formatStepLabel(frame) with access to frame items, cumulativeItems, and precedence over formatFrameLabel (Issue #30)', () => {
+    const corpus: readonly DatedItem[] = [
+      { id: 'b0', tags: ['foundation'] },
+      { id: 'y1', tags: ['geometry'], year: 2021 },
+      { id: 'y2', tags: ['geometry'], year: 2021 },
+      { id: 'y3', tags: ['color'], year: 2022 },
+    ];
+
+    const tl = createSimplexTimeline(corpus, {
+      getTimestamp: (item) => item.year,
+      formatFrameLabel: (ctx) => `fallback:${ctx.key}`,
+      formatStepLabel: (frame) =>
+        frame.isBaseline
+          ? `Base (${frame.items.map((i) => i.id).join(',')})`
+          : `${frame.timestamp} (+${frame.items.length} / ${frame.cumulativeItems.length} total)`,
+    });
+
+    const state = tl.getState();
+    expect(state.frames.map((f) => f.label)).toEqual([
+      'Base (b0)',
+      '2021 (+2 / 3 total)',
+      '2022 (+1 / 4 total)',
+    ]);
+    expect(state.activeLabel).toBe('2022 (+1 / 4 total)');
+
+    // Also applies to includeEmptyStart on an empty corpus
+    const emptyTl = createSimplexTimeline<DatedItem>([], {
+      includeEmptyStart: true,
+      formatStepLabel: (frame) => `Empty@${frame.index}:${frame.items.length}`,
+    });
+    expect(emptyTl.getState().activeLabel).toBe('Empty@0:0');
+  });
 });
