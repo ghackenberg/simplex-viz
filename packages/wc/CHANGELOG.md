@@ -1,5 +1,17 @@
 # @simplex-viz/wc
 
+## 0.14.0
+
+### Minor Changes
+
+- Expose `el.subscribeTimeline(listener)` on `<simplex-topic-graph>` (`SimplexTopicGraphElement`) returning a cleanup unsubscribe handle alongside `simplex-timeline-change` events and `formatStepLabel` support for external host timeline HUDs (#30).
+
+### Patch Changes
+
+- Updated dependencies
+  - @simplex-viz/core@0.14.0
+  - @simplex-viz/svg@0.14.0
+
 ## 0.13.0
 
 ### Minor Changes

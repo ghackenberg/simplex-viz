@@ -9,11 +9,11 @@ summaryPoints:
   - Measure arbitrary React JSX cards or custom SVG glyphs automatically via offscreen getBBox() convex hull extraction.
   - Swap SvgTriangleView and SvgEdgeView plugins independently—internal 1:4 drillable previews automatically inherit your SvgEdgeView.
   - Enable chronological timeline playback with pinned full-corpus clusters, optional final-seeded item positions (pinned or adaptive), and configurable empty-cluster dimming.
-  - Render zero-DOM SSR SVG strings via @simplex-viz/svg/ssr (ready for @resvg/resvg-js without Puppeteer), export client-side SVG/PNG snapshots, and synchronize external search/table linked views.
+  - Render zero-DOM SSR SVG strings via @simplex-viz/svg/ssr (ready for @resvg/resvg-js without Puppeteer), offload solving to Web Workers via @simplex-viz/core/worker, and paint 2,000–10,000+ item corpora at 60 FPS with @simplex-viz/canvas.
 relatedApiSlug: svg
 ---
 
-SimplexViz separates **mathematical solving** (`@simplex-viz/core`) from **scene rendering & framework adapters** (`@simplex-viz/svg`, `@simplex-viz/react`, and `@simplex-viz/wc`). Every visual layer can be customized without rewriting layout or collision code.
+SimplexViz separates **mathematical solving** (`@simplex-viz/core` + `@simplex-viz/core/worker`) from **scene rendering & framework adapters** (`@simplex-viz/svg`, `@simplex-viz/canvas`, `@simplex-viz/react`, and `@simplex-viz/wc`). Every visual layer can be customized without rewriting layout or collision code.
 
 ## 1. Declarative React JSX Node Renderers
 
@@ -110,6 +110,34 @@ const { snapshot } = await workerClient.solve(records, {
   getId: (r) => r.slug,
   getTags: (r) => r.topics,
   layoutStrategy: { kind: 'collision-driven' },
+});
+```
+
+### Pairing `@simplex-viz/core/worker` with High-Capacity Canvas 2D (`@simplex-viz/canvas`)
+
+For large datasets (**2,000–10,000+ items**) where SVG DOM nodes limit pan/zoom frame rate, paint the solved snapshot directly with `renderSimplexSnapshotToCanvas()` or mount a full interactive `SimplexCanvasController` (`createSimplexCanvas`) with world-space frustum culling (`cullMarginPx`), automatic sub-pixel LOD simplification (`lodThresholdPx`), custom `CanvasNodeRenderer` / `CanvasTriangleRenderer` / `CanvasEdgeRenderer` hooks, and native `exportPng()`:
+
+```ts
+import {
+  createSimplexCanvas,
+  renderSimplexSnapshotToCanvas,
+} from '@simplex-viz/canvas';
+
+// Option A — Stateless one-shot render of a Worker snapshot:
+renderSimplexSnapshotToCanvas(canvasEl, snapshot, {
+  theme: 'dark',
+  preset: 'badges',
+  lodThresholdPx: 3.5,
+});
+
+// Option B — Full interactive 60 FPS Canvas controller (1:4 drill-down, timeline, marquee, WCAG keys):
+const controller = createSimplexCanvas('#atlas', {
+  items: records,
+  preset: 'badges',
+  theme: 'dark',
+  lodThresholdPx: 3.5,
+  cullMarginPx: 48,
+  tooltip: true,
 });
 ```
 

@@ -413,4 +413,135 @@ describe('@simplex-viz/canvas high-capacity Canvas 2D renderer (Issue #21)', () 
     expect((blob as Blob).type).toBe('image/png');
     adapter.destroy();
   });
+
+  it('handles interactive click drill-down, background click drill-up, trackpad pinch, and free-camera wheel zoom', () => {
+    const container = createSizedContainer(820, 560);
+    const { ctx } = createMock2DContext();
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function () {
+      return ctx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    const items = makeSampleItems(28);
+    const controller = createSimplexCanvas(container, {
+      items,
+      preset: 'badges',
+      reducedMotion: true,
+      zoomStrategy: createBarycentricZoomStrategy(),
+    });
+
+    try {
+      controller.stepForTest(16.67);
+      const canvas = controller.getCanvasElement();
+      Object.defineProperty(canvas, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({
+          left: 0,
+          top: 0,
+          right: 820,
+          bottom: 560,
+          width: 820,
+          height: 560,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        }),
+      });
+
+      // 1. Hovering a drillable triangle shows zoom-in cursor (matching SVG)
+      const zoom0 = controller.getZoomState();
+      expect(zoom0.depth).toBe(0);
+      if (zoom0.drillableTriangleIndices.length > 0) {
+        canvas.dispatchEvent(
+          new PointerEvent('pointermove', {
+            pointerId: 1,
+            pointerType: 'mouse',
+            clientX: 410,
+            clientY: 280,
+            bubbles: true,
+          }),
+        );
+        expect(['zoom-in', 'pointer']).toContain(canvas.style.cursor);
+
+        // Trackpad ctrl+wheel pinch-out drills into the nearest drillable triangle
+        canvas.dispatchEvent(
+          new WheelEvent('wheel', {
+            clientX: 410,
+            clientY: 280,
+            deltaY: -40,
+            ctrlKey: true,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+        controller.stepForTest(16.67);
+        expect(controller.getZoomState().depth).toBe(1);
+
+        // Hovering background while drilled in shows zoom-out cursor
+        canvas.dispatchEvent(
+          new PointerEvent('pointermove', {
+            pointerId: 1,
+            pointerType: 'mouse',
+            clientX: 8,
+            clientY: 8,
+            bubbles: true,
+          }),
+        );
+        expect(canvas.style.cursor).toBe('zoom-out');
+
+        // 2. Clicking the empty corner background drills back up to depth 0
+        canvas.dispatchEvent(
+          new PointerEvent('pointerdown', {
+            pointerId: 1,
+            pointerType: 'mouse',
+            button: 0,
+            clientX: 8,
+            clientY: 8,
+            bubbles: true,
+          }),
+        );
+        canvas.dispatchEvent(
+          new PointerEvent('pointerup', {
+            pointerId: 1,
+            pointerType: 'mouse',
+            button: 0,
+            clientX: 8,
+            clientY: 8,
+            bubbles: true,
+          }),
+        );
+        controller.stepForTest(16.67);
+        expect(controller.getZoomState().depth).toBe(0);
+        expect(canvas.style.cursor).toBe('default');
+
+        // 3. Clicking the center of a drillable triangle drills in 1:4
+        canvas.dispatchEvent(
+          new PointerEvent('pointerdown', {
+            pointerId: 2,
+            pointerType: 'mouse',
+            button: 0,
+            clientX: 410,
+            clientY: 280,
+            bubbles: true,
+          }),
+        );
+        canvas.dispatchEvent(
+          new PointerEvent('pointerup', {
+            pointerId: 2,
+            pointerType: 'mouse',
+            button: 0,
+            clientX: 410,
+            clientY: 280,
+            bubbles: true,
+          }),
+        );
+        controller.stepForTest(16.67);
+        expect(controller.getZoomState().depth).toBeGreaterThanOrEqual(1);
+      }
+    } finally {
+      controller.destroy();
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+      container.remove();
+    }
+  });
 });

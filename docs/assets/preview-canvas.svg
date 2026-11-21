@@ -1,0 +1,269 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="1200" height="640">
+  <rect x="1" y="1" width="1198" height="638" rx="12" fill="none" stroke="#64748B" stroke-opacity="0.38" stroke-width="1.5"/>
+
+  <!-- Left Column: High-Capacity Canvas 2D API -->
+  <rect x="24" y="24" width="368" height="248" rx="10" fill="#E2E8F0" fill-opacity="0.95" stroke="#6366F1" stroke-opacity="0.78" stroke-width="1.5"/>
+  <circle cx="42" cy="42" r="4.5" fill="#6366F1"/>
+  <text x="54" y="46" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10.5" font-weight="700" fill="#0F172A">CANVAS 2D · ZERO PER-NODE DOM</text>
+  <rect x="312" y="32" width="68" height="19" rx="4" fill="#6366F1" fill-opacity="0.16" stroke="#6366F1" stroke-opacity="0.55" stroke-width="1"/>
+  <text x="346" y="45" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9" font-weight="700" fill="#4338CA">60 FPS</text>
+  <line x1="24" y1="58" x2="392" y2="58" stroke="#94A3B8" stroke-opacity="0.55" stroke-width="1"/>
+
+  <g font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10.8" font-weight="600">
+    <text x="38" y="80"><tspan fill="#6D28D9">import</tspan> <tspan fill="#334155">{ createSimplexCanvas }</tspan></text>
+    <text x="52" y="98"><tspan fill="#6D28D9">from</tspan> <tspan fill="#4338CA" font-weight="700">'@simplex-viz/canvas'</tspan><tspan fill="#475569">;</tspan></text>
+    <text x="38" y="122"><tspan fill="#6D28D9">const</tspan> <tspan fill="#0F172A">atlas</tspan> <tspan fill="#475569">=</tspan> <tspan fill="#0369A1">createSimplexCanvas</tspan><tspan fill="#475569">(</tspan><tspan fill="#B45309">'#stage'</tspan><tspan fill="#475569">, {</tspan></text>
+    <text x="52" y="140"><tspan fill="#0369A1">items</tspan><tspan fill="#475569">:</tspan> <tspan fill="#334155">corpus10k,</tspan></text>
+    <text x="52" y="158"><tspan fill="#0369A1">preset</tspan><tspan fill="#475569">:</tspan> <tspan fill="#B45309">'badges'</tspan><tspan fill="#475569">,</tspan> <tspan fill="#0369A1">theme</tspan><tspan fill="#475569">:</tspan> <tspan fill="#B45309">'dark'</tspan><tspan fill="#475569">,</tspan></text>
+    <text x="52" y="176"><tspan fill="#0369A1">lodThresholdPx</tspan><tspan fill="#475569">:</tspan> <tspan fill="#047857">3.5</tspan><tspan fill="#475569">,</tspan></text>
+    <text x="52" y="194"><tspan fill="#0369A1">cullMarginPx</tspan><tspan fill="#475569">:</tspan> <tspan fill="#047857">48</tspan><tspan fill="#475569">,</tspan></text>
+    <text x="52" y="212"><tspan fill="#0369A1">maxDevicePixelRatio</tspan><tspan fill="#475569">:</tspan> <tspan fill="#047857">2</tspan><tspan fill="#475569">,</tspan></text>
+    <text x="38" y="230"><tspan fill="#475569">});</tspan></text>
+    <text x="38" y="252"><tspan fill="#6D28D9">const</tspan> <tspan fill="#0F172A">png</tspan> <tspan fill="#475569">=</tspan> <tspan fill="#6D28D9">await</tspan> <tspan fill="#0F172A">atlas</tspan><tspan fill="#475569">.</tspan><tspan fill="#0369A1">exportPng</tspan><tspan fill="#475569">({ scale: </tspan><tspan fill="#047857">2</tspan><tspan fill="#475569"> });</tspan></text>
+  </g>
+
+  <!-- Left Column: Off-Thread Worker Pairing -->
+  <rect x="24" y="284" width="368" height="142" rx="10" fill="#E2E8F0" fill-opacity="0.95" stroke="#06B6D4" stroke-opacity="0.72" stroke-width="1.4"/>
+  <circle cx="42" cy="302" r="4.5" fill="#06B6D4"/>
+  <text x="54" y="306" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10.5" font-weight="700" fill="#0F172A">@simplex-viz/core/worker</text>
+  <text x="378" y="306" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9.2" font-weight="600" fill="#0E7490">OFF-THREAD</text>
+  <line x1="24" y1="316" x2="392" y2="316" stroke="#94A3B8" stroke-opacity="0.55" stroke-width="1"/>
+
+  <g font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10.2" font-weight="600">
+    <text x="38" y="338"><tspan fill="#0369A1">createSimplexWorkerClient</tspan><tspan fill="#475569">() → QAP + SAT</tspan></text>
+    <text x="38" y="358"><tspan fill="#047857">Float32Array</tspan> <tspan fill="#475569">zero-copy buffer transfer</tspan></text>
+    <text x="38" y="378"><tspan fill="#B45309">SUPERSEDED</tspan> <tspan fill="#475569">stale-generation cancel</tspan></text>
+    <text x="38" y="398"><tspan fill="#4338CA">renderSimplexSnapshotToCanvas</tspan><tspan fill="#475569">(el, snap)</tspan></text>
+    <text x="38" y="416" fill="#64748B" font-weight="500">Pluggable solver hook (JS · Rust/WASM)</text>
+  </g>
+
+  <!-- Left Column: Rendering Pipeline Guarantees -->
+  <rect x="24" y="438" width="368" height="138" rx="10" fill="#E2E8F0" fill-opacity="0.95" stroke="#64748B" stroke-opacity="0.58" stroke-width="1.3"/>
+  <circle cx="42" cy="456" r="4.5" fill="#F59E0B"/>
+  <text x="54" y="460" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10.5" font-weight="700" fill="#0F172A">RENDER PIPELINE &amp; PARITY</text>
+  <line x1="24" y1="470" x2="392" y2="470" stroke="#94A3B8" stroke-opacity="0.55" stroke-width="1"/>
+
+  <g font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10.1" font-weight="600">
+    <rect x="38" y="480" width="164" height="24" rx="5" fill="#CBD5E1" fill-opacity="0.65" stroke="#64748B" stroke-opacity="0.38"/>
+    <text x="120" y="495.5" text-anchor="middle" fill="#4338CA">Frustum Culling</text>
+    <rect x="214" y="480" width="164" height="24" rx="5" fill="#CBD5E1" fill-opacity="0.65" stroke="#64748B" stroke-opacity="0.38"/>
+    <text x="296" y="495.5" text-anchor="middle" fill="#0F172A">Automatic LOD</text>
+
+    <rect x="38" y="510" width="164" height="24" rx="5" fill="#CBD5E1" fill-opacity="0.65" stroke="#64748B" stroke-opacity="0.38"/>
+    <text x="120" y="525.5" text-anchor="middle" fill="#0369A1">1:4 Drill-Down</text>
+    <rect x="214" y="510" width="164" height="24" rx="5" fill="#CBD5E1" fill-opacity="0.65" stroke="#64748B" stroke-opacity="0.38"/>
+    <text x="296" y="525.5" text-anchor="middle" fill="#0F172A">Timeline Playback</text>
+
+    <rect x="38" y="540" width="164" height="24" rx="5" fill="#CBD5E1" fill-opacity="0.65" stroke="#64748B" stroke-opacity="0.38"/>
+    <text x="120" y="555.5" text-anchor="middle" fill="#6D28D9">Shift+Drag Marquee</text>
+    <rect x="214" y="540" width="164" height="24" rx="5" fill="#CBD5E1" fill-opacity="0.65" stroke="#64748B" stroke-opacity="0.38"/>
+    <text x="296" y="555.5" text-anchor="middle" fill="#047857">WCAG 2.1 AA Keys</text>
+  </g>
+
+  <!-- Data Flow Connectors -->
+  <line x1="394" y1="148" x2="415" y2="148" stroke="#6366F1" stroke-width="2"/>
+  <polygon points="420,148 412,143.5 412,152.5" fill="#6366F1"/>
+
+  <line x1="394" y1="355" x2="415" y2="355" stroke="#06B6D4" stroke-width="2"/>
+  <polygon points="420,355 412,350.5 412,359.5" fill="#06B6D4"/>
+
+  <line x1="399" y1="507" x2="415" y2="507" stroke="#F59E0B" stroke-width="1.8" stroke-dasharray="3 2"/>
+  <polygon points="394,507 401,503 401,511" fill="#F59E0B"/>
+  <polygon points="420,507 413,503 413,511" fill="#F59E0B"/>
+
+  <!-- Right Stage: Single HiDPI <canvas> Viewport -->
+  <rect x="422" y="24" width="754" height="552" rx="10" fill="#6366F1" fill-opacity="0.035" stroke="#6366F1" stroke-opacity="0.65" stroke-width="1.6" stroke-dasharray="6 4"/>
+  <line x1="422" y1="56" x2="1176" y2="56" stroke="#6366F1" stroke-opacity="0.28" stroke-width="1"/>
+  <circle cx="439" cy="40" r="4.2" fill="#6366F1"/>
+  <text x="450" y="44" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="11" font-weight="700" fill="#6366F1">&lt;canvas&gt;<tspan dx="8" font-weight="400" fill="#64748B">·</tspan><tspan dx="8" font-weight="400" fill="#64748B">CanvasRendererAdapter (HiDPI 2×)</tspan></text>
+  <text x="1160" y="44" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10.2" font-weight="600" fill="#64748B">2,000–10,000+ Items · 0 DOM Nodes</text>
+
+  <!-- World-Space Frustum Culling Window Indicator -->
+  <rect x="466" y="78" width="666" height="456" rx="8" fill="none" stroke="#06B6D4" stroke-opacity="0.45" stroke-width="1.4" stroke-dasharray="5 4"/>
+  <rect x="478" y="68" width="214" height="20" rx="4" fill="#E2E8F0" fill-opacity="0.96" stroke="#06B6D4" stroke-opacity="0.6"/>
+  <text x="585" y="81.5" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9.2" font-weight="700" fill="#0E7490">WORLD-SPACE FRUSTUM CULLING</text>
+
+  <!-- Culled off-viewport ghost markers (outside frustum) -->
+  <g opacity="0.32" fill="#64748B">
+    <circle cx="444" cy="146" r="3.2"/>
+    <circle cx="448" cy="218" r="2.8"/>
+    <circle cx="442" cy="390" r="3.0"/>
+    <circle cx="450" cy="482" r="2.8"/>
+    <circle cx="1152" cy="158" r="3.0"/>
+    <circle cx="1156" cy="284" r="3.2"/>
+    <circle cx="1148" cy="434" r="2.8"/>
+    <circle cx="1154" cy="512" r="3.0"/>
+  </g>
+
+  <!-- 60° Simplex Mesh Inside Active Frustum -->
+  <g>
+    <polygon points="690,138 794,318 586,318" fill="#818CF8" fill-opacity="0.12"/>
+    <polygon points="690,138 898,138 794,318" fill="#22D3EE" fill-opacity="0.12"/>
+    <polygon points="898,138 1002,318 794,318" fill="#F472B6" fill-opacity="0.11"/>
+    <polygon points="586,318 794,318 690,498" fill="#34D399" fill-opacity="0.12"/>
+    <polygon points="794,318 898,498 690,498" fill="#FBBF24" fill-opacity="0.12"/>
+    <polygon points="794,318 1002,318 898,498" fill="#FB923C" fill-opacity="0.11"/>
+
+    <g stroke="#64748B" stroke-opacity="0.42" stroke-width="1.25" stroke-dasharray="5 4">
+      <line x1="690" y1="138" x2="794" y2="318"/>
+      <line x1="586" y1="318" x2="794" y2="318"/>
+      <line x1="690" y1="138" x2="586" y2="318"/>
+      <line x1="690" y1="138" x2="898" y2="138"/>
+      <line x1="898" y1="138" x2="794" y2="318"/>
+      <line x1="898" y1="138" x2="1002" y2="318"/>
+      <line x1="794" y1="318" x2="1002" y2="318"/>
+      <line x1="794" y1="318" x2="690" y2="498"/>
+      <line x1="586" y1="318" x2="690" y2="498"/>
+      <line x1="794" y1="318" x2="898" y2="498"/>
+      <line x1="690" y1="498" x2="898" y2="498"/>
+      <line x1="1002" y1="318" x2="898" y2="498"/>
+    </g>
+  </g>
+
+  <!-- Dense High-Capacity OKLab Node Field (Full-Detail Shapes + LOD Circles) -->
+  <g>
+    <!-- Upper-left Indigo/Cyan pocket -->
+    <circle cx="652" cy="216" r="4.2" fill="#818CF8"/>
+    <circle cx="668" cy="232" r="4.8" fill="#6366F1"/>
+    <circle cx="642" cy="244" r="3.6" fill="#60A5FA"/>
+    <circle cx="688" cy="246" r="5.0" fill="#818CF8"/>
+    <circle cx="710" cy="228" r="4.4" fill="#38BDF8"/>
+    <circle cx="726" cy="250" r="4.0" fill="#22D3EE"/>
+    <circle cx="628" cy="268" r="4.4" fill="#38BDF8"/>
+    <circle cx="656" cy="264" r="5.2" fill="#6366F1"/>
+    <circle cx="678" cy="276" r="3.8" fill="#818CF8"/>
+    <circle cx="702" cy="268" r="4.5" fill="#22D3EE"/>
+    <circle cx="722" cy="282" r="3.6" fill="#06B6D4"/>
+    <circle cx="644" cy="292" r="4.2" fill="#34D399"/>
+    <circle cx="670" cy="296" r="4.6" fill="#2DD4BF"/>
+    <circle cx="696" cy="294" r="3.8" fill="#22D3EE"/>
+    <circle cx="742" cy="264" r="4.5" fill="#38BDF8"/>
+    <circle cx="754" cy="284" r="4.2" fill="#22D3EE"/>
+    <circle cx="732" cy="202" r="3.8" fill="#38BDF8"/>
+    <circle cx="758" cy="214" r="4.6" fill="#06B6D4"/>
+
+    <!-- Top-center Cyan/Teal pocket -->
+    <circle cx="778" cy="176" r="4.4" fill="#22D3EE"/>
+    <circle cx="798" cy="166" r="4.8" fill="#06B6D4"/>
+    <circle cx="818" cy="178" r="4.0" fill="#38BDF8"/>
+    <circle cx="772" cy="198" r="4.2" fill="#22D3EE"/>
+    <circle cx="794" cy="202" r="5.2" fill="#06B6D4"/>
+    <circle cx="816" cy="204" r="4.4" fill="#818CF8"/>
+    <circle cx="836" cy="194" r="4.0" fill="#A78BFA"/>
+    <circle cx="782" cy="226" r="4.4" fill="#22D3EE"/>
+    <circle cx="804" cy="230" r="4.6" fill="#818CF8"/>
+    <circle cx="826" cy="224" r="3.8" fill="#C084FC"/>
+    <circle cx="792" cy="254" r="4.2" fill="#38BDF8"/>
+    <circle cx="814" cy="256" r="4.5" fill="#A78BFA"/>
+
+    <!-- Upper-right Magenta/Rose pocket -->
+    <circle cx="862" cy="212" r="4.4" fill="#E879F9"/>
+    <circle cx="884" cy="224" r="4.8" fill="#D946EF"/>
+    <circle cx="908" cy="216" r="4.2" fill="#F472B6"/>
+    <circle cx="928" cy="232" r="4.6" fill="#FB7185"/>
+    <circle cx="854" cy="240" r="4.0" fill="#C084FC"/>
+    <circle cx="878" cy="248" r="5.0" fill="#E879F9"/>
+    <circle cx="904" cy="244" r="4.4" fill="#F472B6"/>
+    <circle cx="930" cy="258" r="4.8" fill="#FB7185"/>
+    <circle cx="950" cy="272" r="4.2" fill="#FB923C"/>
+    <circle cx="846" cy="272" r="4.4" fill="#A78BFA"/>
+    <circle cx="872" cy="276" r="4.8" fill="#E879F9"/>
+    <circle cx="898" cy="274" r="4.2" fill="#F472B6"/>
+    <circle cx="924" cy="284" r="4.6" fill="#FB923C"/>
+    <circle cx="860" cy="296" r="4.0" fill="#C084FC"/>
+    <circle cx="888" cy="298" r="4.4" fill="#FB7185"/>
+    <circle cx="916" cy="302" r="3.8" fill="#FB923C"/>
+
+    <!-- Lower-left Emerald/Teal pocket -->
+    <circle cx="648" cy="348" r="4.4" fill="#34D399"/>
+    <circle cx="672" cy="346" r="4.8" fill="#10B981"/>
+    <circle cx="696" cy="350" r="4.2" fill="#2DD4BF"/>
+    <circle cx="722" cy="348" r="4.4" fill="#22D3EE"/>
+    <circle cx="660" cy="374" r="5.0" fill="#10B981"/>
+    <circle cx="686" cy="378" r="4.6" fill="#34D399"/>
+    <circle cx="712" cy="374" r="4.2" fill="#2DD4BF"/>
+    <circle cx="736" cy="368" r="3.8" fill="#22D3EE"/>
+    <circle cx="672" cy="404" r="4.6" fill="#10B981"/>
+    <circle cx="698" cy="406" r="4.8" fill="#34D399"/>
+    <circle cx="722" cy="400" r="4.0" fill="#A3E635"/>
+    <circle cx="688" cy="432" r="4.4" fill="#10B981"/>
+    <circle cx="710" cy="436" r="4.2" fill="#84CC16"/>
+
+    <!-- Bottom-center Amber/Lime pocket -->
+    <circle cx="766" cy="378" r="4.4" fill="#A3E635"/>
+    <circle cx="792" cy="374" r="5.0" fill="#FBBF24"/>
+    <circle cx="818" cy="380" r="4.6" fill="#F59E0B"/>
+    <circle cx="754" cy="406" r="4.2" fill="#84CC16"/>
+    <circle cx="780" cy="408" r="5.2" fill="#FBBF24"/>
+    <circle cx="806" cy="406" r="4.8" fill="#F59E0B"/>
+    <circle cx="832" cy="404" r="4.2" fill="#FB923C"/>
+    <circle cx="748" cy="438" r="4.4" fill="#A3E635"/>
+    <circle cx="774" cy="442" r="4.8" fill="#FBBF24"/>
+    <circle cx="800" cy="440" r="5.0" fill="#F59E0B"/>
+    <circle cx="826" cy="436" r="4.4" fill="#FB923C"/>
+    <circle cx="764" cy="468" r="4.2" fill="#FBBF24"/>
+    <circle cx="792" cy="470" r="4.6" fill="#F59E0B"/>
+    <circle cx="820" cy="466" r="4.2" fill="#F97316"/>
+
+    <!-- Lower-right Coral/Orange pocket -->
+    <circle cx="862" cy="348" r="4.6" fill="#FB923C"/>
+    <circle cx="890" cy="346" r="5.0" fill="#F97316"/>
+    <circle cx="918" cy="350" r="4.4" fill="#FB7185"/>
+    <circle cx="944" cy="354" r="4.2" fill="#F43F5E"/>
+    <circle cx="854" cy="376" r="4.4" fill="#F59E0B"/>
+    <circle cx="882" cy="378" r="5.0" fill="#FB923C"/>
+    <circle cx="910" cy="378" r="4.6" fill="#F97316"/>
+    <circle cx="936" cy="382" r="4.0" fill="#FB7185"/>
+    <circle cx="872" cy="408" r="4.6" fill="#F59E0B"/>
+    <circle cx="898" cy="410" r="4.8" fill="#F97316"/>
+    <circle cx="922" cy="412" r="4.2" fill="#FB7185"/>
+    <circle cx="888" cy="440" r="4.4" fill="#F97316"/>
+
+    <!-- Highlighted Full-Detail Hero Shapes (above lodThresholdPx) -->
+    <polygon points="794,274 804,284 794,294 784,284" fill="#06B6D4" stroke="#E2E8F0" stroke-width="1.4"/>
+    <circle cx="794" cy="284" r="14.5" fill="none" stroke="#6366F1" stroke-width="2.1"/>
+    <polygon points="692,318 701,323 701,333 692,338 683,333 683,323" fill="#10B981" stroke="#E2E8F0" stroke-width="1.3"/>
+    <polygon points="894,316 903,321 903,331 894,336 885,331 885,321" fill="#F97316" stroke="#E2E8F0" stroke-width="1.3"/>
+  </g>
+
+  <!-- Cluster Badges at Simplex Vertices -->
+  <g font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-weight="700">
+    <g transform="translate(690, 138)">
+      <rect x="-52" y="-15" width="104" height="30" rx="15" fill="#E2E8F0" fill-opacity="0.96" stroke="#6366F1" stroke-width="1.6"/>
+      <text x="0" y="4" text-anchor="middle" font-size="10" fill="#0F172A">T1 · Vectors</text>
+    </g>
+    <g transform="translate(898, 138)">
+      <rect x="-52" y="-15" width="104" height="30" rx="15" fill="#E2E8F0" fill-opacity="0.96" stroke="#D946EF" stroke-width="1.6"/>
+      <text x="0" y="4" text-anchor="middle" font-size="10" fill="#0F172A">T2 · Vision</text>
+    </g>
+    <g transform="translate(586, 318)">
+      <rect x="-52" y="-15" width="104" height="30" rx="15" fill="#E2E8F0" fill-opacity="0.96" stroke="#10B981" stroke-width="1.6"/>
+      <text x="0" y="4" text-anchor="middle" font-size="10" fill="#0F172A">T3 · Audio</text>
+    </g>
+    <g transform="translate(794, 318)">
+      <rect x="-52" y="-15" width="104" height="30" rx="15" fill="#E2E8F0" fill-opacity="0.96" stroke="#06B6D4" stroke-width="1.6"/>
+      <text x="0" y="4" text-anchor="middle" font-size="10" fill="#0F172A">T4 · Core</text>
+    </g>
+    <g transform="translate(1002, 318)">
+      <rect x="-52" y="-15" width="104" height="30" rx="15" fill="#E2E8F0" fill-opacity="0.96" stroke="#F97316" stroke-width="1.6"/>
+      <text x="0" y="4" text-anchor="middle" font-size="10" fill="#0F172A">T5 · Graph</text>
+    </g>
+    <g transform="translate(690, 498)">
+      <rect x="-52" y="-15" width="104" height="30" rx="15" fill="#E2E8F0" fill-opacity="0.96" stroke="#84CC16" stroke-width="1.6"/>
+      <text x="0" y="4" text-anchor="middle" font-size="10" fill="#0F172A">T6 · Motion</text>
+    </g>
+    <g transform="translate(898, 498)">
+      <rect x="-52" y="-15" width="104" height="30" rx="15" fill="#E2E8F0" fill-opacity="0.96" stroke="#F59E0B" stroke-width="1.6"/>
+      <text x="0" y="4" text-anchor="middle" font-size="10" fill="#0F172A">T7 · Search</text>
+    </g>
+  </g>
+
+  <!-- LOD Callout Badge -->
+  <rect x="942" y="544" width="190" height="22" rx="5" fill="#E2E8F0" fill-opacity="0.96" stroke="#6366F1" stroke-width="1.3"/>
+  <text x="1037" y="558.5" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="9.2" font-weight="700" fill="#4338CA">LOD &lt; 3.5 px · Fast Circles</text>
+
+  <!-- Footer Status Bar -->
+  <line x1="24" y1="594" x2="1176" y2="594" stroke="#64748B" stroke-opacity="0.28" stroke-width="1"/>
+  <text x="24" y="618" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10.5" font-weight="600" fill="#64748B">@simplex-viz/canvas · Zero per-node DOM overhead · Frustum Culling · Automatic LOD · Native exportPng()</text>
+  <text x="1176" y="618" text-anchor="end" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="10.5" font-weight="700" fill="#6366F1">overlapCount: 0</text>
+</svg>

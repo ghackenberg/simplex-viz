@@ -1,3 +1,8 @@
+import type {
+  CanvasDefaultClusterVisual,
+  CanvasDefaultContentVisual,
+  SimplexCanvasController,
+} from '@simplex-viz/canvas';
 import {
   DEFAULT_FULL_SCALE_THRESHOLD,
   SimplexTopicGraph,
@@ -51,6 +56,10 @@ import {
   type CanonicalMeshStrategyId,
   type CanonicalZoomStrategyId,
 } from '../../site/strategies';
+import {
+  SimplexCanvasStage,
+  type ShowcaseRendererKind,
+} from './SimplexCanvasStage';
 import { useDocumentDarkTheme } from './useDocumentDarkTheme';
 
 export interface PlaygroundTaggedItem {
@@ -410,6 +419,7 @@ export function PlaygroundWorkspace() {
     useState<boolean>(true);
 
   // Stage 06 · Visual preset & geometry parameters
+  const [rendererMode, setRendererMode] = useState<ShowcaseRendererKind>('svg');
   const [presetMode, setPresetMode] = useState<SimplexVisualPreset>('geometric');
   const [sizeMultiplier, setSizeMultiplier] = useState<number>(1);
   const [showHulls, setShowHulls] = useState<boolean>(false);
@@ -446,11 +456,34 @@ export function PlaygroundWorkspace() {
 
   const [zoomState, setZoomState] = useState<SimplexZoomState | null>(null);
 
-  const { controllerRef, handle } = useSimplexGraphController<
+  const { controllerRef, handle: svgHandle } = useSimplexGraphController<
     PlaygroundTaggedItem,
     DefaultContentPresetVisual,
     DefaultClusterPresetVisual
   >();
+  const canvasControllerRef = useRef<SimplexCanvasController<
+    PlaygroundTaggedItem,
+    CanvasDefaultContentVisual,
+    CanvasDefaultClusterVisual
+  > | null>(null);
+
+  const handle = useMemo(
+    () => ({
+      drillToRoot: () => {
+        if (rendererMode === 'canvas') {
+          return canvasControllerRef.current?.drillToRoot() ?? false;
+        }
+        return svgHandle.drillToRoot();
+      },
+      getTimeline: () => {
+        if (rendererMode === 'canvas') {
+          return canvasControllerRef.current?.getTimeline() ?? null;
+        }
+        return svgHandle.getTimeline();
+      },
+    }),
+    [rendererMode, svgHandle],
+  );
 
   const serializedDataset = useMemo(() => {
     const payload: PlaygroundDatasetEnvelope = {
@@ -1176,12 +1209,14 @@ export function PlaygroundWorkspace() {
           ? 'Barycentric 1:4'
           : 'Semantic 3→6';
 
-  const visualHeaderSummary =
+  const presetLabel =
     presetMode === 'glyphs'
       ? 'Donut Glyphs'
       : presetMode === 'badges'
         ? 'Label Badges'
         : 'Geometric';
+  const visualHeaderSummary =
+    rendererMode === 'canvas' ? `Canvas · ${presetLabel}` : presetLabel;
 
   const timelineHeaderSummary = timelineEnabled
     ? timelineState
@@ -1633,44 +1668,98 @@ export function PlaygroundWorkspace() {
         )}
 
         {items.length > 0 ? (
-          <SimplexTopicGraph<PlaygroundTaggedItem>
-            controllerRef={controllerRef}
-            items={items}
-            getId={(it) => it.id}
-            getTags={(it) => it.tags}
-            getLabel={(it) => it.label}
-            preset={presetMode}
-            theme={theme}
-            sizeMultiplier={sizeMultiplier}
-            showHulls={showHulls}
-            emptyClusterBehavior={emptyClusterBehavior}
-            highlightedIds={highlightedSet}
-            meshOptions={meshOptions}
-            layoutOptions={layoutOptions}
-            meshStrategy={meshStrategy}
-            clusteringStrategy={clusteringStrategy}
-            colorStrategy={colorStrategy}
-            layoutStrategy={layoutStrategy}
-            zoomStrategy={zoomStrategy}
-            showZoomBreadcrumbs
-            timeline={timelineConfig}
-            onTimelineStateChange={setTimelineState}
-            tooltip={(target) => {
-              if (target.kind === 'content') {
-                const tagStr = target.item.tags.map((t) => `#${t}`).join(' ');
-                const datePrefix =
-                  target.item.date !== undefined ? `[${target.item.date}] ` : '';
-                return target.item.note
-                  ? `${datePrefix}${target.item.label} (${tagStr}) — ${target.item.note}`
-                  : `${datePrefix}${target.item.label} (${tagStr})`;
+          rendererMode === 'svg' ? (
+            <SimplexTopicGraph<PlaygroundTaggedItem>
+              controllerRef={controllerRef}
+              items={items}
+              getId={(it) => it.id}
+              getTags={(it) => it.tags}
+              getLabel={(it) => it.label}
+              preset={presetMode}
+              theme={theme}
+              sizeMultiplier={sizeMultiplier}
+              showHulls={showHulls}
+              emptyClusterBehavior={emptyClusterBehavior}
+              highlightedIds={highlightedSet}
+              meshOptions={meshOptions}
+              layoutOptions={layoutOptions}
+              meshStrategy={meshStrategy}
+              clusteringStrategy={clusteringStrategy}
+              colorStrategy={colorStrategy}
+              layoutStrategy={layoutStrategy}
+              zoomStrategy={zoomStrategy}
+              showZoomBreadcrumbs
+              timeline={timelineConfig}
+              onTimelineStateChange={setTimelineState}
+              tooltip={(target) => {
+                if (target.kind === 'content') {
+                  const tagStr = target.item.tags.map((t) => `#${t}`).join(' ');
+                  const datePrefix =
+                    target.item.date !== undefined ? `[${target.item.date}] ` : '';
+                  return target.item.note
+                    ? `${datePrefix}${target.item.label} (${tagStr}) — ${target.item.note}`
+                    : `${datePrefix}${target.item.label} (${tagStr})`;
+                }
+                if (target.kind === 'cluster') {
+                  return `${target.cluster.code}: ${target.cluster.defaultLabel} (${target.cluster.members.length} items)`;
+                }
+                return `Triangle #${target.triangle.index + 1} (${target.triangle.coveredItemCount} items)`;
+              }}
+              onZoomStateChange={setZoomState}
+            />
+          ) : (
+            <SimplexCanvasStage<PlaygroundTaggedItem>
+              controllerRef={canvasControllerRef}
+              resetKey={timelineEnabled ? 'tl' : 'static'}
+              items={items}
+              getId={(it) => it.id}
+              getTags={(it) => it.tags}
+              getLabel={(it) => it.label}
+              preset={presetMode}
+              theme={theme}
+              showHulls={showHulls}
+              emptyClusterBehavior={emptyClusterBehavior}
+              highlightedIds={highlightedSet}
+              meshOptions={meshOptions}
+              layoutOptions={layoutOptions}
+              meshStrategy={meshStrategy}
+              clusteringStrategy={clusteringStrategy}
+              colorStrategy={colorStrategy}
+              layoutStrategy={layoutStrategy}
+              zoomStrategy={zoomStrategy}
+              showZoomBreadcrumbs
+              timeline={
+                timelineConfig
+                  ? {
+                      getTimestamp: timelineConfig.getTimestamp,
+                      stepIntervalMs: timelineConfig.stepIntervalMs,
+                      autoFinalSeed: timelineConfig.autoFinalSeed,
+                      autoFinalSeedLayout:
+                        timelineConfig.autoFinalSeedLayout === true
+                          ? 'pinned'
+                          : timelineConfig.autoFinalSeedLayout,
+                      emptyClusterBehavior: timelineConfig.emptyClusterBehavior,
+                    }
+                  : null
               }
-              if (target.kind === 'cluster') {
-                return `${target.cluster.code}: ${target.cluster.defaultLabel} (${target.cluster.members.length} items)`;
-              }
-              return `Triangle #${target.triangle.index + 1} (${target.triangle.coveredItemCount} items)`;
-            }}
-            onZoomStateChange={setZoomState}
-          />
+              onTimelineStateChange={setTimelineState}
+              tooltip={{
+                formatContent: (ev) => {
+                  const tagStr = ev.item.tags.map((t) => `#${t}`).join(' ');
+                  const datePrefix =
+                    ev.item.date !== undefined ? `[${ev.item.date}] ` : '';
+                  return ev.item.note
+                    ? `${datePrefix}${ev.item.label} (${tagStr}) — ${ev.item.note}`
+                    : `${datePrefix}${ev.item.label} (${tagStr})`;
+                },
+                formatCluster: (ev) =>
+                  `${ev.cluster.code}: ${ev.cluster.defaultLabel} (${ev.cluster.members.length} items)`,
+                formatTriangle: (ev) =>
+                  `Triangle #${ev.triangle.index + 1} (${ev.triangle.coveredItemCount} items)`,
+              }}
+              onZoomStateChange={setZoomState}
+            />
+          )
         ) : (
           <div className="flex h-full flex-col items-center justify-center px-6 text-center">
             <p className="text-sm font-semibold text-slate-900 dark:text-white">
@@ -2672,6 +2761,33 @@ export function PlaygroundWorkspace() {
 
             {openSection === 'visual' && (
               <div className="space-y-3 border-t border-slate-100 bg-slate-50/35 px-3.5 py-3 text-xs dark:border-slate-800/60 dark:bg-[#0E131D]/35">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400">
+                    Renderer backend
+                  </span>
+                  <div className="grid grid-cols-2 gap-1 rounded-md border border-slate-200 bg-slate-100/80 p-0.5 dark:border-slate-700 dark:bg-[#07090E]">
+                    {(
+                      [
+                        { id: 'svg', label: 'SVG (@simplex-viz/svg)' },
+                        { id: 'canvas', label: 'Canvas 2D (@simplex-viz/canvas)' },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setRendererMode(opt.id)}
+                        className={`cursor-pointer rounded px-2 py-1 text-[11px] transition-colors truncate ${
+                          rendererMode === opt.id
+                            ? 'bg-white font-semibold text-slate-950 shadow-xs dark:bg-[#0B0F17] dark:text-cyan-300'
+                            : 'font-medium text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-100'
+                        }`}
+                      >
+                        {opt.id === 'svg' ? 'SVG' : 'Canvas 2D'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <label className="flex flex-col gap-1">
                   <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400">
                     Node visual preset

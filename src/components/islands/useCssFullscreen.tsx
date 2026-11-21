@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 
-export function useCssFullscreen() {
+export interface UseCssFullscreenOptions {
+  /** When true, Escape will not exit fullscreen (e.g. while an inspector or modal is open). */
+  readonly disableEscape?: boolean;
+}
+
+export function useCssFullscreen(options?: UseCssFullscreenOptions) {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const disableEscape = options?.disableEscape ?? false;
 
   const toggleFullscreen = useCallback(() => {
     setIsFullscreen((prev) => !prev);
@@ -18,7 +24,7 @@ export function useCssFullscreen() {
     root.classList.add('sv-fullscreen-lock');
 
     function handleKeyDown(ev: KeyboardEvent) {
-      if (ev.key === 'Escape') {
+      if (ev.key === 'Escape' && !disableEscape) {
         setIsFullscreen(false);
       }
     }
@@ -28,7 +34,7 @@ export function useCssFullscreen() {
       root.classList.remove('sv-fullscreen-lock');
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isFullscreen]);
+  }, [isFullscreen, disableEscape]);
 
   return { isFullscreen, toggleFullscreen, exitFullscreen };
 }
@@ -36,11 +42,13 @@ export function useCssFullscreen() {
 interface CssFullscreenButtonProps {
   readonly isFullscreen: boolean;
   readonly onToggle: () => void;
+  readonly compactMobile?: boolean;
 }
 
 export function CssFullscreenButton({
   isFullscreen,
   onToggle,
+  compactMobile = false,
 }: CssFullscreenButtonProps) {
   return (
     <button
@@ -49,7 +57,9 @@ export function CssFullscreenButton({
       aria-pressed={isFullscreen}
       aria-label={isFullscreen ? 'Exit full screen' : 'Enter full screen'}
       title={isFullscreen ? 'Exit full screen (Esc)' : 'Full screen'}
-      className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+      className={`inline-flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-md border text-xs font-medium transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 ${
+        compactMobile ? 'w-7 px-0 sm:w-auto sm:px-2.5' : 'px-2.5'
+      } ${
         isFullscreen
           ? 'border-cyan-600/60 bg-cyan-50 text-cyan-900 hover:bg-cyan-100 dark:border-cyan-400/50 dark:bg-cyan-950/60 dark:text-cyan-200 dark:hover:bg-cyan-950'
           : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-[#0B0F17] dark:text-slate-200 dark:hover:bg-slate-800'
@@ -88,7 +98,9 @@ export function CssFullscreenButton({
           <path d="M3 21l7-7" />
         </svg>
       )}
-      <span>{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</span>
+      <span className={compactMobile ? 'hidden sm:inline' : undefined}>
+        {isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
+      </span>
     </button>
   );
 }

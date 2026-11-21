@@ -4,6 +4,7 @@ import {
   createFinalSeededClusteringStrategy,
   createFinalSeededLayoutStrategy,
   createSimplexTimeline,
+  isPointInTriangle,
   type CameraController,
   type ClusterDerivationContext,
   type ClusterDescriptor,
@@ -111,6 +112,7 @@ export interface SimplexCanvasControllerOptions<
   readonly getLabel?: (item: TItem) => string;
   readonly normalizeTag?: (rawTag: string) => string;
   readonly formatTagLabel?: (tag: string) => string;
+  readonly resolveTagMeta?: (normalizedTag: string) => TTagMeta | undefined;
   readonly deriveClusterMeta?: (
     ctx: ClusterDerivationContext<TItem, TTagMeta>,
   ) => TClusterMeta;
@@ -327,8 +329,13 @@ export class SimplexCanvasController<
 
   private rafId: number | null = null;
   private lastRafTime = 0;
+  private repaintRequested = false;
   private destroyed = false;
   private deferredPending = false;
+  private focusedClusterUidState: string | null = null;
+  private focusedTriangleIndexState: number | null = null;
+  private wheelPinchAccum = 0;
+  private wheelPinchCooldownUntil = 0;
   private resizeObserver: ResizeObserver | null = null;
   private reducedMotionMql: MediaQueryList | null = null;
   private reducedMotionListener: (() => void) | null = null;
@@ -484,6 +491,7 @@ export class SimplexCanvasController<
       getTags: options.getTags,
       normalizeTag: options.normalizeTag,
       formatTagLabel: options.formatTagLabel,
+      resolveTagMeta: options.resolveTagMeta,
       deriveClusterMeta: options.deriveClusterMeta,
       visualResolver,
       renderer: this.adapter,
@@ -601,6 +609,118 @@ export class SimplexCanvasController<
     this.announcerEl.textContent = message;
   }
 
+  private updateCursorForPoint(screenX: number, screenY: number): void {
+    const zoomMode = this.engine.getZoomStrategy().mode;
+    const hit = this.engine.hitTest(screenX, screenY);
+    if (zoomMode === 'drill-down') {
+      const zState = this.engine.getZoomState();
+      if (hit.kind === 'triangle') {
+        if (hit.triangle.neighborId) {
+          this.canvas.style.cursor = 'pointer';
+        } else if (
+          zState.activeFrameKind === 'triangle-focus' &&
+          zState.canDrillUp
+        ) {
+          this.canvas.style.cursor = 'zoom-out';
+        } else {
+          this.canvas.style.cursor =
+            zState.drillableTriangleIndices.includes(hit.triangle.index) ||
+            zState.focusableTriangleIndices.includes(hit.triangle.index)
+              ? 'zoom-in'
+              : 'default';
+        }
+      } else if (hit.kind === 'cluster') {
+        if (hit.neighborId) {
+          this.canvas.style.cursor = 'pointer';
+        } else if (
+          zState.activeFrameKind === 'cluster-star' &&
+          hit.cluster.clusterIndex === 0 &&
+          zState.canDrillUp
+        ) {
+          this.canvas.style.cursor = 'zoom-out';
+        } else {
+          this.canvas.style.cursor = zState.drillableClusterUids.includes(
+            hit.cluster.clusterUid,
+          )
+            ? 'zoom-in'
+            : 'default';
+        }
+      } else if (hit.kind === 'content') {
+        this.canvas.style.cursor = 'pointer';
+      } else {
+        this.canvas.style.cursor = zState.canDrillUp ? 'zoom-out' : 'default';
+      }
+    } else {
+      this.canvas.style.cursor = hit.kind === 'background' ? 'grab' : 'pointer';
+    }
+  }
+
+  private triggerPinchDrillIn(screenX: number, screenY: number): boolean {
+    const zState = this.engine.getZoomState();
+    const hit = this.engine.hitTest(screenX, screenY);
+    if (hit.kind === 'triangle') {
+      if (hit.triangle.neighborId) {
+        return this.drillToNeighbor(hit.triangle.neighborId);
+      }
+      if (!hit.triangle.isContext && zState.activeFrameKind !== 'triangle-focus') {
+        return this.drillDownTriangle(hit.triangle.index);
+      }
+      return false;
+    }
+    if (hit.kind === 'cluster') {
+      if (hit.neighborId) {
+        return this.drillToNeighbor(hit.neighborId);
+      }
+      return this.drillDownCluster(hit.cluster.clusterUid);
+    }
+    const candidateTriIndices =
+      zState.drillableTriangleIndices.length > 0
+        ? zState.drillableTriangleIndices
+        : zState.focusableTriangleIndices;
+    if (hit.kind === 'content') {
+      const mesh = this.engine.getMesh();
+      if (mesh) {
+        for (const triIdx of candidateTriIndices) {
+          const tri = mesh.triangles[triIdx];
+          if (!tri) continue;
+          const p0 = mesh.vertices[tri.vertices[0]]!;
+          const p1 = mesh.vertices[tri.vertices[1]]!;
+          const p2 = mesh.vertices[tri.vertices[2]]!;
+          if (isPointInTriangle(hit.worldPosition.x, hit.worldPosition.y, p0, p1, p2)) {
+            return this.drillDownTriangle(triIdx);
+          }
+        }
+      }
+      const primaryCluster = hit.layoutContext.unitClusters[0]?.cluster;
+      if (primaryCluster && zState.drillableClusterUids.includes(primaryCluster.clusterUid)) {
+        return this.drillDownCluster(primaryCluster.clusterUid);
+      }
+    }
+    if (candidateTriIndices.length > 0) {
+      const mesh = this.engine.getMesh();
+      if (mesh) {
+        let bestIdx = candidateTriIndices[0]!;
+        let bestDist = Infinity;
+        for (const triIdx of candidateTriIndices) {
+          const tri = mesh.triangles[triIdx];
+          if (!tri) continue;
+          const p0 = mesh.vertices[tri.vertices[0]]!;
+          const p1 = mesh.vertices[tri.vertices[1]]!;
+          const p2 = mesh.vertices[tri.vertices[2]]!;
+          const cx = (p0.x + p1.x + p2.x) / 3;
+          const cy = (p0.y + p1.y + p2.y) / 3;
+          const d = Math.hypot(cx - hit.worldPosition.x, cy - hit.worldPosition.y);
+          if (d < bestDist) {
+            bestDist = d;
+            bestIdx = triIdx;
+          }
+        }
+        return this.drillDownTriangle(bestIdx);
+      }
+    }
+    return false;
+  }
+
   private buildWrappedInteractions(): InteractionHandlers<
     TItem,
     TContentVisual,
@@ -661,13 +781,90 @@ export class SimplexCanvasController<
         }
         return consumed;
       },
-      onContentClick: (target, raw) => this.interactions.onContentClick?.(target, raw),
-      onClusterClick: (target, raw) => this.interactions.onClusterClick?.(target, raw),
-      onTriangleClick: (target, raw) => this.interactions.onTriangleClick?.(target, raw),
-      onBackgroundClick: (raw) => this.interactions.onBackgroundClick?.(raw),
-      onLeftClick: (target, raw) => this.interactions.onLeftClick?.(target, raw),
+      onLeftClick: (target, rawEvent) => {
+        if (target.kind === 'content' && !target.neighborId) {
+          if (this.interactions.onContentClick?.(target, rawEvent) === true) {
+            return true;
+          }
+        } else if (target.kind === 'cluster') {
+          if (this.interactions.onClusterClick?.(target, rawEvent) === true) {
+            return true;
+          }
+        } else if (target.kind === 'triangle') {
+          if (this.interactions.onTriangleClick?.(target, rawEvent) === true) {
+            return true;
+          }
+        } else if (target.kind === 'background') {
+          if (this.interactions.onBackgroundClick?.(rawEvent) === true) {
+            return true;
+          }
+        }
+        if (this.interactions.onLeftClick?.(target, rawEvent) === true) {
+          return true;
+        }
+
+        if (this.engine.getZoomStrategy().mode === 'drill-down') {
+          if (target.kind === 'triangle') {
+            if (target.triangle.neighborId) {
+              this.drillToNeighbor(target.triangle.neighborId);
+            } else if (!target.triangle.isContext) {
+              this.drillDownTriangle(target.triangle.index);
+            }
+          } else if (target.kind === 'cluster') {
+            if (target.neighborId) {
+              this.drillToNeighbor(target.neighborId);
+            } else {
+              this.drillDownCluster(target.cluster.clusterUid);
+            }
+          } else if (target.kind === 'content' && target.neighborId) {
+            this.drillToNeighbor(target.neighborId);
+          } else if (target.kind === 'background') {
+            if (this.engine.getZoomState().canDrillUp) {
+              this.drillUp();
+            } else if (!rawEvent.shiftKey && this.engine.getSelectedIds().size > 0) {
+              this.clearSelection();
+            }
+          }
+          return false;
+        }
+
+        // Free-camera mode: toggle focused cluster/triangle or clear focus/selection on background
+        if (target.kind === 'cluster') {
+          if (this.focusedTriangleIndexState !== null) {
+            this.setFocusedTriangleIndex(null);
+          }
+          const next =
+            this.focusedClusterUidState === target.cluster.clusterUid
+              ? null
+              : target.cluster.clusterUid;
+          this.setFocusedClusterUid(next);
+        } else if (target.kind === 'triangle') {
+          if (this.focusedClusterUidState !== null) {
+            this.setFocusedClusterUid(null);
+          }
+          const next =
+            this.focusedTriangleIndexState === target.triangle.index
+              ? null
+              : target.triangle.index;
+          this.setFocusedTriangleIndex(next);
+        } else if (target.kind === 'background') {
+          if (this.focusedClusterUidState !== null) {
+            this.setFocusedClusterUid(null);
+          }
+          if (this.focusedTriangleIndexState !== null) {
+            this.setFocusedTriangleIndex(null);
+          }
+          if (this.engine.getFocusedItemId() !== null) {
+            this.focusItem(null);
+          }
+          if (!rawEvent.shiftKey && this.engine.getSelectedIds().size > 0) {
+            this.clearSelection();
+          }
+        }
+        return false;
+      },
       onRightClick: (target, raw) => this.interactions.onRightClick?.(target, raw),
-      onWheel: this.interactions.onWheel,
+      onWheel: this.interactions.onWheel ?? 'zoom-to-cursor',
     };
   }
 
@@ -760,6 +957,8 @@ export class SimplexCanvasController<
     let touchLockedAxis: 'none' | 'vertical' | 'canvas' = 'none';
     const activeTouches = new Map<number, { x: number; y: number }>();
     let lastPinchDist = 0;
+    let pinchStartDist = 0;
+    let pinchHandledInGesture = false;
 
     const onPointerDown = (ev: PointerEvent): void => {
       if (ev.button !== 0 && ev.pointerType === 'mouse') return;
@@ -769,7 +968,10 @@ export class SimplexCanvasController<
         activeTouches.set(ev.pointerId, local);
         if (activeTouches.size === 2) {
           const pts = Array.from(activeTouches.values());
-          lastPinchDist = Math.hypot(pts[1]!.x - pts[0]!.x, pts[1]!.y - pts[0]!.y);
+          const initialDist = Math.hypot(pts[1]!.x - pts[0]!.x, pts[1]!.y - pts[0]!.y);
+          lastPinchDist = initialDist;
+          pinchStartDist = initialDist;
+          pinchHandledInGesture = false;
           isDragging = false;
           return;
         }
@@ -804,11 +1006,20 @@ export class SimplexCanvasController<
           const dist = Math.hypot(pts[1]!.x - pts[0]!.x, pts[1]!.y - pts[0]!.y);
           const midX = (pts[0]!.x + pts[1]!.x) * 0.5;
           const midY = (pts[0]!.y + pts[1]!.y) * 0.5;
-          if (lastPinchDist > 4 && dist > 4) {
-            const zoomMode = this.engine.getZoomStrategy().mode;
-            if (zoomMode === 'free-camera') {
+          const zoomMode = this.engine.getZoomStrategy().mode;
+          if (zoomMode === 'free-camera') {
+            if (lastPinchDist > 4 && dist > 4) {
               this.engine.camera.zoomToCursor(midX, midY, dist / lastPinchDist);
               this.scheduleFrame();
+            }
+          } else if (zoomMode === 'drill-down' && !pinchHandledInGesture && pinchStartDist > 8) {
+            const ratio = dist / pinchStartDist;
+            if (ratio >= 1.24) {
+              pinchHandledInGesture = true;
+              this.triggerPinchDrillIn(midX, midY);
+            } else if (ratio <= 0.78) {
+              pinchHandledInGesture = true;
+              this.drillUp();
             }
           }
           lastPinchDist = dist;
@@ -823,6 +1034,10 @@ export class SimplexCanvasController<
         if (dist > peakDisplacement) peakDisplacement = dist;
 
         if (isMarquee) {
+          if (dist > 4) {
+            this.hideTooltip();
+            this.canvas.style.cursor = 'crosshair';
+          }
           const rect: CanvasMarqueeRect = {
             x: Math.min(startX, local.x),
             y: Math.min(startY, local.y),
@@ -841,6 +1056,8 @@ export class SimplexCanvasController<
         if (touchLockedAxis === 'vertical') return;
 
         if (this.engine.getZoomStrategy().mode === 'free-camera' && peakDisplacement > 3) {
+          this.canvas.style.cursor = 'grabbing';
+          this.hideTooltip();
           this.engine.camera.panBy(local.x - lastX, local.y - lastY);
           this.scheduleFrame();
         }
@@ -849,15 +1066,24 @@ export class SimplexCanvasController<
         return;
       }
 
-      // Hover hit-testing
+      if (ev.pointerType === 'touch') {
+        return;
+      }
+
+      // Hover hit-testing & cursor parity with SimplexSvgController
       this.engine.handlePointerMove(local.x, local.y);
+      this.updateCursorForPoint(local.x, local.y);
       this.scheduleFrame();
     };
 
     const onPointerUp = (ev: PointerEvent): void => {
       const local = this.toCanvasLocal(ev.clientX, ev.clientY);
       activeTouches.delete(ev.pointerId);
-      if (activeTouches.size < 2) lastPinchDist = 0;
+      if (activeTouches.size < 2) {
+        lastPinchDist = 0;
+        pinchStartDist = 0;
+        pinchHandledInGesture = false;
+      }
 
       if (ev.pointerId !== activePointerId) return;
       const wasMarquee = isMarquee;
@@ -874,8 +1100,9 @@ export class SimplexCanvasController<
             Math.min(startY, local.y),
             Math.max(startX, local.x),
             Math.max(startY, local.y),
-            { mode: 'add' },
+            { mode: ev.altKey ? 'toggle' : 'add' },
           );
+          this.updateCursorForPoint(local.x, local.y);
           this.scheduleFrame();
           return;
         }
@@ -883,13 +1110,20 @@ export class SimplexCanvasController<
 
       if (moved <= this.clickTolerancePx && touchLockedAxis !== 'vertical') {
         this.engine.handleLeftClick(this.toNormalizedPointer(ev, local.x, local.y));
+        if (ev.pointerType !== 'touch') {
+          this.updateCursorForPoint(local.x, local.y);
+        }
         this.scheduleFrame();
+      } else if (ev.pointerType !== 'touch') {
+        this.updateCursorForPoint(local.x, local.y);
       }
     };
 
     const onPointerLeave = (): void => {
       this.engine.handlePointerLeave();
       this.hideTooltip();
+      this.canvas.style.cursor =
+        this.engine.getZoomStrategy().mode === 'drill-down' ? 'default' : 'grab';
       this.scheduleFrame();
     };
 
@@ -903,8 +1137,25 @@ export class SimplexCanvasController<
     };
 
     const onWheel = (ev: WheelEvent): void => {
-      if (this.engine.getZoomStrategy().mode !== 'free-camera') return;
       const local = this.toCanvasLocal(ev.clientX, ev.clientY);
+      // Support discrete trackpad pinch-in / pinch-out when in drill-down mode
+      if (this.engine.getZoomStrategy().mode === 'drill-down' && ev.ctrlKey) {
+        ev.preventDefault();
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        if (now < this.wheelPinchCooldownUntil) return;
+        this.wheelPinchAccum += ev.deltaY;
+        if (this.wheelPinchAccum <= -22) {
+          this.wheelPinchAccum = 0;
+          this.wheelPinchCooldownUntil = now + 360;
+          this.triggerPinchDrillIn(local.x, local.y);
+        } else if (this.wheelPinchAccum >= 22) {
+          this.wheelPinchAccum = 0;
+          this.wheelPinchCooldownUntil = now + 360;
+          this.drillUp();
+        }
+        return;
+      }
+
       const wheelEv: NormalizedWheelEvent = {
         screenX: local.x,
         screenY: local.y,
@@ -1076,7 +1327,12 @@ export class SimplexCanvasController<
   private scheduleFrame(): void {
     if (this.destroyed || this.rafId !== null) return;
     if (typeof requestAnimationFrame !== 'function') {
-      this.engine.step(16.67);
+      const wantsRepaint = this.repaintRequested;
+      this.repaintRequested = false;
+      const settled = this.engine.step(16.67);
+      if (wantsRepaint && settled) {
+        this.adapter.redraw();
+      }
       return;
     }
     this.lastRafTime =
@@ -1087,13 +1343,19 @@ export class SimplexCanvasController<
       const dt = Math.min(64, Math.max(0, now - this.lastRafTime));
       this.lastRafTime = now;
 
+      const wantsRepaint = this.repaintRequested;
+      this.repaintRequested = false;
+
       let needsMore = false;
       if (this.timelineController?.getState().playing) {
         this.timelineController.tick(dt);
         needsMore = true;
       }
       const settled = this.engine.step(dt);
-      if (!settled || needsMore) {
+      if (wantsRepaint && settled) {
+        this.adapter.redraw();
+      }
+      if (!settled || needsMore || this.repaintRequested) {
         this.rafId = requestAnimationFrame(tick);
       }
     };
@@ -1234,6 +1496,21 @@ export class SimplexCanvasController<
         >,
       );
     }
+    this.scheduleFrame();
+  }
+
+  setVisualResolver(
+    visualResolver: VisualResolver<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): void {
+    this.customResolver = true;
+    this.adapter.invalidateHullCaches();
+    this.engine.setVisualResolver(visualResolver);
     this.scheduleFrame();
   }
 
@@ -1395,6 +1672,18 @@ export class SimplexCanvasController<
     return res;
   }
 
+  setFocusedClusterUid(clusterUid: string | null): void {
+    this.focusedClusterUidState = clusterUid;
+    this.engine.setFocusedClusterUid(clusterUid);
+    this.scheduleFrame();
+  }
+
+  setFocusedTriangleIndex(triangleIndex: number | null): void {
+    this.focusedTriangleIndexState = triangleIndex;
+    this.engine.setFocusedTriangleIndex(triangleIndex);
+    this.scheduleFrame();
+  }
+
   focusItem(itemId: string | null, options?: FocusItemOptions): boolean {
     const ok = this.engine.focusItem(itemId, options);
     this.scheduleFrame();
@@ -1463,7 +1752,32 @@ export class SimplexCanvasController<
       if (options.backgroundColor !== undefined) {
         this.setBackgroundColor(options.backgroundColor);
       }
-      if (options.preset !== undefined) this.setPreset(options.preset, options.getLabel);
+      if (
+        options.contentRenderer !== undefined ||
+        options.clusterRenderer !== undefined ||
+        options.triangleRenderer !== undefined ||
+        options.edgeRenderer !== undefined
+      ) {
+        this.setRenderers({
+          ...(options.contentRenderer !== undefined
+            ? { contentRenderer: options.contentRenderer }
+            : {}),
+          ...(options.clusterRenderer !== undefined
+            ? { clusterRenderer: options.clusterRenderer }
+            : {}),
+          ...(options.triangleRenderer !== undefined
+            ? { triangleRenderer: options.triangleRenderer }
+            : {}),
+          ...(options.edgeRenderer !== undefined
+            ? { edgeRenderer: options.edgeRenderer }
+            : {}),
+        });
+      }
+      if (options.visualResolver !== undefined) {
+        this.setVisualResolver(options.visualResolver);
+      } else if (options.preset !== undefined) {
+        this.setPreset(options.preset, options.getLabel);
+      }
       if (options.shapeOptions !== undefined) this.setShapeOptions(options.shapeOptions);
       if (options.meshOptions !== undefined) this.setMeshOptions(options.meshOptions);
       if (options.layoutOptions !== undefined) this.setLayoutOptions(options.layoutOptions);
@@ -1499,6 +1813,15 @@ export class SimplexCanvasController<
         this.setItems(options.items);
       }
     });
+  }
+
+  /**
+   * Schedules a coalesced `requestAnimationFrame` repaint without re-running layout.
+   * Ideal for triggering a redraw once async Canvas textures or images finish decoding.
+   */
+  requestRender(): void {
+    this.repaintRequested = true;
+    this.scheduleFrame();
   }
 
   relayout(): void {

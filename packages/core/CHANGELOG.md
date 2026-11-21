@@ -1,5 +1,12 @@
 # @simplex-viz/core
 
+## 0.14.0
+
+### Minor Changes
+
+- Add optional Web Worker offloading adapter under `@simplex-viz/core/worker` (also re-exported from `@simplex-viz/core`) providing versioned RPC (`SIMPLEX_WORKER_PROTOCOL_VERSION = 1`), `createSimplexWorkerClient()`, `attachSimplexWorkerHandler()` with a pluggable `solver` hook (ready for future Rust/WASM backends), `solveSimplexWorkerRequest()`, `solveSimplexSnapshotAsync()`, `SimplexWorkerClientError`, `isSimplexWorkerCancelledError()`, stale-generation cancellation, `AbortSignal`, zero-copy `Float32Array` embedding transfers, main-thread `TItem` rehydration, Node `worker_threads` compatibility, and SSR async fallback (#22).
+- Add `formatStepLabel?: (step, index, total) => string` to `SimplexTimelineOptions` and `SimplexTimelineController` for custom timeline step formatting (#30).
+
 ## 0.13.0
 
 ### Minor Changes

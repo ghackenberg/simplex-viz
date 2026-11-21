@@ -52,6 +52,7 @@ const ROOT_DIR = path.resolve(SCRIPT_DIR, '..');
  * - Bottom-Left (Amber): `#F59E0B` (`@simplex-viz/svg`)
  * - Bottom-Right (Magenta): `#D946EF` (`@simplex-viz/react`)
  * - Accent (Emerald): `#10B981` (`@simplex-viz/wc`)
+ * - Accent (Indigo): `#6366F1` (`@simplex-viz/canvas`)
  */
 export const BRAND_COLORS = {
   cyan: {
@@ -73,6 +74,11 @@ export const BRAND_COLORS = {
     core: '#10B981',
     ring: '#065F46',
     brightEdge: '#34D399',
+  },
+  indigo: {
+    core: '#6366F1',
+    ring: '#3730A3',
+    brightEdge: '#818CF8',
   },
   neutral: {
     wordmark: '#6B7F99',
@@ -844,6 +850,18 @@ const BANNER_LOGOS: readonly BannerLogoSpec[] = [
     subtitleLetterSpacing: 0.9,
   },
   {
+    svgPath: 'docs/assets/logo-canvas.svg',
+    pngPath: 'docs/assets/logo-canvas.png',
+    width: 580,
+    height: 160,
+    pngWidth: 1160,
+    wordmarkComment: 'Wordmark synced to Canvas 2D accent Indigo',
+    titleXml: `<tspan fill="${BRAND_COLORS.neutral.wordmark}">SimplexViz</tspan><tspan fill="${BRAND_COLORS.neutral.slate}" font-weight="400"> / </tspan><tspan fill="${BRAND_COLORS.indigo.core}" font-family="IBM Plex Mono, Noto Sans, Noto Sans Symbols, monospace" font-size="38" font-weight="700">canvas</tspan>`,
+    subtitle: 'HIGH-CAPACITY HTML5 CANVAS 2D RENDERER',
+    subtitleFontSize: 13,
+    subtitleLetterSpacing: 0.9,
+  },
+  {
     svgPath: 'docs/assets/logo-react.svg',
     pngPath: 'docs/assets/logo-react.png',
     width: 580,
@@ -896,6 +914,11 @@ const STATIC_PREVIEWS: readonly StaticPreviewSpec[] = [
   {
     svgPath: 'docs/assets/preview-svg.svg',
     pngPath: 'docs/assets/preview-svg.png',
+    width: 1600,
+  },
+  {
+    svgPath: 'docs/assets/preview-canvas.svg',
+    pngPath: 'docs/assets/preview-canvas.png',
     width: 1600,
   },
   {

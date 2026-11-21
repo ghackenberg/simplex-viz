@@ -151,6 +151,13 @@ interface DemoNodeInspectorOverlayProps {
   readonly theme: SimplexTheme;
   readonly thumbManifest?: CommonsThumbManifest;
   readonly onClose: () => void;
+  /**
+   * When `true`, renders inside `.sv-workbench-body` as a permanent fixed side-drawer
+   * on wide containers (`>= 920px`, showing a quiet empty state when nothing is selected)
+   * and as a stage-bounded overlay drawer/sheet on narrower containers (`< 920px`).
+   */
+  readonly docked?: boolean;
+  readonly isFreeCamera?: boolean;
 }
 
 export function DemoNodeInspectorOverlay({
@@ -158,6 +165,8 @@ export function DemoNodeInspectorOverlay({
   theme,
   thumbManifest,
   onClose,
+  docked = false,
+  isFreeCamera = false,
 }: DemoNodeInspectorOverlayProps) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [isPlayingVowel, setIsPlayingVowel] = useState(false);
@@ -170,7 +179,51 @@ export function DemoNodeInspectorOverlay({
     };
   }, [selected?.item.id]);
 
-  if (!selected) return null;
+  if (!selected) {
+    if (!docked) return null;
+
+    return (
+      <aside
+        aria-label="Node inspector"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        className="sv-workbench-inspector bg-slate-50/60 dark:bg-[#090D16]"
+      >
+        <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200/90 bg-white text-slate-400 shadow-2xs dark:border-slate-800 dark:bg-[#0E131D] dark:text-slate-500">
+            <svg
+              className="h-5 w-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.75}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 3v3" />
+              <path d="M12 18v3" />
+              <path d="M3 12h3" />
+              <path d="M18 12h3" />
+            </svg>
+          </div>
+          <h3 className="mt-3 text-xs font-semibold text-slate-800 dark:text-slate-200">
+            Node Inspector
+          </h3>
+          <p className="mt-1.5 max-w-[220px] text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+            Click any content node in the graph to inspect its metadata, media, and cluster weights.
+          </p>
+          <p className="mt-3 text-[10.5px] text-slate-400 dark:text-slate-500">
+            {isFreeCamera
+              ? 'Scroll to zoom · Drag to pan'
+              : 'Click any triangle to drill down 1:4'}
+          </p>
+        </div>
+      </aside>
+    );
+  }
 
   const { item, layoutContext } = selected;
   const accentHex = layoutContext?.mixedColorHex ?? (theme === 'light' ? '#0891b2' : '#22d3ee');
@@ -236,7 +289,11 @@ export function DemoNodeInspectorOverlay({
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
-      className="pointer-events-auto absolute inset-x-2.5 bottom-2.5 z-30 max-h-[64%] overflow-y-auto rounded-xl border border-slate-200/95 bg-white/96 shadow-lg backdrop-blur-md sm:left-auto sm:right-3 sm:bottom-3 sm:w-[324px] sm:max-h-[calc(100%-3.5rem)] dark:border-slate-700/85 dark:bg-[#0B101B]/96"
+      className={
+        docked
+          ? 'sv-workbench-inspector bg-white/97 backdrop-blur-md dark:bg-[#0B101B]/97'
+          : 'pointer-events-auto absolute inset-x-2.5 bottom-2.5 z-30 max-h-[64%] overflow-y-auto rounded-xl border border-slate-200/95 bg-white/96 shadow-lg backdrop-blur-md sm:left-auto sm:right-3 sm:bottom-3 sm:w-[324px] sm:max-h-[calc(100%-3.5rem)] dark:border-slate-700/85 dark:bg-[#0B101B]/96'
+      }
     >
       {/* 1. VEGA CINEMA CARD */}
       {item.kind === 'media' && (() => {

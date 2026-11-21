@@ -1,6 +1,6 @@
 {
   "name": "@simplex-viz/wc",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "Framework-agnostic Web Component (<simplex-topic-graph>) with reactive HTML attributes, typed JS properties, standard DOM CustomEvents, and SSR-safe custom element registration for SimplexViz.",
   "license": "MIT",
   "type": "module",

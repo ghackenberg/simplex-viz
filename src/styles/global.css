@@ -230,6 +230,193 @@ html.sv-fullscreen-lock body {
   padding-left: env(safe-area-inset-left, 0px);
 }
 
+/* ============================================================================
+ * Adaptive Container-Query Workbench (Zero Canvas Resize on Node Selection)
+ * - Container >= 920px (Examples Desktop & Fullscreen):
+ *     Permanent fixed right side-drawer (316px): Dataset Overview <-> Node Details.
+ * - Container 560px..919px (Hero Desktop, Tablets, Mobile Landscape):
+ *     Full-width stage + right-edge overlay side-drawer strictly bounded to stage.
+ * - Container < 560px (Mobile Portrait):
+ *     Full-width stage + bottom-edge overlay sheet strictly bounded to stage.
+ * ============================================================================ */
+.sv-workbench-container {
+  container-type: inline-size;
+  container-name: sv-workbench;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sv-workbench-container[data-fullscreen='true'] {
+  flex: 1 1 0%;
+  min-height: 0;
+}
+
+.sv-workbench-body {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--sv-stage-h, 360px) auto auto;
+  grid-template-areas:
+    'stage'
+    'timeline'
+    'bottombar';
+}
+
+.sv-workbench-body[data-fullscreen='true'] {
+  flex: 1 1 0%;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+}
+
+.sv-workbench-stage {
+  grid-area: stage;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.sv-workbench-timeline {
+  grid-area: timeline;
+  min-width: 0;
+}
+
+.sv-workbench-bottombar {
+  grid-area: bottombar;
+  min-width: 0;
+}
+
+/* Default (< 560px container, Mobile Portrait): bottom-edge overlay sheet inside stage cell */
+.sv-workbench-inspector {
+  grid-area: stage;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  max-height: 62%;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid rgba(203, 213, 225, 0.95);
+  box-shadow: 0 -10px 28px rgba(15, 23, 42, 0.14);
+}
+
+html.dark .sv-workbench-inspector {
+  border-top-color: rgba(51, 65, 85, 0.9);
+  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.55);
+}
+
+.sv-workbench-body[data-inspector-open='false'] .sv-workbench-inspector {
+  display: none;
+}
+
+/* Medium Container (560px..919px — Startseite Hero, Tablets, Mobile Landscape): right-edge overlay drawer */
+@container sv-workbench (min-width: 560px) and (max-width: 919.98px) {
+  .sv-workbench-inspector {
+    top: 0;
+    left: auto;
+    right: 0;
+    bottom: 0;
+    width: min(320px, 84%);
+    max-height: none;
+    height: auto;
+    border-top: none;
+    border-left: 1px solid rgba(203, 213, 225, 0.95);
+    box-shadow: -10px 0 28px rgba(15, 23, 42, 0.14);
+  }
+
+  html.dark .sv-workbench-inspector {
+    border-left-color: rgba(51, 65, 85, 0.9);
+    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.55);
+  }
+}
+
+/* Wide Container (>= 920px — Examples Desktop & Fullscreen): permanent fixed right side-drawer */
+@container sv-workbench (min-width: 920px) {
+  .sv-workbench-body {
+    grid-template-columns: minmax(0, 1fr) 316px;
+    grid-template-rows: var(--sv-stage-h, 450px) auto auto;
+    grid-template-areas:
+      'stage inspector'
+      'timeline timeline'
+      'bottombar bottombar';
+  }
+
+  .sv-workbench-body[data-fullscreen='true'] {
+    grid-template-rows: minmax(0, 1fr) auto auto;
+  }
+
+  .sv-workbench-inspector,
+  .sv-workbench-body[data-inspector-open='false'] .sv-workbench-inspector {
+    display: flex;
+    flex-direction: column;
+    grid-area: inspector;
+    position: static;
+    width: auto;
+    height: 100%;
+    max-height: none;
+    z-index: auto;
+    overflow-y: auto;
+    border-top: none;
+    border-left: 1px solid rgba(226, 232, 240, 0.85);
+    box-shadow: none;
+  }
+
+  html.dark .sv-workbench-inspector,
+  html.dark .sv-workbench-body[data-inspector-open='false'] .sv-workbench-inspector {
+    border-left-color: rgba(30, 41, 59, 0.85);
+    box-shadow: none;
+  }
+}
+
+/* Short Mobile Landscape height cap so rotated phones fit the full workbench cleanly */
+@media (orientation: landscape) and (max-height: 540px) {
+  .sv-workbench-body:not([data-fullscreen='true']) {
+    --sv-stage-h: clamp(230px, calc(100dvh - 8.5rem), 340px);
+  }
+}
+
+/* Stage height presets matching Hero vs. Example workbench rhythm */
+.sv-workbench-hero {
+  --sv-stage-h: 360px;
+}
+
+@media (min-width: 640px) {
+  .sv-workbench-hero {
+    --sv-stage-h: 420px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .sv-workbench-hero {
+    --sv-stage-h: 450px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .sv-workbench-hero {
+    --sv-stage-h: 480px;
+  }
+}
+
+.sv-workbench-example {
+  --sv-stage-h: 420px;
+}
+
+@media (min-width: 640px) {
+  .sv-workbench-example {
+    --sv-stage-h: 520px;
+  }
+}
+
+
 
 /* Preview card studio backdrop controlled via CSS for both Light & Dark modes */
 .sv-preview-backdrop {

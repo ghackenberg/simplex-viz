@@ -1,10 +1,22 @@
-# @simplex-viz/canvas
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/logo-canvas.png" width="525" alt="SimplexViz / canvas — @simplex-viz/canvas" />
+</p>
+
+# `@simplex-viz/canvas`
 
 High-capacity, framework-agnostic **HTML5 Canvas 2D** renderer for [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core), built to sustain smooth **60 FPS** interaction on **2,000–10,000+ item** corpora where SVG DOM node overhead becomes a bottleneck.
 
 - **Live Demo:** <https://hackenberg.tech/simplex-viz/>
 - **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/canvas>
 - **Companion Packages:** [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core) · [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg) · [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react) · [`@simplex-viz/wc`](https://www.npmjs.com/package/@simplex-viz/wc)
+
+## High-Capacity Canvas 2D & Worker Architecture
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/preview-canvas.png" width="100%" alt="@simplex-viz/canvas architecture showing HiDPI Canvas 2D rendering, world-space frustum culling, automatic LOD simplification, and @simplex-viz/core/worker off-thread solving" />
+</p>
+
+*Figure: Architecture of `@simplex-viz/canvas`. Instead of creating thousands of SVG DOM elements, `CanvasRendererAdapter` paints the entire 60° simplex mesh, cluster badges, OKLab content shapes, selection rings, and focus halos onto a single HiDPI `<canvas>` with world-space frustum culling and automatic `lodThresholdPx` simplification—optionally paired with off-thread `@simplex-viz/core/worker` solving.*
 
 ## Why `@simplex-viz/canvas`?
 

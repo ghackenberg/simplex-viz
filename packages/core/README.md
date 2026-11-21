@@ -8,9 +8,9 @@ Headless, zero-dependency TypeScript engine for triangulation-based visualizatio
 
 - **Live Demo:** <https://hackenberg.tech/simplex-viz/>
 - **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/core>
-- **Companion Packages:** [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg) · [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react) · [`@simplex-viz/wc`](https://www.npmjs.com/package/@simplex-viz/wc)
+- **Companion Packages:** [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg) · [`@simplex-viz/canvas`](https://www.npmjs.com/package/@simplex-viz/canvas) · [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react) · [`@simplex-viz/wc`](https://www.npmjs.com/package/@simplex-viz/wc)
 
-> Most browser apps should start with [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react) (for React), [`@simplex-viz/wc`](https://www.npmjs.com/package/@simplex-viz/wc) (for Web Components in plain HTML, Astro, Vue, Svelte, or Angular), or [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg) (for direct framework-agnostic SVG control and zero-DOM SSR). Use `@simplex-viz/core` directly when building a custom Canvas/WebGL renderer, running layout calculations in a Web Worker or Node.js, or using low-level geometry, OKLab, zoom, and clustering primitives.
+> Most browser apps should start with [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react) (for React), [`@simplex-viz/wc`](https://www.npmjs.com/package/@simplex-viz/wc) (for Web Components in plain HTML, Astro, Vue, Svelte, or Angular), [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg) (for direct framework-agnostic SVG control and zero-DOM SSR), or [`@simplex-viz/canvas`](https://www.npmjs.com/package/@simplex-viz/canvas) (for high-capacity 2,000–10,000+ item Canvas 2D scenes at 60 FPS). Use `@simplex-viz/core` directly when building a custom WebGL renderer, running layout calculations off-thread via `@simplex-viz/core/worker` or in Node.js, or using low-level geometry, OKLab, zoom, and clustering primitives.
 
 ## Spatial Pipeline Overview
 

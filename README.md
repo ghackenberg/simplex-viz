@@ -14,7 +14,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-f59e0b.svg" alt="License: MIT" /></a>
 </p>
 
-SimplexViz partitions arbitrary collections—whether **single- or multi-modal vector embeddings** (text, images, videos, voice audio signatures, body-shape latents), **custom pairwise similarity functions**, or **tagged knowledge items**—into balanced clusters, embeds them onto an adaptive 60° simplex lattice with perceptual OKLab color mixing, resolves every convex node hull to a guaranteed `0.0 px` overlap layout, and supports continuous camera navigation, conformal **`1:4` hierarchical zoom / drill-down**, and path-independent **chronological timeline playback**. It is structured as a modular three-layer TypeScript stack across four packages—a zero-dependency headless core (`@simplex-viz/core`), a framework-agnostic SVG engine (`@simplex-viz/svg`), type-safe React bindings (`@simplex-viz/react`), and a framework-agnostic Web Component (`@simplex-viz/wc`).
+SimplexViz partitions arbitrary collections—whether **single- or multi-modal vector embeddings** (text, images, videos, voice audio signatures, body-shape latents), **custom pairwise similarity functions**, or **tagged knowledge items**—into balanced clusters, embeds them onto an adaptive 60° simplex lattice with perceptual OKLab color mixing, resolves every convex node hull to a guaranteed `0.0 px` overlap layout, and supports continuous camera navigation, conformal **`1:4` hierarchical zoom / drill-down**, and path-independent **chronological timeline playback**. It is structured as a modular three-layer TypeScript stack across five packages—a zero-dependency headless core (`@simplex-viz/core` + `@simplex-viz/core/worker`), framework-agnostic SVG (`@simplex-viz/svg`) and high-capacity Canvas 2D (`@simplex-viz/canvas`) renderers, type-safe React bindings (`@simplex-viz/react`), and a framework-agnostic Web Component (`@simplex-viz/wc`).
 
 ## Live Showcase
 
@@ -42,13 +42,14 @@ Classical force-directed layouts and raw UMAP/t-SNE scatters often turn multi-di
 4. **Layout & Collision Strategy (`SimplexLayoutStrategy`)**: Defaults to `createPbdUniformLayoutStrategy()`, or swaps to `createWarmStartPbdLayoutStrategy()`, `createLocalAdaptiveLayoutStrategy()`, `createCollisionDrivenLayoutStrategy()`, `createFinalSeededLayoutStrategy()` (full-corpus position pinning with `scaleMode: 'pinned' | 'adaptive'` for zero-drift chronological replay), or any custom **`LayoutSeeder` × `PositionRelaxer` × `ScaleController`** trio via `createComposedLayoutStrategy()`—strictly guaranteeing **`0.0 px` overlap** and triangle containment.
 5. **Zoom & Drill-Down Strategy (`SimplexZoomStrategy`)**: Defaults to `createFreeCameraZoomStrategy()` (wheel zoom-to-cursor, 2-finger touch pinch, and drag-to-pan), or swaps to hierarchical **`1:4` drill-down** via `createBarycentricZoomStrategy()`, `createSemanticZoomStrategy()` (`6`-vertex tag re-partitioning), or `createSubspaceZoomStrategy()` (`6`-vertex representation-agnostic subspace refinement)—featuring conformal `1:4` equilateral subdivision, single-triangle leaf focus (`'triangle-focus'`, `leafTriangleFocus: true`) with directly clickable content items, uniform `1`-ring `'incident-star'` cluster/subcluster stars with barycentric simplex-distance dimming, internal `1:4` subdivision mesh previews, dimmed clickable neighborhood context, and discrete 2-finger pinch.
 
-## Architecture (Strict 3-Layer / 4-Package Separation)
+## Architecture (Strict 3-Layer / 5-Package Separation)
 
-The diagram and package table below summarize how domain logic, SVG DOM rendering, and framework adapters are strictly decoupled across layers so the core math engine runs anywhere while renderers and UI adapters remain hot-swappable:
+The diagram and package table below summarize how domain logic, SVG / Canvas 2D rendering, and framework adapters are strictly decoupled across layers so the core math engine runs anywhere while renderers and UI adapters remain hot-swappable:
 
 ```mermaid
 flowchart LR
-  Core["@simplex-viz/core\n(Headless, 0 Dependencies, NO DOM)"] --> Svg["@simplex-viz/svg\n(Framework-Agnostic SVG Scene Graph)"]
+  Core["@simplex-viz/core\n(Headless, 0 Dependencies, NO DOM\n+ @simplex-viz/core/worker)"] --> Svg["@simplex-viz/svg\n(Framework-Agnostic SVG Scene Graph)"]
+  Core --> Canvas["@simplex-viz/canvas\n(High-Capacity HTML5 Canvas 2D)"]
   Svg --> React["@simplex-viz/react\n(React Bindings & JSX Node Renderers)"]
   Core --> React
   Svg --> Wc["@simplex-viz/wc\n(Web Component <simplex-topic-graph>)"]
@@ -58,8 +59,9 @@ flowchart LR
 
 | Package | Role | Documentation |
 | --- | --- | --- |
-| [`@simplex-viz/core`](./packages/core) | Pure TypeScript triangulation, clustering, OKLab color science, composable 2-phase convex SAT solver, `1:4` zoom/drill-down strategies, headless `SimplexTimelineController`, serializable view state, multi-selection, reduced-motion springs, and convex + triangle hit-testing. Zero DOM/SVG/React dependencies (`ES2022`). | [Core README](./packages/core/README.md) |
+| [`@simplex-viz/core`](./packages/core) | Pure TypeScript triangulation, clustering, OKLab color science, composable 2-phase convex SAT solver, `1:4` zoom/drill-down strategies, headless `SimplexTimelineController`, serializable view state, multi-selection, reduced-motion springs, convex + triangle hit-testing, and optional Web Worker offloading (`@simplex-viz/core/worker`). Zero DOM/SVG/React dependencies (`ES2022`). | [Core README](./packages/core/README.md) |
 | [`@simplex-viz/svg`](./packages/svg) | Framework-agnostic SVG engine (`Vanilla TS`, `Vue`, `Angular`, `Svelte`) with root-SVG hit-testing, offscreen `getBBox()` hull measurement, pluggable node/triangle/edge `Svg*View` plugins, `1:4` subdivision previews, breadcrumbs, timeline HUD, `Shift+Click`/`Shift+Drag` multi-selection, `prefers-reduced-motion`, client-side `exportSvg()`/`exportPng()`, and zero-DOM SSR string rendering via `@simplex-viz/svg/ssr`. | [SVG README](./packages/svg/README.md) |
+| [`@simplex-viz/canvas`](./packages/canvas) | High-capacity HTML5 Canvas 2D renderer for 2,000–10,000+ items at 60 FPS with zero per-node DOM overhead, HiDPI DPR scaling, world-space frustum culling, automatic `lodThresholdPx` LOD simplification, `'geometric'`/`'glyphs'`/`'badges'` presets + custom Canvas 2D hooks, `1:4` drill-down, timeline playback, multi-selection, WCAG 2.1 AA keyboard navigation, tooltips, and native `exportPng()`. | [Canvas README](./packages/canvas/README.md) |
 | [`@simplex-viz/react`](./packages/react) | Thin, end-to-end type-safe React bindings (`<SimplexTopicGraph />`, `useSimplexGraphController`, `useSimplexTimeline`) supporting portable `SvgNodeView` / `SvgTriangleView` / `SvgEdgeView` plugins, declarative JSX node renderers, linked-view controls, multi-selection, deep-link view state, SVG/PNG export, chronological timeline playback, and hierarchical drill-down. | [React README](./packages/react/README.md) |
 | [`@simplex-viz/wc`](./packages/wc) | Dedicated framework-agnostic Web Component (`<simplex-topic-graph>`, zero React dependency) with SSR-safe registration (`@simplex-viz/wc/define`), reactive HTML attributes, inline `<script type="application/json">` support, typed JS properties, standard bubbling `CustomEvent`s, and full imperative delegation. | [WC README](./packages/wc/README.md) |
 
@@ -123,6 +125,47 @@ npm install @simplex-viz/wc
 <script type="module">
   import '@simplex-viz/wc/define';
 </script>
+```
+
+### High-Capacity HTML5 Canvas 2D (`@simplex-viz/canvas`)
+
+For **2,000–10,000+ item** corpora where SVG DOM node overhead becomes a bottleneck, render onto a single HiDPI `<canvas>` with world-space frustum culling, automatic `lodThresholdPx` simplification, and native `exportPng()`:
+
+```bash
+npm install @simplex-viz/canvas
+```
+
+```ts
+import { createSimplexCanvas, createSubspaceZoomStrategy } from '@simplex-viz/canvas';
+
+const controller = createSimplexCanvas('#graph', {
+  items: largeCorpus,
+  preset: 'badges',
+  theme: 'dark',
+  zoomStrategy: createSubspaceZoomStrategy(),
+  tooltip: true,
+});
+```
+
+### Off-Main-Thread Web Worker Solving (`@simplex-viz/core/worker`)
+
+Offload heavy QAP annealing and PBD/SAT solving to a Web Worker (or Node.js `worker_threads`) with automatic stale-generation cancellation, `AbortSignal`, zero-copy `Float32Array` embedding transfers, and SSR async fallback:
+
+```ts
+// worker.ts
+import { attachSimplexWorkerHandler } from '@simplex-viz/core/worker';
+attachSimplexWorkerHandler();
+
+// main.ts
+import { createSimplexWorkerClient } from '@simplex-viz/core/worker';
+import { renderSimplexSnapshotToCanvas } from '@simplex-viz/canvas';
+
+const worker = createSimplexWorkerClient(
+  () => new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }),
+);
+
+const { snapshot } = await worker.solve(largeCorpus, { width: 1200, height: 760 });
+renderSimplexSnapshotToCanvas(canvasEl, snapshot, { theme: 'dark' });
 ```
 
 ### Quickstart Default Settings Reference
@@ -562,7 +605,7 @@ npm install
 npm run dev                # Starts the interactive demo app at http://localhost:3000
 npm run lint               # ESLint (module boundary checks) + TypeScript typecheck
 npm test                   # Vitest invariant, type-level, and DOM integration tests
-npm run build:packages     # Builds dist/ + .d.ts for all four packages
+npm run build:packages     # Builds dist/ + .d.ts for all five packages
 npm run validate:packages  # Validates package exports with publint
 ```
 

@@ -1,14 +1,14 @@
 ---
 title: Quickstart & Three-Layer Architecture
 shortTitle: Quickstart
-description: Install SimplexViz in under two minutes, understand its strict three-layer / four-package separation, and inspect every default setting.
+description: Install SimplexViz in under two minutes, understand its strict three-layer / five-package separation, and inspect every default setting.
 section: Getting Started
 order: 1
 updatedDate: "2026-11-20"
 summaryPoints:
   - Zero-config defaults solve 60-degree equilateral simplex layouts with guaranteed 0.0 px convex overlap.
   - Works identically for tagged records, single- or multi-modal vector embeddings, and pairwise similarity kernels.
-  - Strictly decoupled across @simplex-viz/core (0 dependencies, no DOM), @simplex-viz/svg, @simplex-viz/react, and @simplex-viz/wc.
+  - Strictly decoupled across @simplex-viz/core (+ @simplex-viz/core/worker), @simplex-viz/svg, @simplex-viz/canvas (2,000–10,000+ items at 60 FPS), @simplex-viz/react, and @simplex-viz/wc.
 relatedApiSlug: react
 ---
 
@@ -23,7 +23,8 @@ Each higher-level package re-exports all strategies, views, and TypeScript types
 | `@simplex-viz/react` | React 18 / 19 | `<SimplexTopicGraph />`, `useSimplexGraphController()`, `useSimplexTimeline()` |
 | `@simplex-viz/wc` | Plain HTML, Astro, Vue, Svelte, Angular (zero React) | `<simplex-topic-graph>`, `defineSimplexTopicGraphElement()`, `@simplex-viz/wc/define` |
 | `@simplex-viz/svg` | Vanilla TS, Vue, Svelte, Angular, Node.js SSR (`@simplex-viz/svg/ssr`) | `createSimplexSvg()`, `SimplexSvgController`, `SvgRendererAdapter`, `renderSimplexSvgString()` |
-| `@simplex-viz/core` | Browser, Node.js, Bun, Deno, Web Workers (`0` deps, no DOM) | `solveSimplexSnapshot()`, `SimplexGraphEngine`, `createSimplexTimeline()` |
+| `@simplex-viz/canvas` | High-capacity HTML5 Canvas 2D (2,000–10,000+ items, zero per-node DOM) | `createSimplexCanvas()`, `SimplexCanvasController`, `CanvasRendererAdapter`, `renderSimplexSnapshotToCanvas()` |
+| `@simplex-viz/core` | Browser, Node.js, Bun, Deno, Web Workers (`0` deps, no DOM, `@simplex-viz/core/worker`) | `solveSimplexSnapshot()`, `SimplexGraphEngine`, `createSimplexTimeline()`, `createSimplexWorkerClient()` |
 
 ## React Quickstart
 
@@ -87,6 +88,61 @@ npm install @simplex-viz/wc
 <script type="module">
   import '@simplex-viz/wc/define';
 </script>
+```
+
+## High-Capacity Canvas 2D Quickstart (`@simplex-viz/canvas`)
+
+When rendering **2,000–10,000+ items** where thousands of SVG DOM elements become a bottleneck, switch to `@simplex-viz/canvas` for single-`<canvas>` HiDPI rendering, world-space frustum culling, automatic `lodThresholdPx` simplification, and native `exportPng()`:
+
+```bash
+npm install @simplex-viz/canvas
+```
+
+```ts
+import {
+  createSimplexCanvas,
+  createSubspaceZoomStrategy,
+  createCollisionDrivenLayoutStrategy,
+} from '@simplex-viz/canvas';
+
+const controller = createSimplexCanvas('#atlas', {
+  items: largeCorpus,
+  preset: 'badges',
+  theme: 'dark',
+  layoutStrategy: createCollisionDrivenLayoutStrategy(),
+  zoomStrategy: createSubspaceZoomStrategy(),
+  lodThresholdPx: 3.5,
+  tooltip: true,
+});
+
+// Native zero-serialization PNG export:
+const pngBlob = await controller.exportPng({ scale: 2 });
+```
+
+## Off-Main-Thread Web Worker Quickstart (`@simplex-viz/core/worker`)
+
+Keep UI frames locked at 60 FPS during heavy QAP annealing and PBD/SAT layout solves by moving computation into a Web Worker (or Node.js `worker_threads`) via `@simplex-viz/core/worker`, then painting the solved snapshot onto Canvas 2D or SVG:
+
+```ts
+// worker.ts
+import { attachSimplexWorkerHandler } from '@simplex-viz/core/worker';
+attachSimplexWorkerHandler();
+
+// main.ts
+import { createSimplexWorkerClient } from '@simplex-viz/core/worker';
+import { renderSimplexSnapshotToCanvas } from '@simplex-viz/canvas';
+
+const worker = createSimplexWorkerClient(
+  () => new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }),
+);
+
+const { snapshot } = await worker.solve(largeCorpus, {
+  width: 1200,
+  height: 760,
+  layoutStrategy: { kind: 'collision-driven' },
+});
+
+renderSimplexSnapshotToCanvas(canvasEl, snapshot, { theme: 'dark' });
 ```
 
 ## Untagged Vector Embeddings Quickstart

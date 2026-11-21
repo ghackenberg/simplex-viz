@@ -1,5 +1,17 @@
 # @simplex-viz/react
 
+## 0.14.0
+
+### Minor Changes
+
+- Support `formatStepLabel` via a stable ref-proxy without restarting playback, and expose `handle.subscribeTimeline(listener)` on `useSimplexGraphController().handle` for zero-glue external React timeline HUDs (#30).
+
+### Patch Changes
+
+- Updated dependencies
+  - @simplex-viz/core@0.14.0
+  - @simplex-viz/svg@0.14.0
+
 ## 0.13.0
 
 ### Minor Changes

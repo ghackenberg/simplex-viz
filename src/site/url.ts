@@ -28,7 +28,7 @@ export const SITE_META = {
   name: 'SimplexViz',
   defaultTitle: 'SimplexViz — Triangulation Content Atlas',
   defaultDescription:
-    'Overlap-free 60-degree simplex triangulation engine for vector embeddings, pairwise similarities, and tagged collections in TypeScript, SVG, React, and Web Components.',
+    'Overlap-free 60-degree simplex triangulation engine for vector embeddings, pairwise similarities, and tagged collections in TypeScript, SVG, Canvas 2D, React, and Web Components.',
   canonicalOrigin: 'https://hackenberg.tech',
   authorName: 'Dr. Georg Hackenberg',
   authorUrl: 'https://hackenberg.tech',
@@ -39,6 +39,7 @@ export const SITE_META = {
   npmUrl: 'https://www.npmjs.com/search?q=%40simplex-viz',
   npmCoreUrl: 'https://www.npmjs.com/package/@simplex-viz/core',
   npmSvgUrl: 'https://www.npmjs.com/package/@simplex-viz/svg',
+  npmCanvasUrl: 'https://www.npmjs.com/package/@simplex-viz/canvas',
   npmReactUrl: 'https://www.npmjs.com/package/@simplex-viz/react',
   npmWcUrl: 'https://www.npmjs.com/package/@simplex-viz/wc',
   version: corePkg.version,

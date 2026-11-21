@@ -1,3 +1,5 @@
+import type { SimplexCanvasController } from '@simplex-viz/canvas';
+import type { SimplexTimelineState, SimplexZoomState } from '@simplex-viz/core';
 import {
   SimplexTopicGraph,
   createAdaptiveHexMeshStrategy,
@@ -15,9 +17,10 @@ import {
   createSoftSimplexTagClusteringStrategy,
   createThemeAdaptiveOklabColorStrategy,
   createWarmStartPbdLayoutStrategy,
+  useSimplexGraphController,
   type TimelinePlayerOptions,
 } from '@simplex-viz/react';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CommonsThumbManifest } from '../../demo/commonsThumbs';
 import { resolveDemoTagMeta, type TagTaxonomyInfo } from '../../demo/data/knowledgeCatalog';
 import {
@@ -44,6 +47,11 @@ import {
   type DemoClusterVisual,
   type DemoContentVisual,
 } from '../../demo/presets';
+import {
+  demoCanvasClusterRenderer,
+  demoCanvasContentRenderer,
+  subscribeCanvasImageLoads,
+} from '../../demo/canvasPresets';
 import { createDemoZoomStrategy } from '../../demo/zoomPresets';
 import type {
   CanonicalClusteringStrategyId,
@@ -52,8 +60,8 @@ import type {
   CanonicalMeshStrategyId,
   CanonicalZoomStrategyId,
 } from '../../site/strategies';
+import { AtlasBottomBar, AtlasTimelineBar } from './AtlasWorkbenchChrome';
 import {
-  DatasetInfoButton,
   DatasetProvenanceModal,
   resolveDatasetProvenanceMeta,
 } from './DatasetProvenanceModal';
@@ -61,7 +69,11 @@ import {
   DemoNodeInspectorOverlay,
   useDemoNodeInspector,
 } from './DemoNodeInspectorOverlay';
-import { CssFullscreenButton, useCssFullscreen } from './useCssFullscreen';
+import {
+  SimplexCanvasStage,
+  type ShowcaseRendererKind,
+} from './SimplexCanvasStage';
+import { useCssFullscreen } from './useCssFullscreen';
 import { useDocumentDarkTheme } from './useDocumentDarkTheme';
 
 export interface UseCaseMiniAtlasProps {
@@ -120,8 +132,26 @@ export function UseCaseMiniAtlas({
   const isTagged = datasetId === 'knowledge' || datasetId === 'github-repos';
   const effectiveNodeView: ContentRendererKind = nodeView;
 
-  const { isFullscreen, toggleFullscreen } = useCssFullscreen();
+  const [renderer, setRenderer] = useState<ShowcaseRendererKind>('svg');
   const [isDatasetModalOpen, setIsDatasetModalOpen] = useState(false);
+  const [zoomState, setZoomState] = useState<SimplexZoomState | null>(null);
+  const [timelineState, setTimelineState] =
+    useState<SimplexTimelineState<DemoEntity> | null>(null);
+
+  const { controllerRef } = useSimplexGraphController<
+    DemoEntity,
+    DemoContentVisual,
+    DemoClusterVisual,
+    TagTaxonomyInfo,
+    DemoClusterSummary
+  >();
+  const canvasControllerRef = useRef<SimplexCanvasController<
+    DemoEntity,
+    DemoContentVisual,
+    DemoClusterVisual,
+    TagTaxonomyInfo,
+    DemoClusterSummary
+  > | null>(null);
 
   const items = useMemo(() => buildDemoCatalog(datasetId), [datasetId]);
   const provenanceMeta = useMemo(
@@ -129,6 +159,79 @@ export function UseCaseMiniAtlas({
     [datasetId, items.length],
   );
   const inspector = useDemoNodeInspector(items);
+  const { isFullscreen, toggleFullscreen } = useCssFullscreen({
+    disableEscape: Boolean(inspector.selected || isDatasetModalOpen),
+  });
+
+  const handleRendererChange = useCallback((next: ShowcaseRendererKind) => {
+    setRenderer((prev) => {
+      if (prev !== next) {
+        setZoomState(null);
+        setTimelineState(null);
+      }
+      return next;
+    });
+  }, []);
+
+  // Ensure initial timeline state is hydrated immediately after mount or renderer switch
+  // (SimplexSvgController only emits onStateChange on subsequent playback/seek events).
+  useEffect(() => {
+    if (!timelineEnabled) {
+      setTimelineState(null);
+      return;
+    }
+    const syncInitial = () => {
+      const tl =
+        renderer === 'svg'
+          ? controllerRef.current?.getTimeline()
+          : canvasControllerRef.current?.getTimeline();
+      if (tl) {
+        setTimelineState(tl.getState());
+      }
+    };
+    syncInitial();
+    const rafId = window.requestAnimationFrame(syncInitial);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [timelineEnabled, renderer, datasetId, controllerRef]);
+
+  const handleDrillToDepth = useCallback(
+    (depth: number) => {
+      if (renderer === 'svg') {
+        controllerRef.current?.drillToDepth(depth);
+      } else {
+        canvasControllerRef.current?.drillToDepth(depth);
+      }
+    },
+    [renderer, controllerRef],
+  );
+
+  const handleDrillUp = useCallback(() => {
+    if (renderer === 'svg') {
+      controllerRef.current?.drillUp();
+    } else {
+      canvasControllerRef.current?.drillUp();
+    }
+  }, [renderer, controllerRef]);
+
+  const handleTimelineToggle = useCallback(() => {
+    if (renderer === 'svg') {
+      controllerRef.current?.getTimeline()?.toggle();
+    } else {
+      canvasControllerRef.current?.getTimeline()?.toggle();
+    }
+  }, [renderer, controllerRef]);
+
+  const handleTimelineSeek = useCallback(
+    (step: number) => {
+      const tl =
+        renderer === 'svg'
+          ? controllerRef.current?.getTimeline()
+          : canvasControllerRef.current?.getTimeline();
+      tl?.pause();
+      tl?.seek(step);
+    },
+    [renderer, controllerRef],
+  );
 
   const renderConfig = useMemo(
     () => ({
@@ -300,7 +403,7 @@ export function UseCaseMiniAtlas({
         return undefined;
       },
       stepIntervalMs: 550,
-      showControls: true,
+      showControls: false,
       autoFinalSeed: true,
       autoFinalSeedLayout: 'adaptive',
       emptyClusterBehavior: 'dim',
@@ -328,92 +431,180 @@ export function UseCaseMiniAtlas({
               : 'my-6 rounded-2xl border border-slate-200/90 dark:border-slate-800/90'
         }`}
       >
-        {/* Live Simplex Canvas with Floating Dataset Info & Fullscreen Overlay Controls */}
+        {/* Zero-Overlay Workbench Body: Stage + Adaptive Container-Query Inspector + Timeline + Bottom Bar */}
         <div
-          className={`relative w-full bg-white dark:bg-[#0B0F17] ${
-            isFullscreen ? 'min-h-0 flex-1' : 'h-[460px] sm:h-[540px]'
-          }`}
+          className="sv-workbench-container"
+          data-fullscreen={isFullscreen ? 'true' : 'false'}
         >
-          <div className="pointer-events-none absolute top-3 right-3 z-20 flex items-center gap-2">
-            <div className="pointer-events-auto rounded-md shadow-xs">
-              <DatasetInfoButton
-                isOpen={isDatasetModalOpen}
-                onOpen={() => setIsDatasetModalOpen(true)}
-              />
-            </div>
-            <div className="pointer-events-auto rounded-md shadow-xs">
-              <CssFullscreenButton
-                isFullscreen={isFullscreen}
-                onToggle={toggleFullscreen}
-              />
-            </div>
+        <div
+          className="sv-workbench-body sv-workbench-example"
+          data-fullscreen={isFullscreen ? 'true' : 'false'}
+          data-inspector-open={inspector.selected ? 'true' : 'false'}
+        >
+          <div className="sv-workbench-stage bg-white dark:bg-[#0B0F17]">
+            {renderer === 'svg' ? (
+              <SimplexTopicGraph<
+                DemoEntity,
+                DemoContentVisual,
+                DemoClusterVisual,
+                TagTaxonomyInfo,
+                DemoClusterSummary
+              >
+                controllerRef={controllerRef}
+                items={items}
+                getId={(e) => e.id}
+                getTags={(e) => (e.kind === 'knowledge' ? e.entry.hashtags : [])}
+                resolveTagMeta={resolveDemoTagMeta}
+                deriveClusterMeta={deriveDemoEntityClusterMeta}
+                visualResolver={visualResolver}
+                contentView={activeContentView}
+                clusterView={effectiveNodeView === 'react-card' ? undefined : demoBadgeClusterView}
+                renderContentNode={
+                  effectiveNodeView === 'react-card' ? renderDemoContentCard : undefined
+                }
+                renderClusterNode={
+                  effectiveNodeView === 'react-card' ? renderDemoClusterCard : undefined
+                }
+                triangleView={triangleView}
+                edgeView={edgeView}
+                meshStrategy={meshStrategyInstance}
+                clusteringStrategy={clusteringStrategyInstance}
+                colorStrategy={colorStrategyInstance}
+                layoutStrategy={layoutStrategyInstance}
+                zoomStrategy={zoomStrategyInstance}
+                theme={theme}
+                showZoomBreadcrumbs={false}
+                onZoomStateChange={setZoomState}
+                timeline={timelineOptions}
+                onTimelineStateChange={setTimelineState}
+                pinnedIds={inspector.pinnedIds}
+                onContentClick={(ev) =>
+                  inspector.handleContentClick(ev.item, ev.layoutContext)
+                }
+                onBackgroundClick={() => inspector.clearSelection()}
+            tooltip={(target) => {
+              if (target.kind === 'content') {
+                return `${target.item.title} — ${target.item.subtitleMeta}`;
+              }
+              if (target.kind === 'cluster') {
+                return `${target.cluster.meta.title} (${target.cluster.meta.memberCount} items)`;
+              }
+              if (zoomId === 'free-camera-zoom') {
+                return `Triangle #${target.triangle.index + 1} (${target.triangle.coveredItemCount} items)`;
+              }
+              if (target.triangle.neighborId) {
+                return `Click neighbor triangle to switch (${target.triangle.coveredItemCount} items)`;
+              }
+              if (target.triangle.isDrillable) {
+                return `Click triangle #${target.triangle.index + 1} to drill down 1:4 (${target.triangle.coveredItemCount} items)`;
+              }
+              return `Click triangle #${target.triangle.index + 1} to focus (${target.triangle.coveredItemCount} items)`;
+            }}
+          />
+        ) : (
+            <SimplexCanvasStage<
+              DemoEntity,
+              DemoContentVisual,
+              DemoClusterVisual,
+              TagTaxonomyInfo,
+              DemoClusterSummary
+            >
+              controllerRef={canvasControllerRef}
+              resetKey={`${datasetId}-${timelineEnabled ? 'tl' : 'static'}`}
+              items={items}
+              getId={(e) => e.id}
+              getTags={(e) => (e.kind === 'knowledge' ? e.entry.hashtags : [])}
+              getLabel={(e) => e.title}
+              resolveTagMeta={resolveDemoTagMeta}
+              deriveClusterMeta={deriveDemoEntityClusterMeta}
+              visualResolver={visualResolver}
+              contentRenderer={demoCanvasContentRenderer}
+              clusterRenderer={demoCanvasClusterRenderer}
+              subscribeRepaint={subscribeCanvasImageLoads}
+              theme={theme}
+              meshStrategy={meshStrategyInstance}
+              clusteringStrategy={clusteringStrategyInstance}
+              colorStrategy={colorStrategyInstance}
+              layoutStrategy={layoutStrategyInstance}
+              zoomStrategy={zoomStrategyInstance}
+              showZoomBreadcrumbs={false}
+              showTimelineControls={false}
+              onZoomStateChange={setZoomState}
+              onTimelineStateChange={setTimelineState}
+              timeline={
+                timelineOptions
+                  ? {
+                      getTimestamp: timelineOptions.getTimestamp,
+                      stepIntervalMs: timelineOptions.stepIntervalMs,
+                      autoFinalSeed: timelineOptions.autoFinalSeed,
+                      autoFinalSeedLayout:
+                        timelineOptions.autoFinalSeedLayout === true
+                          ? 'pinned'
+                          : timelineOptions.autoFinalSeedLayout,
+                      emptyClusterBehavior: timelineOptions.emptyClusterBehavior,
+                    }
+                  : null
+              }
+              selectedIds={inspector.pinnedIds}
+              onContentClick={(ev) =>
+                inspector.handleContentClick(ev.item, ev.layoutContext)
+              }
+              onBackgroundClick={() => inspector.clearSelection()}
+              tooltip={{
+                formatContent: (ev) => `${ev.item.title} — ${ev.item.subtitleMeta}`,
+                formatCluster: (ev) =>
+                  `${ev.cluster.meta.title} (${ev.cluster.meta.memberCount} items)`,
+                formatTriangle: (ev) => {
+                  if (zoomId === 'free-camera-zoom') {
+                    return `Triangle #${ev.triangle.index + 1} (${ev.triangle.coveredItemCount} items)`;
+                  }
+                  if (ev.triangle.neighborId) {
+                    return `Click neighbor triangle to switch (${ev.triangle.coveredItemCount} items)`;
+                  }
+                  if (ev.triangle.isDrillable) {
+                    return `Click triangle #${ev.triangle.index + 1} to drill down 1:4 (${ev.triangle.coveredItemCount} items)`;
+                  }
+                  return `Click triangle #${ev.triangle.index + 1} to focus (${ev.triangle.coveredItemCount} items)`;
+                },
+              }}
+            />
+            )}
           </div>
 
-        <SimplexTopicGraph<
-          DemoEntity,
-          DemoContentVisual,
-          DemoClusterVisual,
-          TagTaxonomyInfo,
-          DemoClusterSummary
-        >
-          items={items}
-          getId={(e) => e.id}
-          getTags={(e) => (e.kind === 'knowledge' ? e.entry.hashtags : [])}
-          resolveTagMeta={resolveDemoTagMeta}
-          deriveClusterMeta={deriveDemoEntityClusterMeta}
-          visualResolver={visualResolver}
-          contentView={activeContentView}
-          clusterView={effectiveNodeView === 'react-card' ? undefined : demoBadgeClusterView}
-          renderContentNode={
-            effectiveNodeView === 'react-card' ? renderDemoContentCard : undefined
-          }
-          renderClusterNode={
-            effectiveNodeView === 'react-card' ? renderDemoClusterCard : undefined
-          }
-          triangleView={triangleView}
-          edgeView={edgeView}
-          meshStrategy={meshStrategyInstance}
-          clusteringStrategy={clusteringStrategyInstance}
-          colorStrategy={colorStrategyInstance}
-          layoutStrategy={layoutStrategyInstance}
-          zoomStrategy={zoomStrategyInstance}
-          theme={theme}
-          showZoomBreadcrumbs
-          timeline={timelineOptions}
-          pinnedIds={inspector.pinnedIds}
-          onContentClick={(ev) =>
-            inspector.handleContentClick(ev.item, ev.layoutContext)
-          }
-          onBackgroundClick={() => inspector.clearSelection()}
-          tooltip={(target) => {
-            if (target.kind === 'content') {
-              return `${target.item.title} — ${target.item.subtitleMeta}`;
-            }
-            if (target.kind === 'cluster') {
-              return `${target.cluster.meta.title} (${target.cluster.meta.memberCount} items)`;
-            }
-            if (zoomId === 'free-camera-zoom') {
-              return `Triangle #${target.triangle.index + 1} (${target.triangle.coveredItemCount} items)`;
-            }
-            if (target.triangle.neighborId) {
-              return `Click neighbor triangle to switch (${target.triangle.coveredItemCount} items)`;
-            }
-            if (target.triangle.isDrillable) {
-              return `Click triangle #${target.triangle.index + 1} to drill down 1:4 (${target.triangle.coveredItemCount} items)`;
-            }
-            return `Click triangle #${target.triangle.index + 1} to focus (${target.triangle.coveredItemCount} items)`;
-          }}
-        />
+          <DemoNodeInspectorOverlay
+            selected={inspector.selected}
+            theme={theme}
+            thumbManifest={thumbManifest}
+            docked
+            isFreeCamera={zoomId === 'free-camera-zoom'}
+            onClose={() => {
+              inspector.clearSelection();
+            }}
+          />
 
-        <DemoNodeInspectorOverlay
-          selected={inspector.selected}
-          theme={theme}
-          thumbManifest={thumbManifest}
-          onClose={() => {
-            inspector.clearSelection();
-          }}
-        />
-      </div>
+          {timelineEnabled && timelineState && (
+            <AtlasTimelineBar
+              timelineState={timelineState}
+              onTogglePlay={handleTimelineToggle}
+              onSeek={handleTimelineSeek}
+              renderer={renderer}
+            />
+          )}
+
+          <AtlasBottomBar
+            zoomState={zoomState}
+            onDrillToDepth={handleDrillToDepth}
+            onDrillUp={handleDrillUp}
+            renderer={renderer}
+            onRendererChange={handleRendererChange}
+            isDatasetModalOpen={isDatasetModalOpen}
+            onOpenDatasetModal={() => setIsDatasetModalOpen(true)}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={toggleFullscreen}
+            isFreeCamera={zoomId === 'free-camera-zoom'}
+          />
+        </div>
+        </div>
       </div>
 
       <DatasetProvenanceModal

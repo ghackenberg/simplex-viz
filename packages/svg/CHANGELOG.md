@@ -1,5 +1,16 @@
 # @simplex-viz/svg
 
+## 0.14.0
+
+### Minor Changes
+
+- Enable `requestAnimationFrame` timeline auto-play progression when `timeline.showControls` is `false` so external host timeline HUDs can drive `play()` / `pause()` / `togglePlay()` directly, and forward `formatStepLabel` through `TimelinePlayerOptions` (#30).
+
+### Patch Changes
+
+- Updated dependencies
+  - @simplex-viz/core@0.14.0
+
 ## 0.13.0
 
 ### Minor Changes

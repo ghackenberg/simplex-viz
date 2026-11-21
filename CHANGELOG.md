@@ -1,6 +1,23 @@
 # Changelog
 
-All notable changes to **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`, `@simplex-viz/wc`, and the documentation/showcase site) are documented in this file following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), coordinated with per-package release notes via `@changesets/cli`.
+All notable changes to **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/canvas`, `@simplex-viz/react`, `@simplex-viz/wc`, and the documentation/showcase site) are documented in this file following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), coordinated with per-package release notes via `@changesets/cli`.
+
+## [0.14.0] - 2026-11-20
+
+### Added
+- **`@simplex-viz/canvas` (New Package)**:
+  - **High-Capacity HTML5 Canvas 2D Renderer ([#21](https://github.com/ghackenberg/simplex-viz/issues/21))**: Introduced `@simplex-viz/canvas` as a Layer-2 peer renderer to `@simplex-viz/svg` with zero per-node DOM overhead (`CanvasRendererAdapter`, `SimplexCanvasController`, `createSimplexCanvas`, `renderSimplexSnapshotToCanvas`, `createCanvasPresetVisualResolver`). Supports 2,000–10,000+ items at 60 FPS via HiDPI DPR scaling, world-space frustum culling, automatic `lodThresholdPx` LOD simplification (circles/pills), `'geometric'` / `'glyphs'` / `'badges'` presets + custom `Canvas*Renderer` hooks, continuous pan/zoom and `1:4` hierarchical drill-down with breadcrumbs, chronological timeline playback, `Shift+Click`/`Shift+Drag` multi-selection, WCAG 2.1 AA keyboard navigation & focus halo, custom/built-in tooltips, and native `exportPng()` (`CanvasExportPngOptions`).
+- **`@simplex-viz/core`**:
+  - **Optional Web Worker Offloading Adapter (`@simplex-viz/core/worker`, [#22](https://github.com/ghackenberg/simplex-viz/issues/22))**: Added a dedicated `@simplex-viz/core/worker` subpath (also re-exported from `@simplex-viz/core`) providing versioned RPC (`SIMPLEX_WORKER_PROTOCOL_VERSION = 1`), `createSimplexWorkerClient()`, `attachSimplexWorkerHandler()` (with a pluggable `solver` hook ready for future Rust/WASM backends), `solveSimplexWorkerRequest()`, `solveSimplexSnapshotAsync()`, `SimplexWorkerClientError`, and `isSimplexWorkerCancelledError()`. Supports stale-generation superseding cancellation, `AbortSignal`, zero-copy `Float32Array` embedding transfers, main-thread `TItem` rehydration, Node `worker_threads` ports, and main-thread async fallback in SSR/non-worker environments.
+  - **Custom Timeline Step Label Formatting ([#30](https://github.com/ghackenberg/simplex-viz/issues/30))**: Added `formatStepLabel?: (step, index, total) => string` to `SimplexTimelineOptions` and `SimplexTimelineController` so hosts can customize rendered step labels (e.g., `"2024 Q3"` or `"Week 12"`).
+- **`@simplex-viz/svg`**:
+  - **Headless Timeline Auto-Play & Custom Step Labels ([#30](https://github.com/ghackenberg/simplex-viz/issues/30))**: Enabled `requestAnimationFrame` timeline playback progression when `timeline.showControls` is `false` so external host timeline HUDs can drive `play()` / `pause()` / `togglePlay()` seamlessly, and forwarded `formatStepLabel` through `TimelinePlayerOptions`.
+- **`@simplex-viz/react`**:
+  - **External Host Timeline HUD Ergonomics ([#30](https://github.com/ghackenberg/simplex-viz/issues/30))**: Forwarded `formatStepLabel` via a stable ref-proxy without resetting playback state, and exposed `handle.subscribeTimeline(listener)` on `useSimplexGraphController().handle` so custom React timeline bars can subscribe directly with zero mount-timing glue.
+- **`@simplex-viz/wc`**:
+  - **External Host Timeline Subscription ([#30](https://github.com/ghackenberg/simplex-viz/issues/30))**: Added `el.subscribeTimeline(listener)` on `<simplex-topic-graph>` (`SimplexTopicGraphElement`) returning a cleanup unsubscribe handle alongside `simplex-timeline-change` events and `formatStepLabel` support.
+- **Documentation & Release Pipeline**:
+  - Added `@simplex-viz/canvas` API reference (`/docs/api/canvas`), updated root/package READMEs, site footer, `llms.txt`, and the GitHub Actions release workflow for all 5 monorepo packages.
 
 ## [0.13.0] - 2026-11-20
 

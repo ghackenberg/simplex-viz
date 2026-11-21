@@ -8,7 +8,7 @@ Framework-agnostic Web Component (`<simplex-topic-graph>`) for **SimplexViz** 鈥
 
 - **Live Demo:** <https://hackenberg.tech/simplex-viz/>
 - **Source & Monorepo:** <https://github.com/ghackenberg/simplex-viz/tree/main/packages/wc>
-- **Companion Packages:** [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core) 路 [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg) 路 [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react)
+- **Companion Packages:** [`@simplex-viz/core`](https://www.npmjs.com/package/@simplex-viz/core) 路 [`@simplex-viz/svg`](https://www.npmjs.com/package/@simplex-viz/svg) 路 [`@simplex-viz/canvas`](https://www.npmjs.com/package/@simplex-viz/canvas) 路 [`@simplex-viz/react`](https://www.npmjs.com/package/@simplex-viz/react)
 
 ## Custom Element & Light DOM Architecture
 

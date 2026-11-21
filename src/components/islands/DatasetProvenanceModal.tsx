@@ -100,16 +100,25 @@ export function resolveDatasetProvenanceMeta(
 interface DatasetInfoButtonProps {
   readonly isOpen: boolean;
   readonly onOpen: () => void;
+  readonly compactMobile?: boolean;
 }
 
-export function DatasetInfoButton({ isOpen, onOpen }: DatasetInfoButtonProps) {
+export function DatasetInfoButton({
+  isOpen,
+  onOpen,
+  compactMobile = false,
+}: DatasetInfoButtonProps) {
   return (
     <button
       type="button"
       onClick={onOpen}
       aria-haspopup="dialog"
       aria-expanded={isOpen}
-      className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:border-slate-700 dark:bg-[#0B0F17] dark:text-slate-200 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
+      aria-label="Dataset Info"
+      title="Dataset Info"
+      className={`inline-flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:border-slate-700 dark:bg-[#0B0F17] dark:text-slate-200 dark:hover:bg-slate-800 whitespace-nowrap shrink-0 ${
+        compactMobile ? 'w-7 px-0 sm:w-auto sm:px-2.5' : 'px-2.5'
+      }`}
     >
       <svg
         className="h-3.5 w-3.5 shrink-0 text-cyan-600 dark:text-cyan-400"
@@ -125,7 +134,9 @@ export function DatasetInfoButton({ isOpen, onOpen }: DatasetInfoButtonProps) {
         <path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
         <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
       </svg>
-      <span>Dataset Info</span>
+      <span className={compactMobile ? 'hidden sm:inline' : undefined}>
+        Dataset Info
+      </span>
     </button>
   );
 }

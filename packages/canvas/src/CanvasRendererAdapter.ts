@@ -280,6 +280,13 @@ export class CanvasRendererAdapter<
     this.clusterHullCache.clear();
   }
 
+  /** Re-paints the most recent scene frame snapshot without re-running layout (useful after async image decodes). */
+  redraw(): void {
+    if (this.lastSnapshot) {
+      this.renderFrame(this.lastSnapshot);
+    }
+  }
+
   resize(width: number, height: number, dprOverride?: number): void {
     const safeW = Math.max(1, Math.round(width));
     const safeH = Math.max(1, Math.round(height));
