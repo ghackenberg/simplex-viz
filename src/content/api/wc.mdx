@@ -7,6 +7,21 @@ description: "Dedicated Custom Element package with zero React dependency, SSR-s
 order: 4
 zeroRuntimeDeps: false
 installCommand: "npm install @simplex-viz/wc"
+entryPoints:
+  - subpath: "."
+    importPath: "@simplex-viz/wc"
+    environment: "Browser Custom Elements & SSR-safe module imports (zero React)"
+    domFree: false
+    sideEffects: false
+    rootReExported: true
+    summary: "Exports SimplexTopicGraphElement and SSR-safe defineSimplexTopicGraphElement() cleanly with zero side effects on import."
+  - subpath: "./define"
+    importPath: "@simplex-viz/wc/define"
+    environment: "Browser (side-effect auto-registration)"
+    domFree: false
+    sideEffects: true
+    rootReExported: false
+    summary: "Exclusive side-effect subpath that automatically registers <simplex-topic-graph> on CustomElementRegistry and exports DEFAULT_SIMPLEX_TAG_NAME."
 exportsTable:
   - symbol: "SimplexTopicGraphElement"
     kind: "Class"
@@ -23,7 +38,8 @@ exportsTable:
       ): typeof SimplexTopicGraphElement
     summary: "SSR-safe, idempotent, and alias-safe custom element registration helper. Safely no-ops outside browsers and supports registering custom tag aliases without throwing on repeated calls."
   - symbol: "@simplex-viz/wc/define"
-    kind: "Function"
+    entrypoint: "@simplex-viz/wc/define"
+    kind: "Subpath"
     signature: "import '@simplex-viz/wc/define';"
     summary: "Dedicated side-effect subpath that automatically registers <simplex-topic-graph> on browser CustomElementRegistry while keeping the root @simplex-viz/wc entry side-effect free."
 ---

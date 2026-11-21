@@ -7,6 +7,28 @@ description: "Pure ES2022 TypeScript engine with zero runtime dependencies and z
 order: 1
 zeroRuntimeDeps: true
 installCommand: "npm install @simplex-viz/core"
+entryPoints:
+  - subpath: "."
+    importPath: "@simplex-viz/core"
+    environment: "Universal ES2022 (Browser, Node.js, Deno, Bun, Web Worker, Edge)"
+    domFree: true
+    sideEffects: false
+    rootReExported: true
+    summary: "Headless geometry, clustering, OKLab mixing, SAT collision layout, 1:4 zoom/drill-down, timeline engine, and shared DOM-free utilities."
+  - subpath: "./worker"
+    importPath: "@simplex-viz/core/worker"
+    environment: "Web Worker, Node.js worker_threads, or SSR async fallback"
+    domFree: true
+    sideEffects: false
+    rootReExported: true
+    summary: "Dedicated off-thread RPC protocol & solver client/handler (also re-exported from root; import @simplex-viz/core/worker inside worker bundles for minimal footprint)."
+  - subpath: "./dom"
+    importPath: "@simplex-viz/core/dom"
+    environment: "Browser / DOM Hosts (structural TS interfaces)"
+    domFree: false
+    sideEffects: false
+    rootReExported: false
+    summary: "Exclusive subpath (not re-exported from root) sharing container, ResizeObserver, tooltip, ARIA/live-region, cursor, click, and viewport zoom helpers across renderers."
 exportsTable:
   - symbol: "solveSimplexSnapshot"
     kind: "Function"
@@ -132,51 +154,58 @@ exportsTable:
       ): SimplexTimelineController<TItem>
     summary: "Zero-DOM headless chronological frame grouper and playback controller with play/pause/step/seek/speed APIs."
   - symbol: "createSimplexWorkerClient"
+    entrypoint: "@simplex-viz/core/worker"
     kind: "Function"
     signature: |-
       createSimplexWorkerClient(
         workerOrFactory?: SimplexWorkerPort | (() => SimplexWorkerPort) | null,
         options?: SimplexWorkerClientOptions,
       ): SimplexWorkerClient
-    summary: "Subpath @simplex-viz/core/worker — generation-aware Web Worker / worker_threads client with stale-request cancellation, AbortSignal, zero-copy embedding buffer transfer, main-thread TItem rehydration, and SSR async fallback."
+    summary: "Generation-aware Web Worker / worker_threads client with stale-request cancellation, AbortSignal, zero-copy embedding buffer transfer, main-thread TItem rehydration, and SSR async fallback."
   - symbol: "attachSimplexWorkerHandler"
+    entrypoint: "@simplex-viz/core/worker"
     kind: "Function"
     signature: |-
       attachSimplexWorkerHandler(
         options?: AttachSimplexWorkerHandlerOptions,
       ): () => void
-    summary: "Subpath @simplex-viz/core/worker — attaches the protocol handler inside a Web Worker or Node worker_threads script with a pluggable solver hook (WASM-ready)."
+    summary: "Attaches the protocol handler inside a Web Worker or Node worker_threads script with a pluggable solver hook (WASM-ready)."
   - symbol: "solveSimplexSnapshotAsync"
+    entrypoint: "@simplex-viz/core/worker"
     kind: "Function"
     signature: |-
       solveSimplexSnapshotAsync<TItem>(
         items: readonly TItem[],
         options?: SolveSimplexSnapshotAsyncOptions<TItem>,
       ): Promise<SimplexLayoutSnapshot<TItem>>
-    summary: "Subpath @simplex-viz/core/worker — async counterpart to solveSimplexSnapshot() delegating to an optional SimplexWorkerClient or a yielded macrotask turn."
+    summary: "Async counterpart to solveSimplexSnapshot() delegating to an optional SimplexWorkerClient or a yielded macrotask turn."
   - symbol: "observeSimplexContainerResize"
+    entrypoint: "@simplex-viz/core/dom"
     kind: "Function"
     signature: |-
       observeSimplexContainerResize(
         options: ObserveSimplexContainerResizeOptions,
       ): SimplexResizeObserverHandle
-    summary: "Subpath @simplex-viz/core/dom — coordinates ResizeObserver viewport updates, 0x0 auto-recovery, and optional deferInitialLayout fallback timers across SVG and Canvas controllers."
+    summary: "Coordinates ResizeObserver viewport updates, 0x0 auto-recovery, and optional deferInitialLayout fallback timers across SVG and Canvas controllers."
   - symbol: "computeSimplexTooltipCoords"
+    entrypoint: "@simplex-viz/core/dom"
     kind: "Function"
     signature: |-
       computeSimplexTooltipCoords(
         input: ComputeSimplexTooltipCoordsInput,
       ): SimplexTooltipCoords
-    summary: "Subpath @simplex-viz/core/dom — computes viewport edge-flipped, margin-clamped tooltip (left, top) coordinates shared by SVG, Canvas, and React tooltips."
+    summary: "Computes viewport edge-flipped, margin-clamped tooltip (left, top) coordinates shared by SVG, Canvas, and React tooltips."
   - symbol: "buildSimplexTooltipContentModel"
+    entrypoint: "@simplex-viz/core/dom"
     kind: "Function"
     signature: |-
       buildSimplexTooltipContentModel<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>(
         target: SimplexTooltipTargetInput<...>,
         options?: BuildSimplexTooltipModelOptions<TItem>,
       ): SimplexTooltipContentModel
-    summary: "Subpath @simplex-viz/core/dom — builds normalized tooltip titles, formatted tags, OKLab accents, cluster counts, and drill-down/neighbor hints."
+    summary: "Builds normalized tooltip titles, formatted tags, OKLab accents, cluster counts, and drill-down/neighbor hints."
   - symbol: "dispatchSimplexDefaultLeftClick"
+    entrypoint: "@simplex-viz/core/dom"
     kind: "Function"
     signature: |-
       dispatchSimplexDefaultLeftClick<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>(
@@ -184,8 +213,9 @@ exportsTable:
         rawEvent: NormalizedPointerEvent,
         context: ...,
       ): boolean
-    summary: "Subpath @simplex-viz/core/dom — unifies composable user click callbacks, 1:4 drill-down navigation, and free-camera focus/selection clearing."
+    summary: "Unifies composable user click callbacks, 1:4 drill-down navigation, and free-camera focus/selection clearing."
   - symbol: "zoomSimplexViewportByFactor"
+    entrypoint: "@simplex-viz/core/dom"
     kind: "Function"
     signature: |-
       zoomSimplexViewportByFactor(
@@ -195,7 +225,7 @@ exportsTable:
         fallbackWidth?: number,
         fallbackHeight?: number,
       ): void
-    summary: "Subpath @simplex-viz/core/dom — zooms any renderer viewport around its current center using structural element dimensions."
+    summary: "Zooms any renderer viewport around its current center using structural element dimensions."
 ---
 
 ## Overview & Runtime Guarantees

@@ -74,10 +74,17 @@ export const GET: APIRoute = async () => {
       `${pkg.data.description}`,
       `Install: \`${pkg.data.installCommand}\``,
       '',
-      'Exports:',
-      ...pkg.data.exportsTable.map(
-        (ex) => `- \`${ex.symbol}\` (${ex.kind}): \`${ex.signature}\` — ${ex.summary}`,
+      'Entry Points:',
+      ...pkg.data.entryPoints.map(
+        (ep) =>
+          `- \`${ep.importPath}\` (${ep.environment}; ${ep.domFree ? 'DOM-free' : 'DOM / Host'}; ${ep.sideEffects ? 'sideEffects: true' : 'sideEffects: false'}; ${ep.subpath === '.' ? 'root' : ep.rootReExported ? 'also re-exported from root' : 'exclusive subpath'}): ${ep.summary}`,
       ),
+      '',
+      'Exports:',
+      ...pkg.data.exportsTable.map((ex) => {
+        const ep = ex.entrypoint ?? pkg.data.packageName;
+        return `- \`${ex.symbol}\` [${ep}] (${ex.kind}): \`${ex.signature}\` — ${ex.summary}`;
+      }),
       '',
       stripMdxImportsAndJsxIslands(pkg.body),
       '',

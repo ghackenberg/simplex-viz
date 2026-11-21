@@ -42,6 +42,14 @@ Before diving into the TypeScript API, the schematic diagram below traces a sing
 npm install @simplex-viz/core
 ```
 
+### Entry Points
+
+| Import Path | Target Runtime | DOM-Free | Side Effects | Root Re-Export | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `@simplex-viz/core` | Browser, Node.js, Deno, Bun, Worker, Edge (`ES2022`) | Yes | `false` | Root | Mesh, clustering, OKLab, SAT layout, `1:4` zoom, timeline, pure preset/option helpers. |
+| `@simplex-viz/core/worker` | Web Worker, Node.js `worker_threads`, SSR fallback | Yes | `false` | Also re-exported from root | Off-thread RPC protocol (`createSimplexWorkerClient`, `attachSimplexWorkerHandler`, `solveSimplexSnapshotAsync`). |
+| `@simplex-viz/core/dom` | Browser / DOM hosts (structural TS interfaces) | No | `false` | **Exclusive subpath** | Shared container, `ResizeObserver`, tooltip, ARIA/live-region, cursor, click, keyboard & zoom helpers. |
+
 ## Quickstart: One-Shot Layout with `solveSimplexSnapshot`
 
 If you want solved `(x, y)` coordinates, mesh triangles, topic clusters, and perceptual OKLab colors in a single synchronous call—without setting up a `SimplexRendererAdapter` or animation loop—call `solveSimplexSnapshot(items)`:

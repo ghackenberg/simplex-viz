@@ -7,6 +7,14 @@ description: "Declarative <SimplexTopicGraph /> component, JSX custom node measu
 order: 3
 zeroRuntimeDeps: false
 installCommand: "npm install @simplex-viz/react"
+entryPoints:
+  - subpath: "."
+    importPath: "@simplex-viz/react"
+    environment: "React 18 & 19 (Browser DOM)"
+    domFree: false
+    sideEffects: false
+    rootReExported: true
+    summary: "Declarative <SimplexTopicGraph /> component, JSX custom node measurement, controller & timeline hooks, and all SVG/Core re-exports."
 exportsTable:
   - symbol: "SimplexTopicGraph"
     kind: "Component"

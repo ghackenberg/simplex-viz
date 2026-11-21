@@ -7,6 +7,21 @@ description: "Portable SVG renderer, offscreen getBBox() hull measurement, root 
 order: 2
 zeroRuntimeDeps: false
 installCommand: "npm install @simplex-viz/svg"
+entryPoints:
+  - subpath: "."
+    importPath: "@simplex-viz/svg"
+    environment: "Browser DOM (Vanilla TS, Vue, Angular, Svelte, Solid)"
+    domFree: false
+    sideEffects: false
+    rootReExported: true
+    summary: "Interactive SVG controller, offscreen getBBox() hull measurement, pluggable Svg*View system, client-side SVG/PNG export, and core strategy re-exports."
+  - subpath: "./ssr"
+    importPath: "@simplex-viz/svg/ssr"
+    environment: "Node.js, Edge, Astro / Next.js SSR builds"
+    domFree: true
+    sideEffects: false
+    rootReExported: true
+    summary: "Zero-DOM SVG string renderer & deterministic font-metric measurers (also re-exported from root; import @simplex-viz/svg/ssr for DOM-free server bundles)."
 exportsTable:
   - symbol: "createSimplexSvg"
     kind: "Function"
@@ -49,13 +64,14 @@ exportsTable:
     signature: "new DashedMeshEdgeSvgView(options?: DashedMeshEdgeOptions)"
     summary: "Default dashed 60-degree mesh edge view, automatically reused for internal 1:4 drillable triangle subdivision lines."
   - symbol: "renderSimplexSvgString"
+    entrypoint: "@simplex-viz/svg/ssr"
     kind: "Function"
     signature: |-
       renderSimplexSvgString<TItem, TTagMeta, TClusterMeta>(
         itemsOrSnapshot: readonly TItem[] | SimplexLayoutSnapshot<TItem, TTagMeta, TClusterMeta>,
         options?: RenderSimplexSvgStringOptions<TItem, TTagMeta, TClusterMeta>,
       ): string
-    summary: "Zero-DOM SSR SVG string renderer exported from @simplex-viz/svg/ssr (and @simplex-viz/svg) supporting deterministic font metrics (estimateSsrTextWidth, createSsrPresetHullMeasurers, pluggable measureText), all presets, themes, filters, highlights, and custom SVG string hooks."
+    summary: "Zero-DOM SSR SVG string renderer supporting deterministic font metrics (estimateSsrTextWidth, createSsrPresetHullMeasurers, pluggable measureText), all presets, themes, filters, highlights, and custom SVG string hooks."
 ---
 
 ## Mounting in Vanilla TypeScript, Vue, Svelte, or Angular

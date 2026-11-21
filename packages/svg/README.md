@@ -39,6 +39,13 @@ Install `@simplex-viz/svg` alone (`@simplex-viz/core` is installed automatically
 npm install @simplex-viz/svg
 ```
 
+### Entry Points
+
+| Import Path | Target Runtime | DOM-Free | Side Effects | Root Re-Export | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `@simplex-viz/svg` | Browser DOM (`Vanilla TS`, `Vue`, `Angular`, `Svelte`, `Solid`) | No | `false` | Root | Interactive SVG controller, offscreen `getBBox()` hulls, `Svg*View` plugins, SVG/PNG export. |
+| `@simplex-viz/svg/ssr` | Node.js, Edge, Astro / Next.js SSR builds | Yes | `false` | Also re-exported from root | Zero-DOM SVG string renderer (`renderSimplexSvgString`, `estimateSsrTextWidth`, `createSsrPresetHullMeasurers`). |
+
 ## Quickstart (Zero-Config)
 
 ### One-Liner Mount (`createSimplexSvg`)

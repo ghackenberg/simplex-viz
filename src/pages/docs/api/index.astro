@@ -41,7 +41,10 @@ const apiPackages = (await getCollection('api')).sort(
           <p class="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
             {pkg.data.description}
           </p>
-          <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 pt-3.5 dark:border-slate-800/80">
+          <p class="mt-3 font-mono text-[11.5px] text-slate-500 dark:text-slate-400">
+            Entry points: {pkg.data.entryPoints.map((ep) => ep.importPath).join(' · ')}
+          </p>
+          <div class="mt-3.5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 pt-3.5 dark:border-slate-800/80">
             <span class="font-mono text-xs text-slate-500 dark:text-slate-400">
               {pkg.data.installCommand}
             </span>

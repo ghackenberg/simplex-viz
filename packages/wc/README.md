@@ -26,6 +26,13 @@ Framework-agnostic Web Component (`<simplex-topic-graph>`) for **SimplexViz** â€
 npm install @simplex-viz/wc
 ```
 
+### Entry Points
+
+| Import Path | Target Runtime | DOM-Free | Side Effects | Root Re-Export | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `@simplex-viz/wc` | Browser Custom Elements & SSR-safe imports (zero React) | No | `false` | Root | Exports `SimplexTopicGraphElement` and SSR-safe `defineSimplexTopicGraphElement()`. |
+| `@simplex-viz/wc/define` | Browser (auto-registration) | No | `true` | **Exclusive subpath** | Side-effect entrypoint registering `<simplex-topic-graph>` and exporting `DEFAULT_SIMPLEX_TAG_NAME`. |
+
 ## Quick Start
 
 ### Auto-registration via `@simplex-viz/wc/define`

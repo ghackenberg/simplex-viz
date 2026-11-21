@@ -7,6 +7,14 @@ description: "Framework-agnostic Canvas 2D renderer with viewport frustum cullin
 order: 5
 zeroRuntimeDeps: false
 installCommand: "npm install @simplex-viz/canvas"
+entryPoints:
+  - subpath: "."
+    importPath: "@simplex-viz/canvas"
+    environment: "Browser HTML5 Canvas 2D (Framework-agnostic, zero @simplex-viz/svg dependency)"
+    domFree: false
+    sideEffects: false
+    rootReExported: true
+    summary: "High-capacity Canvas 2D controller & adapter, stateless snapshot painter, frustum culling, automatic LOD simplification, and native PNG export."
 exportsTable:
   - symbol: "createSimplexCanvas"
     kind: "Function"

@@ -71,9 +71,23 @@ const api = defineCollection({
     order: z.number().int().positive(),
     zeroRuntimeDeps: z.boolean(),
     installCommand: z.string(),
+    entryPoints: z
+      .array(
+        z.object({
+          subpath: z.string(),
+          importPath: z.string(),
+          environment: z.string(),
+          domFree: z.boolean(),
+          sideEffects: z.boolean(),
+          rootReExported: z.boolean(),
+          summary: z.string(),
+        }),
+      )
+      .min(1),
     exportsTable: z.array(
       z.object({
         symbol: z.string(),
+        entrypoint: z.string().optional(),
         kind: z.enum([
           'Class',
           'Function',
@@ -81,6 +95,7 @@ const api = defineCollection({
           'Hook',
           'Interface',
           'View Plugin',
+          'Subpath',
         ]),
         signature: z.string(),
         summary: z.string(),
