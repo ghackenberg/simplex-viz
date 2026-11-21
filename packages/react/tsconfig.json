@@ -7,6 +7,7 @@
     "rootDir": "../..",
     "noEmit": true,
     "paths": {
+      "@simplex-viz/core/dom": ["../core/src/dom.ts"],
       "@simplex-viz/core": ["../core/src/index.ts"],
       "@simplex-viz/svg": ["../svg/src/index.ts"]
     }

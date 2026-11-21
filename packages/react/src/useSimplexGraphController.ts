@@ -1,5 +1,4 @@
 import type {
-  CameraController,
   ClusterDescriptor,
   DefaultTaggedItem,
   FocusItemOptions,
@@ -24,6 +23,7 @@ import type {
   SimplexZoomStrategy,
   ZoomToItemOptions,
 } from '@simplex-viz/core';
+import { zoomSimplexViewportByFactor } from '@simplex-viz/core/dom';
 import type {
   ExportPngBlobOptions,
   ExportPngDataUrlOptions,
@@ -265,12 +265,7 @@ export function useSimplexGraphController<
   const zoomBy = useCallback((factor: number) => {
     const ctrl = controllerRef.current;
     if (!ctrl) return;
-    const svg = ctrl.getSvgElement();
-    const rect = svg.getBoundingClientRect();
-    const width = rect.width > 0 ? rect.width : svg.clientWidth || 960;
-    const height = rect.height > 0 ? rect.height : svg.clientHeight || 620;
-    const cam: CameraController = ctrl.camera;
-    cam.zoomToCursor(width / 2, height / 2, factor);
+    zoomSimplexViewportByFactor(ctrl.getSvgElement(), ctrl.camera, factor, 960, 620);
   }, []);
 
   const batch = useCallback(<TResult,>(fn: () => TResult): TResult | undefined => {

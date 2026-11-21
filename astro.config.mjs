@@ -32,6 +32,7 @@ export default defineConfig({
       alias: {
         '@': path.resolve(__dirname, '.'),
         '@simplex-viz/core/worker': path.resolve(__dirname, 'packages/core/src/worker.ts'),
+        '@simplex-viz/core/dom': path.resolve(__dirname, 'packages/core/src/dom.ts'),
         '@simplex-viz/core': path.resolve(__dirname, 'packages/core/src/index.ts'),
         '@simplex-viz/svg': path.resolve(__dirname, 'packages/svg/src/index.ts'),
         '@simplex-viz/canvas': path.resolve(__dirname, 'packages/canvas/src/index.ts'),

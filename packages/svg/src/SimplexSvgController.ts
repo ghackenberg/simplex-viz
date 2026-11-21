@@ -2,11 +2,13 @@ import {
   SimplexGraphEngine,
   SimplexTimelineController,
   createCollisionDrivenLayoutStrategy,
-  createFinalSeededClusteringStrategy,
-  createFinalSeededLayoutStrategy,
   createSimplexTimeline,
+  createSimplexTimelineNotifier,
   createSoftSimplexTagClusteringStrategy,
-  isPointInTriangle,
+  normalizeTimelineLayoutScaleMode,
+  wrapClusteringStrategyForTimeline,
+  wrapLayoutStrategyForTimeline,
+  type SimplexTimelineNotifier,
   type CameraController,
   type ClusterDerivationContext,
   type ClusterDescriptor,
@@ -47,6 +49,34 @@ import {
   type VisualResolver,
   type ZoomToItemOptions,
 } from '@simplex-viz/core';
+import {
+  applySimplexPinchDrillTarget,
+  applySimplexTooltipTheme,
+  computeSimplexZoomAnnouncementSignature,
+  createSimplexSrAnnouncer,
+  dispatchSimplexDefaultLeftClick,
+  ensureSimplexContainerPositioned,
+  formatSimplexInteractiveTargetAriaLabel,
+  formatSimplexTooltipText,
+  formatSimplexZoomLevelAnnouncement,
+  isSameSimplexKeyboardTarget,
+  isSimplexHoverEventConsumed,
+  measureSimplexContainer,
+  observeSimplexContainerResize,
+  positionSimplexTooltipElement,
+  resolveNextSimplexKeyboardFocusIndex,
+  resolveSimplexContainer,
+  resolveSimplexCursorForPoint,
+  resolveSimplexPinchDrillTarget,
+  resolveSimplexReducedMotion,
+  stepSimplexDrillDownWheelPinch,
+  subscribeSimplexFontLoadRelayout,
+  subscribeSimplexReducedMotionMedia,
+  toSimplexKeyboardFocusTargetRef,
+  type SimplexResizeObserverHandle,
+  type SimplexSrAnnouncerHandle,
+  type SimplexWheelPinchState,
+} from '@simplex-viz/core/dom';
 import {
   exportSvgElementToPng,
   prepareStandaloneSvg,
@@ -573,23 +603,6 @@ export interface SimplexSvgUpdateOptions<
   readonly focusedTriangleIndex?: number | null;
 }
 
-function resolveContainerElement(target: HTMLElement | string): HTMLElement {
-  if (typeof target !== 'string') {
-    return target;
-  }
-  if (typeof document === 'undefined') {
-    throw new Error(
-      `SimplexSvgController: cannot resolve selector "${target}" outside a DOM environment.`,
-    );
-  }
-  const el = document.querySelector<HTMLElement>(target);
-  if (!el) {
-    throw new Error(
-      `SimplexSvgController: no element matched container selector "${target}".`,
-    );
-  }
-  return el;
-}
 
 /**
  * High-level framework-agnostic SVG graph controller for Vanilla TypeScript, Vue, Angular,
@@ -621,7 +634,7 @@ export class SimplexSvgController<
     TTagMeta,
     TClusterMeta
   >;
-  private readonly resizeObserver: ResizeObserver | null = null;
+  private readonly resizeObserverHandle: SimplexResizeObserverHandle | null = null;
   private readonly onFpsUpdate?: (fps: number) => void;
   private onZoomStateChangeCallback?: (state: SimplexZoomState) => void;
   private onLegendChangeCallback?: (
@@ -652,7 +665,7 @@ export class SimplexSvgController<
   private activeTooltipSuppressed = false;
   private tooltipVisible = false;
   private breadcrumbOverlayEl: HTMLDivElement | null = null;
-  private srAnnouncerEl: HTMLDivElement | null = null;
+  private srAnnouncer: SimplexSrAnnouncerHandle;
   private ariaLabel: string;
   private keyboardNavigationEnabled: boolean;
   private keyboardFocusTarget: SimplexKeyboardFocusTarget | null = null;
@@ -660,9 +673,8 @@ export class SimplexSvgController<
   private lastAnnouncedZoomSig: string | null = null;
   private timelineController: SimplexTimelineController<TItem> | null = null;
   private timelineUnsubscribe: (() => void) | null = null;
-  private readonly timelineStateListeners = new Set<
-    (state: SimplexTimelineState<TItem> | null) => void
-  >();
+  private readonly timelineNotifier: SimplexTimelineNotifier<TItem> =
+    createSimplexTimelineNotifier<TItem>();
   private timelineOverlayEl: HTMLDivElement | null = null;
   private timelineUiRefs: {
     playBtn: HTMLButtonElement;
@@ -723,8 +735,7 @@ export class SimplexSvgController<
   private pinchStartDist: number | null = null;
   private pinchHandledInGesture = false;
   private lastPinchMid: { x: number; y: number } | null = null;
-  private wheelPinchAccum = 0;
-  private wheelPinchCooldownUntil = 0;
+  private wheelPinchState: SimplexWheelPinchState = { accum: 0, cooldownUntil: 0 };
   private fontLoadCleanup: (() => void) | null = null;
   private reducedMotionPreference: ReducedMotionPreference = 'auto';
   private reducedMotionActive = false;
@@ -738,8 +749,6 @@ export class SimplexSvgController<
   private marqueeCurrentY = 0;
   private marqueeOverlayGroup: SVGGElement | null = null;
   private marqueeRectEl: SVGRectElement | null = null;
-  private pendingInitialViewport = false;
-  private deferFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     containerEl: HTMLElement | string,
@@ -761,7 +770,7 @@ export class SimplexSvgController<
       TClusterMeta
     >,
   ) {
-    this.containerEl = resolveContainerElement(containerEl);
+    this.containerEl = resolveSimplexContainer(containerEl, 'SimplexSvgController');
     this.onFpsUpdate = options.onFpsUpdate;
     this.onZoomStateChangeCallback = options.onZoomStateChange;
     this.onLegendChangeCallback = options.onLegendChange;
@@ -834,19 +843,12 @@ export class SimplexSvgController<
     this.syncSvgAccessibilityAttributes();
     this.syncReducedMotionAttribute();
     this.containerEl.appendChild(this.svgEl);
-    this.ensureSrAnnouncerElement();
+    this.srAnnouncer = createSimplexSrAnnouncer(this.containerEl, doc);
 
-    const measureContainerSize = (): { width: number; height: number } => {
-      const rect = this.containerEl.getBoundingClientRect();
-      const width = rect.width > 0 ? rect.width : this.containerEl.clientWidth;
-      const height = rect.height > 0 ? rect.height : this.containerEl.clientHeight;
-      return { width, height };
-    };
-    const measured = measureContainerSize();
-    const hasInitialSize = measured.width > 40 && measured.height > 40;
-    const initialW = hasInitialSize ? measured.width : 960;
-    const initialH = hasInitialSize ? measured.height : 620;
-    this.pendingInitialViewport = !hasInitialSize;
+    const measured = measureSimplexContainer(this.containerEl, 960, 620, 40);
+    const hasInitialSize = measured.hasValidSize;
+    const initialW = measured.width;
+    const initialH = measured.height;
     const canObserveResize = typeof ResizeObserver !== 'undefined';
     const deferConfig = options.deferInitialLayout;
     const shouldDeferSolve =
@@ -1001,43 +1003,25 @@ export class SimplexSvgController<
     this.syncReducedMotionMediaSubscription();
 
     if (canObserveResize) {
-      this.resizeObserver = new ResizeObserver((entries) => {
-        if (this.destroyed) return;
-        for (const entry of entries) {
-          const { width, height } = entry.contentRect;
-          if (width > 40 && height > 40) {
-            if (this.pendingInitialViewport) {
-              this.pendingInitialViewport = false;
-              this.clearDeferFallbackTimer();
-              this.adapter.invalidateHulls();
-              this.engine.reinitializeViewport(width, height);
-              this.ensureLoopRunning();
-            } else {
-              this.engine.setViewport(width, height);
-              this.ensureLoopRunning();
-            }
-          }
-        }
+      this.resizeObserverHandle = observeSimplexContainerResize({
+        container: this.containerEl,
+        pendingInitialViewport: !hasInitialSize,
+        shouldDeferSolve,
+        deferFallbackTimeoutMs,
+        fallbackWidth: 960,
+        fallbackHeight: 620,
+        minValidSize: 40,
+        isDestroyed: () => this.destroyed,
+        onDeferredInit: (width, height) => {
+          this.adapter.invalidateHulls();
+          this.engine.reinitializeViewport(width, height);
+          this.ensureLoopRunning();
+        },
+        onResize: (width, height) => {
+          this.engine.setViewport(width, height);
+          this.ensureLoopRunning();
+        },
       });
-      this.resizeObserver.observe(this.containerEl);
-    }
-
-    if (shouldDeferSolve && deferFallbackTimeoutMs !== null) {
-      this.deferFallbackTimer = setTimeout(() => {
-        this.deferFallbackTimer = null;
-        if (this.destroyed || !this.pendingInitialViewport) return;
-        const latest = measureContainerSize();
-        this.adapter.invalidateHulls();
-        if (latest.width > 40 && latest.height > 40) {
-          this.pendingInitialViewport = false;
-          this.engine.reinitializeViewport(latest.width, latest.height);
-        } else {
-          // Run provisional fallback solve while keeping `pendingInitialViewport = true`
-          // so a subsequent real `ResizeObserver` size still cleanly re-initializes.
-          this.engine.reinitializeViewport(960, 620);
-        }
-        this.ensureLoopRunning();
-      }, deferFallbackTimeoutMs);
     }
 
     if (options.relayoutOnFontLoad !== false) {
@@ -1106,8 +1090,11 @@ export class SimplexSvgController<
   > {
     return {
       onContentHover: (ev) => {
-        const consumed = userInteractions?.onContentHover?.(ev);
-        if (ev && consumed !== true) {
+        const consumed = isSimplexHoverEventConsumed(
+          userInteractions?.onContentHover,
+          ev,
+        );
+        if (ev && !consumed) {
           this.showTooltipForTarget({ kind: 'content', ...ev });
         } else {
           this.hideTooltip();
@@ -1115,8 +1102,11 @@ export class SimplexSvgController<
         return consumed;
       },
       onClusterHover: (ev) => {
-        const consumed = userInteractions?.onClusterHover?.(ev);
-        if (ev && consumed !== true) {
+        const consumed = isSimplexHoverEventConsumed(
+          userInteractions?.onClusterHover,
+          ev,
+        );
+        if (ev && !consumed) {
           this.showTooltipForTarget({ kind: 'cluster', ...ev });
         } else {
           this.hideTooltip();
@@ -1124,222 +1114,73 @@ export class SimplexSvgController<
         return consumed;
       },
       onTriangleHover: (ev) => {
-        const consumed = userInteractions?.onTriangleHover?.(ev);
-        if (ev && consumed !== true) {
+        const consumed = isSimplexHoverEventConsumed(
+          userInteractions?.onTriangleHover,
+          ev,
+        );
+        if (ev && !consumed) {
           this.showTooltipForTarget({ kind: 'triangle', ...ev });
         } else {
           this.hideTooltip();
         }
         return consumed;
       },
-      onLeftClick: (target, rawEvent) => {
-        if (target.kind === 'content' && !target.neighborId) {
-          if (userInteractions?.onContentClick?.(target, rawEvent) === true) {
-            return true;
-          }
-        } else if (target.kind === 'cluster') {
-          if (userInteractions?.onClusterClick?.(target, rawEvent) === true) {
-            return true;
-          }
-        } else if (target.kind === 'triangle') {
-          if (userInteractions?.onTriangleClick?.(target, rawEvent) === true) {
-            return true;
-          }
-        } else if (target.kind === 'background') {
-          if (userInteractions?.onBackgroundClick?.(rawEvent) === true) {
-            return true;
-          }
-        }
-        if (userInteractions?.onLeftClick?.(target, rawEvent) === true) {
-          return true;
-        }
-        if (this.engine.getZoomStrategy().mode === 'drill-down') {
-          if (target.kind === 'triangle') {
-            if (target.triangle.neighborId) {
-              this.drillToNeighbor(target.triangle.neighborId);
-            } else if (!target.triangle.isContext) {
-              this.drillDownTriangle(target.triangle.index);
-            }
-          } else if (target.kind === 'cluster') {
-            if (target.neighborId) {
-              this.drillToNeighbor(target.neighborId);
-            } else {
-              this.drillDownCluster(target.cluster.clusterUid);
-            }
-          } else if (target.kind === 'content' && target.neighborId) {
-            this.drillToNeighbor(target.neighborId);
-          } else if (target.kind === 'background') {
-            if (this.engine.getZoomState().canDrillUp) {
-              this.drillUp();
-            } else if (!rawEvent.shiftKey && this.engine.getSelectedIds().size > 0) {
-              this.clearSelection();
-            }
-          }
-          return false;
-        }
-        if (target.kind === 'cluster' && this.focusOnClusterClick) {
-          if (this.focusedTriangleIndexState !== null) {
-            this.setFocusedTriangleIndex(null);
-          }
-          const next =
-            this.focusedClusterUidState === target.cluster.clusterUid
-              ? null
-              : target.cluster.clusterUid;
-          this.setFocusedClusterUid(next);
-        } else if (target.kind === 'triangle' && this.focusOnTriangleClick) {
-          if (this.focusedClusterUidState !== null) {
-            this.setFocusedClusterUid(null);
-          }
-          const next =
-            this.focusedTriangleIndexState === target.triangle.index
-              ? null
-              : target.triangle.index;
-          this.setFocusedTriangleIndex(next);
-        } else if (target.kind === 'background') {
-          if (this.focusedClusterUidState !== null) {
-            this.setFocusedClusterUid(null);
-          }
-          if (this.focusedTriangleIndexState !== null) {
-            this.setFocusedTriangleIndex(null);
-          }
-          if (this.engine.getFocusedItemId() !== null) {
+      onLeftClick: (target, rawEvent) =>
+        dispatchSimplexDefaultLeftClick(target, rawEvent, {
+          userInteractions,
+          zoomMode: this.engine.getZoomStrategy().mode,
+          canDrillUp: this.engine.getZoomState().canDrillUp,
+          selectedCount: this.engine.getSelectedIds().size,
+          focusedItemId: this.engine.getFocusedItemId(),
+          focusedClusterUid: this.focusedClusterUidState,
+          focusedTriangleIndex: this.focusedTriangleIndexState,
+          focusOnClusterClick: this.focusOnClusterClick,
+          focusOnTriangleClick: this.focusOnTriangleClick,
+          drillToNeighbor: (id) => this.drillToNeighbor(id),
+          drillDownTriangle: (idx) => this.drillDownTriangle(idx),
+          drillDownCluster: (uid) => this.drillDownCluster(uid),
+          drillUp: () => this.drillUp(),
+          setFocusedClusterUid: (uid) => this.setFocusedClusterUid(uid),
+          setFocusedTriangleIndex: (idx) => this.setFocusedTriangleIndex(idx),
+          clearFocusedItem: () => {
             this.focusItem(null);
-          }
-          if (!rawEvent.shiftKey && this.engine.getSelectedIds().size > 0) {
-            this.clearSelection();
-          }
-        }
-        return false;
-      },
+          },
+          clearSelection: () => this.clearSelection(),
+        }),
       onRightClick: userInteractions?.onRightClick,
       onWheel: userInteractions?.onWheel ?? 'zoom-to-cursor',
     };
   }
 
   private attachFontLoadListener(): void {
-    const doc = this.containerEl.ownerDocument;
-    const fontSet = doc?.fonts;
-    if (!fontSet) return;
-
-    let readyTriggeredByEvent = false;
-    let readyTimedOut = false;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-    const onLoadingDone = (): void => {
-      if (this.destroyed) return;
-      readyTriggeredByEvent = true;
-      this.relayout();
-    };
-
-    if (typeof fontSet.addEventListener === 'function') {
-      fontSet.addEventListener('loadingdone', onLoadingDone);
-    }
-
-    if (fontSet.status !== 'loaded' && fontSet.ready && typeof fontSet.ready.then === 'function') {
-      timeoutId = setTimeout(() => {
-        readyTimedOut = true;
-        timeoutId = null;
-      }, 2000);
-      fontSet.ready.then(
-        () => {
-          if (timeoutId !== null) {
-            clearTimeout(timeoutId);
-            timeoutId = null;
-          }
-          if (this.destroyed || readyTimedOut || readyTriggeredByEvent) return;
+    this.fontLoadCleanup = subscribeSimplexFontLoadRelayout(
+      this.containerEl.ownerDocument,
+      () => {
+        if (!this.destroyed) {
           this.relayout();
-        },
-        () => {
-          if (timeoutId !== null) {
-            clearTimeout(timeoutId);
-            timeoutId = null;
-          }
-        },
-      );
-    }
-
-    this.fontLoadCleanup = () => {
-      if (timeoutId !== null) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
-      }
-      if (typeof fontSet.removeEventListener === 'function') {
-        fontSet.removeEventListener('loadingdone', onLoadingDone);
-      }
-    };
-  }
-
-  private formatContentTooltip(
-    ev: ContentHoverEvent<TItem, TContentVisual, TTagMeta, TClusterMeta>,
-  ): string | null | undefined | false {
-    if (typeof this.tooltipOption === 'function') {
-      return this.tooltipOption({ kind: 'content', ...ev });
-    }
-    const label = extractDefaultItemLabel(
-      ev.item,
-      ev.layoutContext.id,
-      this.getLabelExtractor,
-    );
-    const tagList = ev.layoutContext.tags
-      .map((t) => {
-        if (t.label) return t.label;
-        if (this.formatTagLabelFn) {
-          const formatted = this.formatTagLabelFn(t.tag).trim();
-          if (formatted.length > 0) return formatted;
         }
-        return `#${t.tag}`;
-      })
-      .slice(0, 5)
-      .join(' · ');
-    const neighborHint = ev.neighborId ? '\nClick to switch to neighbor' : '';
-    if (tagList) {
-      return `${label}\n${tagList}${neighborHint}`;
-    }
-    const weightList = ev.layoutContext.unitClusters
-      .map((uc) => `${uc.cluster.code} ${Math.round(uc.weight * 100)}%`)
-      .join(' · ');
-    return `${weightList ? `${label}\n${weightList}` : label}${neighborHint}`;
+      },
+    );
   }
 
-  private formatClusterTooltip(
-    ev: ClusterHoverEvent<TItem, TClusterVisual, TTagMeta, TClusterMeta>,
+  private formatTooltipTargetText(
+    target: SimplexSvgTooltipTarget<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
   ): string | null | undefined | false {
     if (typeof this.tooltipOption === 'function') {
-      return this.tooltipOption({ kind: 'cluster', ...ev });
+      return this.tooltipOption(target);
     }
-    const count = ev.cluster.members.length;
-    const base = `${ev.cluster.code} · ${ev.cluster.defaultLabel}\n${count} ${count === 1 ? 'item' : 'items'}`;
-    return ev.neighborId ? `${base}\nClick to switch to neighbor` : base;
-  }
-
-  private formatTriangleTooltip(
-    ev: TriangleHoverEvent<TItem, TTagMeta, TClusterMeta>,
-  ): string | null | undefined | false {
-    if (typeof this.tooltipOption === 'function') {
-      return this.tooltipOption({ kind: 'triangle', ...ev });
-    }
-    const corners = ev.triangle.clusters
-      .map((c, idx) =>
-        c ? c.code : `V${ev.triangle.vertexIndices[idx] ?? idx}`,
-      )
-      .join(' · ');
-    const count = ev.triangle.coveredItemCount;
-    if (ev.triangle.isContext) {
-      return `Neighbor (${corners})\n${count} ${count === 1 ? 'item' : 'items'}${ev.triangle.neighborId ? '\nClick to switch to neighbor' : ''}`;
-    }
-    const zMode = this.engine.getZoomStrategy().mode;
-    const zState = this.engine.getZoomState();
-    const actionHint =
-      zMode === 'drill-down'
-        ? zState.activeFrameKind === 'triangle-focus' && zState.canDrillUp
-          ? '\nClick to zoom out'
-          : zState.drillableTriangleIndices.includes(ev.triangle.index)
-            ? '\nClick to zoom in'
-            : zState.focusableTriangleIndices.includes(ev.triangle.index)
-              ? '\nClick to focus triangle'
-              : ''
-        : '';
-    return `Triangle #${ev.triangle.index + 1} (${corners})\n${count} ${count === 1 ? 'item' : 'items'}${actionHint}`;
+    return formatSimplexTooltipText(target, {
+      getLabel: this.getLabelExtractor,
+      formatTagLabel: this.formatTagLabelFn,
+      zoomMode: this.engine.getZoomStrategy().mode,
+      zoomState: this.engine.getZoomState(),
+    });
   }
 
   private isTooltipUnstyled(): boolean {
@@ -1348,15 +1189,7 @@ export class SimplexSvgController<
 
   private applyTooltipThemeStyles(el: HTMLDivElement): void {
     if (this.isTooltipUnstyled()) return;
-    const isLight = this.currentTheme === 'light';
-    el.style.background = isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(9, 13, 22, 0.94)';
-    el.style.border = isLight
-      ? '1px solid rgba(203, 213, 225, 0.95)'
-      : '1px solid rgba(51, 65, 85, 0.85)';
-    el.style.color = isLight ? '#0f172a' : '#f1f5f9';
-    el.style.boxShadow = isLight
-      ? '0 10px 24px rgba(15, 23, 42, 0.12)'
-      : '0 10px 24px rgba(0, 0, 0, 0.45)';
+    applySimplexTooltipTheme(el, this.currentTheme);
   }
 
   private applyTooltipPresentationStyles(el: HTMLDivElement): void {
@@ -1402,13 +1235,7 @@ export class SimplexSvgController<
     if (this.tooltipEl) return this.tooltipEl;
 
     const doc = this.containerEl.ownerDocument;
-    const computedPos =
-      typeof getComputedStyle !== 'undefined'
-        ? getComputedStyle(this.containerEl).position
-        : this.containerEl.style.position;
-    if (!computedPos || computedPos === 'static') {
-      this.containerEl.style.position = 'relative';
-    }
+    ensureSimplexContainerPositioned(this.containerEl);
 
     const el = doc.createElement('div');
     el.style.display = 'none';
@@ -1453,47 +1280,12 @@ export class SimplexSvgController<
     const domRenderer = isDomTooltipRenderer(this.tooltipOption)
       ? this.tooltipOption
       : null;
-    const offsetX = domRenderer?.offset?.x ?? 14;
-    const offsetY = domRenderer?.offset?.y ?? 14;
-    const margin = Math.max(0, domRenderer?.margin ?? 8);
-
-    if (measureUnconstrained) {
-      el.style.left = '0px';
-      el.style.top = '0px';
-    }
-
-    const containerRect =
-      typeof this.containerEl.getBoundingClientRect === 'function'
-        ? this.containerEl.getBoundingClientRect()
-        : null;
-    const containerW =
-      this.containerEl.clientWidth || (containerRect ? Math.round(containerRect.width) : 0) || 960;
-    const containerH =
-      this.containerEl.clientHeight || (containerRect ? Math.round(containerRect.height) : 0) || 600;
-
-    const tipRect =
-      typeof el.getBoundingClientRect === 'function' ? el.getBoundingClientRect() : null;
-    const measuredW = el.offsetWidth || (tipRect ? Math.ceil(tipRect.width) : 0);
-    const measuredH = el.offsetHeight || (tipRect ? Math.ceil(tipRect.height) : 0);
-    const tipW = measuredW > 0 ? measuredW : 240;
-    const tipH = measuredH > 0 ? measuredH : 64;
-
-    const maxLeft = Math.max(margin, containerW - margin - tipW);
-    let left = screenX + offsetX;
-    if (left + tipW > containerW - margin) {
-      left = screenX - offsetX - tipW;
-    }
-    left = Math.min(Math.max(margin, Math.round(left)), Math.round(maxLeft));
-
-    const maxTop = Math.max(margin, containerH - margin - tipH);
-    let top = screenY + offsetY;
-    if (top + tipH > containerH - margin) {
-      top = screenY - offsetY - tipH;
-    }
-    top = Math.min(Math.max(margin, Math.round(top)), Math.round(maxTop));
-
-    el.style.left = `${left}px`;
-    el.style.top = `${top}px`;
+    positionSimplexTooltipElement(this.containerEl, el, screenX, screenY, {
+      offsetX: domRenderer?.offset?.x,
+      offsetY: domRenderer?.offset?.y,
+      margin: domRenderer?.margin,
+      measureUnconstrained,
+    });
   }
 
   private showTooltipForTarget(
@@ -1549,12 +1341,7 @@ export class SimplexSvgController<
       return;
     }
 
-    const text =
-      target.kind === 'content'
-        ? this.formatContentTooltip(target)
-        : target.kind === 'cluster'
-          ? this.formatClusterTooltip(target)
-          : this.formatTriangleTooltip(target);
+    const text = this.formatTooltipTargetText(target);
 
     if (!text) {
       this.hideTooltip();
@@ -1613,11 +1400,10 @@ export class SimplexSvgController<
   subscribeTimeline(
     listener: (state: SimplexTimelineState<TItem> | null) => void,
   ): () => void {
-    this.timelineStateListeners.add(listener);
-    listener(this.timelineController?.getState() ?? null);
-    return () => {
-      this.timelineStateListeners.delete(listener);
-    };
+    return this.timelineNotifier.subscribe(
+      listener,
+      this.timelineController?.getState() ?? null,
+    );
   }
 
   /**
@@ -2797,16 +2583,10 @@ export class SimplexSvgController<
   }
 
   private computeReducedMotionActive(): boolean {
-    if (this.reducedMotionPreference === true) return true;
-    if (this.reducedMotionPreference === false) return false;
-    const win = this.containerEl.ownerDocument?.defaultView ??
-      (typeof window !== 'undefined' ? window : null);
-    if (!win || typeof win.matchMedia !== 'function') return false;
-    try {
-      return Boolean(win.matchMedia('(prefers-reduced-motion: reduce)').matches);
-    } catch {
-      return false;
-    }
+    return resolveSimplexReducedMotion(
+      this.reducedMotionPreference,
+      this.containerEl.ownerDocument,
+    );
   }
 
   private syncReducedMotionAttribute(): void {
@@ -2831,36 +2611,14 @@ export class SimplexSvgController<
   private syncReducedMotionMediaSubscription(): void {
     this.detachReducedMotionMediaSubscription();
     if (this.destroyed || this.reducedMotionPreference !== 'auto') return;
-    const win = this.containerEl.ownerDocument?.defaultView ??
-      (typeof window !== 'undefined' ? window : null);
-    if (!win || typeof win.matchMedia !== 'function') return;
-
-    let mql: MediaQueryList;
-    try {
-      mql = win.matchMedia('(prefers-reduced-motion: reduce)');
-    } catch {
-      return;
-    }
-    if (!mql) return;
-
-    const handleChange = (event?: { readonly matches?: boolean }) => {
-      if (this.destroyed || this.reducedMotionPreference !== 'auto') return;
-      const matches =
-        typeof event?.matches === 'boolean' ? event.matches : Boolean(mql.matches);
-      this.applyReducedMotionState(matches);
-    };
-
-    if (typeof mql.addEventListener === 'function') {
-      mql.addEventListener('change', handleChange);
-      this.reducedMotionMediaCleanup = () => {
-        mql.removeEventListener('change', handleChange);
-      };
-    } else if (typeof mql.addListener === 'function') {
-      mql.addListener(handleChange);
-      this.reducedMotionMediaCleanup = () => {
-        mql.removeListener(handleChange);
-      };
-    }
+    this.reducedMotionMediaCleanup = subscribeSimplexReducedMotionMedia(
+      this.reducedMotionPreference,
+      this.containerEl.ownerDocument,
+      (matches) => {
+        if (this.destroyed || this.reducedMotionPreference !== 'auto') return;
+        this.applyReducedMotionState(matches);
+      },
+    );
   }
 
   /**
@@ -2934,80 +2692,18 @@ export class SimplexSvgController<
   }
 
   private triggerPinchDrillIn(screenX: number, screenY: number): boolean {
-    const zState = this.engine.getZoomState();
-    const hit = this.engine.hitTest(screenX, screenY);
-    if (hit.kind === 'triangle') {
-      if (hit.triangle.neighborId) {
-        return this.drillToNeighbor(hit.triangle.neighborId);
-      }
-      if (!hit.triangle.isContext && zState.activeFrameKind !== 'triangle-focus') {
-        return this.drillDownTriangle(hit.triangle.index);
-      }
-      return false;
-    }
-    if (hit.kind === 'cluster') {
-      if (hit.neighborId) {
-        return this.drillToNeighbor(hit.neighborId);
-      }
-      return this.drillDownCluster(hit.cluster.clusterUid);
-    }
-    const candidateTriIndices =
-      zState.drillableTriangleIndices.length > 0
-        ? zState.drillableTriangleIndices
-        : zState.focusableTriangleIndices;
-    if (hit.kind === 'content') {
-      const mesh = this.engine.getMesh();
-      if (mesh) {
-        for (const triIdx of candidateTriIndices) {
-          const tri = mesh.triangles[triIdx];
-          if (!tri) continue;
-          const p0 = mesh.vertices[tri.vertices[0]]!;
-          const p1 = mesh.vertices[tri.vertices[1]]!;
-          const p2 = mesh.vertices[tri.vertices[2]]!;
-          if (isPointInTriangle(hit.worldPosition.x, hit.worldPosition.y, p0, p1, p2)) {
-            return this.drillDownTriangle(triIdx);
-          }
-        }
-      }
-      const primaryCluster = hit.layoutContext.unitClusters[0]?.cluster;
-      if (primaryCluster && zState.drillableClusterUids.includes(primaryCluster.clusterUid)) {
-        return this.drillDownCluster(primaryCluster.clusterUid);
-      }
-    }
-    // Background fallback: drill into the closest drillable or focusable triangle
-    if (candidateTriIndices.length > 0) {
-      const mesh = this.engine.getMesh();
-      if (mesh) {
-        let bestIdx = candidateTriIndices[0]!;
-        let bestDist = Infinity;
-        for (const triIdx of candidateTriIndices) {
-          const tri = mesh.triangles[triIdx];
-          if (!tri) continue;
-          const p0 = mesh.vertices[tri.vertices[0]]!;
-          const p1 = mesh.vertices[tri.vertices[1]]!;
-          const p2 = mesh.vertices[tri.vertices[2]]!;
-          const cx = (p0.x + p1.x + p2.x) / 3;
-          const cy = (p0.y + p1.y + p2.y) / 3;
-          const d = Math.hypot(cx - hit.worldPosition.x, cy - hit.worldPosition.y);
-          if (d < bestDist) {
-            bestDist = d;
-            bestIdx = triIdx;
-          }
-        }
-        return this.drillDownTriangle(bestIdx);
-      }
-    }
-    return false;
+    return applySimplexPinchDrillTarget(
+      resolveSimplexPinchDrillTarget(this.engine, screenX, screenY),
+      {
+        drillToNeighbor: (id) => this.drillToNeighbor(id),
+        drillDownTriangle: (idx) => this.drillDownTriangle(idx),
+        drillDownCluster: (uid) => this.drillDownCluster(uid),
+      },
+    );
   }
 
   private ensureContainerPositioned(): void {
-    const computedPos =
-      typeof getComputedStyle !== 'undefined'
-        ? getComputedStyle(this.containerEl).position
-        : this.containerEl.style.position;
-    if (!computedPos || computedPos === 'static') {
-      this.containerEl.style.position = 'relative';
-    }
+    ensureSimplexContainerPositioned(this.containerEl);
   }
 
   private syncZoomOverlays(state: SimplexZoomState): void {
@@ -3151,42 +2847,26 @@ export class SimplexSvgController<
   private normalizeAutoFinalSeedLayout(
     option: boolean | FinalSeededLayoutScaleMode | undefined,
   ): FinalSeededLayoutScaleMode | false {
-    if (option === true) return 'pinned';
-    if (option === 'pinned' || option === 'adaptive') return option;
-    return false;
+    return normalizeTimelineLayoutScaleMode(option);
   }
 
   private resolveEffectiveLayoutStrategy(
     baseStrategy: SimplexLayoutStrategy | undefined,
   ): SimplexLayoutStrategy | undefined {
-    if (!this.timelineController || !this.timelineAutoFinalSeedLayout) {
-      return baseStrategy;
-    }
-    if (baseStrategy && baseStrategy.name.startsWith('final-seeded(')) {
-      return baseStrategy;
-    }
-    return createFinalSeededLayoutStrategy(baseStrategy, {
-      scaleMode: this.timelineAutoFinalSeedLayout,
-    });
+    if (!this.timelineController) return baseStrategy;
+    return wrapLayoutStrategyForTimeline(baseStrategy, this.timelineAutoFinalSeedLayout);
   }
 
   private resolveEffectiveClusteringStrategy(
     baseStrategy: SimplexClusteringStrategy<TItem, TTagMeta> | undefined,
     seedItems: readonly TItem[],
   ): SimplexClusteringStrategy<TItem, TTagMeta> | undefined {
-    if (
-      !this.timelineController ||
-      !this.timelineAutoFinalSeed ||
-      seedItems.length === 0
-    ) {
-      return baseStrategy;
-    }
-    if (baseStrategy && baseStrategy.name.startsWith('final-seeded(')) {
-      return baseStrategy;
-    }
-    return createFinalSeededClusteringStrategy<TItem, TTagMeta>(baseStrategy, {
+    if (!this.timelineController) return baseStrategy;
+    return wrapClusteringStrategyForTimeline<TItem, TTagMeta>(
+      baseStrategy,
       seedItems,
-    });
+      this.timelineAutoFinalSeed,
+    );
   }
 
   private syncFinalSeededClusteringForCorpus(seedItems: readonly TItem[]): void {
@@ -3212,9 +2892,7 @@ export class SimplexSvgController<
     if (state) {
       this.timelineOnStateChange?.(state);
     }
-    for (const listener of this.timelineStateListeners) {
-      listener(state);
-    }
+    this.timelineNotifier.notify(state);
   }
 
   private detachTimelineController(): void {
@@ -3589,43 +3267,13 @@ export class SimplexSvgController<
     }
   }
 
-  private ensureSrAnnouncerElement(): HTMLDivElement {
-    if (this.srAnnouncerEl) return this.srAnnouncerEl;
-    const doc = this.containerEl.ownerDocument;
-    const el = doc.createElement('div');
-    el.className = 'sv-sr-announcer';
-    el.setAttribute('role', 'status');
-    el.setAttribute('aria-live', 'polite');
-    el.setAttribute('aria-atomic', 'true');
-    el.style.position = 'absolute';
-    el.style.width = '1px';
-    el.style.height = '1px';
-    el.style.padding = '0';
-    el.style.margin = '-1px';
-    el.style.overflow = 'hidden';
-    el.style.clip = 'rect(0, 0, 0, 0)';
-    el.style.clipPath = 'inset(50%)';
-    el.style.whiteSpace = 'nowrap';
-    el.style.border = '0';
-    el.style.pointerEvents = 'none';
-    this.containerEl.appendChild(el);
-    this.srAnnouncerEl = el;
-    return el;
-  }
-
   private announce(message: string): void {
     if (this.destroyed || !message) return;
-    const el = this.ensureSrAnnouncerElement();
-    if (el.textContent === message) {
-      el.textContent = '';
-    }
-    el.textContent = message;
+    this.srAnnouncer.announce(message);
   }
 
   private computeZoomAnnouncementSig(state: SimplexZoomState): string {
-    return `${state.mode}:${state.depth}:${state.activeFrameKind}:${state.breadcrumbs
-      .map((b) => b.label)
-      .join('>')}`;
+    return computeSimplexZoomAnnouncementSignature(state);
   }
 
   private formatTargetAriaLabel(
@@ -3637,66 +3285,10 @@ export class SimplexSvgController<
       TClusterMeta
     >,
   ): string {
-    if (target.kind === 'cluster') {
-      const c = target.cluster;
-      const name = c.subclusterLabel || c.defaultLabel;
-      const count = c.members.length;
-      const zState = this.engine.getZoomState();
-      const actionHint =
-        zState.mode === 'drill-down'
-          ? zState.activeFrameKind === 'cluster-star' &&
-            c.clusterIndex === 0 &&
-            zState.canDrillUp
-            ? ', press Enter to zoom out'
-            : target.isDrillable
-              ? ', press Enter to zoom in'
-              : ''
-          : target.isFocused
-            ? ', focused'
-            : '';
-      return `Topic cluster: ${name}, ${count} ${count === 1 ? 'item' : 'items'}${actionHint}`;
-    }
-
-    if (target.kind === 'triangle') {
-      const tr = target.triangle;
-      const corners = tr.clusters
-        .map((c, idx) => (c ? c.defaultLabel : `Vertex ${tr.vertexIndices[idx] ?? idx}`))
-        .join(', ');
-      const count = tr.coveredItemCount;
-      const actionHint = target.isDrillable
-        ? ', press Enter to zoom in'
-        : target.isFocusable
-          ? ', press Enter to focus'
-          : target.isFocused
-            ? ', focused'
-            : '';
-      return `Region: ${corners}, ${count} ${count === 1 ? 'item' : 'items'}${actionHint}`;
-    }
-
-    const title = extractDefaultItemLabel(
-      target.item,
-      target.layoutContext.id,
-      this.getLabelExtractor,
-    );
-    const tagSummary =
-      target.layoutContext.tags.length > 0
-        ? target.layoutContext.tags
-            .slice(0, 3)
-            .map((t) => {
-              if (t.label) return t.label;
-              if (this.formatTagLabelFn) {
-                const formatted = this.formatTagLabelFn(t.tag).trim();
-                if (formatted.length > 0) return formatted;
-              }
-              return t.tag;
-            })
-            .join(', ')
-        : target.layoutContext.unitClusters
-            .slice(0, 3)
-            .map((uc) => uc.cluster.defaultLabel)
-            .join(', ');
-    const filterNote = target.isFilteredDimmed ? ', dimmed by filter' : '';
-    return `Item: ${title}${tagSummary ? `, ${tagSummary}` : ''}${filterNote}`;
+    return formatSimplexInteractiveTargetAriaLabel(target, this.engine.getZoomState(), {
+      getLabel: this.getLabelExtractor,
+      formatTagLabel: this.formatTagLabelFn,
+    });
   }
 
   private buildAriaMetadataResolver(): SvgAriaMetadataResolver<
@@ -3816,14 +3408,7 @@ export class SimplexSvgController<
       TClusterMeta
     >,
   ): boolean {
-    if (!a || a.kind !== b.kind) return false;
-    if (a.kind === 'triangle' && b.kind === 'triangle') {
-      return a.index === b.index;
-    }
-    if (a.kind !== 'triangle' && b.kind !== 'triangle') {
-      return a.id === b.id;
-    }
-    return false;
+    return isSameSimplexKeyboardTarget(a, b);
   }
 
   private toKeyboardTargetRef(
@@ -3835,10 +3420,7 @@ export class SimplexSvgController<
       TClusterMeta
     >,
   ): SimplexKeyboardFocusTarget {
-    if (target.kind === 'triangle') {
-      return { kind: 'triangle', index: target.index };
-    }
-    return { kind: target.kind, id: target.id };
+    return toSimplexKeyboardFocusTargetRef(target);
   }
 
   private applyKeyboardFocus(
@@ -3893,12 +3475,12 @@ export class SimplexSvgController<
     const currentIdx = targets.findIndex((t) =>
       this.targetMatches(this.keyboardFocusTarget, t),
     );
-    const nextIdx =
-      currentIdx === -1
-        ? delta > 0
-          ? 0
-          : targets.length - 1
-        : (currentIdx + delta + targets.length) % targets.length;
+    const nextIdx = resolveNextSimplexKeyboardFocusIndex(
+      targets.length,
+      currentIdx,
+      delta > 0 ? 'ArrowRight' : 'ArrowLeft',
+    );
+    if (nextIdx === null) return;
     this.applyKeyboardFocus(targets[nextIdx]!, nextIdx, targets.length, true);
   }
 
@@ -3912,21 +3494,6 @@ export class SimplexSvgController<
     this.lastAnnouncedZoomSig = sig;
 
     const targets = this.engine.getInteractiveTargets();
-    const clusterCount = targets.filter((t) => t.kind === 'cluster').length;
-    const itemCount = targets.filter((t) => t.kind === 'item').length;
-    const triangleCount = targets.filter((t) => t.kind === 'triangle').length;
-    const pathText = state.breadcrumbs.map((b) => b.label).join(' › ');
-    const countsParts: string[] = [];
-    if (clusterCount > 0) {
-      countsParts.push(`${clusterCount} ${clusterCount === 1 ? 'cluster' : 'clusters'}`);
-    }
-    if (triangleCount > 0) {
-      countsParts.push(`${triangleCount} ${triangleCount === 1 ? 'region' : 'regions'}`);
-    }
-    if (itemCount > 0) {
-      countsParts.push(`${itemCount} ${itemCount === 1 ? 'item' : 'items'}`);
-    }
-    const countsText = countsParts.join(', ');
 
     if (this.keyboardFocusTarget !== null) {
       const stillValidIdx = targets.findIndex((t) =>
@@ -3941,15 +3508,7 @@ export class SimplexSvgController<
       }
     }
 
-    if (state.depth === 0) {
-      this.announce(
-        `Zoom level 0: ${pathText || 'Overview'}${countsText ? `. ${countsText}` : ''}.`,
-      );
-    } else {
-      this.announce(
-        `Zoom level ${state.depth}: ${pathText}${countsText ? `. ${countsText}` : ''}. Press Escape to zoom out.`,
-      );
-    }
+    this.announce(formatSimplexZoomLevelAnnouncement(state, targets));
   }
 
   /** Updates the `aria-label` on the root `<svg>` element at runtime. */
@@ -4395,48 +3954,7 @@ export class SimplexSvgController<
       return;
     }
     this.engine.handlePointerMove(x, y);
-    const hit = this.engine.hitTest(x, y);
-    if (zoomMode === 'drill-down') {
-      const zState = this.engine.getZoomState();
-      if (hit.kind === 'triangle') {
-        if (hit.triangle.neighborId) {
-          this.svgEl.style.cursor = 'pointer';
-        } else if (
-          zState.activeFrameKind === 'triangle-focus' &&
-          zState.canDrillUp
-        ) {
-          this.svgEl.style.cursor = 'zoom-out';
-        } else {
-          this.svgEl.style.cursor =
-            zState.drillableTriangleIndices.includes(hit.triangle.index) ||
-            zState.focusableTriangleIndices.includes(hit.triangle.index)
-              ? 'zoom-in'
-              : 'default';
-        }
-      } else if (hit.kind === 'cluster') {
-        if (hit.neighborId) {
-          this.svgEl.style.cursor = 'pointer';
-        } else if (
-          zState.activeFrameKind === 'cluster-star' &&
-          hit.cluster.clusterIndex === 0 &&
-          zState.canDrillUp
-        ) {
-          this.svgEl.style.cursor = 'zoom-out';
-        } else {
-          this.svgEl.style.cursor = zState.drillableClusterUids.includes(
-            hit.cluster.clusterUid,
-          )
-            ? 'zoom-in'
-            : 'default';
-        }
-      } else if (hit.kind === 'content') {
-        this.svgEl.style.cursor = 'pointer';
-      } else {
-        this.svgEl.style.cursor = zState.canDrillUp ? 'zoom-out' : 'default';
-      }
-    } else {
-      this.svgEl.style.cursor = hit.kind === 'background' ? 'grab' : 'pointer';
-    }
+    this.svgEl.style.cursor = resolveSimplexCursorForPoint(this.engine, x, y);
     this.ensureLoopRunning();
   };
 
@@ -4594,16 +4112,10 @@ export class SimplexSvgController<
     // Support discrete trackpad pinch-in / pinch-out when in drill-down mode
     if (this.engine.getZoomStrategy().mode === 'drill-down' && e.ctrlKey) {
       e.preventDefault();
-      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-      if (now < this.wheelPinchCooldownUntil) return;
-      this.wheelPinchAccum += e.deltaY;
-      if (this.wheelPinchAccum <= -22) {
-        this.wheelPinchAccum = 0;
-        this.wheelPinchCooldownUntil = now + 360;
+      const action = stepSimplexDrillDownWheelPinch(this.wheelPinchState, e.deltaY);
+      if (action === 'drill-in') {
         this.triggerPinchDrillIn(x, y);
-      } else if (this.wheelPinchAccum >= 22) {
-        this.wheelPinchAccum = 0;
-        this.wheelPinchCooldownUntil = now + 360;
+      } else if (action === 'drill-up') {
         this.drillUp();
       }
       return;
@@ -4696,24 +4208,16 @@ export class SimplexSvgController<
     return this.getIdExtractor(item);
   }
 
-  private clearDeferFallbackTimer(): void {
-    if (this.deferFallbackTimer !== null) {
-      clearTimeout(this.deferFallbackTimer);
-      this.deferFallbackTimer = null;
-    }
-  }
-
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
-    this.clearDeferFallbackTimer();
     if (this.rafId !== null && typeof cancelAnimationFrame !== 'undefined') {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
     this.detachTimelineController();
-    this.timelineStateListeners.clear();
-    this.resizeObserver?.disconnect();
+    this.timelineNotifier.clear();
+    this.resizeObserverHandle?.disconnect();
     this.fontLoadCleanup?.();
     this.fontLoadCleanup = null;
     this.detachReducedMotionMediaSubscription();
@@ -4731,10 +4235,7 @@ export class SimplexSvgController<
       this.containerEl.removeChild(this.breadcrumbOverlayEl);
       this.breadcrumbOverlayEl = null;
     }
-    if (this.srAnnouncerEl && this.srAnnouncerEl.parentElement === this.containerEl) {
-      this.containerEl.removeChild(this.srAnnouncerEl);
-      this.srAnnouncerEl = null;
-    }
+    this.srAnnouncer.destroy();
     if (this.timelineOverlayEl && this.timelineOverlayEl.parentElement === this.containerEl) {
       this.containerEl.removeChild(this.timelineOverlayEl);
       this.timelineOverlayEl = null;

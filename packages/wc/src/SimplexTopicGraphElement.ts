@@ -1,41 +1,44 @@
-import type {
-  CameraController,
-  ClusterDerivationContext,
-  ClusterDescriptor,
-  ClusterHoverEvent,
-  ContentHoverEvent,
-  DefaultTaggedItem,
-  EmptyClusterBehavior,
-  FocusItemOptions,
-  HitTarget,
-  InteractionHandlers,
-  ItemFilterMode,
-  ItemFilterOptions,
-  ItemFilterPredicate,
-  ItemFilterState,
-  LayoutMetrics,
-  LayoutSolverOptions,
-  MeshOptions,
-  NormalizedPointerEvent,
-  ReducedMotionPreference,
-  RestoreViewStateOptions,
-  SelectInRectOptions,
-  SimplexClusteringStrategy,
-  SimplexColorStrategy,
-  SimplexKeyboardFocusTarget,
-  SimplexLayoutStrategy,
-  SimplexLegendModel,
-  SimplexLegendModelOptions,
-  SimplexMeshStrategy,
-  SimplexTimelineController,
-  SimplexTimelineState,
-  SimplexViewState,
-  SimplexZoomState,
-  SimplexZoomStrategy,
-  TriangleHoverEvent,
-  VisualResolver,
-  ZoomToItemOptions,
+import {
+  createSimplexTimelineNotifier,
+  type CameraController,
+  type ClusterDerivationContext,
+  type ClusterDescriptor,
+  type ClusterHoverEvent,
+  type ContentHoverEvent,
+  type DefaultTaggedItem,
+  type EmptyClusterBehavior,
+  type FocusItemOptions,
+  type HitTarget,
+  type InteractionHandlers,
+  type ItemFilterMode,
+  type ItemFilterOptions,
+  type ItemFilterPredicate,
+  type ItemFilterState,
+  type LayoutMetrics,
+  type LayoutSolverOptions,
+  type MeshOptions,
+  type NormalizedPointerEvent,
+  type ReducedMotionPreference,
+  type RestoreViewStateOptions,
+  type SelectInRectOptions,
+  type SimplexClusteringStrategy,
+  type SimplexColorStrategy,
+  type SimplexKeyboardFocusTarget,
+  type SimplexLayoutStrategy,
+  type SimplexLegendModel,
+  type SimplexLegendModelOptions,
+  type SimplexMeshStrategy,
+  type SimplexTimelineController,
+  type SimplexTimelineNotifier,
+  type SimplexTimelineState,
+  type SimplexViewState,
+  type SimplexZoomState,
+  type SimplexZoomStrategy,
+  type TriangleHoverEvent,
+  type VisualResolver,
+  type ZoomToItemOptions,
 } from '@simplex-viz/core';
+import { zoomSimplexViewportByFactor } from '@simplex-viz/core/dom';
 import {
   SimplexSvgController,
   type DefaultClusterPresetVisual,
@@ -358,9 +361,8 @@ export class SimplexTopicGraphElement<
   > | null = null;
   private _stageEl: HTMLDivElement | null = null;
   private _timelineUnsubscribe: (() => void) | null = null;
-  private readonly _externalTimelineListeners = new Set<
-    (state: SimplexTimelineState<TItem> | null) => void
-  >();
+  private readonly _timelineNotifier: SimplexTimelineNotifier<TItem> =
+    createSimplexTimelineNotifier<TItem>();
   private _lastHoverWasActive = false;
 
   // Backed state (works pre-connect, pre-upgrade, and across reconnects)
@@ -1232,11 +1234,7 @@ export class SimplexTopicGraphElement<
   zoomBy(factor: number): void {
     const ctrl = this._controller;
     if (!ctrl) return;
-    const svg = ctrl.getSvgElement();
-    const rect = svg.getBoundingClientRect();
-    const width = rect.width > 0 ? rect.width : svg.clientWidth || 960;
-    const height = rect.height > 0 ? rect.height : svg.clientHeight || 620;
-    ctrl.camera.zoomToCursor(width / 2, height / 2, factor);
+    zoomSimplexViewportByFactor(ctrl.getSvgElement(), ctrl.camera, factor, 960, 620);
   }
 
   getKeyboardFocusTarget(): SimplexKeyboardFocusTarget | null {
@@ -1317,11 +1315,10 @@ export class SimplexTopicGraphElement<
   subscribeTimeline(
     listener: (state: SimplexTimelineState<TItem> | null) => void,
   ): () => void {
-    this._externalTimelineListeners.add(listener);
-    listener(this._controller?.getTimeline()?.getState() ?? null);
-    return () => {
-      this._externalTimelineListeners.delete(listener);
-    };
+    return this._timelineNotifier.subscribe(
+      listener,
+      this._controller?.getTimeline()?.getState() ?? null,
+    );
   }
 
   /** Deterministic frame stepping helper for unit tests and headless animations. */
@@ -1679,9 +1676,7 @@ export class SimplexTopicGraphElement<
       }
       // Avoid duplicate synchronous callback when no timeline is active on initial mount
       if (!isFirst || state !== null) {
-        for (const listener of this._externalTimelineListeners) {
-          listener(state);
-        }
+        this._timelineNotifier.notify(state);
       }
       isFirst = false;
     });

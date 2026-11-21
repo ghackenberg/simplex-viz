@@ -85,7 +85,22 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
         );
 
         const reproSource = [
-          'import { solveSimplexSnapshot, type SimplexLayoutSnapshot } from "@simplex-viz/core";',
+          'import { solveSimplexSnapshot, createSimplexTimelineNotifier, type SimplexLayoutSnapshot } from "@simplex-viz/core";',
+          'import {',
+          '  resolveSimplexContainer,',
+          '  measureSimplexContainer,',
+          '  computeSimplexTooltipCoords,',
+          '  positionSimplexTooltipElement,',
+          '  buildSimplexTooltipContentModel,',
+          '  formatSimplexTooltipText,',
+          '  resolveSimplexCursorForPoint,',
+          '  stepSimplexDrillDownWheelPinch,',
+          '  dispatchSimplexDefaultLeftClick,',
+          '  zoomSimplexViewportByFactor,',
+          '  type SimplexDomElementLike,',
+          '  type SimplexTooltipContentModel,',
+          '  type SimplexWheelPinchState,',
+          '} from "@simplex-viz/core/dom";',
           'import {',
           '  SIMPLEX_WORKER_PROTOCOL_VERSION,',
           '  attachSimplexWorkerHandler,',
@@ -119,6 +134,7 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
           '',
           'const items = [{ id: "a", tags: ["geometry", "math"] }] as const;',
           'const coreSnap = solveSimplexSnapshot(items);',
+          'const timelineNotifier = createSimplexTimelineNotifier<(typeof items)[number]>();',
           'const workerClient: SimplexWorkerClient = createSimplexWorkerClient(null);',
           'const asyncSnapPromise = solveSimplexSnapshotAsync(items, { client: workerClient });',
           'const svgSnap = svgSolveSnapshot(items);',
@@ -126,8 +142,15 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
           'const reactSnap = reactSolveSnapshot(items);',
           'const wcSnap = wcSolveSnapshot(items);',
           'const ssrSvg = renderSimplexSvgString(items, { preset: "badges" });',
+          'const wheelPinchState: SimplexWheelPinchState = { accum: 0, cooldownUntil: 0 };',
+          'const pinchStep = stepSimplexDrillDownWheelPinch(wheelPinchState, -30, 100);',
+          'const tipCoords = computeSimplexTooltipCoords({ containerWidth: 800, containerHeight: 600, tipWidth: 160, tipHeight: 40, screenX: 100, screenY: 120 });',
           '',
+          'export type CheckDomElementLike = SimplexDomElementLike;',
+          'export type CheckTooltipContentModel = SimplexTooltipContentModel;',
           'export type CheckCoreNotAny = AssertFalse<IsAny<typeof coreSnap>>;',
+          'export type CheckDomPinchNotAny = AssertFalse<IsAny<typeof pinchStep>>;',
+          'export type CheckDomTipCoordsNotAny = AssertFalse<IsAny<typeof tipCoords>>;',
           'export type CheckWorkerPromiseNotAny = AssertFalse<IsAny<typeof asyncSnapPromise>>;',
           'export type CheckSvgReExportNotAny = AssertFalse<IsAny<typeof svgSnap>>;',
           'export type CheckCanvasReExportNotAny = AssertFalse<IsAny<typeof canvasSnap>>;',
@@ -135,7 +158,7 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
           'export type CheckWcReExportNotAny = AssertFalse<IsAny<typeof wcSnap>>;',
           'export type CheckSsrReturnString = AssertFalse<IsAny<typeof ssrSvg>>;',
           'export const checkSnapshotAssignable: SimplexLayoutSnapshot<(typeof items)[number]> = reactSnap;',
-          'export const exportedSymbols = [SIMPLEX_WORKER_PROTOCOL_VERSION, attachSimplexWorkerHandler, createSimplexWorkerClient, solveSimplexSnapshotAsync, createSimplexSvg, createSimplexCanvas, CanvasRendererAdapter, renderSimplexSnapshotToCanvas, renderSimplexSvgString, estimateSsrTextWidth, SimplexTopicGraph, ReactJsxSvgView, useSimplexGraphController, SimplexTopicGraphElement, defineSimplexTopicGraphElement, DEFAULT_SIMPLEX_TAG_NAME] as const;',
+          'export const exportedSymbols = [SIMPLEX_WORKER_PROTOCOL_VERSION, attachSimplexWorkerHandler, createSimplexWorkerClient, solveSimplexSnapshotAsync, timelineNotifier, resolveSimplexContainer, measureSimplexContainer, computeSimplexTooltipCoords, positionSimplexTooltipElement, buildSimplexTooltipContentModel, formatSimplexTooltipText, resolveSimplexCursorForPoint, stepSimplexDrillDownWheelPinch, dispatchSimplexDefaultLeftClick, zoomSimplexViewportByFactor, createSimplexSvg, createSimplexCanvas, CanvasRendererAdapter, renderSimplexSnapshotToCanvas, renderSimplexSvgString, estimateSsrTextWidth, SimplexTopicGraph, ReactJsxSvgView, useSimplexGraphController, SimplexTopicGraphElement, defineSimplexTopicGraphElement, DEFAULT_SIMPLEX_TAG_NAME] as const;',
           '',
         ].join('\n');
         fs.writeFileSync(path.join(tmpDir, 'repro.mts'), reproSource);
@@ -164,6 +187,10 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
           path.join(REPO_ROOT, 'packages/core/dist/index.d.ts'),
           'utf8',
         );
+        const coreDomDts = fs.readFileSync(
+          path.join(REPO_ROOT, 'packages/core/dist/dom.d.ts'),
+          'utf8',
+        );
         const svgDts = fs.readFileSync(
           path.join(REPO_ROOT, 'packages/svg/dist/index.d.ts'),
           'utf8',
@@ -181,6 +208,7 @@ describe('ESM Node16 / NodeNext .d.ts package resolution (GitHub Issue #2)', () 
           'utf8',
         );
         expect(coreDts).toContain('./types.js');
+        expect(coreDomDts).toContain('computeSimplexTooltipCoords');
         expect(svgDts).toContain('./SimplexSvgController.js');
         expect(canvasDts).toContain('./SimplexCanvasController.js');
         expect(reactDts).toContain('./SimplexTopicGraph.js');

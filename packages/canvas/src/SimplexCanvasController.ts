@@ -1,10 +1,11 @@
 import {
   SimplexGraphEngine,
   SimplexTimelineController,
-  createFinalSeededClusteringStrategy,
-  createFinalSeededLayoutStrategy,
   createSimplexTimeline,
-  isPointInTriangle,
+  createSimplexTimelineNotifier,
+  normalizeTimelineLayoutScaleMode,
+  wrapClusteringStrategyForTimeline,
+  wrapLayoutStrategyForTimeline,
   type CameraController,
   type ClusterDerivationContext,
   type ClusterDescriptor,
@@ -21,7 +22,6 @@ import {
   type LayoutMetrics,
   type LayoutSolverOptions,
   type MeshOptions,
-  type NormalizedPointerEvent,
   type NormalizedWheelEvent,
   type ReducedMotionPreference,
   type RestoreViewStateOptions,
@@ -29,12 +29,12 @@ import {
   type SimplexClusteringStrategy,
   type SimplexColorStrategy,
   type SimplexInteractiveTarget,
-  type SimplexKeyboardFocusTarget,
   type SimplexLayoutStrategy,
   type SimplexLegendModel,
   type SimplexLegendModelOptions,
   type SimplexMeshStrategy,
   type SimplexTimelineListener,
+  type SimplexTimelineNotifier,
   type SimplexTimelineOptions,
   type SimplexTimelineState,
   type SimplexViewState,
@@ -45,11 +45,35 @@ import {
   type ZoomToItemOptions,
 } from '@simplex-viz/core';
 import {
+  applySimplexPinchDrillTarget,
+  applySimplexTooltipTheme,
+  buildSimplexTooltipContentModel,
+  createSimplexSrAnnouncer,
+  dispatchSimplexDefaultLeftClick,
+  formatSimplexInteractiveTargetAriaLabel,
+  isSimplexHoverEventConsumed,
+  measureSimplexContainer,
+  normalizeSimplexMarqueeRect,
+  observeSimplexContainerResize,
+  positionSimplexTooltipElement,
+  resolveNextSimplexKeyboardFocusIndex,
+  resolveSimplexContainer,
+  resolveSimplexCursorForPoint,
+  resolveSimplexPinchDrillTarget,
+  resolveSimplexReducedMotion,
+  stepSimplexDrillDownWheelPinch,
+  subscribeSimplexReducedMotionMedia,
+  toSimplexKeyboardFocusTargetRef,
+  toSimplexNormalizedPointerEvent,
+  type SimplexResizeObserverHandle,
+  type SimplexSrAnnouncerHandle,
+  type SimplexWheelPinchState,
+} from '@simplex-viz/core/dom';
+import {
   CanvasRendererAdapter,
 } from './CanvasRendererAdapter.js';
 import {
   createCanvasPresetVisualResolver,
-  extractCanvasItemLabel,
 } from './presets.js';
 import type {
   CanvasBadgeOptions,
@@ -215,40 +239,6 @@ export type SimplexCanvasUpdateOptions<
   readonly items?: readonly TItem[];
 };
 
-function resolveContainer(container: HTMLElement | string): HTMLElement {
-  if (typeof container === 'string') {
-    if (typeof document === 'undefined') {
-      throw new Error('createSimplexCanvas(): cannot query CSS selector outside a DOM environment.');
-    }
-    const el = document.querySelector<HTMLElement>(container);
-    if (!el) {
-      throw new Error(`createSimplexCanvas(): container "${container}" not found.`);
-    }
-    return el;
-  }
-  return container;
-}
-
-function readContainerSize(
-  container: HTMLElement,
-  fallbackW?: number,
-  fallbackH?: number,
-): { readonly width: number; readonly height: number; readonly isZero: boolean } {
-  const rect =
-    typeof container.getBoundingClientRect === 'function'
-      ? container.getBoundingClientRect()
-      : { width: 0, height: 0 };
-  const measuredW = rect.width || container.clientWidth || 0;
-  const measuredH = rect.height || container.clientHeight || 0;
-  if (measuredW > 0 && measuredH > 0) {
-    return { width: measuredW, height: measuredH, isZero: false };
-  }
-  return {
-    width: Math.max(160, fallbackW ?? 960),
-    height: Math.max(160, fallbackH ?? 600),
-    isZero: measuredW <= 0 || measuredH <= 0,
-  };
-}
 
 /**
  * Interactive, framework-agnostic HTML5 Canvas 2D controller for `@simplex-viz/core`.
@@ -268,7 +258,7 @@ export class SimplexCanvasController<
   private readonly container: HTMLElement;
   private readonly rootEl: HTMLDivElement;
   private readonly canvas: HTMLCanvasElement;
-  private readonly announcerEl: HTMLDivElement;
+  private readonly srAnnouncer: SimplexSrAnnouncerHandle;
   private readonly tooltipEl: HTMLDivElement;
   private readonly adapter: CanvasRendererAdapter<
     TContentVisual,
@@ -325,7 +315,8 @@ export class SimplexCanvasController<
   private timelineController: SimplexTimelineController<TItem> | null = null;
   private timelineConfig: CanvasTimelineConfig<TItem> | null = null;
   private timelineUnsubscribe: (() => void) | null = null;
-  private readonly timelineListeners = new Set<SimplexTimelineListener<TItem>>();
+  private readonly timelineNotifier: SimplexTimelineNotifier<TItem> =
+    createSimplexTimelineNotifier<TItem>();
 
   private rafId: number | null = null;
   private lastRafTime = 0;
@@ -334,11 +325,9 @@ export class SimplexCanvasController<
   private deferredPending = false;
   private focusedClusterUidState: string | null = null;
   private focusedTriangleIndexState: number | null = null;
-  private wheelPinchAccum = 0;
-  private wheelPinchCooldownUntil = 0;
-  private resizeObserver: ResizeObserver | null = null;
-  private reducedMotionMql: MediaQueryList | null = null;
-  private reducedMotionListener: (() => void) | null = null;
+  private wheelPinchState: SimplexWheelPinchState = { accum: 0, cooldownUntil: 0 };
+  private resizeObserverHandle: SimplexResizeObserverHandle | null = null;
+  private cleanupReducedMotionMedia: (() => void) | null = null;
   private cleanupDomListeners: (() => void) | null = null;
 
   constructor(
@@ -351,7 +340,7 @@ export class SimplexCanvasController<
       TClusterMeta
     >,
   ) {
-    this.container = resolveContainer(container);
+    this.container = resolveSimplexContainer(container, 'createSimplexCanvas()');
     this.preset = options.preset ?? 'badges';
     this.theme = options.theme ?? 'dark';
     this.getLabel = options.getLabel;
@@ -392,18 +381,6 @@ export class SimplexCanvasController<
       options.ariaLabel ?? 'Interactive SimplexViz topic graph canvas',
     );
 
-    this.announcerEl = doc.createElement('div');
-    this.announcerEl.className = 'sv-sr-announcer';
-    this.announcerEl.setAttribute('role', 'status');
-    this.announcerEl.setAttribute('aria-live', 'polite');
-    this.announcerEl.setAttribute('aria-atomic', 'true');
-    this.announcerEl.style.position = 'absolute';
-    this.announcerEl.style.width = '1px';
-    this.announcerEl.style.height = '1px';
-    this.announcerEl.style.overflow = 'hidden';
-    this.announcerEl.style.clipPath = 'inset(50%)';
-    this.announcerEl.style.whiteSpace = 'nowrap';
-
     this.tooltipEl = doc.createElement('div');
     this.tooltipEl.className = 'sv-canvas-tooltip';
     this.tooltipEl.style.position = 'absolute';
@@ -417,16 +394,20 @@ export class SimplexCanvasController<
       '"Plus Jakarta Sans", system-ui, -apple-system, sans-serif';
     this.tooltipEl.style.lineHeight = '1.35';
     this.tooltipEl.style.maxWidth = '240px';
-    this.tooltipEl.style.boxShadow = '0 8px 24px rgba(0,0,0,0.32)';
     this.applyTooltipTheme();
 
     this.rootEl.appendChild(this.canvas);
     this.rootEl.appendChild(this.tooltipEl);
-    this.rootEl.appendChild(this.announcerEl);
+    this.srAnnouncer = createSimplexSrAnnouncer(this.rootEl, doc);
     this.container.appendChild(this.rootEl);
 
-    const measured = readContainerSize(this.container, options.width, options.height);
-    this.deferredPending = Boolean(options.deferInitialLayout && measured.isZero);
+    const measured = measureSimplexContainer(
+      this.container,
+      options.width ?? 960,
+      options.height ?? 600,
+      0,
+    );
+    this.deferredPending = Boolean(options.deferInitialLayout && !measured.hasValidSize);
 
     this.adapter = new CanvasRendererAdapter<
       TContentVisual,
@@ -469,17 +450,15 @@ export class SimplexCanvasController<
       const tl = createSimplexTimeline<TItem>(this.fullItems, options.timeline);
       this.timelineController = tl;
       initialItems = tl.getActiveItems();
-      if (options.timeline.autoFinalSeed !== false) {
-        initialClustering = createFinalSeededClusteringStrategy<TItem, TTagMeta>(
-          initialClustering,
-          { seedItems: this.fullItems },
-        );
-      }
-      if (options.timeline.autoFinalSeedLayout) {
-        initialLayout = createFinalSeededLayoutStrategy(initialLayout, {
-          scaleMode: options.timeline.autoFinalSeedLayout,
-        });
-      }
+      initialClustering = wrapClusteringStrategyForTimeline<TItem, TTagMeta>(
+        initialClustering,
+        this.fullItems,
+        options.timeline.autoFinalSeed !== false,
+      );
+      initialLayout = wrapLayoutStrategyForTimeline(
+        initialLayout,
+        normalizeTimelineLayoutScaleMode(options.timeline.autoFinalSeedLayout),
+      );
       if (options.timeline.emptyClusterBehavior) {
         initialEmptyBehavior = options.timeline.emptyClusterBehavior;
       }
@@ -511,7 +490,10 @@ export class SimplexCanvasController<
       itemFilterMode: options.itemFilterMode,
       selectedIds: options.selectedIds,
       shiftClickSelects: options.shiftClickSelects,
-      reducedMotion: this.resolveReducedMotionValue(options.reducedMotion ?? 'auto'),
+      reducedMotion: resolveSimplexReducedMotion(
+        options.reducedMotion ?? 'auto',
+        this.container.ownerDocument,
+      ),
       deferInitialSolve: this.deferredPending,
       interactions: this.buildWrappedInteractions(),
       onMetricsChange: options.onMetricsChange,
@@ -573,15 +555,7 @@ export class SimplexCanvasController<
   }
 
   private applyTooltipTheme(): void {
-    if (this.theme === 'dark') {
-      this.tooltipEl.style.background = 'rgba(15, 23, 42, 0.94)';
-      this.tooltipEl.style.color = '#f8fafc';
-      this.tooltipEl.style.border = '1px solid rgba(148, 163, 184, 0.28)';
-    } else {
-      this.tooltipEl.style.background = 'rgba(255, 255, 255, 0.96)';
-      this.tooltipEl.style.color = '#0f172a';
-      this.tooltipEl.style.border = '1px solid rgba(15, 23, 42, 0.14)';
-    }
+    applySimplexTooltipTheme(this.tooltipEl, this.theme);
   }
 
   private showTooltip(text: string, screenX: number, screenY: number): void {
@@ -591,12 +565,11 @@ export class SimplexCanvasController<
     }
     this.tooltipEl.textContent = text;
     this.tooltipEl.style.display = 'block';
-    const w = this.rootEl.clientWidth || 960;
-    const h = this.rootEl.clientHeight || 600;
-    const left = Math.min(Math.max(8, screenX + 14), Math.max(8, w - 220));
-    const top = Math.min(Math.max(8, screenY - 34), Math.max(8, h - 44));
-    this.tooltipEl.style.left = `${Math.round(left)}px`;
-    this.tooltipEl.style.top = `${Math.round(top)}px`;
+    positionSimplexTooltipElement(this.rootEl, this.tooltipEl, screenX, screenY, {
+      offsetX: 14,
+      offsetY: 14,
+      margin: 8,
+    });
   }
 
   private hideTooltip(): void {
@@ -604,121 +577,27 @@ export class SimplexCanvasController<
   }
 
   private announce(message: string): void {
-    if (!message) return;
-    this.announcerEl.textContent = '';
-    this.announcerEl.textContent = message;
+    if (this.destroyed || !message) return;
+    this.srAnnouncer.announce(message);
   }
 
   private updateCursorForPoint(screenX: number, screenY: number): void {
-    const zoomMode = this.engine.getZoomStrategy().mode;
-    const hit = this.engine.hitTest(screenX, screenY);
-    if (zoomMode === 'drill-down') {
-      const zState = this.engine.getZoomState();
-      if (hit.kind === 'triangle') {
-        if (hit.triangle.neighborId) {
-          this.canvas.style.cursor = 'pointer';
-        } else if (
-          zState.activeFrameKind === 'triangle-focus' &&
-          zState.canDrillUp
-        ) {
-          this.canvas.style.cursor = 'zoom-out';
-        } else {
-          this.canvas.style.cursor =
-            zState.drillableTriangleIndices.includes(hit.triangle.index) ||
-            zState.focusableTriangleIndices.includes(hit.triangle.index)
-              ? 'zoom-in'
-              : 'default';
-        }
-      } else if (hit.kind === 'cluster') {
-        if (hit.neighborId) {
-          this.canvas.style.cursor = 'pointer';
-        } else if (
-          zState.activeFrameKind === 'cluster-star' &&
-          hit.cluster.clusterIndex === 0 &&
-          zState.canDrillUp
-        ) {
-          this.canvas.style.cursor = 'zoom-out';
-        } else {
-          this.canvas.style.cursor = zState.drillableClusterUids.includes(
-            hit.cluster.clusterUid,
-          )
-            ? 'zoom-in'
-            : 'default';
-        }
-      } else if (hit.kind === 'content') {
-        this.canvas.style.cursor = 'pointer';
-      } else {
-        this.canvas.style.cursor = zState.canDrillUp ? 'zoom-out' : 'default';
-      }
-    } else {
-      this.canvas.style.cursor = hit.kind === 'background' ? 'grab' : 'pointer';
-    }
+    this.canvas.style.cursor = resolveSimplexCursorForPoint(
+      this.engine,
+      screenX,
+      screenY,
+    );
   }
 
   private triggerPinchDrillIn(screenX: number, screenY: number): boolean {
-    const zState = this.engine.getZoomState();
-    const hit = this.engine.hitTest(screenX, screenY);
-    if (hit.kind === 'triangle') {
-      if (hit.triangle.neighborId) {
-        return this.drillToNeighbor(hit.triangle.neighborId);
-      }
-      if (!hit.triangle.isContext && zState.activeFrameKind !== 'triangle-focus') {
-        return this.drillDownTriangle(hit.triangle.index);
-      }
-      return false;
-    }
-    if (hit.kind === 'cluster') {
-      if (hit.neighborId) {
-        return this.drillToNeighbor(hit.neighborId);
-      }
-      return this.drillDownCluster(hit.cluster.clusterUid);
-    }
-    const candidateTriIndices =
-      zState.drillableTriangleIndices.length > 0
-        ? zState.drillableTriangleIndices
-        : zState.focusableTriangleIndices;
-    if (hit.kind === 'content') {
-      const mesh = this.engine.getMesh();
-      if (mesh) {
-        for (const triIdx of candidateTriIndices) {
-          const tri = mesh.triangles[triIdx];
-          if (!tri) continue;
-          const p0 = mesh.vertices[tri.vertices[0]]!;
-          const p1 = mesh.vertices[tri.vertices[1]]!;
-          const p2 = mesh.vertices[tri.vertices[2]]!;
-          if (isPointInTriangle(hit.worldPosition.x, hit.worldPosition.y, p0, p1, p2)) {
-            return this.drillDownTriangle(triIdx);
-          }
-        }
-      }
-      const primaryCluster = hit.layoutContext.unitClusters[0]?.cluster;
-      if (primaryCluster && zState.drillableClusterUids.includes(primaryCluster.clusterUid)) {
-        return this.drillDownCluster(primaryCluster.clusterUid);
-      }
-    }
-    if (candidateTriIndices.length > 0) {
-      const mesh = this.engine.getMesh();
-      if (mesh) {
-        let bestIdx = candidateTriIndices[0]!;
-        let bestDist = Infinity;
-        for (const triIdx of candidateTriIndices) {
-          const tri = mesh.triangles[triIdx];
-          if (!tri) continue;
-          const p0 = mesh.vertices[tri.vertices[0]]!;
-          const p1 = mesh.vertices[tri.vertices[1]]!;
-          const p2 = mesh.vertices[tri.vertices[2]]!;
-          const cx = (p0.x + p1.x + p2.x) / 3;
-          const cy = (p0.y + p1.y + p2.y) / 3;
-          const d = Math.hypot(cx - hit.worldPosition.x, cy - hit.worldPosition.y);
-          if (d < bestDist) {
-            bestDist = d;
-            bestIdx = triIdx;
-          }
-        }
-        return this.drillDownTriangle(bestIdx);
-      }
-    }
-    return false;
+    return applySimplexPinchDrillTarget(
+      resolveSimplexPinchDrillTarget(this.engine, screenX, screenY),
+      {
+        drillToNeighbor: (id) => this.drillToNeighbor(id),
+        drillDownTriangle: (idx) => this.drillDownTriangle(idx),
+        drillDownCluster: (uid) => this.drillDownCluster(uid),
+      },
+    );
   }
 
   private buildWrappedInteractions(): InteractionHandlers<
@@ -730,47 +609,56 @@ export class SimplexCanvasController<
   > {
     return {
       onContentHover: (ev) => {
-        const consumed = this.interactions.onContentHover?.(ev);
-        if (consumed === true || !this.tooltipOption) {
+        const consumed = isSimplexHoverEventConsumed(
+          this.interactions.onContentHover,
+          ev,
+        );
+        if (consumed || !this.tooltipOption || !ev) {
           if (!ev) this.hideTooltip();
-          return consumed;
-        }
-        if (!ev) {
-          this.hideTooltip();
           return consumed;
         }
         const text =
           typeof this.tooltipOption === 'object' && this.tooltipOption.formatContent
             ? this.tooltipOption.formatContent(ev)
-            : extractCanvasItemLabel(ev.item, ev.layoutContext.id, this.getLabel);
+            : buildSimplexTooltipContentModel(
+                { kind: 'content', ...ev },
+                { getLabel: this.getLabel },
+              ).title;
         this.showTooltip(text, ev.screenPosition.x, ev.screenPosition.y);
         return consumed;
       },
       onClusterHover: (ev) => {
-        const consumed = this.interactions.onClusterHover?.(ev);
-        if (consumed === true || !this.tooltipOption) {
+        const consumed = isSimplexHoverEventConsumed(
+          this.interactions.onClusterHover,
+          ev,
+        );
+        if (consumed || !this.tooltipOption || !ev) {
           if (!ev) this.hideTooltip();
           return consumed;
         }
-        if (!ev) {
-          this.hideTooltip();
-          return consumed;
+        let text: string;
+        if (typeof this.tooltipOption === 'object' && this.tooltipOption.formatCluster) {
+          text = this.tooltipOption.formatCluster(ev);
+        } else {
+          const model = buildSimplexTooltipContentModel(
+            { kind: 'cluster', ...ev },
+            { preferSubclusterLabel: true },
+          );
+          text =
+            model.kind === 'cluster'
+              ? `${model.label} (${ev.cluster.members.length})`
+              : '';
         }
-        const text =
-          typeof this.tooltipOption === 'object' && this.tooltipOption.formatCluster
-            ? this.tooltipOption.formatCluster(ev)
-            : `${ev.cluster.subclusterLabel ?? ev.cluster.defaultLabel} (${ev.cluster.members.length})`;
         this.showTooltip(text, ev.screenPosition.x, ev.screenPosition.y);
         return consumed;
       },
       onTriangleHover: (ev) => {
-        const consumed = this.interactions.onTriangleHover?.(ev);
-        if (consumed === true || !this.tooltipOption) {
+        const consumed = isSimplexHoverEventConsumed(
+          this.interactions.onTriangleHover,
+          ev,
+        );
+        if (consumed || !this.tooltipOption || !ev) {
           if (!ev) this.hideTooltip();
-          return consumed;
-        }
-        if (!ev) {
-          this.hideTooltip();
           return consumed;
         }
         if (typeof this.tooltipOption === 'object' && this.tooltipOption.formatTriangle) {
@@ -781,120 +669,46 @@ export class SimplexCanvasController<
         }
         return consumed;
       },
-      onLeftClick: (target, rawEvent) => {
-        if (target.kind === 'content' && !target.neighborId) {
-          if (this.interactions.onContentClick?.(target, rawEvent) === true) {
-            return true;
-          }
-        } else if (target.kind === 'cluster') {
-          if (this.interactions.onClusterClick?.(target, rawEvent) === true) {
-            return true;
-          }
-        } else if (target.kind === 'triangle') {
-          if (this.interactions.onTriangleClick?.(target, rawEvent) === true) {
-            return true;
-          }
-        } else if (target.kind === 'background') {
-          if (this.interactions.onBackgroundClick?.(rawEvent) === true) {
-            return true;
-          }
-        }
-        if (this.interactions.onLeftClick?.(target, rawEvent) === true) {
-          return true;
-        }
-
-        if (this.engine.getZoomStrategy().mode === 'drill-down') {
-          if (target.kind === 'triangle') {
-            if (target.triangle.neighborId) {
-              this.drillToNeighbor(target.triangle.neighborId);
-            } else if (!target.triangle.isContext) {
-              this.drillDownTriangle(target.triangle.index);
-            }
-          } else if (target.kind === 'cluster') {
-            if (target.neighborId) {
-              this.drillToNeighbor(target.neighborId);
-            } else {
-              this.drillDownCluster(target.cluster.clusterUid);
-            }
-          } else if (target.kind === 'content' && target.neighborId) {
-            this.drillToNeighbor(target.neighborId);
-          } else if (target.kind === 'background') {
-            if (this.engine.getZoomState().canDrillUp) {
-              this.drillUp();
-            } else if (!rawEvent.shiftKey && this.engine.getSelectedIds().size > 0) {
-              this.clearSelection();
-            }
-          }
-          return false;
-        }
-
-        // Free-camera mode: toggle focused cluster/triangle or clear focus/selection on background
-        if (target.kind === 'cluster') {
-          if (this.focusedTriangleIndexState !== null) {
-            this.setFocusedTriangleIndex(null);
-          }
-          const next =
-            this.focusedClusterUidState === target.cluster.clusterUid
-              ? null
-              : target.cluster.clusterUid;
-          this.setFocusedClusterUid(next);
-        } else if (target.kind === 'triangle') {
-          if (this.focusedClusterUidState !== null) {
-            this.setFocusedClusterUid(null);
-          }
-          const next =
-            this.focusedTriangleIndexState === target.triangle.index
-              ? null
-              : target.triangle.index;
-          this.setFocusedTriangleIndex(next);
-        } else if (target.kind === 'background') {
-          if (this.focusedClusterUidState !== null) {
-            this.setFocusedClusterUid(null);
-          }
-          if (this.focusedTriangleIndexState !== null) {
-            this.setFocusedTriangleIndex(null);
-          }
-          if (this.engine.getFocusedItemId() !== null) {
+      onLeftClick: (target, rawEvent) =>
+        dispatchSimplexDefaultLeftClick(target, rawEvent, {
+          userInteractions: this.interactions,
+          zoomMode: this.engine.getZoomStrategy().mode,
+          canDrillUp: this.engine.getZoomState().canDrillUp,
+          selectedCount: this.engine.getSelectedIds().size,
+          focusedItemId: this.engine.getFocusedItemId(),
+          focusedClusterUid: this.focusedClusterUidState,
+          focusedTriangleIndex: this.focusedTriangleIndexState,
+          drillToNeighbor: (id) => this.drillToNeighbor(id),
+          drillDownTriangle: (idx) => this.drillDownTriangle(idx),
+          drillDownCluster: (uid) => this.drillDownCluster(uid),
+          drillUp: () => this.drillUp(),
+          setFocusedClusterUid: (uid) => this.setFocusedClusterUid(uid),
+          setFocusedTriangleIndex: (idx) => this.setFocusedTriangleIndex(idx),
+          clearFocusedItem: () => {
             this.focusItem(null);
-          }
-          if (!rawEvent.shiftKey && this.engine.getSelectedIds().size > 0) {
-            this.clearSelection();
-          }
-        }
-        return false;
-      },
+          },
+          clearSelection: () => this.clearSelection(),
+        }),
       onRightClick: (target, raw) => this.interactions.onRightClick?.(target, raw),
       onWheel: this.interactions.onWheel ?? 'zoom-to-cursor',
     };
   }
 
-  private resolveReducedMotionValue(pref: ReducedMotionPreference): ReducedMotionPreference {
-    if (pref !== 'auto') return pref;
-    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-      return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    }
-    return false;
-  }
-
   private bindReducedMotionMediaQuery(pref: ReducedMotionPreference): void {
-    if (this.reducedMotionMql && this.reducedMotionListener) {
-      this.reducedMotionMql.removeEventListener?.('change', this.reducedMotionListener);
-      this.reducedMotionMql = null;
-      this.reducedMotionListener = null;
-    }
-    if (pref !== 'auto') return;
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-
-    const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const onChange = () => {
-      this.engine.setReducedMotion(mql.matches);
-      this.rootEl.dataset.reducedMotion = String(mql.matches);
-      this.scheduleFrame();
-    };
-    this.rootEl.dataset.reducedMotion = String(mql.matches);
-    mql.addEventListener?.('change', onChange);
-    this.reducedMotionMql = mql;
-    this.reducedMotionListener = onChange;
+    this.cleanupReducedMotionMedia?.();
+    this.cleanupReducedMotionMedia = null;
+    const initial = resolveSimplexReducedMotion(pref, this.container.ownerDocument);
+    this.rootEl.dataset.reducedMotion = String(initial);
+    this.cleanupReducedMotionMedia = subscribeSimplexReducedMotionMedia(
+      pref,
+      this.container.ownerDocument,
+      (matches) => {
+        if (this.destroyed) return;
+        this.engine.setReducedMotion(matches);
+        this.rootEl.dataset.reducedMotion = String(matches);
+        this.scheduleFrame();
+      },
+    );
   }
 
   private wireTimelineSubscription(config: CanvasTimelineConfig<TItem>): void {
@@ -912,9 +726,7 @@ export class SimplexCanvasController<
         this.scheduleFrame();
       }
       config.onStateChange?.(state);
-      for (const listener of this.timelineListeners) {
-        listener(state);
-      }
+      this.timelineNotifier.notify(state);
     });
   }
 
@@ -930,19 +742,13 @@ export class SimplexCanvasController<
     ev: PointerEvent | MouseEvent,
     localX: number,
     localY: number,
-  ): NormalizedPointerEvent {
-    const world = this.engine.camera.screenToWorld(localX, localY);
-    return {
-      screenX: localX,
-      screenY: localY,
-      worldX: world.x,
-      worldY: world.y,
-      button: ev.button,
-      shiftKey: ev.shiftKey,
-      ctrlKey: ev.ctrlKey,
-      altKey: ev.altKey,
-      metaKey: ev.metaKey,
-    };
+  ) {
+    return toSimplexNormalizedPointerEvent(
+      ev,
+      localX,
+      localY,
+      (x, y) => this.engine.camera.screenToWorld(x, y),
+    );
   }
 
   private bindDomEvents(): void {
@@ -1038,12 +844,12 @@ export class SimplexCanvasController<
             this.hideTooltip();
             this.canvas.style.cursor = 'crosshair';
           }
-          const rect: CanvasMarqueeRect = {
-            x: Math.min(startX, local.x),
-            y: Math.min(startY, local.y),
-            width: Math.abs(dxTotal),
-            height: Math.abs(dyTotal),
-          };
+          const rect: CanvasMarqueeRect = normalizeSimplexMarqueeRect(
+            startX,
+            startY,
+            local.x,
+            local.y,
+          );
           this.adapter.setMarqueeRect(rect);
           return;
         }
@@ -1141,16 +947,13 @@ export class SimplexCanvasController<
       // Support discrete trackpad pinch-in / pinch-out when in drill-down mode
       if (this.engine.getZoomStrategy().mode === 'drill-down' && ev.ctrlKey) {
         ev.preventDefault();
-        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-        if (now < this.wheelPinchCooldownUntil) return;
-        this.wheelPinchAccum += ev.deltaY;
-        if (this.wheelPinchAccum <= -22) {
-          this.wheelPinchAccum = 0;
-          this.wheelPinchCooldownUntil = now + 360;
+        const action = stepSimplexDrillDownWheelPinch(
+          this.wheelPinchState,
+          ev.deltaY,
+        );
+        if (action === 'drill-in') {
           this.triggerPinchDrillIn(local.x, local.y);
-        } else if (this.wheelPinchAccum >= 22) {
-          this.wheelPinchAccum = 0;
-          this.wheelPinchCooldownUntil = now + 360;
+        } else if (action === 'drill-up') {
           this.drillUp();
         }
         return;
@@ -1171,19 +974,6 @@ export class SimplexCanvasController<
       }
     };
 
-    const toFocusTarget = (
-      target: SimplexInteractiveTarget<
-        TItem,
-        TContentVisual,
-        TClusterVisual,
-        TTagMeta,
-        TClusterMeta
-      >,
-    ): SimplexKeyboardFocusTarget =>
-      target.kind === 'triangle'
-        ? { kind: 'triangle', index: target.index }
-        : { kind: target.kind, id: target.id };
-
     const describeTarget = (
       target: SimplexInteractiveTarget<
         TItem,
@@ -1192,15 +982,15 @@ export class SimplexCanvasController<
         TTagMeta,
         TClusterMeta
       >,
-    ): string => {
-      if (target.kind === 'cluster') {
-        return `Topic ${target.cluster.subclusterLabel ?? target.cluster.defaultLabel}, ${target.cluster.members.length} items`;
-      }
-      if (target.kind === 'triangle') {
-        return `Region triangle ${target.index + 1}, ${target.triangle.coveredItemCount} items`;
-      }
-      return extractCanvasItemLabel(target.item, target.id, this.getLabel);
-    };
+    ): string =>
+      formatSimplexInteractiveTargetAriaLabel(
+        target,
+        this.engine.getZoomState(),
+        {
+          getLabel: this.getLabel,
+          formatTagLabel: this.formatTagLabel,
+        },
+      );
 
     const onKeyDown = (ev: KeyboardEvent): void => {
       if (!this.keyboardNavigation) return;
@@ -1214,25 +1004,16 @@ export class SimplexCanvasController<
       ) {
         ev.preventDefault();
         this.keyboardTargets = this.engine.getInteractiveTargets();
-        if (this.keyboardTargets.length === 0) return;
-
-        if (ev.key === 'Home') {
-          this.keyboardFocusIndex = 0;
-        } else if (ev.key === 'End') {
-          this.keyboardFocusIndex = this.keyboardTargets.length - 1;
-        } else if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') {
-          this.keyboardFocusIndex =
-            (this.keyboardFocusIndex + 1 + this.keyboardTargets.length) %
-            this.keyboardTargets.length;
-        } else {
-          this.keyboardFocusIndex =
-            this.keyboardFocusIndex <= 0
-              ? this.keyboardTargets.length - 1
-              : this.keyboardFocusIndex - 1;
-        }
+        const nextIdx = resolveNextSimplexKeyboardFocusIndex(
+          this.keyboardTargets.length,
+          this.keyboardFocusIndex,
+          ev.key,
+        );
+        if (nextIdx === null) return;
+        this.keyboardFocusIndex = nextIdx;
 
         const target = this.keyboardTargets[this.keyboardFocusIndex]!;
-        const focusTarget = toFocusTarget(target);
+        const focusTarget = toSimplexKeyboardFocusTargetRef(target);
         this.engine.hoverInteractiveTarget(focusTarget);
         this.adapter.setKeyboardFocusTarget(focusTarget);
         this.announce(describeTarget(target));
@@ -1250,7 +1031,7 @@ export class SimplexCanvasController<
           if (ev.shiftKey && target.kind === 'item') {
             this.engine.toggleSelectedId(target.id);
           } else {
-            this.engine.activateInteractiveTarget(toFocusTarget(target));
+            this.engine.activateInteractiveTarget(toSimplexKeyboardFocusTargetRef(target));
           }
           this.scheduleFrame();
         }
@@ -1303,25 +1084,26 @@ export class SimplexCanvasController<
   }
 
   private bindResizeObserver(): void {
-    if (typeof ResizeObserver === 'undefined') return;
-    this.resizeObserver = new ResizeObserver((entries) => {
-      if (this.destroyed) return;
-      const entry = entries[entries.length - 1];
-      if (!entry) return;
-      const width = Math.round(entry.contentRect.width);
-      const height = Math.round(entry.contentRect.height);
-      if (width <= 0 || height <= 0) return;
-
-      if (this.deferredPending) {
+    this.resizeObserverHandle = observeSimplexContainerResize({
+      container: this.container,
+      pendingInitialViewport: this.deferredPending,
+      shouldDeferSolve: false,
+      deferFallbackTimeoutMs: null,
+      minValidSize: 0,
+      isDestroyed: () => this.destroyed,
+      onDeferredInit: (width, height) => {
+        const w = Math.round(width);
+        const h = Math.round(height);
         this.deferredPending = false;
         this.adapter.invalidateHullCaches();
-        this.engine.reinitializeViewport(width, height);
-      } else {
-        this.engine.setViewport(width, height);
-      }
-      this.scheduleFrame();
+        this.engine.reinitializeViewport(w, h);
+        this.scheduleFrame();
+      },
+      onResize: (width, height) => {
+        this.engine.setViewport(Math.round(width), Math.round(height));
+        this.scheduleFrame();
+      },
     });
-    this.resizeObserver.observe(this.container);
   }
 
   private scheduleFrame(): void {
@@ -1715,7 +1497,9 @@ export class SimplexCanvasController<
 
   setReducedMotion(pref: ReducedMotionPreference): void {
     this.bindReducedMotionMediaQuery(pref);
-    this.engine.setReducedMotion(this.resolveReducedMotionValue(pref));
+    this.engine.setReducedMotion(
+      resolveSimplexReducedMotion(pref, this.container.ownerDocument),
+    );
     this.scheduleFrame();
   }
 
@@ -1726,11 +1510,10 @@ export class SimplexCanvasController<
   subscribeTimeline(
     listener: (state: SimplexTimelineState<TItem> | null) => void,
   ): () => void {
-    this.timelineListeners.add(listener as SimplexTimelineListener<TItem>);
-    listener(this.timelineController?.getState() ?? null);
-    return () => {
-      this.timelineListeners.delete(listener as SimplexTimelineListener<TItem>);
-    };
+    return this.timelineNotifier.subscribe(
+      listener as (state: SimplexTimelineState<TItem> | null) => void,
+      this.timelineController?.getState() ?? null,
+    );
   }
 
   batch(fn: () => void): void {
@@ -1855,14 +1638,14 @@ export class SimplexCanvasController<
     this.timelineUnsubscribe?.();
     this.timelineUnsubscribe = null;
     this.timelineController?.pause();
-    this.timelineListeners.clear();
-    this.resizeObserver?.disconnect();
-    this.resizeObserver = null;
-    if (this.reducedMotionMql && this.reducedMotionListener) {
-      this.reducedMotionMql.removeEventListener?.('change', this.reducedMotionListener);
-    }
+    this.timelineNotifier.clear();
+    this.resizeObserverHandle?.disconnect();
+    this.resizeObserverHandle = null;
+    this.cleanupReducedMotionMedia?.();
+    this.cleanupReducedMotionMedia = null;
     this.cleanupDomListeners?.();
     this.cleanupDomListeners = null;
+    this.srAnnouncer.destroy();
     this.engine.destroy();
     this.rootEl.remove();
   }

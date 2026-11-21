@@ -1,5 +1,6 @@
 import {
   computeConvexHull,
+  estimateSimplexTextWidth,
   rectToConvexPolygon,
   regularPolygon,
   solveSimplexSnapshot,
@@ -209,91 +210,13 @@ export type RenderSimplexSnapshotSvgOptions<
   readonly formatTagLabel?: (tag: string) => string;
 };
 
-const NARROW_CHARS = new Set([
-  'i',
-  'l',
-  'I',
-  'j',
-  't',
-  'f',
-  'r',
-  '1',
-  '|',
-  '.',
-  ',',
-  ';',
-  ':',
-  '!',
-  "'",
-  '`',
-  ' ',
-  '(',
-  ')',
-  '[',
-  ']',
-]);
-
-const WIDE_CHARS = new Set(['W', 'M', 'w', 'm', '@', '%', '&', 'Q', 'O', 'G', 'D', 'H', 'N', 'U']);
-
-function isFullWidthCodePoint(code: number): boolean {
-  return (
-    (code >= 0x1100 && code <= 0x115f) ||
-    (code >= 0x2e80 && code <= 0xa4cf) ||
-    (code >= 0xac00 && code <= 0xd7a3) ||
-    (code >= 0xf900 && code <= 0xfaff) ||
-    (code >= 0xfe10 && code <= 0xfe6f) ||
-    (code >= 0xff00 && code <= 0xff60) ||
-    code >= 0x1f300
-  );
-}
-
 /**
  * Deterministic, DOM-free character-width estimator for SSR SVG text measurement.
  * Distinguishes monospace and proportional font stacks, bold weights, uppercase/wide glyphs,
  * CJK/fullwidth code points, and optional `letterSpacingEm`.
  */
 export function estimateSsrTextWidth(input: SsrTextMetricsInput): number {
-  const { text, fontSize, fontFamily, fontWeight, letterSpacingEm = 0 } = input;
-  if (!text || fontSize <= 0) return 0;
-
-  const isMono = /mono|courier|consolas|menlo|fira code|jetbrains/i.test(fontFamily);
-  const numericWeight =
-    typeof fontWeight === 'number'
-      ? fontWeight
-      : fontWeight === 'bold'
-        ? 700
-        : Number(fontWeight) || 400;
-  const weightBoost = numericWeight >= 600 ? 1.04 : 1.0;
-
-  let glyphUnits = 0;
-  let count = 0;
-  for (const ch of text) {
-    count += 1;
-    const code = ch.codePointAt(0) ?? 0;
-    if (isFullWidthCodePoint(code)) {
-      glyphUnits += 1.02;
-    } else if (isMono) {
-      glyphUnits += 0.61;
-    } else if (NARROW_CHARS.has(ch)) {
-      glyphUnits += 0.34;
-    } else if (WIDE_CHARS.has(ch)) {
-      glyphUnits += 0.78;
-    } else if (ch >= 'A' && ch <= 'Z') {
-      glyphUnits += 0.67;
-    } else if (ch >= '0' && ch <= '9') {
-      glyphUnits += 0.58;
-    } else if (ch === '…') {
-      glyphUnits += 0.78;
-    } else {
-      glyphUnits += 0.54;
-    }
-  }
-
-  const spacingWidth =
-    count > 1 && letterSpacingEm !== 0
-      ? (count - 1) * letterSpacingEm * fontSize
-      : 0;
-  return glyphUnits * fontSize * weightBoost + spacingWidth;
+  return estimateSimplexTextWidth(input);
 }
 
 function escapeXml(raw: string): string {

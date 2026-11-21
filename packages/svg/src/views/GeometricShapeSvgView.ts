@@ -1,44 +1,20 @@
 import {
+  NAMED_POLYGON_SIDES,
   computeConvexHull,
   regularPolygon,
+  resolveGeometricShapeSpec,
   starConvexHull,
   type ConvexGeometry,
+  type GeometricShapeKind,
+  type GeometricShapeSpec,
   type NodeRenderState,
   type Point2D,
 } from '@simplex-viz/core';
 import { SVG_NS } from '../hullMeasure.js';
 import type { SvgNodeView } from '../types.js';
 
-export type GeometricShapeKind =
-  | 'circle'
-  | 'triangle'
-  | 'square'
-  | 'diamond'
-  | 'pentagon'
-  | 'hexagon'
-  | 'heptagon'
-  | 'octagon'
-  | 'star'
-  | 'polygon';
-
-/**
- * Concise shape specification accepted by `getShape` and `GeometricShapeSvgView`.
- *
- * Accepts a named `GeometricShapeKind`, a regular N-gon side count (`>= 3`),
- * or a structured descriptor with optional `sides`, `rotationRad`, and `radius`.
- */
-export type GeometricShapeSpec =
-  | GeometricShapeKind
-  | number
-  | {
-      readonly shape?: GeometricShapeKind;
-      /** Number of sides (`>= 3`) for a regular convex N-gon. */
-      readonly sides?: number;
-      /** Optional vertex rotation angle in radians (defaults to `-Math.PI / 2`, or `-Math.PI / 4` for `'square'`). */
-      readonly rotationRad?: number;
-      /** Optional radius override in pixels. */
-      readonly radius?: number;
-    };
+export type { GeometricShapeKind, GeometricShapeSpec };
+export { resolveGeometricShapeSpec };
 
 /**
  * Optional view-level defaults / fixed shape overrides for `GeometricShapeSvgView`.
@@ -100,15 +76,6 @@ export interface GeometricShapeVisual {
 
 const MORPH_SAMPLES = 64;
 
-const NAMED_POLYGON_SIDES: Readonly<Record<string, number>> = {
-  triangle: 3,
-  square: 4,
-  pentagon: 5,
-  hexagon: 6,
-  heptagon: 7,
-  octagon: 8,
-};
-
 interface ResolvedPolygonSpec {
   readonly kind: 'circle' | 'diamond' | 'star' | 'polygon';
   readonly sides?: number;
@@ -123,60 +90,6 @@ function regularPolygonRadiusScale(sides: number): number {
   if (sides === 6) return 1.05;
   if (sides === 7) return 1.04;
   return 1.03;
-}
-
-/**
- * Normalizes a flexible `GeometricShapeSpec` (named kind, side count `N >= 3`, or descriptor object)
- * into explicit `shape`, `sides`, `rotationRad`, and optional `radius` fields.
- */
-export function resolveGeometricShapeSpec(spec: GeometricShapeSpec): {
-  readonly shape: GeometricShapeKind;
-  readonly sides?: number;
-  readonly rotationRad?: number;
-  readonly radius?: number;
-} {
-  if (typeof spec === 'number') {
-    const sides = Math.max(3, Math.round(spec));
-    return {
-      shape: 'polygon',
-      sides,
-      rotationRad: sides === 4 ? -Math.PI / 4 : -Math.PI / 2,
-    };
-  }
-  if (typeof spec === 'string') {
-    const namedSides = NAMED_POLYGON_SIDES[spec];
-    if (namedSides !== undefined) {
-      return {
-        shape: spec,
-        sides: namedSides,
-        rotationRad: spec === 'square' ? -Math.PI / 4 : -Math.PI / 2,
-      };
-    }
-    return { shape: spec };
-  }
-  if (spec.sides !== undefined && Number.isFinite(spec.sides)) {
-    const sides = Math.max(3, Math.round(spec.sides));
-    const defaultRot =
-      spec.shape === 'square' || (spec.shape === undefined && sides === 4)
-        ? -Math.PI / 4
-        : -Math.PI / 2;
-    return {
-      shape: spec.shape ?? 'polygon',
-      sides,
-      rotationRad: spec.rotationRad ?? defaultRot,
-      radius: spec.radius,
-    };
-  }
-  const shape = spec.shape ?? 'circle';
-  const namedSides = NAMED_POLYGON_SIDES[shape];
-  return {
-    shape,
-    sides: namedSides,
-    rotationRad:
-      spec.rotationRad ??
-      (shape === 'square' ? -Math.PI / 4 : namedSides !== undefined ? -Math.PI / 2 : undefined),
-    radius: spec.radius,
-  };
 }
 
 function resolveEffectiveGeometry(

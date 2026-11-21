@@ -13,4 +13,5 @@ export * from './snapshot.js';
 export * from './zoom.js';
 export * from './discriminativeLabels.js';
 export * from './timeline.js';
+export * from './presetShared.js';
 export * from './worker.js';

@@ -1,4 +1,8 @@
-import type { ClusterDescriptor, NodeRenderState } from '@simplex-viz/core';
+import {
+  truncateSimplexBadgeTitle,
+  type ClusterDescriptor,
+  type NodeRenderState,
+} from '@simplex-viz/core';
 import { resolveClusterSurfaceColors, roundedRectSvgPath } from '../colorContrast.js';
 import { SVG_NS } from '../hullMeasure.js';
 import type { SvgNodeView } from '../types.js';
@@ -58,31 +62,7 @@ export interface BadgeClusterSvgViewOptions {
  * preferring word or separator boundaries (` `, `-`, `/`, `·`) before falling back to a hard cut with `…`.
  */
 export function truncateBadgeTitle(text: string, maxChars: number): string {
-  const clean = text.trim();
-  const limit = Math.max(1, Math.floor(maxChars));
-  if (clean.length <= limit) return clean;
-  if (limit === 1) return '…';
-
-  const slice = clean.slice(0, limit - 1);
-  if (limit >= 6) {
-    const minBoundaryIdx = Math.floor((limit - 1) * 0.55);
-    let bestBoundary = -1;
-    for (let i = slice.length - 1; i >= minBoundaryIdx; i--) {
-      const ch = slice[i]!;
-      if (ch === ' ' || ch === '-' || ch === '/' || ch === '·') {
-        bestBoundary = i;
-        break;
-      }
-    }
-    if (bestBoundary > 0) {
-      const trimmed = slice.slice(0, bestBoundary).replace(/[\s\-/·]+$/, '');
-      if (trimmed.length > 0) {
-        return `${trimmed}…`;
-      }
-    }
-  }
-
-  return `${slice.replace(/[\s\-/·]+$/, '').trimEnd() || slice}…`;
+  return truncateSimplexBadgeTitle(text, maxChars);
 }
 
 /**

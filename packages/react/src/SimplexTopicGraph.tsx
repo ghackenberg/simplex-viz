@@ -1,5 +1,9 @@
 import {
+  areSimplexLayoutOptionsEqual,
+  areSimplexMeshOptionsEqual,
+  areSimplexTimelineOptionsEqual,
   createFreeCameraZoomStrategy,
+  extractSimplexItemLabel,
   type ClusterClickEvent,
   type ClusterDescriptor,
   type ClusterHoverEvent,
@@ -33,9 +37,14 @@ import {
   type WheelBehavior,
 } from '@simplex-viz/core';
 import {
+  buildSimplexTooltipContentModel,
+  computeSimplexTooltipCoords,
+  dispatchSimplexDefaultLeftClick,
+  isSimplexHoverEventConsumed,
+} from '@simplex-viz/core/dom';
+import {
   SimplexSvgController,
   createPresetVisualResolver,
-  extractDefaultItemLabel,
   type DefaultClusterPresetVisual,
   type DefaultContentPresetVisual,
   type DeferInitialLayoutOptions,
@@ -569,25 +578,8 @@ export function SimplexTopicGraph<
     const presetResolver = createPresetVisualResolver<TItem, TTagMeta, TClusterMeta>(
       preset,
       {
-        getLabel: (item) => {
-          const curGetLabel = latestPropsRef.current.getLabel;
-          if (curGetLabel) return curGetLabel(item);
-          if (typeof item === 'object' && item !== null) {
-            if ('label' in item && typeof item.label === 'string' && item.label.length > 0) {
-              return item.label;
-            }
-            if ('title' in item && typeof item.title === 'string' && item.title.length > 0) {
-              return item.title;
-            }
-            if ('headline' in item && typeof item.headline === 'string' && item.headline.length > 0) {
-              return item.headline;
-            }
-            if ('name' in item && typeof item.name === 'string' && item.name.length > 0) {
-              return item.name;
-            }
-          }
-          return '';
-        },
+        getLabel: (item) =>
+          extractSimplexItemLabel(item, '', latestPropsRef.current.getLabel),
         theme,
         formatTagLabel: p.formatTagLabel,
         badgeOptions: p.badgeOptions,
@@ -724,24 +716,33 @@ export function SimplexTopicGraph<
     TClusterMeta
   > => ({
     onContentHover: (ev) => {
-      const consumed = latestPropsRef.current.onContentHover?.(ev);
+      const consumed = isSimplexHoverEventConsumed(
+        latestPropsRef.current.onContentHover,
+        ev,
+      );
       if (latestPropsRef.current.tooltip) {
-        setHoveredTarget(ev && consumed !== true ? { kind: 'content', ...ev } : null);
+        setHoveredTarget(ev && !consumed ? { kind: 'content', ...ev } : null);
       }
       // React renders its own JSX tooltip; suppress SimplexSvgController's built-in DOM tooltip.
       return true;
     },
     onClusterHover: (ev) => {
-      const consumed = latestPropsRef.current.onClusterHover?.(ev);
+      const consumed = isSimplexHoverEventConsumed(
+        latestPropsRef.current.onClusterHover,
+        ev,
+      );
       if (latestPropsRef.current.tooltip) {
-        setHoveredTarget(ev && consumed !== true ? { kind: 'cluster', ...ev } : null);
+        setHoveredTarget(ev && !consumed ? { kind: 'cluster', ...ev } : null);
       }
       return true;
     },
     onTriangleHover: (ev) => {
-      const consumed = latestPropsRef.current.onTriangleHover?.(ev);
+      const consumed = isSimplexHoverEventConsumed(
+        latestPropsRef.current.onTriangleHover,
+        ev,
+      );
       if (latestPropsRef.current.tooltip) {
-        setHoveredTarget(ev && consumed !== true ? { kind: 'triangle', ...ev } : null);
+        setHoveredTarget(ev && !consumed ? { kind: 'triangle', ...ev } : null);
       }
       return true;
     },
@@ -755,67 +756,42 @@ export function SimplexTopicGraph<
       latestPropsRef.current.onBackgroundClick?.(raw),
     onLeftClick: (target, raw) => {
       const cur = latestPropsRef.current;
-      if (cur.onLeftClick?.(target, raw) === true) {
-        return true;
+      const ctrl = ctrlRef.current;
+      // In drill-down mode, let SimplexSvgController run built-in drill defaults unless cur.onLeftClick consumes.
+      if (!ctrl || ctrl.getZoomStrategy().mode === 'drill-down') {
+        return cur.onLeftClick?.(target, raw) === true;
       }
-      // In drill-down mode, return false so SimplexSvgController runs built-in drill/neighbor/up defaults.
-      if (ctrlRef.current?.getZoomStrategy().mode === 'drill-down') {
-        return false;
-      }
-      // In free-camera mode, handle React-aware controlled/uncontrolled focus toggle and consume
-      // so SimplexSvgController does not double-toggle uncontrolled focus state.
-      if (
-        target.kind === 'cluster' &&
-        cur.focusedClusterUid === undefined &&
-        (cur.focusOnClusterClick ?? true)
-      ) {
-        if (
-          cur.focusedTriangleIndex === undefined &&
-          internalFocusedTriangleRef.current !== null
-        ) {
-          internalFocusedTriangleRef.current = null;
-          ctrlRef.current?.setFocusedTriangleIndex(null);
-        }
-        const next =
-          internalFocusedUidRef.current === target.cluster.clusterUid
-            ? null
-            : target.cluster.clusterUid;
-        internalFocusedUidRef.current = next;
-        ctrlRef.current?.setFocusedClusterUid(next);
-      } else if (
-        target.kind === 'triangle' &&
-        cur.focusedTriangleIndex === undefined &&
-        (cur.focusOnTriangleClick ?? true)
-      ) {
-        if (
-          cur.focusedClusterUid === undefined &&
-          internalFocusedUidRef.current !== null
-        ) {
-          internalFocusedUidRef.current = null;
-          ctrlRef.current?.setFocusedClusterUid(null);
-        }
-        const next =
-          internalFocusedTriangleRef.current === target.triangle.index
-            ? null
-            : target.triangle.index;
-        internalFocusedTriangleRef.current = next;
-        ctrlRef.current?.setFocusedTriangleIndex(next);
-      } else if (target.kind === 'background') {
-        if (
-          cur.focusedClusterUid === undefined &&
-          internalFocusedUidRef.current !== null
-        ) {
-          internalFocusedUidRef.current = null;
-          ctrlRef.current?.setFocusedClusterUid(null);
-        }
-        if (
-          cur.focusedTriangleIndex === undefined &&
-          internalFocusedTriangleRef.current !== null
-        ) {
-          internalFocusedTriangleRef.current = null;
-          ctrlRef.current?.setFocusedTriangleIndex(null);
-        }
-      }
+      dispatchSimplexDefaultLeftClick(target, raw, {
+        userInteractions: { onLeftClick: cur.onLeftClick },
+        zoomMode: 'free-camera',
+        canDrillUp: false,
+        selectedCount: 0,
+        focusedItemId: null,
+        focusedClusterUid: internalFocusedUidRef.current,
+        focusedTriangleIndex: internalFocusedTriangleRef.current,
+        focusOnClusterClick:
+          cur.focusedClusterUid === undefined && (cur.focusOnClusterClick ?? true),
+        focusOnTriangleClick:
+          cur.focusedTriangleIndex === undefined && (cur.focusOnTriangleClick ?? true),
+        drillToNeighbor: (id) => ctrl.drillToNeighbor(id),
+        drillDownTriangle: (idx) => ctrl.drillDownTriangle(idx),
+        drillDownCluster: (uid) => ctrl.drillDownCluster(uid),
+        drillUp: () => ctrl.drillUp(),
+        setFocusedClusterUid: (uid) => {
+          if (cur.focusedClusterUid === undefined) {
+            internalFocusedUidRef.current = uid;
+            ctrl.setFocusedClusterUid(uid);
+          }
+        },
+        setFocusedTriangleIndex: (idx) => {
+          if (cur.focusedTriangleIndex === undefined) {
+            internalFocusedTriangleRef.current = idx;
+            ctrl.setFocusedTriangleIndex(idx);
+          }
+        },
+        clearFocusedItem: () => {},
+        clearSelection: () => {},
+      });
       return true;
     },
     onRightClick: (t, raw) => latestPropsRef.current.onRightClick?.(t, raw),
@@ -977,32 +953,17 @@ export function SimplexTopicGraph<
 
     const prevMeshOpts = syncedMeshOptionsRef.current;
     const nextMeshOpts = props.meshOptions;
-    const meshOptionsChanged =
-      prevMeshOpts !== nextMeshOpts &&
-      !(
-        prevMeshOpts &&
-        nextMeshOpts &&
-        prevMeshOpts.innerPadding === nextMeshOpts.innerPadding &&
-        prevMeshOpts.sideLength === nextMeshOpts.sideLength &&
-        prevMeshOpts.minSideLength === nextMeshOpts.minSideLength &&
-        prevMeshOpts.maxSideLength === nextMeshOpts.maxSideLength &&
-        prevMeshOpts.maxClusters === nextMeshOpts.maxClusters
-      );
+    const meshOptionsChanged = !areSimplexMeshOptionsEqual(
+      prevMeshOpts,
+      nextMeshOpts,
+    );
 
     const prevLayoutOpts = syncedLayoutOptionsRef.current;
     const nextLayoutOpts = props.layoutOptions;
-    const layoutOptionsChanged =
-      prevLayoutOpts !== nextLayoutOpts &&
-      !(
-        prevLayoutOpts &&
-        nextLayoutOpts &&
-        prevLayoutOpts.clusterGapPx === nextLayoutOpts.clusterGapPx &&
-        prevLayoutOpts.itemGapPx === nextLayoutOpts.itemGapPx &&
-        prevLayoutOpts.minContentScale === nextLayoutOpts.minContentScale &&
-        prevLayoutOpts.relaxationIterations === nextLayoutOpts.relaxationIterations &&
-        prevLayoutOpts.sizeMultiplier === nextLayoutOpts.sizeMultiplier &&
-        prevLayoutOpts.seed === nextLayoutOpts.seed
-      );
+    const layoutOptionsChanged = !areSimplexLayoutOptionsEqual(
+      prevLayoutOpts,
+      nextLayoutOpts,
+    );
 
     const triangleOrEdgeChanged =
       syncedTriangleViewRef.current !== props.triangleView ||
@@ -1010,32 +971,10 @@ export function SimplexTopicGraph<
 
     const prevTimeline = syncedTimelineRef.current;
     const nextTimeline = props.timeline;
-    const timelineChanged =
-      prevTimeline !== nextTimeline &&
-      !(
-        typeof prevTimeline === 'object' &&
-        prevTimeline !== null &&
-        typeof nextTimeline === 'object' &&
-        nextTimeline !== null &&
-        prevTimeline.showControls === nextTimeline.showControls &&
-        prevTimeline.position === nextTimeline.position &&
-        prevTimeline.autoFinalSeed === nextTimeline.autoFinalSeed &&
-        prevTimeline.autoFinalSeedLayout === nextTimeline.autoFinalSeedLayout &&
-        prevTimeline.emptyClusterBehavior === nextTimeline.emptyClusterBehavior &&
-        prevTimeline.stepIntervalMs === nextTimeline.stepIntervalMs &&
-        prevTimeline.speed === nextTimeline.speed &&
-        prevTimeline.loop === nextTimeline.loop &&
-        prevTimeline.autoPlay === nextTimeline.autoPlay &&
-        prevTimeline.initialStep === nextTimeline.initialStep &&
-        prevTimeline.includeEmptyStart === nextTimeline.includeEmptyStart &&
-        prevTimeline.baselineLabel === nextTimeline.baselineLabel &&
-        prevTimeline.emptyStartLabel === nextTimeline.emptyStartLabel &&
-        Boolean(prevTimeline.getTimestamp) === Boolean(nextTimeline.getTimestamp) &&
-        Boolean(prevTimeline.getFrameKey) === Boolean(nextTimeline.getFrameKey) &&
-        Boolean(prevTimeline.formatFrameLabel) === Boolean(nextTimeline.formatFrameLabel) &&
-        Boolean(prevTimeline.formatStepLabel) === Boolean(nextTimeline.formatStepLabel) &&
-        Boolean(prevTimeline.compareFrameKeys) === Boolean(nextTimeline.compareFrameKeys)
-      );
+    const timelineChanged = !areSimplexTimelineOptionsEqual(
+      prevTimeline,
+      nextTimeline,
+    );
 
     syncedMeshOptionsRef.current = nextMeshOpts;
     syncedLayoutOptionsRef.current = nextLayoutOpts;
@@ -1322,116 +1261,86 @@ export function SimplexTopicGraph<
   const renderBuiltInTooltip = () => {
     if (!props.tooltip || !hoveredTarget) return null;
 
-    const containerW = containerRef.current?.clientWidth || 960;
-    const containerH = containerRef.current?.clientHeight || 600;
-    const left = Math.min(
-      Math.max(8, Math.round(hoveredTarget.screenPosition.x + 14)),
-      Math.max(8, containerW - 256),
-    );
-    const top = Math.min(
-      Math.max(8, Math.round(hoveredTarget.screenPosition.y + 14)),
-      Math.max(8, containerH - 80),
-    );
+    const { left, top } = computeSimplexTooltipCoords({
+      containerWidth: containerRef.current?.clientWidth || 960,
+      containerHeight: containerRef.current?.clientHeight || 600,
+      tipWidth: 244,
+      tipHeight: 80,
+      screenX: hoveredTarget.screenPosition.x,
+      screenY: hoveredTarget.screenPosition.y,
+    });
 
     const isLight = props.theme === 'light';
-    const content =
-      typeof props.tooltip === 'function' ? (
-        props.tooltip(hoveredTarget)
-      ) : hoveredTarget.kind === 'content' ? (
-        <div>
-          <div style={{ fontWeight: 600, color: isLight ? '#0f172a' : '#f8fafc' }}>
-            {extractDefaultItemLabel(
-              hoveredTarget.item,
-              hoveredTarget.layoutContext.id,
-              props.getLabel,
+    const ctrl = ctrlRef.current;
+
+    let content: ReactNode;
+    if (typeof props.tooltip === 'function') {
+      content = props.tooltip(hoveredTarget);
+    } else {
+      const model = buildSimplexTooltipContentModel(hoveredTarget, {
+        getLabel: props.getLabel,
+        formatTagLabel: props.formatTagLabel,
+        preferSubclusterLabel: true,
+        zoomMode: ctrl?.getZoomStrategy().mode,
+        zoomState: ctrl?.getZoomState(),
+        neighborHint: 'Click to switch',
+      });
+      if (model.kind === 'content') {
+        content = (
+          <div>
+            <div style={{ fontWeight: 600, color: isLight ? '#0f172a' : '#f8fafc' }}>
+              {model.title}
+            </div>
+            {model.subtitle ? (
+              <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
+                {model.subtitle}
+              </div>
+            ) : null}
+          </div>
+        );
+      } else if (model.kind === 'cluster') {
+        content = (
+          <div>
+            {model.eyebrow && (
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  color: isLight ? '#64748b' : '#94a3b8',
+                  marginBottom: 1,
+                }}
+              >
+                {model.eyebrow}
+              </div>
             )}
-          </div>
-          {hoveredTarget.layoutContext.tags.length > 0 ? (
+            <div style={{ fontWeight: 600, color: model.accentColorHex }}>
+              {model.title}
+            </div>
             <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
-              {hoveredTarget.layoutContext.tags
-                .map((t) => {
-                  if (t.label) return t.label;
-                  if (props.formatTagLabel) {
-                    const formatted = props.formatTagLabel(t.tag).trim();
-                    if (formatted.length > 0) return formatted;
-                  }
-                  return `#${t.tag}`;
-                })
-                .slice(0, 5)
-                .join(' · ')}
+              {model.hint ? `${model.countText} · ${model.hint}` : model.countText}
             </div>
-          ) : hoveredTarget.layoutContext.unitClusters.length > 0 ? (
+          </div>
+        );
+      } else {
+        content = (
+          <div>
+            <div style={{ fontWeight: 600, color: isLight ? '#0f172a' : '#f8fafc' }}>
+              {model.title}
+            </div>
             <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
-              {hoveredTarget.layoutContext.unitClusters
-                .map((uc) => `${uc.cluster.code} ${Math.round(uc.weight * 100)}%`)
-                .join(' · ')}
+              {model.cornersDetailed}
             </div>
-          ) : null}
-        </div>
-      ) : hoveredTarget.kind === 'cluster' ? (
-        <div>
-          {hoveredTarget.cluster.parentContextLabel && (
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: '0.04em',
-                textTransform: 'uppercase',
-                color: isLight ? '#64748b' : '#94a3b8',
-                marginBottom: 1,
-              }}
-            >
-              {hoveredTarget.cluster.parentContextLabel}
+            <div style={{ marginTop: 2, fontSize: 11, color: isLight ? '#64748b' : '#94a3b8' }}>
+              {model.hint
+                ? `${model.interiorSummaryText} · ${model.hint}`
+                : model.interiorSummaryText}
             </div>
-          )}
-          <div style={{ fontWeight: 600, color: hoveredTarget.cluster.colorHex }}>
-            {`${hoveredTarget.cluster.code} · ${
-              hoveredTarget.cluster.subclusterLabel || hoveredTarget.cluster.defaultLabel
-            }`}
           </div>
-          <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
-            {`${hoveredTarget.cluster.members.length} ${
-              hoveredTarget.cluster.members.length === 1 ? 'item' : 'items'
-            }${hoveredTarget.neighborId ? ' · Click to switch' : ''}`}
-          </div>
-        </div>
-      ) : (
-        <div>
-          <div style={{ fontWeight: 600, color: isLight ? '#0f172a' : '#f8fafc' }}>
-            {hoveredTarget.triangle.isContext
-              ? 'Neighbor Triangle'
-              : `Triangle #${hoveredTarget.triangle.index + 1}`}
-          </div>
-          <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
-            {hoveredTarget.triangle.clusters
-              .map((c, idx) =>
-                c
-                  ? `${c.code} (${c.defaultLabel})`
-                  : `V${hoveredTarget.triangle.vertexIndices[idx] ?? idx}`,
-              )
-              .join(' · ')}
-          </div>
-          <div style={{ marginTop: 2, fontSize: 11, color: isLight ? '#64748b' : '#94a3b8' }}>
-            {(() => {
-              const ctrl = ctrlRef.current;
-              const zMode = ctrl?.getZoomStrategy().mode;
-              const zState = ctrl?.getZoomState();
-              const hint = hoveredTarget.triangle.neighborId
-                ? ' · Click to switch'
-                : zMode === 'drill-down' && zState
-                  ? zState.activeFrameKind === 'triangle-focus' && zState.canDrillUp
-                    ? ' · Click to zoom out'
-                    : zState.drillableTriangleIndices.includes(hoveredTarget.triangle.index)
-                      ? ' · Click to zoom in'
-                      : zState.focusableTriangleIndices.includes(hoveredTarget.triangle.index)
-                        ? ' · Click to focus triangle'
-                        : ''
-                  : '';
-              return `${hoveredTarget.triangle.coveredItemCount} items · ${hoveredTarget.triangle.interiorItemCount} interior${hint}`;
-            })()}
-          </div>
-        </div>
-      );
+        );
+      }
+    }
 
     return (
       <div

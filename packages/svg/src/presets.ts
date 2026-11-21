@@ -1,13 +1,14 @@
-import type {
-  ClusterDescriptor,
-  ContentLayoutContext,
-  DefaultTaggedItem,
-  VisualResolver,
+import {
+  extractSimplexItemLabel,
+  resolveClusterBadgeTitle,
+  type ClusterDescriptor,
+  type ContentLayoutContext,
+  type DefaultTaggedItem,
+  type VisualResolver,
 } from '@simplex-viz/core';
 import type { SvgNodeView } from './types.js';
 import {
   BadgeClusterSvgView,
-  truncateBadgeTitle,
   type BadgeClusterVisual,
 } from './views/BadgeClusterSvgView.js';
 import {
@@ -109,25 +110,7 @@ export function extractDefaultItemLabel<TItem>(
   fallbackId: string,
   getLabel?: (item: TItem) => string,
 ): string {
-  if (getLabel) {
-    const custom = getLabel(item);
-    if (custom.length > 0) return custom;
-  }
-  if (typeof item === 'object' && item !== null) {
-    if ('label' in item && typeof item.label === 'string' && item.label.length > 0) {
-      return item.label;
-    }
-    if ('title' in item && typeof item.title === 'string' && item.title.length > 0) {
-      return item.title;
-    }
-    if ('headline' in item && typeof item.headline === 'string' && item.headline.length > 0) {
-      return item.headline;
-    }
-    if ('name' in item && typeof item.name === 'string' && item.name.length > 0) {
-      return item.name;
-    }
-  }
-  return fallbackId;
+  return extractSimplexItemLabel(item, fallbackId, getLabel);
 }
 
 /**
@@ -262,36 +245,10 @@ export function createPresetVisualResolver<
         .map((m) => m.colorHex);
       if (preset === 'badges') {
         const count = cluster.members.length;
-        let compactSuffix = '';
-        if (isIntermediate) {
-          if (cluster.subclusterLabel) {
-            compactSuffix = cluster.subclusterLabel.slice(0, 24);
-          } else if (cluster.coreTags.length > 0) {
-            const firstTag = cluster.coreTags[0]!;
-            const formattedTag =
-              firstTag.label ??
-              (formatTagLabel ? formatTagLabel(firstTag.tag).trim() : '');
-            compactSuffix = (
-              formattedTag.length > 0 ? formattedTag : `#${firstTag.tag}`
-            ).slice(0, 22);
-          } else {
-            compactSuffix = (cluster.defaultLabel || cluster.code).slice(0, 22);
-          }
-        }
-        let resolvedTitle = isIntermediate ? compactSuffix : cluster.defaultLabel;
-        if (badgeOptions?.formatTitle) {
-          resolvedTitle = badgeOptions.formatTitle(resolvedTitle, {
-            variant,
-            cluster,
-          });
-        }
-        if (
-          badgeOptions?.maxTitleChars !== undefined &&
-          Number.isFinite(badgeOptions.maxTitleChars) &&
-          badgeOptions.maxTitleChars > 0
-        ) {
-          resolvedTitle = truncateBadgeTitle(resolvedTitle, badgeOptions.maxTitleChars);
-        }
+        const resolvedTitle = resolveClusterBadgeTitle(cluster, {
+          formatTagLabel,
+          badgeOptions,
+        });
         return {
           code: cluster.code,
           title: resolvedTitle,

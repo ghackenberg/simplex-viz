@@ -1,8 +1,13 @@
 import {
+  estimateSimplexTextWidth,
+  extractSimplexItemLabel,
+  hexWithAlpha,
   rectToConvexPolygon,
   regularPolygon,
-  resolveTagDisplayLabel,
+  resolveClusterBadgeTitle,
+  resolveGeometricShapeSpec,
   starConvexHull,
+  truncateSimplexBadgeTitle,
   type ClusterDescriptor,
   type ContentLayoutContext,
   type ConvexGeometry,
@@ -41,38 +46,27 @@ interface ResolvedPolygonSpec {
  * Normalizes any `CanvasShapeSpec` into concrete polygon parameters.
  */
 export function resolveCanvasShapeSpec(spec: CanvasShapeSpec): ResolvedPolygonSpec {
-  if (typeof spec === 'number') {
-    const sides = Math.max(3, Math.round(spec));
-    return { kind: 'polygon', sides, rotationRad: -Math.PI / 2 };
+  const normalized = resolveGeometricShapeSpec(spec);
+  if (normalized.shape === 'circle') {
+    return { kind: 'circle', sides: 0, rotationRad: 0 };
   }
-  if (typeof spec === 'object') {
-    const sides = Math.max(3, Math.round(spec.sides));
-    return {
-      kind: 'polygon',
-      sides,
-      rotationRad: spec.rotationRad ?? -Math.PI / 2,
-    };
+  if (normalized.shape === 'star') {
+    return { kind: 'star', sides: 5, rotationRad: normalized.rotationRad ?? -Math.PI / 2 };
   }
-  switch (spec) {
-    case 'circle':
-      return { kind: 'circle', sides: 0, rotationRad: 0 };
-    case 'triangle':
-      return { kind: 'polygon', sides: 3, rotationRad: -Math.PI / 2 };
-    case 'square':
-      return { kind: 'polygon', sides: 4, rotationRad: Math.PI / 4 };
-    case 'diamond':
-      return { kind: 'polygon', sides: 4, rotationRad: -Math.PI / 2 };
-    case 'pentagon':
-      return { kind: 'polygon', sides: 5, rotationRad: -Math.PI / 2 };
-    case 'hexagon':
-      return { kind: 'polygon', sides: 6, rotationRad: -Math.PI / 6 };
-    case 'heptagon':
-      return { kind: 'polygon', sides: 7, rotationRad: -Math.PI / 2 };
-    case 'octagon':
-      return { kind: 'polygon', sides: 8, rotationRad: Math.PI / 8 };
-    case 'star':
-      return { kind: 'star', sides: 5, rotationRad: -Math.PI / 2 };
+  if (normalized.shape === 'diamond') {
+    return { kind: 'polygon', sides: 4, rotationRad: normalized.rotationRad ?? -Math.PI / 2 };
   }
+  if (normalized.shape === 'octagon') {
+    return { kind: 'polygon', sides: 8, rotationRad: Math.PI / 8 };
+  }
+  if (normalized.shape === 'hexagon') {
+    return { kind: 'polygon', sides: 6, rotationRad: -Math.PI / 6 };
+  }
+  return {
+    kind: 'polygon',
+    sides: Math.max(3, normalized.sides ?? 6),
+    rotationRad: normalized.rotationRad ?? -Math.PI / 2,
+  };
 }
 
 // Unit-vertex cache keyed by shape geometry so 10,000-node draws allocate 0 objects per frame
@@ -138,16 +132,11 @@ export function measureCanvasTextWidth(
     const w = ctx.measureText(text).width;
     if (Number.isFinite(w) && w > 0) return w;
   }
-  // Proportional fallback matching @simplex-viz/svg/ssr metrics
-  let units = 0;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]!;
-    if ('ilI1|.,:;\'! '.includes(ch)) units += 0.34;
-    else if ('mwMW@#%&'.includes(ch)) units += 0.84;
-    else if (ch >= 'A' && ch <= 'Z') units += 0.68;
-    else units += 0.56;
-  }
-  return units * fontSizePx;
+  return estimateSimplexTextWidth({
+    text,
+    fontSize: fontSizePx,
+    fontFamily: font,
+  });
 }
 
 interface BadgeDimensions {
@@ -205,11 +194,7 @@ export function measureDefaultClusterHull(
  * Truncates a cluster title on word boundaries when exceeding `maxChars`.
  */
 export function truncateCanvasBadgeTitle(title: string, maxChars?: number): string {
-  if (!maxChars || maxChars <= 0 || title.length <= maxChars) return title;
-  const slice = title.slice(0, Math.max(1, maxChars - 1)).trimEnd();
-  const lastSpace = slice.lastIndexOf(' ');
-  const clipped = lastSpace >= Math.floor(maxChars * 0.45) ? slice.slice(0, lastSpace) : slice;
-  return `${clipped}…`;
+  return truncateSimplexBadgeTitle(title, maxChars);
 }
 
 /**
@@ -220,25 +205,7 @@ export function extractCanvasItemLabel<TItem>(
   fallbackId: string,
   getLabel?: (item: TItem) => string,
 ): string {
-  if (getLabel) {
-    const custom = getLabel(item);
-    if (custom.length > 0) return custom;
-  }
-  if (typeof item === 'object' && item !== null) {
-    if ('label' in item && typeof item.label === 'string' && item.label.length > 0) {
-      return item.label;
-    }
-    if ('title' in item && typeof item.title === 'string' && item.title.length > 0) {
-      return item.title;
-    }
-    if ('headline' in item && typeof item.headline === 'string' && item.headline.length > 0) {
-      return item.headline;
-    }
-    if ('name' in item && typeof item.name === 'string' && item.name.length > 0) {
-      return item.name;
-    }
-  }
-  return fallbackId;
+  return extractSimplexItemLabel(item, fallbackId, getLabel);
 }
 
 export interface CanvasPresetResolverOptions<
@@ -324,15 +291,11 @@ export function createCanvasPresetVisualResolver<
       cluster: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>,
     ): CanvasDefaultClusterVisual {
       const variant = cluster.role === 'intermediate' ? 'intermediate' : 'primary';
-      const rawTitle =
-        cluster.subclusterLabel ??
-        (cluster.coreTags.length > 0 && options.formatTagLabel
-          ? resolveTagDisplayLabel(cluster.coreTags[0]!.tag, options.formatTagLabel)
-          : cluster.defaultLabel);
-      const formatted = options.badgeOptions?.formatTitle
-        ? options.badgeOptions.formatTitle(rawTitle, { variant, cluster })
-        : rawTitle;
-      const title = truncateCanvasBadgeTitle(formatted, options.badgeOptions?.maxTitleChars);
+      const title = resolveClusterBadgeTitle(cluster, {
+        formatTagLabel: options.formatTagLabel,
+        badgeOptions: options.badgeOptions,
+        maxIntermediateLength: 22,
+      });
 
       if (preset === 'badges') {
         return {
@@ -387,29 +350,7 @@ export function createCanvasPresetVisualResolver<
 // High-Throughput Canvas 2D Drawing Primitives (Zero save/restore on hot path)
 // ============================================================================
 
-function parseHexRgb(hex: string): readonly [number, number, number] | null {
-  const clean = hex.startsWith('#') ? hex.slice(1) : hex;
-  if (clean.length === 3) {
-    const r = parseInt(clean[0]! + clean[0]!, 16);
-    const g = parseInt(clean[1]! + clean[1]!, 16);
-    const b = parseInt(clean[2]! + clean[2]!, 16);
-    return Number.isNaN(r) ? null : [r, g, b];
-  }
-  if (clean.length >= 6) {
-    const r = parseInt(clean.slice(0, 2), 16);
-    const g = parseInt(clean.slice(2, 4), 16);
-    const b = parseInt(clean.slice(4, 6), 16);
-    return Number.isNaN(r) ? null : [r, g, b];
-  }
-  return null;
-}
-
-export function hexWithAlpha(hex: string, alpha: number): string {
-  const rgb = parseHexRgb(hex);
-  if (!rgb) return hex;
-  const clamped = Math.max(0, Math.min(1, alpha));
-  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${clamped.toFixed(3)})`;
-}
+export { hexWithAlpha };
 
 function traceRoundedRectPath(
   ctx: CanvasRenderingContext2D,

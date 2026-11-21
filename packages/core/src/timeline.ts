@@ -1,3 +1,10 @@
+import {
+  createFinalSeededClusteringStrategy,
+  createFinalSeededLayoutStrategy,
+  type FinalSeededLayoutScaleMode,
+  type SimplexClusteringStrategy,
+  type SimplexLayoutStrategy,
+} from './strategies.js';
 import type { DefaultTaggedItem } from './types.js';
 
 /**
@@ -785,4 +792,55 @@ export function createSimplexTimeline<TItem = DefaultTaggedItem>(
   options?: SimplexTimelineOptions<TItem>,
 ): SimplexTimelineController<TItem> {
   return new SimplexTimelineController(items, options);
+}
+
+/**
+ * Normalizes `autoFinalSeedLayout` (`boolean | 'pinned' | 'adaptive'`) into a concrete scale mode or `false`.
+ */
+export function normalizeTimelineLayoutScaleMode(
+  option: boolean | FinalSeededLayoutScaleMode | undefined,
+): false | FinalSeededLayoutScaleMode {
+  if (option === true) return 'pinned';
+  if (option === 'pinned' || option === 'adaptive') return option;
+  return false;
+}
+
+/**
+ * Wraps a base clustering strategy in `createFinalSeededClusteringStrategy` when timeline auto-seeding is active.
+ */
+export function wrapClusteringStrategyForTimeline<
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+>(
+  baseStrategy: SimplexClusteringStrategy<TItem, TTagMeta> | undefined,
+  seedItems: readonly TItem[],
+  enabled: boolean,
+): SimplexClusteringStrategy<TItem, TTagMeta> | undefined {
+  if (!enabled || seedItems.length === 0) {
+    return baseStrategy;
+  }
+  if (baseStrategy && baseStrategy.name.startsWith('final-seeded(')) {
+    return baseStrategy;
+  }
+  return createFinalSeededClusteringStrategy<TItem, TTagMeta>(baseStrategy, {
+    seedItems,
+  });
+}
+
+/**
+ * Wraps a base layout strategy in `createFinalSeededLayoutStrategy` when timeline layout seeding is enabled.
+ */
+export function wrapLayoutStrategyForTimeline(
+  baseStrategy: SimplexLayoutStrategy | undefined,
+  scaleMode: false | FinalSeededLayoutScaleMode,
+): SimplexLayoutStrategy | undefined {
+  if (!scaleMode) {
+    return baseStrategy;
+  }
+  if (baseStrategy && baseStrategy.name.startsWith('final-seeded(')) {
+    return baseStrategy;
+  }
+  return createFinalSeededLayoutStrategy(baseStrategy, {
+    scaleMode,
+  });
 }

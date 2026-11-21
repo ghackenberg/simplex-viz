@@ -4,6 +4,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
+      '@simplex-viz/core/worker': path.resolve(import.meta.dirname, 'packages/core/src/worker.ts'),
+      '@simplex-viz/core/dom': path.resolve(import.meta.dirname, 'packages/core/src/dom.ts'),
       '@simplex-viz/core': path.resolve(import.meta.dirname, 'packages/core/src/index.ts'),
       '@simplex-viz/svg': path.resolve(import.meta.dirname, 'packages/svg/src/index.ts'),
       '@simplex-viz/canvas': path.resolve(import.meta.dirname, 'packages/canvas/src/index.ts'),
