@@ -47,7 +47,7 @@ npm install @simplex-viz/core
 | Import Path | Target Runtime | DOM-Free | Side Effects | Root Re-Export | Purpose |
 | --- | --- | --- | --- | --- | --- |
 | `@simplex-viz/core` | Browser, Node.js, Deno, Bun, Worker, Edge (`ES2022`) | Yes | `false` | Root | Mesh, clustering, OKLab, SAT layout, `1:4` zoom, timeline, pure preset/option helpers. |
-| `@simplex-viz/core/worker` | Web Worker, Node.js `worker_threads`, SSR fallback | Yes | `false` | Also re-exported from root | Off-thread RPC protocol (`createSimplexWorkerClient`, `attachSimplexWorkerHandler`, `solveSimplexSnapshotAsync`). |
+| `@simplex-viz/core/worker` | Web Worker, Node.js `worker_threads`, SSR fallback | Yes | `false` | **Exclusive subpath** | Off-thread RPC protocol (`createSimplexWorkerClient`, `attachSimplexWorkerHandler`, `solveSimplexSnapshotAsync`). |
 | `@simplex-viz/core/dom` | Browser / DOM hosts (structural TS interfaces) | No | `false` | **Exclusive subpath** | Shared container, `ResizeObserver`, tooltip, ARIA/live-region, cursor, click, keyboard & zoom helpers. |
 
 ## Quickstart: One-Shot Layout with `solveSimplexSnapshot`

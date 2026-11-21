@@ -1,4 +1,5 @@
 import type { ConvexGeometry, NodeRenderState } from '@simplex-viz/core';
+import { octagonSvgPoints } from '../badgeLayout.js';
 import { resolveClusterSurfaceColors } from '../colorContrast.js';
 import { SVG_NS } from '../hullMeasure.js';
 import type { SvgNodeView } from '../types.js';
@@ -61,23 +62,10 @@ export class ClusterAnchorSvgView implements SvgNodeView<ClusterAnchorVisual> {
         hasParent ? 15 : 13,
         Math.round(visual.radius * (hasParent ? 0.76 : 0.66)),
       );
-      const octagonPts = (rad: number, dy = 0): string => {
-        const d = rad * 0.7071;
-        return [
-          `0,${(-rad + dy).toFixed(1)}`,
-          `${d.toFixed(1)},${(-d + dy).toFixed(1)}`,
-          `${rad.toFixed(1)},${dy.toFixed(1)}`,
-          `${d.toFixed(1)},${(d + dy).toFixed(1)}`,
-          `0,${(rad + dy).toFixed(1)}`,
-          `${(-d).toFixed(1)},${(d + dy).toFixed(1)}`,
-          `${(-rad).toFixed(1)},${dy.toFixed(1)}`,
-          `${(-d).toFixed(1)},${(-d + dy).toFixed(1)}`,
-        ].join(' ');
-      };
 
       // 1. Outer dashed octagonal docking halo
       const halo = doc.createElementNS(SVG_NS, 'polygon');
-      halo.setAttribute('points', octagonPts(r + 2.8));
+      halo.setAttribute('points', octagonSvgPoints(r + 2.8));
       halo.setAttribute('fill', 'none');
       halo.setAttribute(
         'stroke',
@@ -100,14 +88,14 @@ export class ClusterAnchorSvgView implements SvgNodeView<ClusterAnchorVisual> {
 
       // 2. Subtle elevation shadow
       const shadow = doc.createElementNS(SVG_NS, 'polygon');
-      shadow.setAttribute('points', octagonPts(r, 1.4));
+      shadow.setAttribute('points', octagonSvgPoints(r, 1.4));
       shadow.setAttribute('fill', '#020617');
       shadow.setAttribute('fill-opacity', isLight ? '0.15' : '0.42');
       groupEl.appendChild(shadow);
 
       // 3. Saturated OKLab-calibrated octagonal core
       const body = doc.createElementNS(SVG_NS, 'polygon');
-      body.setAttribute('points', octagonPts(r));
+      body.setAttribute('points', octagonSvgPoints(r));
       body.setAttribute('fill', palette.solidFillHex);
       body.setAttribute('stroke', state.interaction.isPinned ? '#fef08a' : '#ffffff');
       body.setAttribute('stroke-width', isActive ? '1.5' : '1.0');

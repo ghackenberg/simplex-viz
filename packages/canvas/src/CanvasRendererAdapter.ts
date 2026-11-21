@@ -1,5 +1,7 @@
 import {
+  SIMPLEX_PRESET_DEFAULTS,
   getHullBoundingBox,
+  resolveSimplexThemeBackgroundColor,
   type ConvexGeometry,
   type DefaultTaggedItem,
   type NodeRenderState,
@@ -10,11 +12,11 @@ import {
   type SimplexRendererAdapter,
 } from '@simplex-viz/core';
 import {
+  createCanvasPresetVisualResolver,
   drawDefaultCanvasEdge,
   drawDefaultCanvasTriangle,
   drawDefaultClusterNode,
   drawFastContentNode,
-  hexWithAlpha,
   measureDefaultClusterHull,
   measureGeometricContentHull,
 } from './presets.js';
@@ -68,17 +70,10 @@ export interface CanvasRendererAdapterOptions<
   readonly shapeOptions?: CanvasShapeOptions;
 }
 
-const DEFAULT_DARK_BG = '#0b1120';
-const DEFAULT_LIGHT_BG = '#f8fafc';
-
 function nowMs(): number {
   return typeof performance !== 'undefined' && typeof performance.now === 'function'
     ? performance.now()
     : Date.now();
-}
-
-function getDefaultBg(theme: CanvasTheme): string {
-  return theme === 'dark' ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG;
 }
 
 function resolveDpr(maxDpr: number): number {
@@ -322,11 +317,14 @@ export class CanvasRendererAdapter<
     } else {
       const def = visual as unknown as CanvasDefaultContentVisual;
       if (def && typeof def === 'object' && def.kind === 'geometric') {
-        hull = measureGeometricContentHull(def, this.shapeOptions?.strokeWidth ?? 1.2);
+        hull = measureGeometricContentHull(
+          def,
+          this.shapeOptions?.strokeWidth ?? SIMPLEX_PRESET_DEFAULTS.canvasStrokeWidth,
+        );
       } else if (def && typeof def === 'object' && def.kind === 'glyph') {
         hull = { kind: 'circle', radius: Math.max(2, def.radius) };
       } else {
-        hull = { kind: 'circle', radius: 10 };
+        hull = { kind: 'circle', radius: SIMPLEX_PRESET_DEFAULTS.canvasGlyphRadius };
       }
     }
 
@@ -399,7 +397,8 @@ export class CanvasRendererAdapter<
     ctx.globalAlpha = 1;
     ctx.setLineDash([]);
 
-    const bg = this.backgroundColor ?? getDefaultBg(this.theme);
+    const bg =
+      this.backgroundColor ?? resolveSimplexThemeBackgroundColor(this.theme, 'canvas');
     if (bg === 'transparent') {
       ctx.clearRect(0, 0, viewportWidth, viewportHeight);
     } else {
@@ -456,9 +455,13 @@ export class CanvasRendererAdapter<
     let culledItems = 0;
     let lodSimplifiedItems = 0;
     const dimmedOpacity =
-      this.contentRenderer?.dimmedOpacity ?? this.shapeOptions?.dimmedOpacity ?? 0.28;
+      this.contentRenderer?.dimmedOpacity ??
+      this.shapeOptions?.dimmedOpacity ??
+      SIMPLEX_PRESET_DEFAULTS.canvasDimmedOpacity;
     const customHoverScale =
-      this.contentRenderer?.hoverScale ?? this.shapeOptions?.hoverScale ?? 1.16;
+      this.contentRenderer?.hoverScale ??
+      this.shapeOptions?.hoverScale ??
+      SIMPLEX_PRESET_DEFAULTS.canvasHoverScale;
 
     // Draw non-hovered items first, then hovered/highlighted items on top for crisp overlap
     const emphasizedIndices: number[] = [];
@@ -757,7 +760,9 @@ export class CanvasRendererAdapter<
     let targetCanvas: HTMLCanvasElement = this.canvas;
     if (
       (scale !== undefined && scale !== this.dpr) ||
-      (bgOverride !== undefined && bgOverride !== (this.backgroundColor ?? getDefaultBg(this.theme)))
+      (bgOverride !== undefined &&
+        bgOverride !==
+          (this.backgroundColor ?? resolveSimplexThemeBackgroundColor(this.theme, 'canvas')))
     ) {
       if (typeof document !== 'undefined' && this.lastSnapshot) {
         const temp = document.createElement('canvas');
@@ -854,6 +859,15 @@ export function renderSimplexSnapshotToCanvas<TItem>(
     shapeOptions: options.shapeOptions,
   });
 
+  const visualResolver = createCanvasPresetVisualResolver<TItem>(
+    useBadges ? 'badges' : 'geometric',
+    {
+      theme,
+      badgeOptions: { showCode },
+      shapeOptions: options.shapeOptions,
+    },
+  );
+
   const frame: SceneFrameSnapshot<
     CanvasDefaultContentVisual,
     CanvasDefaultClusterVisual,
@@ -864,62 +878,33 @@ export function renderSimplexSnapshotToCanvas<TItem>(
     camera: { zoom: 1, panX: 0, panY: 0 },
     triangles: snapshot.triangles,
     edges: snapshot.edges,
-    clusters: snapshot.clusters.map((c) => {
-      const visual: CanvasDefaultClusterVisual = useBadges
-        ? {
-            kind: 'badge',
-            code: c.cluster.code,
-            showCode,
-            title: c.cluster.defaultLabel,
-            colorHex: c.cluster.colorHex,
-            memberCount: c.cluster.members.length,
-            variant: c.cluster.role === 'intermediate' ? 'intermediate' : 'primary',
-            parentContextLabel: c.cluster.parentContextLabel,
-            theme,
-          }
-        : {
-            kind: 'anchor',
-            code: c.cluster.code,
-            title: c.cluster.defaultLabel,
-            colorHex: c.cluster.colorHex,
-            radius: 21,
-            memberCount: c.cluster.members.length,
-            variant: c.cluster.role === 'intermediate' ? 'intermediate' : 'primary',
-            parentContextLabel: c.cluster.parentContextLabel,
-            theme,
-          };
-      return {
-        id: c.id,
-        x: c.x,
-        y: c.y,
-        scale: c.scale,
-        opacity: 1,
-        visual,
-        hull: c.hull,
-        cacheKey: c.id,
-        interaction: {
-          isHovered: false,
-          isPinned: false,
-          isDimmed: false,
-          isHighlighted: false,
-        },
-        transition: null,
-      };
-    }),
+    clusters: snapshot.clusters.map((c) => ({
+      id: c.id,
+      x: c.x,
+      y: c.y,
+      scale: c.scale,
+      opacity: 1,
+      visual: visualResolver.resolveClusterVisual(c.cluster),
+      hull: c.hull,
+      cacheKey: c.id,
+      interaction: {
+        isHovered: false,
+        isPinned: false,
+        isDimmed: false,
+        isHighlighted: false,
+      },
+      transition: null,
+    })),
     items: snapshot.items.map((it) => {
-      const rank = it.layoutContext.unitClusters.length;
-      const shape = rank >= 3 ? 'star' : rank === 2 ? 'diamond' : 'circle';
-      const radius = it.hull.kind === 'circle' ? it.hull.radius : 9.5;
-      const visual: CanvasDefaultContentVisual = {
-        kind: 'geometric',
-        shape,
-        radius,
-        colorHex: it.layoutContext.mixedColorHex,
-        label: it.id,
-        theme,
-        strokeColor: options.shapeOptions?.strokeColor,
-        strokeWidth: options.shapeOptions?.strokeWidth,
-      };
+      const resolved = visualResolver.resolveContentVisual(it.item, it.layoutContext);
+      const radius =
+        it.hull.kind === 'circle'
+          ? it.hull.radius
+          : SIMPLEX_PRESET_DEFAULTS.contentRadius;
+      const visual: CanvasDefaultContentVisual =
+        resolved.kind === 'geometric'
+          ? { ...resolved, radius, label: it.id }
+          : { ...resolved, label: it.id };
       return {
         id: it.id,
         x: it.x,
@@ -952,5 +937,4 @@ export function renderSimplexSnapshotToCanvas<TItem>(
   return stats;
 }
 
-export { hexWithAlpha };
 export type { Point2D };

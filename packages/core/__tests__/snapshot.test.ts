@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   createEmbeddingClusteringStrategy,
+  decodeSimplexDataUrlToBytes,
+  getGeometricShapeVertices,
+  measureGeometricShapeHull,
   rectToConvexPolygon,
+  resolveEffectiveGeometricPolygon,
+  resolveRankGeometricShape,
+  resolveSimplexThemeBackgroundColor,
   solveSimplexSnapshot,
   type DefaultTaggedItem,
 } from '../src/index';
@@ -81,5 +87,57 @@ describe('solveSimplexSnapshot one-shot helper', () => {
     expect(snapshot.items.length).toBe(7);
     expect(snapshot.clusters.length).toBeGreaterThanOrEqual(3);
     expect(snapshot.items[0]?.item.assetId).toBe('img-1');
+  });
+});
+
+describe('presetShared geometry, theme background & data URL helpers', () => {
+  it('resolves geometric shapes, vertices, and matching analytical collision hulls', () => {
+    expect(resolveRankGeometricShape(1)).toBe('circle');
+    expect(resolveRankGeometricShape(2)).toBe('diamond');
+    expect(resolveRankGeometricShape(3)).toBe('star');
+
+    const poly = resolveEffectiveGeometricPolygon({ shape: 'hexagon' }, { sides: 5 });
+    expect(poly.kind).toBe('polygon');
+    expect(poly.sides).toBe(5);
+    const verts = getGeometricShapeVertices(poly, 10);
+    expect(verts).toHaveLength(5);
+    const hull = measureGeometricShapeHull(poly, 10);
+    expect(hull.kind).toBe('polygon');
+    if (hull.kind === 'polygon') {
+      expect(hull.vertices).toHaveLength(5);
+    }
+
+    const diamond = resolveEffectiveGeometricPolygon({ shape: 'diamond' });
+    expect(getGeometricShapeVertices(diamond, 10)).toHaveLength(4);
+    expect(measureGeometricShapeHull(diamond, 10).kind).toBe('polygon');
+
+    const star = resolveEffectiveGeometricPolygon({ shape: 'star' });
+    expect(getGeometricShapeVertices(star, 10)).toHaveLength(10);
+    expect(measureGeometricShapeHull(star, 10).kind).toBe('polygon');
+
+    const circle = resolveEffectiveGeometricPolygon({ shape: 'circle' });
+    expect(measureGeometricShapeHull(circle, 9.5)).toEqual({ kind: 'circle', radius: 9.5 });
+  });
+
+  it('resolves canonical SVG & Canvas background colors and decodes base64/percent Data URLs in pure ES2022', () => {
+    expect(resolveSimplexThemeBackgroundColor('light', 'svg')).toBe('#ffffff');
+    expect(resolveSimplexThemeBackgroundColor('dark', 'svg')).toBe('#07090e');
+    expect(resolveSimplexThemeBackgroundColor('light', 'canvas')).toBe('#f8fafc');
+    expect(resolveSimplexThemeBackgroundColor('dark', 'canvas')).toBe('#0b1120');
+
+    const b64 = decodeSimplexDataUrlToBytes('data:image/png;base64,AQIDBA==');
+    expect(b64.mimeType).toBe('image/png');
+    expect(Array.from(b64.bytes)).toEqual([1, 2, 3, 4]);
+
+    const svgText = '<svg>✓</svg>';
+    const pct = decodeSimplexDataUrlToBytes(
+      `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`,
+    );
+    expect(pct.mimeType).toBe('image/svg+xml');
+    expect(new TextDecoder().decode(pct.bytes)).toBe(svgText);
+
+    const invalid = decodeSimplexDataUrlToBytes('not-a-data-url', 'image/webp');
+    expect(invalid.mimeType).toBe('image/webp');
+    expect(invalid.bytes.byteLength).toBe(0);
   });
 });

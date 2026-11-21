@@ -1,24 +1,38 @@
 import {
+  SIMPLEX_PRESET_DEFAULTS,
   computeConvexHull,
   estimateSimplexTextWidth,
+  getGeometricShapeVertices,
+  measureGeometricShapeHull,
   rectToConvexPolygon,
-  regularPolygon,
+  resolveClusterBadgeTitle,
+  resolveEffectiveGeometricPolygon,
+  resolveGeometricShapeSpec,
+  resolveRankGeometricShape,
+  resolveSimplexThemeBackgroundColor,
   solveSimplexSnapshot,
-  starConvexHull,
   type ClusterDescriptor,
   type ContentLayoutContext,
   type ConvexGeometry,
   type DefaultTaggedItem,
+  type GeometricShapeKind,
   type ItemFilterMode,
   type ItemFilterPredicate,
   type MeshEdgeRenderState,
   type MeshTriangleRenderState,
-  type Point2D,
+  type ResolvedGeometricPolygon,
   type SimplexLayoutSnapshot,
   type SimplexSnapshotOptions,
   type SnapshotClusterNode,
   type SnapshotContentNode,
 } from '@simplex-viz/core';
+import {
+  chamferRectSvgPath,
+  chamferRectSvgPoints,
+  octagonSvgPoints,
+  resolveSvgBadgeLayout,
+  type SvgBadgeLayout,
+} from './badgeLayout.js';
 import {
   resolveClusterSurfaceColors,
   roundedRectSvgPath,
@@ -29,12 +43,7 @@ import type {
   SimplexTheme,
   SimplexVisualPreset,
 } from './presets.js';
-import { truncateBadgeTitle } from './views/BadgeClusterSvgView.js';
-import {
-  resolveGeometricShapeSpec,
-  type GeometricShapeKind,
-  type GeometricShapeSvgViewOptions,
-} from './views/GeometricShapeSvgView.js';
+import type { GeometricShapeSvgViewOptions } from './views/GeometricShapeSvgView.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -235,10 +244,6 @@ function fmt(val: number, digits = 2): string {
   return Object.is(rounded, -0) ? '0' : String(rounded);
 }
 
-function resolveSsrBackgroundColor(theme: SimplexTheme): string {
-  return theme === 'light' ? '#ffffff' : '#07090e';
-}
-
 function isSnapshotInput<TItem, TTagMeta, TClusterMeta>(
   input:
     | readonly TItem[]
@@ -256,29 +261,8 @@ function isSnapshotInput<TItem, TTagMeta, TClusterMeta>(
   );
 }
 
-const NAMED_POLYGON_SIDES: Readonly<Record<string, number>> = {
-  triangle: 3,
-  square: 4,
-  pentagon: 5,
-  hexagon: 6,
-  heptagon: 7,
-  octagon: 8,
-};
-
-function regularPolygonRadiusScale(sides: number): number {
-  if (sides <= 3) return 1.18;
-  if (sides === 4) return 1.1;
-  if (sides === 5) return 1.08;
-  if (sides === 6) return 1.05;
-  if (sides === 7) return 1.04;
-  return 1.03;
-}
-
-interface ResolvedGeometricSpec {
-  readonly kind: 'circle' | 'diamond' | 'star' | 'polygon';
-  readonly sides?: number;
-  readonly rotationRad: number;
-  readonly radiusScale: number;
+interface ResolvedSsrContentShape {
+  readonly resolved: ResolvedGeometricPolygon;
   readonly radius: number;
 }
 
@@ -287,128 +271,31 @@ function resolveSsrContentShape<TItem, TTagMeta, TClusterMeta>(
   ctx: ContentLayoutContext<TItem, TTagMeta, TClusterMeta>,
   getShape?: PresetContentShapeOption<TItem, TTagMeta, TClusterMeta>,
   shapeOptions?: GeometricShapeSvgViewOptions,
-): ResolvedGeometricSpec {
-  let shapeKind: GeometricShapeKind;
-  let itemSides: number | undefined;
-  let itemRot: number | undefined;
-  let radius = 9.5;
-
+): ResolvedSsrContentShape {
+  let base: {
+    shape: GeometricShapeKind;
+    sides?: number;
+    rotationRad?: number;
+    radius?: number;
+  };
   if (getShape !== undefined) {
     const rawSpec = typeof getShape === 'function' ? getShape(item, ctx) : getShape;
-    const resolved = resolveGeometricShapeSpec(rawSpec);
-    shapeKind = resolved.shape;
-    itemSides = resolved.sides;
-    itemRot = resolved.rotationRad;
-    if (resolved.radius !== undefined) radius = resolved.radius;
+    base = resolveGeometricShapeSpec(rawSpec);
   } else {
-    const rank = ctx.unitClusters.length;
-    shapeKind = rank >= 3 ? 'star' : rank === 2 ? 'diamond' : 'circle';
+    base = { shape: resolveRankGeometricShape(ctx.unitClusters.length) };
   }
-
-  const effectiveSidesRaw = shapeOptions?.sides ?? itemSides;
-  const effectiveShape =
-    shapeOptions?.sides !== undefined
-      ? (shapeOptions.shape ?? 'polygon')
-      : (shapeOptions?.shape ?? shapeKind);
-
-  if (
-    effectiveShape === 'polygon' ||
-    (effectiveSidesRaw !== undefined &&
-      Number.isFinite(effectiveSidesRaw) &&
-      effectiveShape !== 'circle' &&
-      effectiveShape !== 'diamond' &&
-      effectiveShape !== 'star')
-  ) {
-    const namedFallback = NAMED_POLYGON_SIDES[effectiveShape];
-    const sides = Math.max(3, Math.round(effectiveSidesRaw ?? namedFallback ?? 6));
-    const defaultRot =
-      effectiveShape === 'square' ||
-      (shapeOptions?.sides === 4 && shapeOptions.shape === undefined)
-        ? -Math.PI / 4
-        : -Math.PI / 2;
-    return {
-      kind: 'polygon',
-      sides,
-      rotationRad: shapeOptions?.rotationRad ?? itemRot ?? defaultRot,
-      radiusScale: regularPolygonRadiusScale(sides),
-      radius,
-    };
-  }
-
-  const namedSides = NAMED_POLYGON_SIDES[effectiveShape];
-  if (namedSides !== undefined) {
-    const defaultRot = effectiveShape === 'square' ? -Math.PI / 4 : -Math.PI / 2;
-    return {
-      kind: 'polygon',
-      sides: namedSides,
-      rotationRad: shapeOptions?.rotationRad ?? itemRot ?? defaultRot,
-      radiusScale: regularPolygonRadiusScale(namedSides),
-      radius,
-    };
-  }
-
-  if (effectiveShape === 'circle') {
-    return { kind: 'circle', rotationRad: -Math.PI / 2, radiusScale: 1, radius };
-  }
-  if (effectiveShape === 'diamond') {
-    return { kind: 'diamond', rotationRad: -Math.PI / 2, radiusScale: 1.12, radius };
-  }
-  return { kind: 'star', rotationRad: -Math.PI / 2, radiusScale: 1.24, radius };
+  return {
+    resolved: resolveEffectiveGeometricPolygon(base, shapeOptions),
+    radius: base.radius ?? SIMPLEX_PRESET_DEFAULTS.contentRadius,
+  };
 }
 
-function buildGeometricShapePath(resolved: ResolvedGeometricSpec, radius: number): string {
-  const r = Math.max(3, radius);
-  if (resolved.kind === 'circle') {
-    const pts: Point2D[] = [];
-    const samples = 48;
-    for (let i = 0; i < samples; i++) {
-      const a = (i / samples) * Math.PI * 2 - Math.PI / 2;
-      pts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
-    }
-    return `M ${pts.map((p) => `${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' L ')} Z`;
-  }
-  const verts: Point2D[] = [];
-  if (resolved.kind === 'diamond') {
-    const d = r * 1.12;
-    verts.push(
-      { x: 0, y: -d },
-      { x: d * 0.88, y: 0 },
-      { x: 0, y: d },
-      { x: -d * 0.88, y: 0 },
-    );
-  } else if (resolved.kind === 'polygon') {
-    const sides = Math.max(3, resolved.sides ?? 6);
-    const polyR = r * resolved.radiusScale;
-    for (let i = 0; i < sides; i++) {
-      const a = resolved.rotationRad + (i * Math.PI * 2) / sides;
-      verts.push({ x: Math.cos(a) * polyR, y: Math.sin(a) * polyR });
-    }
-  } else {
-    const outer = r * 1.24;
-    const inner = r * 0.56;
-    for (let i = 0; i < 10; i++) {
-      const a = -Math.PI / 2 + (i * Math.PI) / 5;
-      const rad = i % 2 === 0 ? outer : inner;
-      verts.push({ x: Math.cos(a) * rad, y: Math.sin(a) * rad });
-    }
-  }
+function buildGeometricShapePath(
+  resolved: ResolvedGeometricPolygon,
+  radius: number,
+): string {
+  const verts = getGeometricShapeVertices(resolved, radius, { circleSamples: 48 });
   return `M ${verts.map((p) => `${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' L ')} Z`;
-}
-
-interface ResolvedBadgeGeometry {
-  readonly variant: 'primary' | 'intermediate';
-  readonly hasParentCtx: boolean;
-  readonly showCode: boolean;
-  readonly code: string;
-  readonly upperParent: string;
-  readonly title: string;
-  readonly metaLine: string;
-  readonly codeSpan: number;
-  readonly headerContentW: number;
-  readonly width: number;
-  readonly height: number;
-  readonly cut: number;
-  readonly haloPad: number;
 }
 
 function resolveSsrBadgeGeometry<TItem, TTagMeta, TClusterMeta>(
@@ -418,153 +305,24 @@ function resolveSsrBadgeGeometry<TItem, TTagMeta, TClusterMeta>(
     readonly badgeOptions?: PresetBadgeClusterOptions<TItem, TTagMeta, TClusterMeta>;
     readonly measureText: SsrMeasureTextFn;
   },
-): ResolvedBadgeGeometry {
+): SvgBadgeLayout {
   const isIntermediate = cluster.role === 'intermediate';
-  const variant: 'primary' | 'intermediate' = isIntermediate
-    ? 'intermediate'
-    : 'primary';
-  const badgeOptions = options.badgeOptions;
-  const measureText = options.measureText;
-
-  let compactSuffix = '';
-  if (isIntermediate) {
-    if (cluster.subclusterLabel) {
-      compactSuffix = cluster.subclusterLabel.slice(0, 24);
-    } else if (cluster.coreTags.length > 0) {
-      const firstTag = cluster.coreTags[0]!;
-      const formattedTag =
-        firstTag.label ??
-        (options.formatTagLabel ? options.formatTagLabel(firstTag.tag).trim() : '');
-      compactSuffix = (
-        formattedTag.length > 0 ? formattedTag : `#${firstTag.tag}`
-      ).slice(0, 22);
-    } else {
-      compactSuffix = (cluster.defaultLabel || cluster.code).slice(0, 22);
-    }
-  }
-
-  let resolvedTitle = isIntermediate ? compactSuffix : cluster.defaultLabel;
-  if (badgeOptions?.formatTitle) {
-    resolvedTitle = badgeOptions.formatTitle(resolvedTitle, { variant, cluster });
-  }
-  if (
-    badgeOptions?.maxTitleChars !== undefined &&
-    Number.isFinite(badgeOptions.maxTitleChars) &&
-    badgeOptions.maxTitleChars > 0
-  ) {
-    resolvedTitle = truncateBadgeTitle(resolvedTitle, badgeOptions.maxTitleChars);
-  }
-  resolvedTitle = resolvedTitle.trim();
-
-  if (isIntermediate) {
-    const parentCtx = (cluster.parentContextLabel ?? '').trim();
-    const hasParentCtx = parentCtx.length > 0;
-    const mainText = resolvedTitle || cluster.code;
-    if (hasParentCtx) {
-      const upperParent = parentCtx.toUpperCase();
-      const topW = measureText({
-        text: upperParent,
-        fontSize: 7.4,
-        fontFamily: 'IBM Plex Mono, monospace',
-        fontWeight: 700,
-        letterSpacingEm: 0.05,
-      });
-      const botW = measureText({
-        text: mainText,
-        fontSize: 9.3,
-        fontFamily: 'Plus Jakarta Sans, sans-serif',
-        fontWeight: 700,
-      });
-      const width = Math.max(66, Math.round(Math.max(topW, botW) + 28));
-      return {
-        variant: 'intermediate',
-        hasParentCtx: true,
-        showCode: false,
-        code: cluster.code,
-        upperParent,
-        title: mainText,
-        metaLine: '',
-        codeSpan: 0,
-        headerContentW: botW,
-        width,
-        height: 32,
-        cut: 6.4,
-        haloPad: 2.5,
-      };
-    }
-
-    const contentW = measureText({
-      text: mainText,
-      fontSize: 9.1,
-      fontFamily: 'Plus Jakarta Sans, sans-serif',
-      fontWeight: 700,
-    });
-    const width = Math.max(52, Math.round(contentW + 26));
-    return {
-      variant: 'intermediate',
-      hasParentCtx: false,
-      showCode: false,
-      code: cluster.code,
-      upperParent: '',
-      title: mainText,
-      metaLine: '',
-      codeSpan: 0,
-      headerContentW: contentW,
-      width,
-      height: 22,
-      cut: 5.5,
-      haloPad: 2.4,
-    };
-  }
-
+  const title = resolveClusterBadgeTitle(cluster, {
+    formatTagLabel: options.formatTagLabel,
+    badgeOptions: options.badgeOptions,
+  });
   const count = cluster.members.length;
-  const metaLine = `${count} ${count === 1 ? 'item' : 'items'}`;
-  const showCode =
-    (badgeOptions?.showCode ?? true) && cluster.code.trim().length > 0;
-  const codeTextW = showCode
-    ? measureText({
-        text: cluster.code,
-        fontSize: 9.8,
-        fontFamily: 'IBM Plex Mono, monospace',
-        fontWeight: 600,
-      })
-    : 0;
-  const codeSpan = showCode ? Math.max(20, codeTextW + 7) : 0;
-  const titleTextW = measureText({
-    text: resolvedTitle,
-    fontSize: 11,
-    fontFamily: 'Plus Jakarta Sans, sans-serif',
-    fontWeight: 700,
-    letterSpacingEm: 0.01,
-  });
-  const headerContentW = codeSpan + titleTextW;
-  const metaW = measureText({
-    text: metaLine,
-    fontSize: 9.3,
-    fontFamily: 'IBM Plex Mono, monospace',
-    fontWeight: 400,
-  });
-  const minPrimaryWidth = showCode ? 126 : 96;
-  const padX = showCode ? 36 : 32;
-  const width = Math.max(
-    minPrimaryWidth,
-    Math.round(Math.max(headerContentW + padX, metaW + padX)),
+  return resolveSvgBadgeLayout(
+    {
+      variant: isIntermediate ? 'intermediate' : 'primary',
+      code: cluster.code,
+      title,
+      metaLine: isIntermediate ? '' : `${count} ${count === 1 ? 'item' : 'items'}`,
+      parentContextLabel: cluster.parentContextLabel,
+      showCode: options.badgeOptions?.showCode,
+    },
+    options.measureText,
   );
-  return {
-    variant: 'primary',
-    hasParentCtx: false,
-    showCode,
-    code: cluster.code,
-    upperParent: '',
-    title: resolvedTitle,
-    metaLine,
-    codeSpan,
-    headerContentW,
-    width,
-    height: 42,
-    cut: 0,
-    haloPad: 2.8,
-  };
 }
 
 /**
@@ -625,15 +383,16 @@ export function createSsrPresetHullMeasurers<
       return rectToConvexPolygon(halfW * 2, halfH * 2);
     }
 
+    const r = SIMPLEX_PRESET_DEFAULTS.svgClusterAnchorRadius;
     if (cluster.role === 'intermediate') {
       const hasParent = Boolean(cluster.parentContextLabel?.trim());
       const compactR = Math.max(
         hasParent ? 15 : 13,
-        Math.round(22 * (hasParent ? 0.76 : 0.66)),
+        Math.round(r * (hasParent ? 0.76 : 0.66)),
       );
       return { kind: 'circle', radius: compactR + 4.5 };
     }
-    return { kind: 'circle', radius: 22 + 5 };
+    return { kind: 'circle', radius: r + 5 };
   };
 
   const measureContentHull = (
@@ -641,43 +400,23 @@ export function createSsrPresetHullMeasurers<
     ctx: ContentLayoutContext<TItem, TTagMeta, TClusterMeta>,
   ): ConvexGeometry => {
     if (preset === 'glyphs') {
-      return { kind: 'circle', radius: 11.5 + 2 };
+      return {
+        kind: 'circle',
+        radius: SIMPLEX_PRESET_DEFAULTS.svgGlyphOuterRadius + 2,
+      };
     }
     const baseStrokeWidth =
       options.shapeOptions?.strokeWidth !== undefined &&
       Number.isFinite(options.shapeOptions.strokeWidth)
         ? Math.max(0, options.shapeOptions.strokeWidth)
-        : 1.4;
-    const resolved = resolveSsrContentShape(
+        : SIMPLEX_PRESET_DEFAULTS.svgStrokeWidth;
+    const { resolved, radius } = resolveSsrContentShape(
       item,
       ctx,
       options.getShape,
       options.shapeOptions,
     );
-    const r = resolved.radius + baseStrokeWidth;
-    if (resolved.kind === 'circle') {
-      return { kind: 'circle', radius: r };
-    }
-    if (resolved.kind === 'diamond') {
-      const d = r * 1.12;
-      return {
-        kind: 'polygon',
-        vertices: computeConvexHull([
-          { x: 0, y: -d },
-          { x: d * 0.88, y: 0 },
-          { x: 0, y: d },
-          { x: -d * 0.88, y: 0 },
-        ]),
-      };
-    }
-    if (resolved.kind === 'polygon') {
-      return regularPolygon(
-        resolved.sides ?? 6,
-        r * resolved.radiusScale,
-        resolved.rotationRad,
-      );
-    }
-    return starConvexHull(5, r * 1.24);
+    return measureGeometricShapeHull(resolved, radius + baseStrokeWidth);
   };
 
   return { measureClusterHull, measureContentHull };
@@ -723,32 +462,12 @@ function renderDefaultClusterMarkup<TItem, TTagMeta, TClusterMeta>(
     const halfH = geom.height / 2;
 
     if (geom.variant === 'intermediate') {
-      const chamferPath = (hw: number, hh: number, c: number, dy = 0): string =>
-        [
-          `M ${(-hw + c).toFixed(1)} ${(-hh + dy).toFixed(1)}`,
-          `L ${(hw - c).toFixed(1)} ${(-hh + dy).toFixed(1)}`,
-          `L ${hw.toFixed(1)} ${dy.toFixed(1)}`,
-          `L ${(hw - c).toFixed(1)} ${(hh + dy).toFixed(1)}`,
-          `L ${(-hw + c).toFixed(1)} ${(hh + dy).toFixed(1)}`,
-          `L ${(-hw).toFixed(1)} ${dy.toFixed(1)}`,
-          'Z',
-        ].join(' ');
-      const chamferPoints = (hw: number, hh: number, c: number): string =>
-        [
-          `${(-hw + c).toFixed(1)},${(-hh).toFixed(1)}`,
-          `${(hw - c).toFixed(1)},${(-hh).toFixed(1)}`,
-          `${hw.toFixed(1)},0`,
-          `${(hw - c).toFixed(1)},${hh.toFixed(1)}`,
-          `${(-hw + c).toFixed(1)},${hh.toFixed(1)}`,
-          `${(-hw).toFixed(1)},0`,
-        ].join(' ');
-
       const shadowOp = isLight ? '0.16' : '0.44';
       const haloOp = isLight ? '0.56' : '0.7';
       const parts = [
-        `<path d="${chamferPath(halfW, halfH, geom.cut, 1.5)}" fill="#020617" fill-opacity="${shadowOp}"/>`,
-        `<polygon points="${chamferPoints(halfW + geom.haloPad, halfH + geom.haloPad, geom.cut + 1.1)}" fill="none" stroke="${palette.haloHex}" stroke-width="1.25" stroke-opacity="${haloOp}" stroke-dasharray="3 2" stroke-linejoin="round"/>`,
-        `<polygon points="${chamferPoints(halfW, halfH, geom.cut)}" fill="${palette.solidFillHex}" stroke="#ffffff" stroke-width="1.0" stroke-opacity="0.3" stroke-linejoin="round"/>`,
+        `<path d="${chamferRectSvgPath(halfW, halfH, geom.cut, 1.5)}" fill="#020617" fill-opacity="${shadowOp}"/>`,
+        `<polygon points="${chamferRectSvgPoints(halfW + geom.haloPad, halfH + geom.haloPad, geom.cut + 1.1)}" fill="none" stroke="${palette.haloHex}" stroke-width="1.25" stroke-opacity="${haloOp}" stroke-dasharray="3 2" stroke-linejoin="round"/>`,
+        `<polygon points="${chamferRectSvgPoints(halfW, halfH, geom.cut)}" fill="${palette.solidFillHex}" stroke="#ffffff" stroke-width="1.0" stroke-opacity="0.3" stroke-linejoin="round"/>`,
       ];
       if (geom.hasParentCtx) {
         parts.push(
@@ -795,28 +514,15 @@ function renderDefaultClusterMarkup<TItem, TTagMeta, TClusterMeta>(
   }
 
   // ClusterAnchorSvgView-equivalent ('geometric' and 'glyphs')
-  const r = 22;
+  const r = SIMPLEX_PRESET_DEFAULTS.svgClusterAnchorRadius;
   if (cluster.role === 'intermediate') {
     const parentCtx = (cluster.parentContextLabel ?? '').trim();
     const hasParent = parentCtx.length > 0;
     const octR = Math.max(hasParent ? 15 : 13, Math.round(r * (hasParent ? 0.76 : 0.66)));
-    const octagonPts = (rad: number, dy = 0): string => {
-      const d = rad * 0.7071;
-      return [
-        `0,${(-rad + dy).toFixed(1)}`,
-        `${d.toFixed(1)},${(-d + dy).toFixed(1)}`,
-        `${rad.toFixed(1)},${dy.toFixed(1)}`,
-        `${d.toFixed(1)},${(d + dy).toFixed(1)}`,
-        `0,${(rad + dy).toFixed(1)}`,
-        `${(-d).toFixed(1)},${(d + dy).toFixed(1)}`,
-        `${(-rad).toFixed(1)},${dy.toFixed(1)}`,
-        `${(-d).toFixed(1)},${(-d + dy).toFixed(1)}`,
-      ].join(' ');
-    };
     const parts = [
-      `<polygon points="${octagonPts(octR + 2.8)}" fill="none" stroke="${palette.haloHex}" stroke-width="1.25" stroke-opacity="${isLight ? '0.56' : '0.7'}" stroke-dasharray="3 2" stroke-linejoin="round"/>`,
-      `<polygon points="${octagonPts(octR, 1.4)}" fill="#020617" fill-opacity="${isLight ? '0.15' : '0.42'}"/>`,
-      `<polygon points="${octagonPts(octR)}" fill="${palette.solidFillHex}" stroke="#ffffff" stroke-width="1.0" stroke-opacity="0.28" stroke-linejoin="round"/>`,
+      `<polygon points="${octagonSvgPoints(octR + 2.8)}" fill="none" stroke="${palette.haloHex}" stroke-width="1.25" stroke-opacity="${isLight ? '0.56' : '0.7'}" stroke-dasharray="3 2" stroke-linejoin="round"/>`,
+      `<polygon points="${octagonSvgPoints(octR, 1.4)}" fill="#020617" fill-opacity="${isLight ? '0.15' : '0.42'}"/>`,
+      `<polygon points="${octagonSvgPoints(octR)}" fill="${palette.solidFillHex}" stroke="#ffffff" stroke-width="1.0" stroke-opacity="0.28" stroke-linejoin="round"/>`,
     ];
     if (hasParent) {
       parts.push(
@@ -894,8 +600,8 @@ function renderDefaultContentMarkup<TItem, TTagMeta, TClusterMeta>(
     options.shapeOptions?.selectionRingColor ?? (isLight ? '#7c3aed' : '#a78bfa');
 
   if (preset === 'glyphs') {
-    const outerR = 11.5;
-    const innerR = 4.5;
+    const outerR = SIMPLEX_PRESET_DEFAULTS.svgGlyphOuterRadius;
+    const innerR = SIMPLEX_PRESET_DEFAULTS.svgGlyphInnerRadius;
     const dividerStroke = isLight ? '#ffffff' : '#07090E';
     const sectors = node.layoutContext.unitClusters.map((uc) => ({
       colorHex: uc.cluster.colorHex,
@@ -930,7 +636,7 @@ function renderDefaultContentMarkup<TItem, TTagMeta, TClusterMeta>(
     return parts.join('');
   }
 
-  const resolved = resolveSsrContentShape(
+  const { resolved, radius } = resolveSsrContentShape(
     node.item,
     node.layoutContext,
     options.getShape,
@@ -942,20 +648,20 @@ function renderDefaultContentMarkup<TItem, TTagMeta, TClusterMeta>(
     options.shapeOptions?.strokeWidth !== undefined &&
     Number.isFinite(options.shapeOptions.strokeWidth)
       ? Math.max(0, options.shapeOptions.strokeWidth)
-      : 1.4;
+      : SIMPLEX_PRESET_DEFAULTS.svgStrokeWidth;
   const parts: string[] = [];
   if (isSelected) {
     parts.push(
-      `<path class="sv-geom-selection-ring" d="${buildGeometricShapePath(resolved, resolved.radius + (isHighlighted ? 7.2 : 4.6))}" fill="none" stroke="${escapeXml(selectionRing)}" stroke-width="2.1" stroke-opacity="0.96"/>`,
+      `<path class="sv-geom-selection-ring" d="${buildGeometricShapePath(resolved, radius + (isHighlighted ? 7.2 : 4.6))}" fill="none" stroke="${escapeXml(selectionRing)}" stroke-width="2.1" stroke-opacity="0.96"/>`,
     );
   }
   if (isHighlighted) {
     parts.push(
-      `<path class="sv-geom-ring" d="${buildGeometricShapePath(resolved, resolved.radius + 4.5)}" fill="none" stroke="${escapeXml(accentRing)}" stroke-width="1.4" stroke-opacity="0.9"/>`,
+      `<path class="sv-geom-ring" d="${buildGeometricShapePath(resolved, radius + 4.5)}" fill="none" stroke="${escapeXml(accentRing)}" stroke-width="1.4" stroke-opacity="0.9"/>`,
     );
   }
   parts.push(
-    `<path class="sv-geom-shape" d="${buildGeometricShapePath(resolved, resolved.radius)}" fill="${escapeXml(node.colorHex)}" stroke="${escapeXml(isSelected ? selectionRing : restStroke)}" stroke-width="${fmt(isSelected ? Math.max(2.2, strokeWidth) : strokeWidth)}"/>`,
+    `<path class="sv-geom-shape" d="${buildGeometricShapePath(resolved, radius)}" fill="${escapeXml(node.colorHex)}" stroke="${escapeXml(isSelected ? selectionRing : restStroke)}" stroke-width="${fmt(isSelected ? Math.max(2.2, strokeWidth) : strokeWidth)}"/>`,
   );
   return parts.join('');
 }
@@ -1239,7 +945,8 @@ export function renderSimplexSvgString<
     );
   }
   if (opts.includeBackground !== false) {
-    const bgFill = opts.backgroundColor?.trim() || resolveSsrBackgroundColor(theme);
+    const bgFill =
+      opts.backgroundColor?.trim() || resolveSimplexThemeBackgroundColor(theme, 'svg');
     sections.push(
       `<rect class="sv-export-background" x="${fmt(vbX)}" y="${fmt(vbY)}" width="${fmt(vbW)}" height="${fmt(vbH)}" fill="${escapeXml(bgFill)}"/>`,
     );

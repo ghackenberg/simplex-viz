@@ -12,9 +12,7 @@ import {
   type CameraController,
   type ClusterDerivationContext,
   type ClusterDescriptor,
-  type ClusterHoverEvent,
   type ClusterMetaConfig,
-  type ContentHoverEvent,
   type DefaultTaggedItem,
   type EmptyClusterBehavior,
   type FinalSeededLayoutScaleMode,
@@ -32,6 +30,7 @@ import {
   type SelectInRectOptions,
   type SimplexClusteringStrategy,
   type SimplexColorStrategy,
+  type SimplexHoverTarget,
   type SimplexInteractiveTarget,
   type SimplexKeyboardFocusTarget,
   type SimplexLayoutStrategy,
@@ -45,15 +44,15 @@ import {
   type SimplexZoomState,
   type SimplexZoomStrategy,
   type StrategyItemIdentityConfig,
-  type TriangleHoverEvent,
   type VisualResolver,
   type ZoomToItemOptions,
 } from '@simplex-viz/core';
 import {
   applySimplexPinchDrillTarget,
-  applySimplexTooltipTheme,
+  bindSimplexInteractiveViewport,
   computeSimplexZoomAnnouncementSignature,
   createSimplexSrAnnouncer,
+  createSimplexTooltipOverlay,
   dispatchSimplexDefaultLeftClick,
   ensureSimplexContainerPositioned,
   formatSimplexInteractiveTargetAriaLabel,
@@ -63,19 +62,17 @@ import {
   isSimplexHoverEventConsumed,
   measureSimplexContainer,
   observeSimplexContainerResize,
-  positionSimplexTooltipElement,
   resolveNextSimplexKeyboardFocusIndex,
   resolveSimplexContainer,
-  resolveSimplexCursorForPoint,
   resolveSimplexPinchDrillTarget,
   resolveSimplexReducedMotion,
-  stepSimplexDrillDownWheelPinch,
   subscribeSimplexFontLoadRelayout,
   subscribeSimplexReducedMotionMedia,
   toSimplexKeyboardFocusTargetRef,
+  type SimplexInteractiveViewportHandle,
   type SimplexResizeObserverHandle,
   type SimplexSrAnnouncerHandle,
-  type SimplexWheelPinchState,
+  type SimplexTooltipOverlay,
 } from '@simplex-viz/core/dom';
 import {
   exportSvgElementToPng,
@@ -118,24 +115,13 @@ export type SimplexSvgTooltipTarget<
   TClusterVisual = DefaultClusterPresetVisual,
   TTagMeta = undefined,
   TClusterMeta = undefined,
-> =
-  | ({ readonly kind: 'content' } & ContentHoverEvent<
-      TItem,
-      TContentVisual,
-      TTagMeta,
-      TClusterMeta
-    >)
-  | ({ readonly kind: 'cluster' } & ClusterHoverEvent<
-      TItem,
-      TClusterVisual,
-      TTagMeta,
-      TClusterMeta
-    >)
-  | ({ readonly kind: 'triangle' } & TriangleHoverEvent<
-      TItem,
-      TTagMeta,
-      TClusterMeta
-    >);
+> = SimplexHoverTarget<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta
+>;
 
 export type SimplexTooltipFormatter<
   TItem = DefaultTaggedItem,
@@ -217,34 +203,6 @@ export type SimplexSvgTooltipOption<
   | boolean
   | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>
   | SimplexDomTooltipRenderer<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
-
-function isDomTooltipRenderer<
-  TItem,
-  TContentVisual,
-  TClusterVisual,
-  TTagMeta,
-  TClusterMeta,
->(
-  option: SimplexSvgTooltipOption<
-    TItem,
-    TContentVisual,
-    TClusterVisual,
-    TTagMeta,
-    TClusterMeta
-  >,
-): option is SimplexDomTooltipRenderer<
-  TItem,
-  TContentVisual,
-  TClusterVisual,
-  TTagMeta,
-  TClusterMeta
-> {
-  return (
-    typeof option === 'object' &&
-    option !== null &&
-    typeof option.render === 'function'
-  );
-}
 
 /**
  * Configuration options for the built-in optional timeline / frame-stepping player
@@ -652,18 +610,14 @@ export class SimplexSvgController<
   private shapeOptions?: GeometricShapeSvgViewOptions;
   private usesCustomContentView: boolean;
   private usesCustomClusterView: boolean;
-  private tooltipOption: SimplexSvgTooltipOption<
+  private readonly tooltipOverlay: SimplexTooltipOverlay<
     TItem,
     TContentVisual,
     TClusterVisual,
     TTagMeta,
-    TClusterMeta
+    TClusterMeta,
+    HTMLDivElement
   >;
-  private tooltipEl: HTMLDivElement | null = null;
-  private tooltipCleanup: (() => void) | null = null;
-  private activeTooltipTargetKey: string | null = null;
-  private activeTooltipSuppressed = false;
-  private tooltipVisible = false;
   private breadcrumbOverlayEl: HTMLDivElement | null = null;
   private srAnnouncer: SimplexSrAnnouncerHandle;
   private ariaLabel: string;
@@ -710,43 +664,15 @@ export class SimplexSvgController<
   private controllerBatchDepth = 0;
   private destroyed = false;
 
-  // Centralized drag-to-pan, touch direction-locking, and multi-touch pinch-zoom state on root <svg>
+  // Centralized drag-to-pan, touch direction-locking, and multi-touch pinch-zoom binding on root <svg>
   private touchScrollLockPx: number;
   private clickTolerancePx: number;
-  private isDraggingPan = false;
-  private panStarted = false;
-  private dragStartX = 0;
-  private dragStartY = 0;
-  private pointerOriginX = 0;
-  private pointerOriginY = 0;
-  private pointerMaxDisplacement = 0;
-  private hasActiveGestureOrigin = false;
-  private wasMultiTouchGesture = false;
-  private touchScrollAxis: 'undecided' | 'vertical' | 'horizontal' | 'pinch' = 'undecided';
-  private touchOriginX = 0;
-  private touchOriginY = 0;
-  private touchYieldedToScroll = false;
-  private suppressNextClick = false;
-  private suppressClickStartPos: { x: number; y: number } | null = null;
-  private suppressClickEndPos: { x: number; y: number } | null = null;
-  private suppressClickDeadline = 0;
-  private readonly activePointers = new Map<number, { x: number; y: number }>();
-  private lastPinchDist: number | null = null;
-  private pinchStartDist: number | null = null;
-  private pinchHandledInGesture = false;
-  private lastPinchMid: { x: number; y: number } | null = null;
-  private wheelPinchState: SimplexWheelPinchState = { accum: 0, cooldownUntil: 0 };
+  private viewportHandle: SimplexInteractiveViewportHandle | null = null;
   private fontLoadCleanup: (() => void) | null = null;
   private reducedMotionPreference: ReducedMotionPreference = 'auto';
   private reducedMotionActive = false;
   private reducedMotionMediaCleanup: (() => void) | null = null;
   private marqueeSelectionEnabled = true;
-  private marqueeArmed = false;
-  private isMarqueeSelecting = false;
-  private marqueeStartX = 0;
-  private marqueeStartY = 0;
-  private marqueeCurrentX = 0;
-  private marqueeCurrentY = 0;
   private marqueeOverlayGroup: SVGGElement | null = null;
   private marqueeRectEl: SVGRectElement | null = null;
 
@@ -784,7 +710,6 @@ export class SimplexSvgController<
     this.shapeOptions = options.shapeOptions;
     this.usesCustomContentView = options.contentView !== undefined;
     this.usesCustomClusterView = options.clusterView !== undefined;
-    this.tooltipOption = options.tooltip ?? false;
     this.ariaLabel = options.ariaLabel?.trim() || DEFAULT_ARIA_LABEL;
     this.keyboardNavigationEnabled = options.keyboardNavigation ?? true;
     this.marqueeSelectionEnabled = options.marqueeSelection ?? true;
@@ -838,12 +763,33 @@ export class SimplexSvgController<
     this.svgEl.setAttribute('width', '100%');
     this.svgEl.setAttribute('height', '100%');
     this.svgEl.style.display = 'block';
-    this.syncSvgTouchAction();
+    this.svgEl.style.touchAction = this.touchScrollLockPx > 0 ? 'pan-y' : 'none';
     this.svgEl.style.userSelect = 'none';
     this.syncSvgAccessibilityAttributes();
     this.syncReducedMotionAttribute();
     this.containerEl.appendChild(this.svgEl);
     this.srAnnouncer = createSimplexSrAnnouncer(this.containerEl, doc);
+    this.tooltipOverlay = createSimplexTooltipOverlay<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta,
+      HTMLDivElement
+    >({
+      hostEl: this.containerEl,
+      baseClassName: 'sv-tooltip',
+      ensureHostPositioned: true,
+      initialTheme: this.currentTheme,
+      initialOption: options.tooltip ?? false,
+      getDefaultText: (target) =>
+        formatSimplexTooltipText(target, {
+          getLabel: this.getLabelExtractor,
+          formatTagLabel: this.formatTagLabelFn,
+          zoomMode: this.engine.getZoomStrategy().mode,
+          zoomState: this.engine.getZoomState(),
+        }),
+    });
 
     const measured = measureSimplexContainer(this.containerEl, 960, 620, 40);
     const hasInitialSize = measured.hasValidSize;
@@ -891,7 +837,7 @@ export class SimplexSvgController<
       this.timelineShowControls = timelineOpts.showControls ?? true;
       this.timelinePosition = timelineOpts.position ?? 'bottom';
       this.timelineAutoFinalSeed = timelineOpts.autoFinalSeed ?? true;
-      this.timelineAutoFinalSeedLayout = this.normalizeAutoFinalSeedLayout(
+      this.timelineAutoFinalSeedLayout = normalizeTimelineLayoutScaleMode(
         timelineOpts.autoFinalSeedLayout,
       );
       this.timelineEmptyClusterBehavior = timelineOpts.emptyClusterBehavior;
@@ -965,7 +911,8 @@ export class SimplexSvgController<
       this.engine.renderNow();
     }
     const initialZoomState = this.engine.getZoomState();
-    this.lastAnnouncedZoomSig = this.computeZoomAnnouncementSig(initialZoomState);
+    this.lastAnnouncedZoomSig =
+      computeSimplexZoomAnnouncementSignature(initialZoomState);
     this.syncZoomOverlays(initialZoomState);
     this.onZoomStateChangeCallback?.(initialZoomState);
     if (this.timelineController) {
@@ -999,7 +946,7 @@ export class SimplexSvgController<
       worldToScreen: (worldX, worldY) => baseCamera.worldToScreen(worldX, worldY),
     };
 
-    this.attachSvgListeners();
+    this.attachViewportInteractions();
     this.syncReducedMotionMediaSubscription();
 
     if (canObserveResize) {
@@ -1095,9 +1042,9 @@ export class SimplexSvgController<
           ev,
         );
         if (ev && !consumed) {
-          this.showTooltipForTarget({ kind: 'content', ...ev });
+          this.tooltipOverlay.showForTarget({ kind: 'content', ...ev });
         } else {
-          this.hideTooltip();
+          this.tooltipOverlay.hide();
         }
         return consumed;
       },
@@ -1107,9 +1054,9 @@ export class SimplexSvgController<
           ev,
         );
         if (ev && !consumed) {
-          this.showTooltipForTarget({ kind: 'cluster', ...ev });
+          this.tooltipOverlay.showForTarget({ kind: 'cluster', ...ev });
         } else {
-          this.hideTooltip();
+          this.tooltipOverlay.hide();
         }
         return consumed;
       },
@@ -1119,9 +1066,9 @@ export class SimplexSvgController<
           ev,
         );
         if (ev && !consumed) {
-          this.showTooltipForTarget({ kind: 'triangle', ...ev });
+          this.tooltipOverlay.showForTarget({ kind: 'triangle', ...ev });
         } else {
-          this.hideTooltip();
+          this.tooltipOverlay.hide();
         }
         return consumed;
       },
@@ -1161,222 +1108,6 @@ export class SimplexSvgController<
         }
       },
     );
-  }
-
-  private formatTooltipTargetText(
-    target: SimplexSvgTooltipTarget<
-      TItem,
-      TContentVisual,
-      TClusterVisual,
-      TTagMeta,
-      TClusterMeta
-    >,
-  ): string | null | undefined | false {
-    if (typeof this.tooltipOption === 'function') {
-      return this.tooltipOption(target);
-    }
-    return formatSimplexTooltipText(target, {
-      getLabel: this.getLabelExtractor,
-      formatTagLabel: this.formatTagLabelFn,
-      zoomMode: this.engine.getZoomStrategy().mode,
-      zoomState: this.engine.getZoomState(),
-    });
-  }
-
-  private isTooltipUnstyled(): boolean {
-    return isDomTooltipRenderer(this.tooltipOption) && this.tooltipOption.unstyled !== false;
-  }
-
-  private applyTooltipThemeStyles(el: HTMLDivElement): void {
-    if (this.isTooltipUnstyled()) return;
-    applySimplexTooltipTheme(el, this.currentTheme);
-  }
-
-  private applyTooltipPresentationStyles(el: HTMLDivElement): void {
-    const domRenderer = isDomTooltipRenderer(this.tooltipOption)
-      ? this.tooltipOption
-      : null;
-    const customClass = domRenderer?.className?.trim();
-    el.className = customClass ? `sv-tooltip ${customClass}` : 'sv-tooltip';
-    el.setAttribute('role', 'tooltip');
-    el.style.position = 'absolute';
-    el.style.pointerEvents = 'none';
-    el.style.zIndex = '20';
-
-    if (this.isTooltipUnstyled()) {
-      el.dataset.tooltipMode = 'custom';
-      el.style.maxWidth = '';
-      el.style.padding = '';
-      el.style.borderRadius = '';
-      el.style.fontFamily = '';
-      el.style.fontSize = '';
-      el.style.lineHeight = '';
-      el.style.whiteSpace = '';
-      el.style.background = '';
-      el.style.border = '';
-      el.style.color = '';
-      el.style.boxShadow = '';
-      return;
-    }
-
-    el.dataset.tooltipMode = 'styled';
-    el.style.maxWidth = '240px';
-    el.style.padding = '7px 10px';
-    el.style.borderRadius = '8px';
-    el.style.fontFamily = 'Plus Jakarta Sans, ui-sans-serif, system-ui, sans-serif';
-    el.style.fontSize = '12px';
-    el.style.lineHeight = '1.4';
-    el.style.whiteSpace = domRenderer ? '' : 'pre-line';
-    this.applyTooltipThemeStyles(el);
-  }
-
-  private ensureTooltipElement(): HTMLDivElement | null {
-    if (!this.tooltipOption) return null;
-    if (this.tooltipEl) return this.tooltipEl;
-
-    const doc = this.containerEl.ownerDocument;
-    ensureSimplexContainerPositioned(this.containerEl);
-
-    const el = doc.createElement('div');
-    el.style.display = 'none';
-    this.applyTooltipPresentationStyles(el);
-    this.containerEl.appendChild(el);
-    this.tooltipEl = el;
-    return el;
-  }
-
-  private getTooltipTargetKey(
-    target: SimplexSvgTooltipTarget<
-      TItem,
-      TContentVisual,
-      TClusterVisual,
-      TTagMeta,
-      TClusterMeta
-    >,
-  ): string {
-    if (target.kind === 'content') {
-      return `content:${target.layoutContext.id}:${target.neighborId ?? ''}`;
-    }
-    if (target.kind === 'cluster') {
-      return `cluster:${target.cluster.clusterUid}:${target.neighborId ?? ''}`;
-    }
-    return `triangle:${target.triangle.index}:${target.triangle.neighborId ?? ''}:${target.triangle.isContext ? 1 : 0}`;
-  }
-
-  private runTooltipCleanup(): void {
-    const cleanup = this.tooltipCleanup;
-    this.tooltipCleanup = null;
-    if (cleanup) {
-      cleanup();
-    }
-  }
-
-  private positionTooltipElement(
-    el: HTMLDivElement,
-    screenX: number,
-    screenY: number,
-    measureUnconstrained = false,
-  ): void {
-    const domRenderer = isDomTooltipRenderer(this.tooltipOption)
-      ? this.tooltipOption
-      : null;
-    positionSimplexTooltipElement(this.containerEl, el, screenX, screenY, {
-      offsetX: domRenderer?.offset?.x,
-      offsetY: domRenderer?.offset?.y,
-      margin: domRenderer?.margin,
-      measureUnconstrained,
-    });
-  }
-
-  private showTooltipForTarget(
-    target: SimplexSvgTooltipTarget<
-      TItem,
-      TContentVisual,
-      TClusterVisual,
-      TTagMeta,
-      TClusterMeta
-    >,
-  ): void {
-    const el = this.ensureTooltipElement();
-    if (!el) return;
-
-    const targetKey = this.getTooltipTargetKey(target);
-
-    if (isDomTooltipRenderer(this.tooltipOption)) {
-      if (targetKey === this.activeTooltipTargetKey) {
-        if (this.activeTooltipSuppressed) return;
-        el.style.display = 'block';
-        this.tooltipVisible = true;
-        this.positionTooltipElement(el, target.screenPosition.x, target.screenPosition.y);
-        return;
-      }
-
-      this.runTooltipCleanup();
-      el.textContent = '';
-      this.activeTooltipTargetKey = targetKey;
-
-      const result = this.tooltipOption.render(target, el);
-      if (result === false || result === null) {
-        this.activeTooltipSuppressed = true;
-        if (this.tooltipVisible) {
-          el.style.display = 'none';
-          this.tooltipVisible = false;
-          this.tooltipOption.onHide?.(el);
-        }
-        return;
-      }
-
-      if (typeof result === 'function') {
-        this.tooltipCleanup = result;
-      }
-      this.activeTooltipSuppressed = false;
-      el.style.display = 'block';
-      this.tooltipVisible = true;
-      this.positionTooltipElement(
-        el,
-        target.screenPosition.x,
-        target.screenPosition.y,
-        true,
-      );
-      return;
-    }
-
-    const text = this.formatTooltipTargetText(target);
-
-    if (!text) {
-      this.hideTooltip();
-      return;
-    }
-
-    const targetChanged = targetKey !== this.activeTooltipTargetKey;
-    this.activeTooltipTargetKey = targetKey;
-    this.activeTooltipSuppressed = false;
-    el.textContent = text;
-    el.style.display = 'block';
-    this.tooltipVisible = true;
-    this.positionTooltipElement(
-      el,
-      target.screenPosition.x,
-      target.screenPosition.y,
-      targetChanged,
-    );
-  }
-
-  private hideTooltip(): void {
-    const domRenderer = isDomTooltipRenderer(this.tooltipOption)
-      ? this.tooltipOption
-      : null;
-    const wasVisible = this.tooltipVisible;
-    this.runTooltipCleanup();
-    this.activeTooltipTargetKey = null;
-    this.activeTooltipSuppressed = false;
-    this.tooltipVisible = false;
-    if (this.tooltipEl) {
-      this.tooltipEl.style.display = 'none';
-      if (wasVisible && domRenderer?.onHide) {
-        domRenderer.onHide(this.tooltipEl);
-      }
-    }
   }
 
   get camera(): CameraController {
@@ -1450,7 +1181,7 @@ export class SimplexSvgController<
     this.timelineShowControls = opts.showControls ?? true;
     this.timelinePosition = opts.position ?? 'bottom';
     this.timelineAutoFinalSeed = opts.autoFinalSeed ?? true;
-    this.timelineAutoFinalSeedLayout = this.normalizeAutoFinalSeedLayout(
+    this.timelineAutoFinalSeedLayout = normalizeTimelineLayoutScaleMode(
       opts.autoFinalSeedLayout,
     );
     this.timelineEmptyClusterBehavior = opts.emptyClusterBehavior;
@@ -1756,9 +1487,7 @@ export class SimplexSvgController<
         resolverInputsChanged = true;
         shouldSyncZoomOverlays = true;
         shouldSyncTimelineOverlay = true;
-        if (this.tooltipEl) {
-          this.applyTooltipThemeStyles(this.tooltipEl);
-        }
+        this.tooltipOverlay.setTheme(options.theme);
         this.adapter.setTheme(options.theme);
         this.engine.setTheme(options.theme);
         needsRenderNow = true;
@@ -2057,9 +1786,7 @@ export class SimplexSvgController<
     if (this.currentTheme === theme) return;
     this.batch(() => {
       this.currentTheme = theme;
-      if (this.tooltipEl) {
-        this.applyTooltipThemeStyles(this.tooltipEl);
-      }
+      this.tooltipOverlay.setTheme(theme);
       this.adapter.setTheme(theme);
       this.engine.setTheme(theme);
       if (!this.usesCustomVisualResolver) {
@@ -2212,12 +1939,7 @@ export class SimplexSvgController<
       TClusterMeta
     >,
   ): void {
-    this.hideTooltip();
-    this.tooltipOption = tooltip;
-    if (this.tooltipEl) {
-      this.tooltipEl.textContent = '';
-      this.applyTooltipPresentationStyles(this.tooltipEl);
-    }
+    this.tooltipOverlay.setOption(tooltip);
   }
 
   setVisualResolver(
@@ -2311,7 +2033,7 @@ export class SimplexSvgController<
     if (this.keyboardFocusTarget !== null) {
       const stillVisible = this.engine
         .getInteractiveTargets()
-        .some((t) => this.targetMatches(this.keyboardFocusTarget, t));
+        .some((t) => isSameSimplexKeyboardTarget(this.keyboardFocusTarget, t));
       if (!stillVisible) {
         this.clearKeyboardFocus();
       }
@@ -2408,6 +2130,7 @@ export class SimplexSvgController<
   setMarqueeSelection(enabled: boolean): void {
     this.marqueeSelectionEnabled = enabled;
     if (!enabled) {
+      this.viewportHandle?.cancelMarquee();
       this.hideMarqueeRect();
     }
   }
@@ -2448,7 +2171,7 @@ export class SimplexSvgController<
     if (itemId === null) {
       this.engine.focusItem(null, options);
       if (options?.hover !== false) {
-        this.hideTooltip();
+        this.tooltipOverlay.hide();
       }
       this.engine.renderNow();
       this.ensureLoopRunning();
@@ -2544,7 +2267,7 @@ export class SimplexSvgController<
 
     this.focusedClusterUidState = this.engine.getFocusedClusterUid();
     this.focusedTriangleIndexState = this.engine.getFocusedTriangleIndex();
-    this.hideTooltip();
+    this.tooltipOverlay.hide();
     this.syncZoomOverlays(this.engine.getZoomState());
     this.ensureLoopRunning();
     return true;
@@ -2553,7 +2276,7 @@ export class SimplexSvgController<
   /** Updates the touch direction-locking threshold in CSS pixels (`0` disables scroll-yielding). */
   setTouchScrollLockPx(px: number): void {
     this.touchScrollLockPx = Number.isFinite(px) ? Math.max(0, px) : 8;
-    this.syncSvgTouchAction();
+    this.viewportHandle?.syncTouchAction();
   }
 
   /** Updates the maximum drag-vs-click pointer displacement tolerance in CSS pixels. */
@@ -2674,21 +2397,6 @@ export class SimplexSvgController<
   stepForTest(dtMs: number): boolean {
     this.timelineController?.tick(dtMs);
     return this.engine.step(dtMs);
-  }
-
-  private toLocalCoords(clientX: number, clientY: number): { x: number; y: number } {
-    const rect = this.svgEl.getBoundingClientRect();
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-    };
-  }
-
-  private resetTouchPinchState(): void {
-    this.lastPinchDist = null;
-    this.pinchStartDist = null;
-    this.pinchHandledInGesture = false;
-    this.lastPinchMid = null;
   }
 
   private triggerPinchDrillIn(screenX: number, screenY: number): boolean {
@@ -2842,12 +2550,6 @@ export class SimplexSvgController<
     } else if (this.breadcrumbOverlayEl) {
       this.breadcrumbOverlayEl.style.display = 'none';
     }
-  }
-
-  private normalizeAutoFinalSeedLayout(
-    option: boolean | FinalSeededLayoutScaleMode | undefined,
-  ): FinalSeededLayoutScaleMode | false {
-    return normalizeTimelineLayoutScaleMode(option);
   }
 
   private resolveEffectiveLayoutStrategy(
@@ -3186,94 +2888,9 @@ export class SimplexSvgController<
     refs.countEl.style.color = isLight ? '#64748b' : '#94a3b8';
   }
 
-  private syncSvgTouchAction(): void {
-    this.svgEl.style.touchAction = this.touchScrollLockPx > 0 ? 'pan-y' : 'none';
-  }
-
-  private readonly onTouchStart = (e: TouchEvent): void => {
-    if (e.touches.length >= 2) {
-      this.touchScrollAxis = 'pinch';
-      this.wasMultiTouchGesture = true;
-      this.isDraggingPan = false;
-      this.panStarted = false;
-      return;
-    }
-    if (e.touches.length === 1) {
-      const t = e.touches[0]!;
-      this.touchOriginX = t.clientX;
-      this.touchOriginY = t.clientY;
-      this.touchScrollAxis = 'undecided';
-      this.touchYieldedToScroll = false;
-    }
-  };
-
-  private readonly onTouchMove = (e: TouchEvent): void => {
-    if (e.touches.length >= 2) {
-      this.touchScrollAxis = 'pinch';
-      this.wasMultiTouchGesture = true;
-      e.preventDefault();
-      return;
-    }
-    if (e.touches.length !== 1 || this.touchScrollLockPx <= 0) {
-      return;
-    }
-    const t = e.touches[0]!;
-    if (this.touchScrollAxis === 'undecided') {
-      const absDx = Math.abs(t.clientX - this.touchOriginX);
-      const absDy = Math.abs(t.clientY - this.touchOriginY);
-      if (absDx >= this.touchScrollLockPx || absDy >= this.touchScrollLockPx) {
-        if (absDy > absDx) {
-          this.touchScrollAxis = 'vertical';
-          this.touchYieldedToScroll = true;
-          this.isDraggingPan = false;
-          this.panStarted = false;
-        } else {
-          this.touchScrollAxis = 'horizontal';
-        }
-      }
-    }
-    if (this.touchScrollAxis === 'horizontal') {
-      e.preventDefault();
-    }
-  };
-
-  private readonly onTouchEnd = (e: TouchEvent): void => {
-    if (e.touches.length === 0) {
-      this.touchScrollAxis = 'undecided';
-    }
-  };
-
-  private readonly onTouchCancel = (e: TouchEvent): void => {
-    if (e.touches.length === 0) {
-      this.touchScrollAxis = 'undecided';
-      this.touchYieldedToScroll = false;
-    }
-  };
-
-  private syncSvgAccessibilityAttributes(): void {
-    this.svgEl.setAttribute('role', 'application');
-    this.svgEl.setAttribute('aria-roledescription', 'interactive topic graph');
-    this.svgEl.setAttribute('aria-label', this.ariaLabel);
-    if (this.keyboardNavigationEnabled) {
-      this.svgEl.setAttribute('tabindex', '0');
-      this.svgEl.setAttribute(
-        'aria-keyshortcuts',
-        'ArrowRight ArrowLeft ArrowDown ArrowUp Home End Enter Space Escape',
-      );
-    } else {
-      this.svgEl.removeAttribute('tabindex');
-      this.svgEl.removeAttribute('aria-keyshortcuts');
-      this.svgEl.removeAttribute('aria-activedescendant');
-    }
-  }
-
   private announce(message: string): void {
     if (this.destroyed || !message) return;
     this.srAnnouncer.announce(message);
-  }
-
-  private computeZoomAnnouncementSig(state: SimplexZoomState): string {
-    return computeSimplexZoomAnnouncementSignature(state);
   }
 
   private formatTargetAriaLabel(
@@ -3398,29 +3015,21 @@ export class SimplexSvgController<
     };
   }
 
-  private targetMatches(
-    a: SimplexKeyboardFocusTarget | null,
-    b: SimplexInteractiveTarget<
-      TItem,
-      TContentVisual,
-      TClusterVisual,
-      TTagMeta,
-      TClusterMeta
-    >,
-  ): boolean {
-    return isSameSimplexKeyboardTarget(a, b);
-  }
-
-  private toKeyboardTargetRef(
-    target: SimplexInteractiveTarget<
-      TItem,
-      TContentVisual,
-      TClusterVisual,
-      TTagMeta,
-      TClusterMeta
-    >,
-  ): SimplexKeyboardFocusTarget {
-    return toSimplexKeyboardFocusTargetRef(target);
+  private syncSvgAccessibilityAttributes(): void {
+    this.svgEl.setAttribute('role', 'application');
+    this.svgEl.setAttribute('aria-roledescription', 'interactive topic graph');
+    this.svgEl.setAttribute('aria-label', this.ariaLabel);
+    if (this.keyboardNavigationEnabled) {
+      this.svgEl.setAttribute('tabindex', '0');
+      this.svgEl.setAttribute(
+        'aria-keyshortcuts',
+        'ArrowRight ArrowLeft ArrowDown ArrowUp Home End Enter Space Escape',
+      );
+    } else {
+      this.svgEl.removeAttribute('tabindex');
+      this.svgEl.removeAttribute('aria-keyshortcuts');
+      this.svgEl.removeAttribute('aria-activedescendant');
+    }
   }
 
   private applyKeyboardFocus(
@@ -3435,7 +3044,7 @@ export class SimplexSvgController<
     total: number,
     shouldAnnounce: boolean,
   ): void {
-    const ref = this.toKeyboardTargetRef(target);
+    const ref = toSimplexKeyboardFocusTargetRef(target);
     this.keyboardFocusTarget = ref;
     this.adapter.setKeyboardFocusTarget(ref);
     const domId = this.adapter.getDomIdForTarget(ref);
@@ -3473,7 +3082,7 @@ export class SimplexSvgController<
       return;
     }
     const currentIdx = targets.findIndex((t) =>
-      this.targetMatches(this.keyboardFocusTarget, t),
+      isSameSimplexKeyboardTarget(this.keyboardFocusTarget, t),
     );
     const nextIdx = resolveNextSimplexKeyboardFocusIndex(
       targets.length,
@@ -3485,7 +3094,7 @@ export class SimplexSvgController<
   }
 
   private handleZoomStateAccessibility(state: SimplexZoomState): void {
-    const sig = this.computeZoomAnnouncementSig(state);
+    const sig = computeSimplexZoomAnnouncementSignature(state);
     if (this.lastAnnouncedZoomSig === null) {
       this.lastAnnouncedZoomSig = sig;
       return;
@@ -3497,7 +3106,7 @@ export class SimplexSvgController<
 
     if (this.keyboardFocusTarget !== null) {
       const stillValidIdx = targets.findIndex((t) =>
-        this.targetMatches(this.keyboardFocusTarget, t),
+        isSameSimplexKeyboardTarget(this.keyboardFocusTarget, t),
       );
       if (stillValidIdx === -1) {
         if (targets.length > 0 && this.svgEl.ownerDocument.activeElement === this.svgEl) {
@@ -3540,7 +3149,7 @@ export class SimplexSvgController<
     this.svgEl.removeAttribute('aria-activedescendant');
     if (hadFocus) {
       if (!options?.preserveHover) {
-        this.hideTooltip();
+        this.tooltipOverlay.hide();
         this.engine.hoverInteractiveTarget(null);
       }
       this.engine.renderNow();
@@ -3651,13 +3260,6 @@ export class SimplexSvgController<
       return;
     }
     if (e.key === 'Escape') {
-      if (this.isMarqueeSelecting || this.marqueeArmed) {
-        e.preventDefault();
-        this.hideMarqueeRect();
-        this.svgEl.style.cursor =
-          this.engine.getZoomStrategy().mode === 'drill-down' ? 'default' : 'grab';
-        return;
-      }
       if (this.engine.getZoomState().canDrillUp) {
         e.preventDefault();
         this.drillUp();
@@ -3723,257 +3325,50 @@ export class SimplexSvgController<
     return this.marqueeRectEl;
   }
 
-  private updateMarqueeRect(x1: number, y1: number, x2: number, y2: number): void {
+  private showMarqueeRect(x: number, y: number, width: number, height: number): void {
     const rect = this.ensureMarqueeRect();
-    const minX = Math.min(x1, x2);
-    const minY = Math.min(y1, y2);
-    const width = Math.abs(x2 - x1);
-    const height = Math.abs(y2 - y1);
-    rect.setAttribute('x', minX.toFixed(1));
-    rect.setAttribute('y', minY.toFixed(1));
+    rect.setAttribute('x', x.toFixed(1));
+    rect.setAttribute('y', y.toFixed(1));
     rect.setAttribute('width', width.toFixed(1));
     rect.setAttribute('height', height.toFixed(1));
     this.marqueeOverlayGroup?.removeAttribute('display');
   }
 
   private hideMarqueeRect(): void {
-    this.marqueeArmed = false;
-    this.isMarqueeSelecting = false;
     if (this.marqueeOverlayGroup) {
       this.marqueeOverlayGroup.setAttribute('display', 'none');
     }
   }
 
-  private readonly onPointerDown = (e: PointerEvent): void => {
-    this.lastInteractionWasPointer = true;
-    if (this.keyboardFocusTarget !== null) {
-      this.clearKeyboardFocus({ preserveHover: true });
-    }
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    const { x, y } = this.toLocalCoords(e.clientX, e.clientY);
-    this.activePointers.set(e.pointerId, { x, y });
-
-    if (this.activePointers.size === 1) {
-      this.pointerOriginX = e.clientX;
-      this.pointerOriginY = e.clientY;
-      this.pointerMaxDisplacement = 0;
-      this.hasActiveGestureOrigin = true;
-      this.wasMultiTouchGesture = false;
-      this.panStarted = false;
-      this.suppressNextClick = false;
-      this.suppressClickStartPos = null;
-      this.suppressClickEndPos = null;
-      this.hideMarqueeRect();
-      if (e.pointerType === 'touch') {
-        this.touchOriginX = e.clientX;
-        this.touchOriginY = e.clientY;
-        this.touchScrollAxis = 'undecided';
-        this.touchYieldedToScroll = false;
-      }
-    }
-
-    if (this.activePointers.size >= 2) {
-      this.hideMarqueeRect();
-      this.isDraggingPan = false;
-      this.panStarted = false;
-      this.wasMultiTouchGesture = true;
-      this.touchScrollAxis = 'pinch';
-      const pts = [...this.activePointers.values()];
-      const p0 = pts[0]!;
-      const p1 = pts[1]!;
-      const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-      this.lastPinchDist = dist;
-      this.pinchStartDist = dist;
-      this.pinchHandledInGesture = false;
-      this.lastPinchMid = { x: (p0.x + p1.x) * 0.5, y: (p0.y + p1.y) * 0.5 };
-      this.hideTooltip();
-      return;
-    }
-
-    if (
-      this.activePointers.size === 1 &&
-      e.pointerType !== 'touch' &&
-      e.shiftKey &&
-      this.marqueeSelectionEnabled
-    ) {
-      this.marqueeArmed = true;
-      this.isMarqueeSelecting = false;
-      this.marqueeStartX = x;
-      this.marqueeStartY = y;
-      this.marqueeCurrentX = x;
-      this.marqueeCurrentY = y;
-      this.isDraggingPan = false;
-      return;
-    }
-
-    if (this.engine.getZoomStrategy().mode === 'drill-down') {
-      this.isDraggingPan = false;
-      return;
-    }
-
-    const hit = this.engine.hitTest(x, y);
-    if (hit.kind === 'background' || hit.kind === 'triangle') {
-      this.isDraggingPan = true;
-      this.dragStartX = e.clientX;
-      this.dragStartY = e.clientY;
-      if (hit.kind === 'background') {
-        this.svgEl.style.cursor = 'grabbing';
-      }
-    } else {
-      this.isDraggingPan = false;
-    }
-  };
-
-  private readonly onPointerMove = (e: PointerEvent): void => {
-    const { x, y } = this.toLocalCoords(e.clientX, e.clientY);
-    if (this.activePointers.has(e.pointerId)) {
-      this.activePointers.set(e.pointerId, { x, y });
-    }
-
-    if (this.hasActiveGestureOrigin && this.activePointers.has(e.pointerId)) {
-      const disp = Math.hypot(
-        e.clientX - this.pointerOriginX,
-        e.clientY - this.pointerOriginY,
-      );
-      if (disp > this.pointerMaxDisplacement) {
-        this.pointerMaxDisplacement = disp;
-      }
-    }
-
-    const zoomMode = this.engine.getZoomStrategy().mode;
-
-    if (this.activePointers.size >= 2) {
-      const pts = [...this.activePointers.values()];
-      const p0 = pts[0]!;
-      const p1 = pts[1]!;
-      const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-      const mid = { x: (p0.x + p1.x) * 0.5, y: (p0.y + p1.y) * 0.5 };
-
-      if (zoomMode === 'drill-down') {
-        if (
-          !this.pinchHandledInGesture &&
-          this.pinchStartDist !== null &&
-          this.pinchStartDist > 10 &&
-          dist > 8
-        ) {
-          const ratio = dist / this.pinchStartDist;
-          if (ratio >= 1.28) {
-            this.pinchHandledInGesture = true;
-            this.triggerPinchDrillIn(mid.x, mid.y);
-          } else if (ratio <= 0.78) {
-            this.pinchHandledInGesture = true;
-            this.drillUp();
-          }
-        }
-        this.wasMultiTouchGesture = true;
-        this.lastPinchDist = dist;
-        this.lastPinchMid = mid;
-        this.hideTooltip();
-        return;
-      }
-
-      if (this.lastPinchDist !== null && this.lastPinchMid !== null && this.lastPinchDist > 8 && dist > 8) {
-        const dx = mid.x - this.lastPinchMid.x;
-        const dy = mid.y - this.lastPinchMid.y;
-        const zoomFactor = dist / this.lastPinchDist;
-        this.engine.camera.panBy(dx, dy);
-        this.engine.camera.zoomToCursor(mid.x, mid.y, zoomFactor);
-        this.wasMultiTouchGesture = true;
-        this.hideTooltip();
-        this.engine.renderNow();
-      }
-      this.lastPinchDist = dist;
-      this.lastPinchMid = mid;
-      return;
-    }
-
-    if (
-      e.pointerType === 'touch' &&
-      this.activePointers.size === 1 &&
-      this.touchScrollLockPx > 0 &&
-      this.touchScrollAxis === 'undecided'
-    ) {
-      const absDx = Math.abs(e.clientX - this.pointerOriginX);
-      const absDy = Math.abs(e.clientY - this.pointerOriginY);
-      if (absDx >= this.touchScrollLockPx || absDy >= this.touchScrollLockPx) {
-        if (absDy > absDx) {
-          this.touchScrollAxis = 'vertical';
-          this.touchYieldedToScroll = true;
-          this.isDraggingPan = false;
-          this.panStarted = false;
+  private attachViewportInteractions(): void {
+    this.viewportHandle = bindSimplexInteractiveViewport({
+      surfaceEl: this.svgEl,
+      engine: this.engine,
+      clickDispatch: 'click-event',
+      bindTouchListeners: true,
+      capturePointer: false,
+      pinchDrillInRatio: 1.28,
+      getTouchScrollLockPx: () => this.touchScrollLockPx,
+      getClickTolerancePx: () => this.clickTolerancePx,
+      isMarqueeEnabled: () => this.marqueeSelectionEnabled,
+      isDestroyed: () => this.destroyed,
+      canStartFreeCameraPan: (x, y) => {
+        const hit = this.engine.hitTest(x, y);
+        return hit.kind === 'background' || hit.kind === 'triangle';
+      },
+      hideTooltip: () => this.tooltipOverlay.hide(),
+      onMarqueeChange: (rect) => {
+        if (!rect) {
+          this.hideMarqueeRect();
         } else {
-          this.touchScrollAxis = 'horizontal';
+          this.showMarqueeRect(rect.x, rect.y, rect.width, rect.height);
         }
-      }
-    }
-
-    if (this.marqueeArmed && this.activePointers.has(e.pointerId)) {
-      this.marqueeCurrentX = x;
-      this.marqueeCurrentY = y;
-      if (
-        !this.isMarqueeSelecting &&
-        Math.hypot(x - this.marqueeStartX, y - this.marqueeStartY) > 4
-      ) {
-        this.isMarqueeSelecting = true;
-        this.hideTooltip();
-        this.svgEl.style.cursor = 'crosshair';
-      }
-      if (this.isMarqueeSelecting) {
-        this.updateMarqueeRect(this.marqueeStartX, this.marqueeStartY, x, y);
-        return;
-      }
-    }
-
-    if (this.isDraggingPan && zoomMode === 'free-camera') {
-      if (
-        e.pointerType === 'touch' &&
-        this.touchScrollLockPx > 0 &&
-        this.touchScrollAxis !== 'horizontal'
-      ) {
-        return;
-      }
-      const dx = e.clientX - this.dragStartX;
-      const dy = e.clientY - this.dragStartY;
-      const panThreshold =
-        e.pointerType === 'touch' ? (this.touchScrollLockPx > 0 ? 0 : 6) : 3;
-      if (!this.panStarted && Math.hypot(dx, dy) > panThreshold) {
-        this.panStarted = true;
-      }
-      if (this.panStarted) {
-        this.svgEl.style.cursor = 'grabbing';
-        this.dragStartX = e.clientX;
-        this.dragStartY = e.clientY;
-        this.engine.camera.panBy(dx, dy);
-        this.hideTooltip();
-        this.engine.renderNow();
-      }
-      return;
-    }
-
-    if (e.pointerType === 'touch') {
-      return;
-    }
-    this.engine.handlePointerMove(x, y);
-    this.svgEl.style.cursor = resolveSimplexCursorForPoint(this.engine, x, y);
-    this.ensureLoopRunning();
-  };
-
-  private readonly onPointerUp = (e: PointerEvent): void => {
-    this.activePointers.delete(e.pointerId);
-    if (this.activePointers.size < 2) {
-      this.resetTouchPinchState();
-    }
-    if (this.activePointers.size === 0) {
-      const completedMarquee = this.isMarqueeSelecting;
-      if (completedMarquee) {
+      },
+      onMarqueeCommit: (x1, y1, x2, y2, altKey) => {
         const prevSize = this.engine.getSelectedIds().size;
-        const nextSelected = this.engine.selectItemsInScreenRect(
-          this.marqueeStartX,
-          this.marqueeStartY,
-          this.marqueeCurrentX,
-          this.marqueeCurrentY,
-          { mode: e.altKey ? 'toggle' : 'add' },
-        );
+        const nextSelected = this.engine.selectItemsInScreenRect(x1, y1, x2, y2, {
+          mode: altKey ? 'toggle' : 'add',
+        });
         this.engine.renderNow();
         this.ensureLoopRunning();
         if (nextSelected.size !== prevSize) {
@@ -3981,193 +3376,30 @@ export class SimplexSvgController<
             `Selected ${nextSelected.size} item${nextSelected.size === 1 ? '' : 's'}`,
           );
         }
-        this.svgEl.style.cursor =
-          this.engine.getZoomStrategy().mode === 'drill-down' ? 'default' : 'grab';
-      }
-      this.hideMarqueeRect();
-
-      const shouldSuppress =
-        completedMarquee ||
-        this.pointerMaxDisplacement > this.clickTolerancePx ||
-        this.touchYieldedToScroll ||
-        this.wasMultiTouchGesture;
-      if (shouldSuppress) {
-        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-        this.suppressNextClick = true;
-        this.suppressClickStartPos = this.wasMultiTouchGesture
-          ? null
-          : { x: this.pointerOriginX, y: this.pointerOriginY };
-        this.suppressClickEndPos = { x: e.clientX, y: e.clientY };
-        this.suppressClickDeadline = now + 400;
-      } else {
-        this.suppressNextClick = false;
-        this.suppressClickStartPos = null;
-        this.suppressClickEndPos = null;
-      }
-      if (this.isDraggingPan) {
-        this.isDraggingPan = false;
-        this.svgEl.style.cursor =
-          this.engine.getZoomStrategy().mode === 'drill-down' ? 'default' : 'grab';
-      }
-      this.panStarted = false;
-      this.hasActiveGestureOrigin = false;
-      this.wasMultiTouchGesture = false;
-      this.touchYieldedToScroll = false;
-      this.touchScrollAxis = 'undecided';
-    }
-  };
-
-  private readonly onPointerCancel = (e: PointerEvent): void => {
-    this.activePointers.delete(e.pointerId);
-    if (this.activePointers.size < 2) {
-      this.resetTouchPinchState();
-    }
-    if (this.activePointers.size === 0) {
-      this.hideMarqueeRect();
-      this.isDraggingPan = false;
-      this.panStarted = false;
-      this.hasActiveGestureOrigin = false;
-      this.wasMultiTouchGesture = false;
-      this.touchYieldedToScroll = false;
-      this.touchScrollAxis = 'undecided';
-      this.suppressNextClick = false;
-      this.suppressClickStartPos = null;
-      this.suppressClickEndPos = null;
-      this.svgEl.style.cursor =
-        this.engine.getZoomStrategy().mode === 'drill-down' ? 'default' : 'grab';
-    }
-  };
-
-  private readonly onPointerLeave = (e: PointerEvent): void => {
-    this.activePointers.delete(e.pointerId);
-    if (this.activePointers.size < 2) {
-      this.resetTouchPinchState();
-    }
-    if (this.activePointers.size === 0) {
-      this.hideMarqueeRect();
-      this.isDraggingPan = false;
-      this.panStarted = false;
-    }
-    this.hideTooltip();
-    this.engine.handlePointerLeave();
-    this.ensureLoopRunning();
-  };
-
-  private readonly onClick = (e: MouseEvent): void => {
-    if (this.suppressNextClick) {
-      this.suppressNextClick = false;
-      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-      const matchTol = Math.max(24, this.clickTolerancePx * 2);
-      const matchesEnd =
-        this.suppressClickEndPos !== null &&
-        Math.hypot(
-          e.clientX - this.suppressClickEndPos.x,
-          e.clientY - this.suppressClickEndPos.y,
-        ) <= matchTol;
-      const matchesStart =
-        this.suppressClickStartPos !== null &&
-        Math.hypot(
-          e.clientX - this.suppressClickStartPos.x,
-          e.clientY - this.suppressClickStartPos.y,
-        ) <= matchTol;
-      this.suppressClickStartPos = null;
-      this.suppressClickEndPos = null;
-      if (now <= this.suppressClickDeadline && (matchesEnd || matchesStart)) {
-        return;
-      }
-    }
-    const { x, y } = this.toLocalCoords(e.clientX, e.clientY);
-    this.engine.handleLeftClick({
-      screenX: x,
-      screenY: y,
-      button: e.button,
-      shiftKey: e.shiftKey,
-      ctrlKey: e.ctrlKey,
-      altKey: e.altKey,
-      metaKey: e.metaKey,
+      },
+      onPinchDrillIn: (midX, midY) => this.triggerPinchDrillIn(midX, midY),
+      onDrillUp: () => this.drillUp(),
+      onAfterCameraTransform: () => {
+        this.engine.renderNow();
+      },
+      onAfterLeftClick: () => {
+        this.engine.renderNow();
+      },
+      onScheduleFrame: () => {
+        this.ensureLoopRunning();
+      },
+      onPointerDownPre: () => {
+        this.lastInteractionWasPointer = true;
+        if (this.keyboardFocusTarget !== null) {
+          this.clearKeyboardFocus({ preserveHover: true });
+        }
+      },
+      onFocus: this.onSvgFocus,
+      onBlur: this.onSvgBlur,
+      onKeyDown: (ev) => {
+        this.onKeyDown(ev as unknown as KeyboardEvent);
+      },
     });
-    this.engine.renderNow();
-    this.ensureLoopRunning();
-  };
-
-  private readonly onContextMenu = (e: MouseEvent): void => {
-    const { x, y } = this.toLocalCoords(e.clientX, e.clientY);
-    const suppress = this.engine.handleRightClick({
-      screenX: x,
-      screenY: y,
-      button: e.button,
-      shiftKey: e.shiftKey,
-      ctrlKey: e.ctrlKey,
-      altKey: e.altKey,
-      metaKey: e.metaKey,
-    });
-    if (suppress) {
-      e.preventDefault();
-    }
-    this.ensureLoopRunning();
-  };
-
-  private readonly onWheel = (e: WheelEvent): void => {
-    const { x, y } = this.toLocalCoords(e.clientX, e.clientY);
-    // Support discrete trackpad pinch-in / pinch-out when in drill-down mode
-    if (this.engine.getZoomStrategy().mode === 'drill-down' && e.ctrlKey) {
-      e.preventDefault();
-      const action = stepSimplexDrillDownWheelPinch(this.wheelPinchState, e.deltaY);
-      if (action === 'drill-in') {
-        this.triggerPinchDrillIn(x, y);
-      } else if (action === 'drill-up') {
-        this.drillUp();
-      }
-      return;
-    }
-    const handled = this.engine.handleWheel({
-      screenX: x,
-      screenY: y,
-      deltaX: e.deltaX,
-      deltaY: e.deltaY,
-      ctrlKey: e.ctrlKey,
-      shiftKey: e.shiftKey,
-    });
-    if (handled) {
-      e.preventDefault();
-      this.ensureLoopRunning();
-    }
-  };
-
-  private attachSvgListeners(): void {
-    this.svgEl.addEventListener('touchstart', this.onTouchStart, { passive: true });
-    this.svgEl.addEventListener('touchmove', this.onTouchMove, { passive: false });
-    this.svgEl.addEventListener('touchend', this.onTouchEnd, { passive: true });
-    this.svgEl.addEventListener('touchcancel', this.onTouchCancel, { passive: true });
-    this.svgEl.addEventListener('pointerdown', this.onPointerDown);
-    this.svgEl.addEventListener('pointermove', this.onPointerMove);
-    this.svgEl.addEventListener('pointerup', this.onPointerUp);
-    this.svgEl.addEventListener('pointercancel', this.onPointerCancel);
-    this.svgEl.addEventListener('pointerleave', this.onPointerLeave);
-    this.svgEl.addEventListener('click', this.onClick);
-    this.svgEl.addEventListener('contextmenu', this.onContextMenu);
-    this.svgEl.addEventListener('wheel', this.onWheel, { passive: false });
-    this.svgEl.addEventListener('focus', this.onSvgFocus);
-    this.svgEl.addEventListener('blur', this.onSvgBlur);
-    this.svgEl.addEventListener('keydown', this.onKeyDown);
-  }
-
-  private detachSvgListeners(): void {
-    this.svgEl.removeEventListener('touchstart', this.onTouchStart);
-    this.svgEl.removeEventListener('touchmove', this.onTouchMove);
-    this.svgEl.removeEventListener('touchend', this.onTouchEnd);
-    this.svgEl.removeEventListener('touchcancel', this.onTouchCancel);
-    this.svgEl.removeEventListener('pointerdown', this.onPointerDown);
-    this.svgEl.removeEventListener('pointermove', this.onPointerMove);
-    this.svgEl.removeEventListener('pointerup', this.onPointerUp);
-    this.svgEl.removeEventListener('pointercancel', this.onPointerCancel);
-    this.svgEl.removeEventListener('pointerleave', this.onPointerLeave);
-    this.svgEl.removeEventListener('click', this.onClick);
-    this.svgEl.removeEventListener('contextmenu', this.onContextMenu);
-    this.svgEl.removeEventListener('wheel', this.onWheel);
-    this.svgEl.removeEventListener('focus', this.onSvgFocus);
-    this.svgEl.removeEventListener('blur', this.onSvgBlur);
-    this.svgEl.removeEventListener('keydown', this.onKeyDown);
   }
 
   private ensureLoopRunning(): void {
@@ -4224,13 +3456,10 @@ export class SimplexSvgController<
     this.hideMarqueeRect();
     this.marqueeOverlayGroup = null;
     this.marqueeRectEl = null;
-    this.detachSvgListeners();
+    this.viewportHandle?.destroy();
+    this.viewportHandle = null;
     this.engine.destroy();
-    this.hideTooltip();
-    if (this.tooltipEl && this.tooltipEl.parentElement === this.containerEl) {
-      this.containerEl.removeChild(this.tooltipEl);
-      this.tooltipEl = null;
-    }
+    this.tooltipOverlay.destroy();
     if (this.breadcrumbOverlayEl && this.breadcrumbOverlayEl.parentElement === this.containerEl) {
       this.containerEl.removeChild(this.breadcrumbOverlayEl);
       this.breadcrumbOverlayEl = null;

@@ -67,7 +67,7 @@ flowchart LR
 
 ## Quickstart (Zero-Config)
 
-Each package re-exports all helpers, views, and types you need from lower layers—install just the single package matching your stack and pass `{ id, tags }` items directly.
+Each higher-level package re-exports core/SVG runtime primitives from lower layers—install just the single package matching your stack and pass `{ id, tags }` items directly (specialized runtimes like `@simplex-viz/core/worker`, `@simplex-viz/core/dom`, `@simplex-viz/svg/ssr`, and `@simplex-viz/wc/define` are imported directly from their exclusive subpath).
 
 ### React (`@simplex-viz/react`)
 

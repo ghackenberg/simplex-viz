@@ -1,3 +1,7 @@
+import {
+  decodeSimplexDataUrlToBytes,
+  resolveSimplexThemeBackgroundColor,
+} from '@simplex-viz/core';
 import { SVG_NS } from './hullMeasure.js';
 import type { SimplexTheme } from './presets.js';
 
@@ -99,7 +103,7 @@ export type ExportPngOptions = ExportPngBlobOptions | ExportPngDataUrlOptions;
  * Returns the canonical canvas surface background hex matching the active theme.
  */
 export function resolveThemeBackgroundColor(theme: SimplexTheme): string {
-  return theme === 'light' ? '#ffffff' : '#07090e';
+  return resolveSimplexThemeBackgroundColor(theme, 'svg');
 }
 
 interface ParsedViewBox {
@@ -630,23 +634,8 @@ export function prepareStandaloneSvg(
 }
 
 function dataUrlToBlob(dataUrl: string, fallbackMime: string): Blob {
-  const commaIdx = dataUrl.indexOf(',');
-  if (commaIdx === -1) {
-    return new Blob([], { type: fallbackMime });
-  }
-  const header = dataUrl.slice(0, commaIdx);
-  const body = dataUrl.slice(commaIdx + 1);
-  const mimeMatch = /^data:([^;]+)/.exec(header);
-  const mime = mimeMatch?.[1] || fallbackMime;
-  if (/;base64$/i.test(header)) {
-    const bin = atob(body);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) {
-      bytes[i] = bin.charCodeAt(i);
-    }
-    return new Blob([bytes], { type: mime });
-  }
-  return new Blob([decodeURIComponent(body)], { type: mime });
+  const { bytes, mimeType } = decodeSimplexDataUrlToBytes(dataUrl, fallbackMime);
+  return new Blob([bytes], { type: mimeType });
 }
 
 function loadSvgImage(

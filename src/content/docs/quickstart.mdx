@@ -16,15 +16,15 @@ SimplexViz maps high-dimensional collections onto an **adaptive 60° equilateral
 
 ## Choose Your Package Layer
 
-Each higher-level package re-exports all strategies, views, and TypeScript types from lower layers—install only the single package matching your runtime:
+Each higher-level package re-exports core/SVG runtime primitives from lower layers—install only the single package matching your runtime, and import specialized subpaths (`@simplex-viz/core/worker`, `@simplex-viz/core/dom`, `@simplex-viz/svg/ssr`, `@simplex-viz/wc/define`) directly:
 
 | Package | Runtime & Dependencies | Primary Entry Points |
 | --- | --- | --- |
 | `@simplex-viz/react` | React 18 / 19 | `<SimplexTopicGraph />`, `useSimplexGraphController()`, `useSimplexTimeline()` |
 | `@simplex-viz/wc` | Plain HTML, Astro, Vue, Svelte, Angular (zero React) | `<simplex-topic-graph>`, `defineSimplexTopicGraphElement()`, `@simplex-viz/wc/define` |
-| `@simplex-viz/svg` | Vanilla TS, Vue, Svelte, Angular, Node.js SSR (`@simplex-viz/svg/ssr`) | `createSimplexSvg()`, `SimplexSvgController`, `SvgRendererAdapter`, `renderSimplexSvgString()` |
+| `@simplex-viz/svg` | Vanilla TS, Vue, Svelte, Angular, Node.js SSR (`@simplex-viz/svg/ssr` exclusive) | `createSimplexSvg()`, `SimplexSvgController`, `SvgRendererAdapter`, `@simplex-viz/svg/ssr` (`renderSimplexSvgString()`) |
 | `@simplex-viz/canvas` | High-capacity HTML5 Canvas 2D (2,000–10,000+ items, zero per-node DOM, independent of `@simplex-viz/svg`) | `createSimplexCanvas()`, `SimplexCanvasController`, `CanvasRendererAdapter`, `renderSimplexSnapshotToCanvas()` |
-| `@simplex-viz/core` | Browser, Node.js, Bun, Deno, Web Workers (`0` deps, DOM-free root & `@simplex-viz/core/worker`, plus optional `@simplex-viz/core/dom` helpers) | `solveSimplexSnapshot()`, `SimplexGraphEngine`, `createSimplexTimeline()`, `createSimplexWorkerClient()`, `observeSimplexContainerResize()` |
+| `@simplex-viz/core` | Browser, Node.js, Bun, Deno, Web Workers (`0` deps, DOM-free root & exclusive `@simplex-viz/core/worker` / `@simplex-viz/core/dom`) | `solveSimplexSnapshot()`, `SimplexGraphEngine`, `createSimplexTimeline()`, `@simplex-viz/core/worker`, `@simplex-viz/core/dom` |
 
 ## React Quickstart
 

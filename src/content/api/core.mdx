@@ -20,8 +20,8 @@ entryPoints:
     environment: "Web Worker, Node.js worker_threads, or SSR async fallback"
     domFree: true
     sideEffects: false
-    rootReExported: true
-    summary: "Dedicated off-thread RPC protocol & solver client/handler (also re-exported from root; import @simplex-viz/core/worker inside worker bundles for minimal footprint)."
+    rootReExported: false
+    summary: "Exclusive subpath (not re-exported from root) providing off-thread RPC protocol, solver client/handler, and async SSR fallback."
   - subpath: "./dom"
     importPath: "@simplex-viz/core/dom"
     environment: "Browser / DOM Hosts (structural TS interfaces)"
@@ -226,6 +226,65 @@ exportsTable:
         fallbackHeight?: number,
       ): void
     summary: "Zooms any renderer viewport around its current center using structural element dimensions."
+  - symbol: "getSimplexTooltipThemeTokens"
+    entrypoint: "@simplex-viz/core/dom"
+    kind: "Function"
+    signature: "getSimplexTooltipThemeTokens(theme: SimplexColorTheme): SimplexTooltipThemeTokens"
+    summary: "Returns canonical dark/light floating tooltip surface, border, text, and shadow tokens shared by SVG, Canvas, and React overlays."
+  - symbol: "createSimplexTooltipOverlay"
+    entrypoint: "@simplex-viz/core/dom"
+    kind: "Function"
+    signature: |-
+      createSimplexTooltipOverlay<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta, TElement extends SimplexDomDivLike = SimplexDomDivLike>(
+        options: CreateSimplexTooltipOverlayOptions<...>,
+      ): SimplexTooltipOverlay<...>
+    summary: "Manages lazy floating tooltip mounting, theme synchronization, custom DOM renderers, target deduplication, and edge-flipped positioning across SVG and Canvas."
+  - symbol: "bindSimplexInteractiveViewport"
+    entrypoint: "@simplex-viz/core/dom"
+    kind: "Function"
+    signature: |-
+      bindSimplexInteractiveViewport<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>(
+        options: BindSimplexInteractiveViewportOptions<...>,
+      ): SimplexInteractiveViewportHandle
+    summary: "Binds shared pointer panning, multi-touch pinch, touch scroll-locking, Shift-drag marquee, wheel zoom, cursor resolution, click suppression, and keyboard handling."
+  - symbol: "resolveEffectiveGeometricPolygon"
+    kind: "Function"
+    signature: |-
+      resolveEffectiveGeometricPolygon(
+        base: { readonly shape: GeometricShapeKind; readonly sides?: number; readonly rotationRad?: number },
+        overrides?: { readonly shape?: GeometricShapeKind; readonly sides?: number; readonly rotationRad?: number },
+      ): ResolvedGeometricPolygon
+    summary: "Resolves base shape visuals plus view-level overrides into canonical polygon kind, side count, rotation, and area-equalized scale."
+  - symbol: "getGeometricShapeVertices"
+    kind: "Function"
+    signature: |-
+      getGeometricShapeVertices(
+        resolved: ResolvedGeometricPolygon,
+        radius: number,
+        options?: { readonly circleSamples?: number; readonly minRadius?: number; readonly starOuterScale?: number; readonly starInnerScale?: number; readonly useRadiusScale?: boolean },
+      ): readonly Point2D[]
+    summary: "Generates local-coordinate perimeter vertices for geometric preset shapes across SVG and Canvas renderers."
+  - symbol: "measureGeometricShapeHull"
+    kind: "Function"
+    signature: |-
+      measureGeometricShapeHull(
+        resolved: ResolvedGeometricPolygon,
+        radius: number,
+        options?: { readonly useRadiusScale?: boolean; readonly starOuterScale?: number },
+      ): ConvexGeometry
+    summary: "Builds the exact analytical convex collision hull matching a resolved geometric shape."
+  - symbol: "resolveSimplexThemeBackgroundColor"
+    kind: "Function"
+    signature: "resolveSimplexThemeBackgroundColor(theme: SimplexColorTheme, surface?: 'svg' | 'canvas'): string"
+    summary: "Returns the canonical dark/light backdrop fill color for SVG and Canvas surfaces."
+  - symbol: "decodeSimplexDataUrlToBytes"
+    kind: "Function"
+    signature: |-
+      decodeSimplexDataUrlToBytes(
+        dataUrl: string,
+        fallbackMime?: string,
+      ): { readonly bytes: Uint8Array<ArrayBuffer>; readonly mimeType: string }
+    summary: "Pure ES2022 decoder converting base64 or UTF-8 data: URLs into raw byte buffers without atob, Blob, or DOM globals."
 ---
 
 ## Overview & Runtime Guarantees
@@ -327,8 +386,8 @@ Custom browser renderers and host wrappers can reuse the exact same container, t
 - **Container & ResizeObserver**: `resolveSimplexContainer`, `measureSimplexContainer`, `ensureSimplexContainerPositioned`, `observeSimplexContainerResize`
 - **Reduced Motion & Webfonts**: `resolveSimplexReducedMotion`, `subscribeSimplexReducedMotionMedia`, `subscribeSimplexFontLoadRelayout`
 - **Screen-Reader Live Regions & ARIA**: `createSimplexSrAnnouncer`, `computeSimplexZoomAnnouncementSignature`, `formatSimplexInteractiveTargetAriaLabel`, `formatSimplexZoomLevelAnnouncement`
-- **Tooltips (Model, Theme & Edge-Flipping)**: `applySimplexTooltipTheme`, `computeSimplexTooltipCoords`, `positionSimplexTooltipElement`, `buildSimplexTooltipContentModel`, `formatSimplexTooltipText`
-- **Gestures, Clicks, Cursors, Keyboard & Zoom**: `dispatchSimplexDefaultLeftClick`, `resolveSimplexCursorForPoint`, `resolveSimplexPinchDrillTarget`, `applySimplexPinchDrillTarget`, `stepSimplexDrillDownWheelPinch`, `normalizeSimplexMarqueeRect`, `isSameSimplexKeyboardTarget`, `toSimplexKeyboardFocusTargetRef`, `resolveNextSimplexKeyboardFocusIndex`, `isSimplexHoverEventConsumed`, `zoomSimplexViewportByFactor`, `toSimplexNormalizedPointerEvent`
+- **Tooltips (Model, Theme & Edge-Flipping)**: `getSimplexTooltipThemeTokens`, `applySimplexTooltipTheme`, `computeSimplexTooltipCoords`, `positionSimplexTooltipElement`, `buildSimplexTooltipContentModel`, `formatSimplexTooltipText`, `createSimplexTooltipOverlay`
+- **Gestures, Clicks, Cursors, Keyboard & Zoom**: `bindSimplexInteractiveViewport`, `dispatchSimplexDefaultLeftClick`, `resolveSimplexCursorForPoint`, `resolveSimplexPinchDrillTarget`, `applySimplexPinchDrillTarget`, `stepSimplexDrillDownWheelPinch`, `normalizeSimplexMarqueeRect`, `isSameSimplexKeyboardTarget`, `toSimplexKeyboardFocusTargetRef`, `resolveNextSimplexKeyboardFocusIndex`, `isSimplexHoverEventConsumed`, `zoomSimplexViewportByFactor`, `toSimplexNormalizedPointerEvent`
 
 ## Low-Level Pure Math Primitives
 
@@ -338,4 +397,4 @@ All internal solvers are exported as pure standalone functions:
 - **Clustering, QAP & Discriminative Labeling**: `computeSimplexClustering`, `embedSimilarityMatrixOnMesh`, `partitionTagsJaccard`, `embedClustersQapAnnealing`, `completePlanarSharedTags`, `matchClustersHungarian`, `assignDiscriminativeClusterLabels`, `resolveDiscriminativeClusterLabel`, `disambiguatePeerClusterTitle`
 - **Convex Geometry & SAT**: `computeConvexHull`, `rectToConvexPolygon`, `regularPolygon`, `starConvexHull`, `isPointInTriangle`, `computeConvexMtv`, `hitTestConvexGeometry`, `UniformSpatialHashGrid`
 - **OKLab Perceptual Color**: `hexToOklab`, `oklabToHex`, `mixOklabColors`, `lerpOklabHex`, `generatePerceptualClusterPalette`, `assignMeshClusterColors`
-- **Shared Preset, Timeline & Option Helpers**: `extractSimplexItemLabel`, `truncateSimplexBadgeTitle`, `resolveClusterBadgeTitle`, `resolveGeometricShapeSpec`, `NAMED_POLYGON_SIDES`, `getHexRelativeLuminance`, `resolveClusterSurfaceColors`, `hexWithAlpha`, `estimateSimplexTextWidth`, `createSimplexTimelineNotifier`, `areSimplexMeshOptionsEqual`, `areSimplexLayoutOptionsEqual`, `areSimplexTimelineOptionsEqual`, `normalizeTimelineLayoutScaleMode`, `wrapClusteringStrategyForTimeline`, `wrapLayoutStrategyForTimeline`
+- **Shared Preset, Timeline & Option Helpers**: `SIMPLEX_PRESET_DEFAULTS`, `extractSimplexItemLabel`, `truncateSimplexBadgeTitle`, `resolveClusterBadgeTitle`, `resolveGeometricShapeSpec`, `resolveRankGeometricShape`, `getRegularPolygonRadiusScale`, `resolveEffectiveGeometricPolygon`, `getGeometricShapeVertices`, `measureGeometricShapeHull`, `NAMED_POLYGON_SIDES`, `getHexRelativeLuminance`, `resolveClusterSurfaceColors`, `resolveSimplexThemeBackgroundColor`, `hexWithAlpha`, `decodeSimplexDataUrlToBytes`, `estimateSimplexTextWidth`, `createSimplexTimelineNotifier`, `areSimplexMeshOptionsEqual`, `areSimplexLayoutOptionsEqual`, `areSimplexTimelineOptionsEqual`, `normalizeTimelineLayoutScaleMode`, `wrapClusteringStrategyForTimeline`, `wrapLayoutStrategyForTimeline`

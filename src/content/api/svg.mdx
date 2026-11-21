@@ -20,8 +20,8 @@ entryPoints:
     environment: "Node.js, Edge, Astro / Next.js SSR builds"
     domFree: true
     sideEffects: false
-    rootReExported: true
-    summary: "Zero-DOM SVG string renderer & deterministic font-metric measurers (also re-exported from root; import @simplex-viz/svg/ssr for DOM-free server bundles)."
+    rootReExported: false
+    summary: "Exclusive zero-DOM subpath (not re-exported from root) providing SVG string rendering & deterministic font-metric measurers for server bundles."
 exportsTable:
   - symbol: "createSimplexSvg"
     kind: "Function"

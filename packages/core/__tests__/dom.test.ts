@@ -12,13 +12,16 @@ import {
   type SimplexTimelineState,
 } from '../src/index.js';
 import {
+  bindSimplexInteractiveViewport,
   buildSimplexTooltipContentModel,
   computeSimplexTooltipCoords,
   createSimplexSrAnnouncer,
+  createSimplexTooltipOverlay,
   dispatchSimplexDefaultLeftClick,
   ensureSimplexContainerPositioned,
   formatSimplexInteractiveTargetAriaLabel,
   formatSimplexTooltipText,
+  getSimplexTooltipThemeTokens,
   measureSimplexContainer,
   observeSimplexContainerResize,
   positionSimplexTooltipElement,
@@ -450,5 +453,325 @@ describe('@simplex-viz/core/dom & shared utilities', () => {
     ).toBe(false);
     expect(areSimplexTimelineOptionsEqual(true, true)).toBe(true);
     expect(areSimplexTimelineOptionsEqual(true, false)).toBe(false);
+  });
+
+  it('provides shared tooltip theme tokens and manages createSimplexTooltipOverlay lifecycles', () => {
+    expect(getSimplexTooltipThemeTokens('light').color).toBe('#0f172a');
+    expect(getSimplexTooltipThemeTokens('dark').color).toBe('#f1f5f9');
+
+    const doc = getDomDocument();
+    const host = doc.createElement('div');
+    Object.defineProperty(host, 'clientWidth', { value: 640 });
+    Object.defineProperty(host, 'clientHeight', { value: 480 });
+    doc.body.appendChild(host);
+
+    const cluster = {
+      clusterUid: 'c-1',
+      clusterIndex: 0,
+      code: 'C1',
+      defaultLabel: 'Alpha',
+      colorHex: '#38bdf8',
+      members: [],
+    } as unknown as ClusterDescriptor<DefaultTaggedItem>;
+
+    const target = {
+      kind: 'cluster' as const,
+      cluster,
+      visual: {},
+      screenPosition: { x: 100, y: 120 },
+      worldPosition: { x: 0, y: 0 },
+    };
+
+    const cleanupSpy = vi.fn();
+    const onHideSpy = vi.fn();
+    const renderSpy = vi.fn((_t, el: HTMLElement) => {
+      el.textContent = 'Custom DOM Tip';
+      return cleanupSpy;
+    });
+
+    const overlay = createSimplexTooltipOverlay({
+      hostEl: host,
+      baseClassName: 'sv-tooltip',
+      initialTheme: 'dark',
+      initialOption: {
+        formatCluster: () => 'Structured Cluster',
+      },
+      getDefaultText: () => 'Default',
+    });
+
+    overlay.showForTarget(target);
+    const tip = host.querySelector('.sv-tooltip') as HTMLDivElement;
+    expect(tip).not.toBeNull();
+    expect(tip.style.display).toBe('block');
+    expect(tip.textContent).toBe('Structured Cluster');
+    expect(tip.style.color).toBe('#f1f5f9');
+
+    overlay.setTheme('light');
+    expect(tip.style.color).toBe('#0f172a');
+
+    overlay.setOption({
+      render: renderSpy,
+      className: 'custom-card',
+      onHide: onHideSpy,
+    });
+    expect(tip.className).toBe('sv-tooltip custom-card');
+    expect(tip.dataset.tooltipMode).toBe('custom');
+
+    overlay.showForTarget(target);
+    expect(renderSpy).toHaveBeenCalledTimes(1);
+    // Moving mouse over the same target updates coordinates without re-running render
+    overlay.showForTarget({ ...target, screenPosition: { x: 130, y: 140 } });
+    expect(renderSpy).toHaveBeenCalledTimes(1);
+
+    overlay.hide();
+    expect(cleanupSpy).toHaveBeenCalledTimes(1);
+    expect(onHideSpy).toHaveBeenCalledWith(tip);
+    expect(tip.style.display).toBe('none');
+
+    // Suppression via null return hides tooltip cleanly
+    overlay.setOption({
+      render: () => null,
+      onHide: onHideSpy,
+    });
+    overlay.showForTarget(target);
+    expect(tip.style.display).toBe('none');
+
+    overlay.destroy();
+    expect(host.querySelector('.sv-tooltip')).toBeNull();
+  });
+
+  it('binds shared pointer, marquee, touch scroll-lock, wheel pinch, and keyboard viewport interactions', () => {
+    const doc = getDomDocument();
+    const listeners = new Map<string, Set<(ev: unknown) => void>>();
+    const surfaceEl = {
+      ownerDocument: doc,
+      clientWidth: 800,
+      clientHeight: 600,
+      style: { cursor: '', touchAction: '' },
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 }),
+      setPointerCapture: vi.fn(),
+      addEventListener: (type: string, fn: (ev: unknown) => void) => {
+        if (!listeners.has(type)) listeners.set(type, new Set());
+        listeners.get(type)!.add(fn);
+      },
+      removeEventListener: (type: string, fn: (ev: unknown) => void) => {
+        listeners.get(type)?.delete(fn);
+      },
+    };
+    const emit = (type: string, ev: unknown) => {
+      for (const fn of listeners.get(type) ?? []) {
+        fn(ev);
+      }
+    };
+
+    const handleLeftClick = vi.fn();
+    const handlePointerMove = vi.fn();
+    const handlePointerLeave = vi.fn();
+    const handleRightClick = vi.fn(() => true);
+    const handleWheel = vi.fn(() => true);
+    const onMarqueeChange = vi.fn();
+    const onMarqueeCommit = vi.fn();
+    const onPinchDrillIn = vi.fn(() => true);
+    const onDrillUp = vi.fn(() => true);
+    const onKeyDown = vi.fn();
+    const hideTooltip = vi.fn();
+    const onScheduleFrame = vi.fn();
+
+    let zoomMode: 'drill-down' | 'free-camera' = 'free-camera';
+
+    const handle = bindSimplexInteractiveViewport({
+      surfaceEl: surfaceEl as unknown as Parameters<typeof bindSimplexInteractiveViewport>[0]['surfaceEl'],
+      engine: {
+        getZoomState: () => ({
+          mode: zoomMode,
+          depth: 0,
+          canDrillUp: false,
+          activeFrameKind: 'root',
+          breadcrumbs: [],
+          drillableTriangleIndices: [],
+          focusableTriangleIndices: [],
+          drillableClusterUids: [],
+        }),
+        getZoomStrategy: () =>
+          ({ mode: zoomMode }) as unknown as ReturnType<
+            Parameters<typeof bindSimplexInteractiveViewport>[0]['engine']['getZoomStrategy']
+          >,
+        getMesh: () => null,
+        hitTest: () => ({
+          kind: 'background',
+          screenPosition: { x: 0, y: 0 },
+          worldPosition: { x: 0, y: 0 },
+        }),
+        getSelectedIds: () => new Set(),
+        getFocusedItemId: () => null,
+        camera: {
+          panBy: vi.fn(),
+          zoomToCursor: vi.fn(),
+          screenToWorld: (x, y) => ({ x, y }),
+        },
+        handlePointerMove,
+        handlePointerLeave,
+        handleLeftClick,
+        handleRightClick,
+        handleWheel,
+      },
+      clickDispatch: 'pointerup',
+      capturePointer: true,
+      getTouchScrollLockPx: () => 8,
+      getClickTolerancePx: () => 5,
+      isMarqueeEnabled: () => true,
+      hideTooltip,
+      onMarqueeChange,
+      onMarqueeCommit,
+      onPinchDrillIn,
+      onDrillUp,
+      onScheduleFrame,
+      onKeyDown,
+    });
+
+    expect(surfaceEl.style.touchAction).toBe('pan-y');
+
+    // Simple left click triggers handleLeftClick on pointerup
+    emit('pointerdown', {
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      clientX: 50,
+      clientY: 60,
+      shiftKey: false,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+    });
+    emit('pointerup', {
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      clientX: 51,
+      clientY: 61,
+      shiftKey: false,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+    });
+    expect(handleLeftClick).toHaveBeenCalledTimes(1);
+
+    // Right button pointerup should NOT trigger handleLeftClick
+    emit('pointerup', {
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 2,
+      clientX: 51,
+      clientY: 61,
+      shiftKey: false,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+    });
+    expect(handleLeftClick).toHaveBeenCalledTimes(1);
+
+    // Shift+drag commits marquee selection, does not click
+    emit('pointerdown', {
+      pointerId: 2,
+      pointerType: 'mouse',
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+      shiftKey: true,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+    });
+    emit('pointermove', {
+      pointerId: 2,
+      pointerType: 'mouse',
+      button: 0,
+      clientX: 80,
+      clientY: 90,
+      shiftKey: true,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+    });
+    expect(onMarqueeChange).toHaveBeenLastCalledWith({
+      x: 10,
+      y: 10,
+      width: 70,
+      height: 80,
+    });
+    emit('pointerup', {
+      pointerId: 2,
+      pointerType: 'mouse',
+      button: 0,
+      clientX: 80,
+      clientY: 90,
+      shiftKey: true,
+      ctrlKey: false,
+      altKey: true,
+      metaKey: false,
+    });
+    expect(onMarqueeCommit).toHaveBeenCalledWith(10, 10, 80, 90, true);
+    expect(handleLeftClick).toHaveBeenCalledTimes(1);
+
+    // Escape during marquee cancels without calling controller onKeyDown
+    emit('pointerdown', {
+      pointerId: 3,
+      pointerType: 'mouse',
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+      shiftKey: true,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+    });
+    emit('pointermove', {
+      pointerId: 3,
+      pointerType: 'mouse',
+      button: 0,
+      clientX: 40,
+      clientY: 40,
+      shiftKey: true,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+    });
+    const preventSpy = vi.fn();
+    emit('keydown', {
+      key: 'Escape',
+      shiftKey: false,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+      preventDefault: preventSpy,
+    });
+    expect(preventSpy).toHaveBeenCalled();
+    expect(onKeyDown).not.toHaveBeenCalled();
+    emit('pointerup', {
+      pointerId: 3,
+      pointerType: 'mouse',
+      button: 0,
+      clientX: 40,
+      clientY: 40,
+      shiftKey: true,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+    });
+
+    // Drill-down ctrl+wheel triggers onPinchDrillIn
+    zoomMode = 'drill-down';
+    emit('wheel', {
+      clientX: 200,
+      clientY: 150,
+      deltaX: 0,
+      deltaY: -30,
+      ctrlKey: true,
+      shiftKey: false,
+      preventDefault: vi.fn(),
+    });
+    expect(onPinchDrillIn).toHaveBeenCalledWith(200, 150);
+
+    handle.destroy();
   });
 });

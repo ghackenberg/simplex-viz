@@ -507,7 +507,7 @@ Filter items visually without re-clustering or shifting any SAT positions (`item
 - `handle.zoomBy(factor)` / `handle.resetCamera()` / `handle.relayout()` — Camera zoom/reset and manual hull re-measurement + relayout.
 - `handle.getMetrics()` / `handle.getClusters()` / `handle.getTimeline()` / `handle.getRawController()` — Live solver telemetry, active timeline controller, and raw controller access.
 
-`useSimplexTimeline(controllerRef | timelineController)` returns reactive `{ state, isReady, play, pause, toggle, stepBy, seek, resetToEnd, setSpeed, setStepIntervalMs, setLoop, getController }` for building custom declarative React playback toolbars. Server-side rendering helpers (`renderSimplexSvgString`, `estimateSsrTextWidth`, `createSsrPresetHullMeasurers`) are also re-exported directly from `@simplex-viz/react` (or import `@simplex-viz/svg/ssr` for minimal server bundles).
+`useSimplexTimeline(controllerRef | timelineController)` returns reactive `{ state, isReady, play, pause, toggle, stepBy, seek, resetToEnd, setSpeed, setStepIntervalMs, setLoop, getController }` for building custom declarative React playback toolbars. For zero-DOM server-side SVG rendering, import `renderSimplexSvgString`, `estimateSsrTextWidth`, and `createSsrPresetHullMeasurers` directly from `@simplex-viz/svg/ssr`.
 
 ## License
 

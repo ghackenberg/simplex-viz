@@ -3,6 +3,11 @@ import {
   type ClusterDescriptor,
   type NodeRenderState,
 } from '@simplex-viz/core';
+import {
+  chamferRectSvgPath,
+  chamferRectSvgPoints,
+  resolveSvgBadgeLayout,
+} from '../badgeLayout.js';
 import { resolveClusterSurfaceColors, roundedRectSvgPath } from '../colorContrast.js';
 import { SVG_NS } from '../hullMeasure.js';
 import type { SvgNodeView } from '../types.js';
@@ -110,52 +115,25 @@ export class BadgeClusterSvgView implements SvgNodeView<BadgeClusterVisual> {
     const hoverStroke = isLight ? '#0f172a' : '#f8fafc';
     const palette = resolveClusterSurfaceColors(visual.colorHex, theme);
 
-    if (visual.variant === 'intermediate') {
-      const parentCtx = (visual.parentContextLabel ?? '').trim();
-      const hasParentCtx = parentCtx.length > 0;
-      const rawSuffix = visual.title.trim();
-      const hasSuffix = rawSuffix.length > 0 && rawSuffix !== visual.code.trim();
-      const suffix = hasSuffix ? rawSuffix : '';
+    const variant: 'primary' | 'intermediate' =
+      visual.variant === 'intermediate' ? 'intermediate' : 'primary';
+    const displayTitle = this.resolveDisplayTitle(visual.title, variant, visual);
+    const layout = resolveSvgBadgeLayout({
+      variant,
+      code: visual.code,
+      title: displayTitle,
+      metaLine: visual.metaLine,
+      parentContextLabel: visual.parentContextLabel,
+      showCode: visual.showCode ?? this.options.showCode,
+    });
 
-      const chamferPath = (hw: number, hh: number, c: number, dy = 0): string =>
-        [
-          `M ${(-hw + c).toFixed(1)} ${(-hh + dy).toFixed(1)}`,
-          `L ${(hw - c).toFixed(1)} ${(-hh + dy).toFixed(1)}`,
-          `L ${hw.toFixed(1)} ${dy.toFixed(1)}`,
-          `L ${(hw - c).toFixed(1)} ${(hh + dy).toFixed(1)}`,
-          `L ${(-hw + c).toFixed(1)} ${(hh + dy).toFixed(1)}`,
-          `L ${(-hw).toFixed(1)} ${dy.toFixed(1)}`,
-          'Z',
-        ].join(' ');
+    const halfW = layout.width / 2;
+    const halfH = layout.height / 2;
 
-      const chamferPoints = (hw: number, hh: number, c: number): string =>
-        [
-          `${(-hw + c).toFixed(1)},${(-hh).toFixed(1)}`,
-          `${(hw - c).toFixed(1)},${(-hh).toFixed(1)}`,
-          `${hw.toFixed(1)},0`,
-          `${(hw - c).toFixed(1)},${hh.toFixed(1)}`,
-          `${(-hw + c).toFixed(1)},${hh.toFixed(1)}`,
-          `${(-hw).toFixed(1)},0`,
-        ].join(' ');
-
-      if (hasParentCtx) {
-        const upperParent = parentCtx.toUpperCase();
-        const mainText = this.resolveDisplayTitle(
-          suffix || visual.code,
-          'intermediate',
-          visual,
-        );
-        const topW = upperParent.length * 5.2;
-        const botW = mainText.length * 5.9;
-        const estWidth = Math.max(66, Math.round(Math.max(topW, botW) + 26));
-        const height = 32;
-        const halfW = estWidth / 2;
-        const halfH = height / 2;
-        const cut = 6.4;
-        const haloPad = 2.5;
-
+    if (layout.variant === 'intermediate') {
+      if (layout.hasParentCtx) {
         const shadow = doc.createElementNS(SVG_NS, 'path');
-        shadow.setAttribute('d', chamferPath(halfW, halfH, cut, 1.6));
+        shadow.setAttribute('d', chamferRectSvgPath(halfW, halfH, layout.cut, 1.6));
         shadow.setAttribute('fill', '#020617');
         shadow.setAttribute('fill-opacity', isLight ? '0.16' : '0.44');
         groupEl.appendChild(shadow);
@@ -163,7 +141,11 @@ export class BadgeClusterSvgView implements SvgNodeView<BadgeClusterVisual> {
         const halo = doc.createElementNS(SVG_NS, 'polygon');
         halo.setAttribute(
           'points',
-          chamferPoints(halfW + haloPad, halfH + haloPad, cut + 1.1),
+          chamferRectSvgPoints(
+            halfW + layout.haloPad,
+            halfH + layout.haloPad,
+            layout.cut + 1.1,
+          ),
         );
         halo.setAttribute('fill', 'none');
         halo.setAttribute(
@@ -186,7 +168,7 @@ export class BadgeClusterSvgView implements SvgNodeView<BadgeClusterVisual> {
         groupEl.appendChild(halo);
 
         const bg = doc.createElementNS(SVG_NS, 'polygon');
-        bg.setAttribute('points', chamferPoints(halfW, halfH, cut));
+        bg.setAttribute('points', chamferRectSvgPoints(halfW, halfH, layout.cut));
         bg.setAttribute('fill', palette.solidFillHex);
         bg.setAttribute('stroke', state.interaction.isPinned ? '#fef08a' : '#ffffff');
         bg.setAttribute('stroke-width', isActive ? '1.55' : '1.0');
@@ -204,7 +186,7 @@ export class BadgeClusterSvgView implements SvgNodeView<BadgeClusterVisual> {
         parentEl.setAttribute('font-weight', '700');
         parentEl.setAttribute('letter-spacing', '0.05em');
         parentEl.setAttribute('font-family', 'IBM Plex Mono, monospace');
-        parentEl.textContent = upperParent;
+        parentEl.textContent = layout.upperParent;
         groupEl.appendChild(parentEl);
 
         const facetEl = doc.createElementNS(SVG_NS, 'text');
@@ -215,27 +197,14 @@ export class BadgeClusterSvgView implements SvgNodeView<BadgeClusterVisual> {
         facetEl.setAttribute('font-size', '9.3');
         facetEl.setAttribute('font-weight', '700');
         facetEl.setAttribute('font-family', 'Plus Jakarta Sans, sans-serif');
-        facetEl.textContent = mainText;
+        facetEl.textContent = layout.title;
         groupEl.appendChild(facetEl);
         return;
       }
 
-      const displayLine = this.resolveDisplayTitle(
-        suffix || visual.code,
-        'intermediate',
-        visual,
-      );
-      const contentW = displayLine.length * 5.8;
-      const estWidth = Math.max(52, Math.round(contentW + 24));
-      const height = 22;
-      const halfW = estWidth / 2;
-      const halfH = height / 2;
-      const cut = 5.5;
-      const haloPad = 2.4;
-
       // 1. Grounding shadow (<path> so first <polygon> remains the dashed outer halo)
       const shadow = doc.createElementNS(SVG_NS, 'path');
-      shadow.setAttribute('d', chamferPath(halfW, halfH, cut, 1.5));
+      shadow.setAttribute('d', chamferRectSvgPath(halfW, halfH, layout.cut, 1.5));
       shadow.setAttribute('fill', '#020617');
       shadow.setAttribute('fill-opacity', isLight ? '0.15' : '0.42');
       groupEl.appendChild(shadow);
@@ -244,7 +213,11 @@ export class BadgeClusterSvgView implements SvgNodeView<BadgeClusterVisual> {
       const halo = doc.createElementNS(SVG_NS, 'polygon');
       halo.setAttribute(
         'points',
-        chamferPoints(halfW + haloPad, halfH + haloPad, cut + 1.1),
+        chamferRectSvgPoints(
+          halfW + layout.haloPad,
+          halfH + layout.haloPad,
+          layout.cut + 1.1,
+        ),
       );
       halo.setAttribute('fill', 'none');
       halo.setAttribute(
@@ -268,7 +241,7 @@ export class BadgeClusterSvgView implements SvgNodeView<BadgeClusterVisual> {
 
       // 3. Saturated OKLab-calibrated jewel-tone chamfered body (<polygon> #2)
       const bg = doc.createElementNS(SVG_NS, 'polygon');
-      bg.setAttribute('points', chamferPoints(halfW, halfH, cut));
+      bg.setAttribute('points', chamferRectSvgPoints(halfW, halfH, layout.cut));
       bg.setAttribute('fill', palette.solidFillHex);
       bg.setAttribute('stroke', state.interaction.isPinned ? '#fef08a' : '#ffffff');
       bg.setAttribute('stroke-width', isActive ? '1.5' : '1.0');
@@ -285,48 +258,34 @@ export class BadgeClusterSvgView implements SvgNodeView<BadgeClusterVisual> {
       labelText.setAttribute('font-size', '9.1');
       labelText.setAttribute('font-weight', '700');
       labelText.setAttribute('font-family', 'Plus Jakarta Sans, sans-serif');
-      labelText.textContent = displayLine;
+      labelText.textContent = layout.title;
       groupEl.appendChild(labelText);
       return;
     }
 
-    const showCode = (visual.showCode ?? this.options.showCode ?? true) && visual.code.trim().length > 0;
-    const displayTitle = this.resolveDisplayTitle(visual.title, 'primary', visual);
-    const codeSpan = showCode ? Math.max(20, visual.code.length * 6.4 + 6) : 0;
-    const headerContentW = codeSpan + displayTitle.length * 6.9;
-    const metaW = visual.metaLine.length * 5.9;
-    const minPrimaryWidth = showCode ? 126 : 96;
-    const padX = showCode ? 34 : 30;
-    const estWidth = Math.max(
-      minPrimaryWidth,
-      Math.round(Math.max(headerContentW + padX, metaW + padX)),
-    );
-    const height = 42;
-    const halfW = estWidth / 2;
-    const halfH = height / 2;
+    const { showCode, codeSpan, headerContentW } = layout;
     const rx = halfH;
 
     // Subtle elevation ground shadow (<path> so primary <rect> remains unambiguous first <rect>)
     const shadow = doc.createElementNS(SVG_NS, 'path');
     shadow.setAttribute(
       'd',
-      roundedRectSvgPath(-halfW, -halfH + 1.8, estWidth, height, rx),
+      roundedRectSvgPath(-halfW, -halfH + 1.8, layout.width, layout.height, rx),
     );
     shadow.setAttribute('fill', '#020617');
     shadow.setAttribute('fill-opacity', isLight ? '0.16' : '0.45');
     groupEl.appendChild(shadow);
 
     // Outer docking halo ring (<path>)
-    const haloPad = 2.8;
     const halo = doc.createElementNS(SVG_NS, 'path');
     halo.setAttribute(
       'd',
       roundedRectSvgPath(
-        -halfW - haloPad,
-        -halfH - haloPad,
-        estWidth + haloPad * 2,
-        height + haloPad * 2,
-        rx + haloPad,
+        -halfW - layout.haloPad,
+        -halfH - layout.haloPad,
+        layout.width + layout.haloPad * 2,
+        layout.height + layout.haloPad * 2,
+        rx + layout.haloPad,
       ),
     );
     halo.setAttribute('fill', 'none');
@@ -345,8 +304,8 @@ export class BadgeClusterSvgView implements SvgNodeView<BadgeClusterVisual> {
     const bg = doc.createElementNS(SVG_NS, 'rect');
     bg.setAttribute('x', String(-halfW));
     bg.setAttribute('y', String(-halfH));
-    bg.setAttribute('width', String(estWidth));
-    bg.setAttribute('height', String(height));
+    bg.setAttribute('width', String(layout.width));
+    bg.setAttribute('height', String(layout.height));
     bg.setAttribute('rx', String(rx));
     bg.setAttribute('fill', palette.solidFillHex);
     bg.setAttribute(

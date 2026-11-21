@@ -8,7 +8,9 @@ import type {
   HitTarget,
   InteractionHandlers,
   NormalizedPointerEvent,
+  NormalizedWheelEvent,
   ReducedMotionPreference,
+  SimplexHoverTarget,
   SimplexInteractiveTarget,
   SimplexKeyboardFocusTarget,
   SimplexMesh,
@@ -47,6 +49,12 @@ export interface SimplexDomStyleLike {
   boxShadow: string;
   cursor: string;
   touchAction: string;
+  maxWidth?: string;
+  borderRadius?: string;
+  fontFamily?: string;
+  fontSize?: string;
+  lineHeight?: string;
+  zIndex?: string;
 }
 
 export interface SimplexDomElementLike {
@@ -69,6 +77,8 @@ export interface SimplexDomDivLike extends SimplexDomElementLike {
   className: string;
   readonly offsetWidth: number;
   readonly offsetHeight: number;
+  readonly dataset?: Record<string, string | undefined>;
+  remove?: () => void;
 }
 
 export interface SimplexDomFontSetLike {
@@ -557,21 +567,48 @@ export function formatSimplexZoomLevelAnnouncement<
 // Tooltip Theme Styling & Edge-Flipping Positioning
 // ============================================================================
 
+export interface SimplexTooltipThemeTokens {
+  readonly background: string;
+  readonly border: string;
+  readonly color: string;
+  readonly mutedColor: string;
+  readonly eyebrowColor: string;
+  readonly boxShadow: string;
+}
+
+/**
+ * Returns canonical dark/light floating tooltip theme tokens shared across
+ * SVG, Canvas, and React overlays.
+ */
+export function getSimplexTooltipThemeTokens(
+  theme: SimplexColorTheme,
+): SimplexTooltipThemeTokens {
+  const isLight = theme === 'light';
+  return {
+    background: isLight
+      ? 'rgba(255, 255, 255, 0.96)'
+      : 'rgba(9, 13, 22, 0.94)',
+    border: isLight
+      ? '1px solid rgba(203, 213, 225, 0.95)'
+      : '1px solid rgba(51, 65, 85, 0.85)',
+    color: isLight ? '#0f172a' : '#f1f5f9',
+    mutedColor: isLight ? '#475569' : '#94a3b8',
+    eyebrowColor: isLight ? '#64748b' : '#94a3b8',
+    boxShadow: isLight
+      ? '0 10px 24px rgba(15, 23, 42, 0.12)'
+      : '0 10px 24px rgba(0, 0, 0, 0.45)',
+  };
+}
+
 export function applySimplexTooltipTheme(
   el: SimplexDomDivLike,
   theme: SimplexColorTheme,
 ): void {
-  const isLight = theme === 'light';
-  el.style.background = isLight
-    ? 'rgba(255, 255, 255, 0.96)'
-    : 'rgba(9, 13, 22, 0.94)';
-  el.style.border = isLight
-    ? '1px solid rgba(203, 213, 225, 0.95)'
-    : '1px solid rgba(51, 65, 85, 0.85)';
-  el.style.color = isLight ? '#0f172a' : '#f1f5f9';
-  el.style.boxShadow = isLight
-    ? '0 10px 24px rgba(15, 23, 42, 0.12)'
-    : '0 10px 24px rgba(0, 0, 0, 0.45)';
+  const tokens = getSimplexTooltipThemeTokens(theme);
+  el.style.background = tokens.background;
+  el.style.border = tokens.border;
+  el.style.color = tokens.color;
+  el.style.boxShadow = tokens.boxShadow;
 }
 
 export interface ComputeSimplexTooltipCoordsInput {
@@ -681,29 +718,18 @@ export function positionSimplexTooltipElement(
 }
 
 export type SimplexTooltipTargetInput<
+  TItem = unknown,
+  TContentVisual = unknown,
+  TClusterVisual = unknown,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> = SimplexHoverTarget<
   TItem,
   TContentVisual,
   TClusterVisual,
   TTagMeta,
-  TClusterMeta,
-> =
-  | ({ readonly kind: 'content' } & ContentHoverEvent<
-      TItem,
-      TContentVisual,
-      TTagMeta,
-      TClusterMeta
-    >)
-  | ({ readonly kind: 'cluster' } & ClusterHoverEvent<
-      TItem,
-      TClusterVisual,
-      TTagMeta,
-      TClusterMeta
-    >)
-  | ({ readonly kind: 'triangle' } & TriangleHoverEvent<
-      TItem,
-      TTagMeta,
-      TClusterMeta
-    >);
+  TClusterMeta
+>;
 
 export type SimplexTooltipContentModel =
   | {
@@ -1452,4 +1478,1273 @@ export function toSimplexNormalizedPointerEvent(
     metaKey: ev.metaKey,
   };
 }
+
+// ============================================================================
+// Shared Tooltip Overlay & Interactive Viewport Controller
+// ============================================================================
+
+export interface SimplexDomTooltipRendererLike<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+  TElement extends SimplexDomDivLike = SimplexDomDivLike,
+> {
+  readonly render: (
+    target: SimplexTooltipTargetInput<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+    containerEl: TElement,
+  ) => void | boolean | null | (() => void);
+  readonly unstyled?: boolean;
+  readonly offset?: { readonly x?: number; readonly y?: number };
+  readonly margin?: number;
+  readonly className?: string;
+  readonly onHide?: (containerEl: TElement) => void;
+}
+
+export interface SimplexStructuredTooltipFormatterLike<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+> {
+  readonly formatContent?: (
+    ev: ContentHoverEvent<TItem, TContentVisual, TTagMeta, TClusterMeta>,
+  ) => string | null | undefined | false;
+  readonly formatCluster?: (
+    ev: ClusterHoverEvent<TItem, TClusterVisual, TTagMeta, TClusterMeta>,
+  ) => string | null | undefined | false;
+  readonly formatTriangle?: (
+    ev: TriangleHoverEvent<TItem, TTagMeta, TClusterMeta>,
+  ) => string | null | undefined | false;
+}
+
+export type SimplexTooltipOverlayOptionLike<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+  TElement extends SimplexDomDivLike = SimplexDomDivLike,
+> =
+  | boolean
+  | ((
+      target: SimplexTooltipTargetInput<
+        TItem,
+        TContentVisual,
+        TClusterVisual,
+        TTagMeta,
+        TClusterMeta
+      >,
+    ) => string | null | undefined | false)
+  | SimplexStructuredTooltipFormatterLike<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >
+  | SimplexDomTooltipRendererLike<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta,
+      TElement
+    >;
+
+export interface CreateSimplexTooltipOverlayOptions<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+  TElement extends SimplexDomDivLike = SimplexDomDivLike,
+> {
+  readonly hostEl: SimplexDomElementLike & SimplexDomContainerOpsLike;
+  readonly baseClassName?: string;
+  readonly ensureHostPositioned?: boolean;
+  readonly initialTheme: SimplexColorTheme;
+  readonly initialOption: SimplexTooltipOverlayOptionLike<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta,
+    TElement
+  >;
+  readonly getDefaultText: (
+    target: SimplexTooltipTargetInput<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ) => string | null | undefined | false;
+}
+
+export interface SimplexTooltipOverlay<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+  TElement extends SimplexDomDivLike = SimplexDomDivLike,
+> {
+  showForTarget(
+    target: SimplexTooltipTargetInput<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): void;
+  hide(): void;
+  setTheme(theme: SimplexColorTheme): void;
+  setOption(
+    option: SimplexTooltipOverlayOptionLike<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta,
+      TElement
+    >,
+  ): void;
+  destroy(): void;
+}
+
+function isDomTooltipRendererOption<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+  TElement extends SimplexDomDivLike,
+>(
+  opt: SimplexTooltipOverlayOptionLike<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta,
+    TElement
+  >,
+): opt is SimplexDomTooltipRendererLike<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+  TElement
+> {
+  return (
+    typeof opt === 'object' &&
+    opt !== null &&
+    'render' in opt &&
+    typeof opt.render === 'function'
+  );
+}
+
+function getTooltipTargetKey<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+>(
+  target: SimplexTooltipTargetInput<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >,
+): string {
+  if (target.kind === 'content') {
+    return `content:${target.layoutContext.id}:${target.neighborId ?? ''}`;
+  }
+  if (target.kind === 'cluster') {
+    return `cluster:${target.cluster.clusterUid}:${target.neighborId ?? ''}`;
+  }
+  return `triangle:${target.triangle.index}:${target.triangle.neighborId ?? ''}:${target.triangle.isContext ? 1 : 0}`;
+}
+
+/**
+ * Shared floating tooltip DOM overlay controller handling lazy mounting,
+ * theme styles, custom DOM renderers, target deduplication, cleanup callbacks,
+ * and viewport edge-flipping across SVG and Canvas controllers.
+ */
+export function createSimplexTooltipOverlay<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+  TElement extends SimplexDomDivLike = SimplexDomDivLike,
+>(
+  options: CreateSimplexTooltipOverlayOptions<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta,
+    TElement
+  >,
+): SimplexTooltipOverlay<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+  TElement
+> {
+  const baseClassName = options.baseClassName ?? 'sv-tooltip';
+  let currentTheme = options.initialTheme;
+  let currentOption = options.initialOption;
+  let tooltipEl: TElement | null = null;
+  let tooltipCleanup: (() => void) | null = null;
+  let activeTargetKey: string | null = null;
+  let activeSuppressed = false;
+  let visible = false;
+
+  const isUnstyled = (): boolean =>
+    isDomTooltipRendererOption(currentOption) && currentOption.unstyled !== false;
+
+  const applyThemeStyles = (el: TElement): void => {
+    if (isUnstyled()) return;
+    applySimplexTooltipTheme(el, currentTheme);
+  };
+
+  const applyPresentationStyles = (el: TElement): void => {
+    const domRenderer = isDomTooltipRendererOption(currentOption)
+      ? currentOption
+      : null;
+    const customClass = domRenderer?.className?.trim();
+    el.className = customClass ? `${baseClassName} ${customClass}` : baseClassName;
+    el.setAttribute('role', 'tooltip');
+    el.style.position = 'absolute';
+    el.style.pointerEvents = 'none';
+    el.style.zIndex = '20';
+
+    if (isUnstyled()) {
+      if (el.dataset) el.dataset.tooltipMode = 'custom';
+      el.style.maxWidth = '';
+      el.style.padding = '';
+      el.style.borderRadius = '';
+      el.style.fontFamily = '';
+      el.style.fontSize = '';
+      el.style.lineHeight = '';
+      el.style.whiteSpace = '';
+      el.style.background = '';
+      el.style.border = '';
+      el.style.color = '';
+      el.style.boxShadow = '';
+      return;
+    }
+
+    if (el.dataset) el.dataset.tooltipMode = 'styled';
+    el.style.maxWidth = '240px';
+    el.style.padding = '7px 10px';
+    el.style.borderRadius = '8px';
+    el.style.fontFamily =
+      'Plus Jakarta Sans, ui-sans-serif, system-ui, sans-serif';
+    el.style.fontSize = '12px';
+    el.style.lineHeight = '1.4';
+    el.style.whiteSpace = domRenderer ? '' : 'pre-line';
+    applyThemeStyles(el);
+  };
+
+  const ensureElement = (): TElement | null => {
+    if (!currentOption) return null;
+    if (tooltipEl) return tooltipEl;
+
+    const doc = options.hostEl.ownerDocument ?? getGlobalEnv().document;
+    if (!doc) return null;
+    if (options.ensureHostPositioned !== false) {
+      ensureSimplexContainerPositioned(options.hostEl);
+    }
+
+    const el = doc.createElement('div') as TElement;
+    el.style.display = 'none';
+    applyPresentationStyles(el);
+    options.hostEl.appendChild(el);
+    tooltipEl = el;
+    return el;
+  };
+
+  const runCleanup = (): void => {
+    const cleanup = tooltipCleanup;
+    tooltipCleanup = null;
+    if (cleanup) {
+      cleanup();
+    }
+  };
+
+  const positionElement = (
+    el: TElement,
+    screenX: number,
+    screenY: number,
+    measureUnconstrained = false,
+  ): void => {
+    const domRenderer = isDomTooltipRendererOption(currentOption)
+      ? currentOption
+      : null;
+    positionSimplexTooltipElement(options.hostEl, el, screenX, screenY, {
+      offsetX: domRenderer?.offset?.x,
+      offsetY: domRenderer?.offset?.y,
+      margin: domRenderer?.margin,
+      measureUnconstrained,
+    });
+  };
+
+  const formatText = (
+    target: SimplexTooltipTargetInput<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): string | null | undefined | false => {
+    if (typeof currentOption === 'function') {
+      return currentOption(target);
+    }
+    if (typeof currentOption === 'object' && currentOption !== null && !('render' in currentOption)) {
+      const obj = currentOption as SimplexStructuredTooltipFormatterLike<
+        TItem,
+        TContentVisual,
+        TClusterVisual,
+        TTagMeta,
+        TClusterMeta
+      >;
+      if (target.kind === 'content' && obj.formatContent) {
+        return obj.formatContent(target);
+      }
+      if (target.kind === 'cluster' && obj.formatCluster) {
+        return obj.formatCluster(target);
+      }
+      if (target.kind === 'triangle' && obj.formatTriangle) {
+        return obj.formatTriangle(target);
+      }
+    }
+    return options.getDefaultText(target);
+  };
+
+  const hide = (): void => {
+    const domRenderer = isDomTooltipRendererOption(currentOption)
+      ? currentOption
+      : null;
+    const wasVisible = visible;
+    runCleanup();
+    activeTargetKey = null;
+    activeSuppressed = false;
+    visible = false;
+    if (tooltipEl) {
+      tooltipEl.style.display = 'none';
+      if (wasVisible && domRenderer?.onHide) {
+        domRenderer.onHide(tooltipEl);
+      }
+    }
+  };
+
+  return {
+    showForTarget(target) {
+      const el = ensureElement();
+      if (!el) return;
+
+      const targetKey = getTooltipTargetKey(target);
+
+      if (isDomTooltipRendererOption(currentOption)) {
+        if (targetKey === activeTargetKey) {
+          if (activeSuppressed) return;
+          el.style.display = 'block';
+          visible = true;
+          positionElement(el, target.screenPosition.x, target.screenPosition.y);
+          return;
+        }
+
+        runCleanup();
+        el.textContent = '';
+        activeTargetKey = targetKey;
+
+        const result = currentOption.render(target, el);
+        if (result === false || result === null) {
+          activeSuppressed = true;
+          if (visible) {
+            el.style.display = 'none';
+            visible = false;
+            currentOption.onHide?.(el);
+          }
+          return;
+        }
+
+        if (typeof result === 'function') {
+          tooltipCleanup = result;
+        }
+        activeSuppressed = false;
+        el.style.display = 'block';
+        visible = true;
+        positionElement(
+          el,
+          target.screenPosition.x,
+          target.screenPosition.y,
+          true,
+        );
+        return;
+      }
+
+      const text = formatText(target);
+      if (!text) {
+        hide();
+        return;
+      }
+
+      const targetChanged = targetKey !== activeTargetKey;
+      activeTargetKey = targetKey;
+      activeSuppressed = false;
+      el.textContent = text;
+      el.style.display = 'block';
+      visible = true;
+      positionElement(
+        el,
+        target.screenPosition.x,
+        target.screenPosition.y,
+        targetChanged,
+      );
+    },
+
+    hide,
+
+    setTheme(theme) {
+      currentTheme = theme;
+      if (tooltipEl) {
+        applyThemeStyles(tooltipEl);
+      }
+    },
+
+    setOption(option) {
+      hide();
+      currentOption = option;
+      if (tooltipEl) {
+        tooltipEl.textContent = '';
+        applyPresentationStyles(tooltipEl);
+      }
+    },
+
+    destroy() {
+      hide();
+      if (tooltipEl && tooltipEl.parentElement === options.hostEl) {
+        options.hostEl.removeChild(tooltipEl);
+        tooltipEl = null;
+      }
+    },
+  };
+}
+
+export interface SimplexDomPointerEventLike {
+  readonly pointerId: number;
+  readonly pointerType: string;
+  readonly button: number;
+  readonly clientX: number;
+  readonly clientY: number;
+  readonly shiftKey: boolean;
+  readonly ctrlKey: boolean;
+  readonly altKey: boolean;
+  readonly metaKey: boolean;
+}
+
+export interface SimplexDomMouseEventLike {
+  readonly button: number;
+  readonly clientX: number;
+  readonly clientY: number;
+  readonly shiftKey: boolean;
+  readonly ctrlKey: boolean;
+  readonly altKey: boolean;
+  readonly metaKey: boolean;
+  preventDefault(): void;
+}
+
+export interface SimplexDomWheelEventLike {
+  readonly clientX: number;
+  readonly clientY: number;
+  readonly deltaX: number;
+  readonly deltaY: number;
+  readonly ctrlKey: boolean;
+  readonly shiftKey: boolean;
+  preventDefault(): void;
+}
+
+export interface SimplexDomTouchEventLike {
+  readonly touches: {
+    readonly length: number;
+    [index: number]: { readonly clientX: number; readonly clientY: number } | undefined;
+  };
+  preventDefault(): void;
+}
+
+export interface SimplexDomKeyboardEventLike {
+  readonly key: string;
+  readonly shiftKey: boolean;
+  readonly ctrlKey: boolean;
+  readonly altKey: boolean;
+  readonly metaKey: boolean;
+  preventDefault(): void;
+}
+
+export interface SimplexDomInteractiveSurfaceLike {
+  readonly ownerDocument: SimplexDomDocumentLike | null;
+  readonly clientWidth: number;
+  readonly clientHeight: number;
+  readonly style: {
+    cursor: string;
+    touchAction: string;
+  };
+  getBoundingClientRect(): SimplexDomRectLike;
+  setPointerCapture?(pointerId: number): void;
+  addEventListener(
+    type: string,
+    listener: (event: unknown) => void,
+    options?: boolean | { readonly passive?: boolean },
+  ): void;
+  removeEventListener(
+    type: string,
+    listener: (event: unknown) => void,
+    options?: boolean,
+  ): void;
+}
+
+export interface BindSimplexInteractiveViewportOptions<
+  TItem = unknown,
+  TContentVisual = unknown,
+  TClusterVisual = unknown,
+  TTagMeta = unknown,
+  TClusterMeta = unknown,
+> {
+  readonly surfaceEl: SimplexDomInteractiveSurfaceLike;
+  readonly engine: SimplexInteractiveEngineSlice<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  > & {
+    readonly camera: Pick<
+      CameraController,
+      'panBy' | 'zoomToCursor' | 'screenToWorld'
+    >;
+    handlePointerMove(screenX: number, screenY: number): void;
+    handlePointerLeave(): void;
+    handleLeftClick(ev: NormalizedPointerEvent): void;
+    handleRightClick(ev: NormalizedPointerEvent): boolean;
+    handleWheel(ev: NormalizedWheelEvent): boolean;
+  };
+  /**
+   * SVG dispatches left clicks from native `'click'` (with 400ms pointer drag suppression);
+   * Canvas dispatches left clicks synchronously from `'pointerup'`.
+   */
+  readonly clickDispatch: 'click-event' | 'pointerup';
+  /** Attaches passive/non-passive `touchstart`/`touchmove`/`touchend`/`touchcancel` listeners (used on SVG). */
+  readonly bindTouchListeners?: boolean;
+  /** Calls `setPointerCapture(pointerId)` on pointer down (used on Canvas). */
+  readonly capturePointer?: boolean;
+  readonly pinchDrillInRatio?: number;
+  readonly getTouchScrollLockPx: () => number;
+  readonly getClickTolerancePx: () => number;
+  readonly isMarqueeEnabled: () => boolean;
+  readonly isDestroyed?: () => boolean;
+  readonly canStartFreeCameraPan?: (localX: number, localY: number) => boolean;
+  readonly hideTooltip: () => void;
+  readonly onMarqueeChange: (
+    rect: {
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+    } | null,
+  ) => void;
+  readonly onMarqueeCommit: (
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    altKey: boolean,
+  ) => void;
+  readonly onPinchDrillIn: (midX: number, midY: number) => boolean;
+  readonly onDrillUp: () => boolean;
+  readonly onAfterCameraTransform?: () => void;
+  readonly onAfterLeftClick?: () => void;
+  readonly onScheduleFrame: () => void;
+  readonly onPointerDownPre?: () => void;
+  readonly onFocus?: () => void;
+  readonly onBlur?: () => void;
+  readonly onKeyDown: (ev: SimplexDomKeyboardEventLike) => void;
+}
+
+export interface SimplexInteractiveViewportHandle {
+  syncTouchAction(): void;
+  cancelMarquee(): void;
+  destroy(): void;
+}
+
+/**
+ * Shared pointer, multi-touch pinch, touch scroll-lock, marquee rubberband,
+ * wheel zoom, hover cursor, click suppression, and keyboard event binder for
+ * SVG and Canvas viewports.
+ */
+export function bindSimplexInteractiveViewport<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+>(
+  options: BindSimplexInteractiveViewportOptions<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >,
+): SimplexInteractiveViewportHandle {
+  const { surfaceEl, engine } = options;
+  const pinchInRatio = options.pinchDrillInRatio ?? 1.28;
+
+  const activePointers = new Map<number, { x: number; y: number }>();
+  const wheelPinchState: SimplexWheelPinchState = { accum: 0, cooldownUntil: 0 };
+
+  let isDraggingPan = false;
+  let panStarted = false;
+  let dragLastClientX = 0;
+  let dragLastClientY = 0;
+  let pointerOriginClientX = 0;
+  let pointerOriginClientY = 0;
+  let pointerMaxDisplacement = 0;
+  let hasActiveGestureOrigin = false;
+  let wasMultiTouchGesture = false;
+  let touchScrollAxis: 'undecided' | 'vertical' | 'horizontal' | 'pinch' = 'undecided';
+  let touchOriginClientX = 0;
+  let touchOriginClientY = 0;
+  let touchYieldedToScroll = false;
+
+  let suppressNextClick = false;
+  let suppressClickStartPos: { x: number; y: number } | null = null;
+  let suppressClickEndPos: { x: number; y: number } | null = null;
+  let suppressClickDeadline = 0;
+
+  let lastPinchDist: number | null = null;
+  let pinchStartDist: number | null = null;
+  let pinchHandledInGesture = false;
+  let lastPinchMid: { x: number; y: number } | null = null;
+
+  let marqueeArmed = false;
+  let isMarqueeSelecting = false;
+  let marqueeStartX = 0;
+  let marqueeStartY = 0;
+  let marqueeCurrentX = 0;
+  let marqueeCurrentY = 0;
+
+  const toLocal = (clientX: number, clientY: number): { x: number; y: number } => {
+    const rect = surfaceEl.getBoundingClientRect();
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
+  };
+
+  const resetTouchPinchState = (): void => {
+    lastPinchDist = null;
+    pinchStartDist = null;
+    pinchHandledInGesture = false;
+    lastPinchMid = null;
+  };
+
+  const cancelMarquee = (): void => {
+    marqueeArmed = false;
+    isMarqueeSelecting = false;
+    options.onMarqueeChange(null);
+  };
+
+  const syncTouchAction = (): void => {
+    surfaceEl.style.touchAction =
+      options.getTouchScrollLockPx() > 0 ? 'pan-y' : 'none';
+  };
+
+  const idleCursor = (): string =>
+    engine.getZoomStrategy().mode === 'drill-down' ? 'default' : 'grab';
+
+  const onTouchStart = (e: SimplexDomTouchEventLike): void => {
+    if (e.touches.length >= 2) {
+      touchScrollAxis = 'pinch';
+      wasMultiTouchGesture = true;
+      isDraggingPan = false;
+      panStarted = false;
+      return;
+    }
+    if (e.touches.length === 1) {
+      const t = e.touches[0]!;
+      touchOriginClientX = t.clientX;
+      touchOriginClientY = t.clientY;
+      touchScrollAxis = 'undecided';
+      touchYieldedToScroll = false;
+    }
+  };
+
+  const onTouchMove = (e: SimplexDomTouchEventLike): void => {
+    if (e.touches.length >= 2) {
+      touchScrollAxis = 'pinch';
+      wasMultiTouchGesture = true;
+      e.preventDefault();
+      return;
+    }
+    const lockPx = options.getTouchScrollLockPx();
+    if (e.touches.length !== 1 || lockPx <= 0) {
+      return;
+    }
+    const t = e.touches[0]!;
+    if (touchScrollAxis === 'undecided') {
+      const absDx = Math.abs(t.clientX - touchOriginClientX);
+      const absDy = Math.abs(t.clientY - touchOriginClientY);
+      if (absDx >= lockPx || absDy >= lockPx) {
+        if (absDy > absDx) {
+          touchScrollAxis = 'vertical';
+          touchYieldedToScroll = true;
+          isDraggingPan = false;
+          panStarted = false;
+        } else {
+          touchScrollAxis = 'horizontal';
+        }
+      }
+    }
+    if (touchScrollAxis === 'horizontal') {
+      e.preventDefault();
+    }
+  };
+
+  const onTouchEnd = (e: SimplexDomTouchEventLike): void => {
+    if (e.touches.length === 0) {
+      touchScrollAxis = 'undecided';
+    }
+  };
+
+  const onTouchCancel = (e: SimplexDomTouchEventLike): void => {
+    if (e.touches.length === 0) {
+      touchScrollAxis = 'undecided';
+      touchYieldedToScroll = false;
+    }
+  };
+
+  const onPointerDown = (e: SimplexDomPointerEventLike): void => {
+    options.onPointerDownPre?.();
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const { x, y } = toLocal(e.clientX, e.clientY);
+    activePointers.set(e.pointerId, { x, y });
+
+    if (options.capturePointer && typeof surfaceEl.setPointerCapture === 'function') {
+      try {
+        surfaceEl.setPointerCapture(e.pointerId);
+      } catch {
+        // Ignore synthetic pointer events in tests
+      }
+    }
+
+    if (activePointers.size === 1) {
+      pointerOriginClientX = e.clientX;
+      pointerOriginClientY = e.clientY;
+      pointerMaxDisplacement = 0;
+      hasActiveGestureOrigin = true;
+      wasMultiTouchGesture = false;
+      panStarted = false;
+      suppressNextClick = false;
+      suppressClickStartPos = null;
+      suppressClickEndPos = null;
+      cancelMarquee();
+      if (e.pointerType === 'touch') {
+        touchOriginClientX = e.clientX;
+        touchOriginClientY = e.clientY;
+        touchScrollAxis = 'undecided';
+        touchYieldedToScroll = false;
+      }
+    }
+
+    if (activePointers.size >= 2) {
+      cancelMarquee();
+      isDraggingPan = false;
+      panStarted = false;
+      wasMultiTouchGesture = true;
+      touchScrollAxis = 'pinch';
+      const pts = [...activePointers.values()];
+      const p0 = pts[0]!;
+      const p1 = pts[1]!;
+      const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+      lastPinchDist = dist;
+      pinchStartDist = dist;
+      pinchHandledInGesture = false;
+      lastPinchMid = { x: (p0.x + p1.x) * 0.5, y: (p0.y + p1.y) * 0.5 };
+      options.hideTooltip();
+      return;
+    }
+
+    if (
+      activePointers.size === 1 &&
+      e.pointerType !== 'touch' &&
+      e.shiftKey &&
+      options.isMarqueeEnabled()
+    ) {
+      marqueeArmed = true;
+      isMarqueeSelecting = false;
+      marqueeStartX = x;
+      marqueeStartY = y;
+      marqueeCurrentX = x;
+      marqueeCurrentY = y;
+      isDraggingPan = false;
+      return;
+    }
+
+    if (engine.getZoomStrategy().mode === 'drill-down') {
+      isDraggingPan = false;
+      return;
+    }
+
+    const allowPan = options.canStartFreeCameraPan
+      ? options.canStartFreeCameraPan(x, y)
+      : true;
+    if (allowPan) {
+      isDraggingPan = true;
+      dragLastClientX = e.clientX;
+      dragLastClientY = e.clientY;
+      if (options.canStartFreeCameraPan && engine.hitTest(x, y).kind === 'background') {
+        surfaceEl.style.cursor = 'grabbing';
+      }
+    } else {
+      isDraggingPan = false;
+    }
+  };
+
+  const onPointerMove = (e: SimplexDomPointerEventLike): void => {
+    const { x, y } = toLocal(e.clientX, e.clientY);
+    if (activePointers.has(e.pointerId)) {
+      activePointers.set(e.pointerId, { x, y });
+    }
+
+    if (hasActiveGestureOrigin && activePointers.has(e.pointerId)) {
+      const disp = Math.hypot(
+        e.clientX - pointerOriginClientX,
+        e.clientY - pointerOriginClientY,
+      );
+      if (disp > pointerMaxDisplacement) {
+        pointerMaxDisplacement = disp;
+      }
+    }
+
+    const zoomMode = engine.getZoomStrategy().mode;
+
+    if (activePointers.size >= 2) {
+      const pts = [...activePointers.values()];
+      const p0 = pts[0]!;
+      const p1 = pts[1]!;
+      const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+      const mid = { x: (p0.x + p1.x) * 0.5, y: (p0.y + p1.y) * 0.5 };
+
+      if (zoomMode === 'drill-down') {
+        if (
+          !pinchHandledInGesture &&
+          pinchStartDist !== null &&
+          pinchStartDist > 8 &&
+          dist > 4
+        ) {
+          const ratio = dist / pinchStartDist;
+          if (ratio >= pinchInRatio) {
+            pinchHandledInGesture = true;
+            options.onPinchDrillIn(mid.x, mid.y);
+          } else if (ratio <= 0.78) {
+            pinchHandledInGesture = true;
+            options.onDrillUp();
+          }
+        }
+        wasMultiTouchGesture = true;
+        lastPinchDist = dist;
+        lastPinchMid = mid;
+        options.hideTooltip();
+        return;
+      }
+
+      if (
+        lastPinchDist !== null &&
+        lastPinchMid !== null &&
+        lastPinchDist > 4 &&
+        dist > 4
+      ) {
+        const dx = mid.x - lastPinchMid.x;
+        const dy = mid.y - lastPinchMid.y;
+        const zoomFactor = dist / lastPinchDist;
+        engine.camera.panBy(dx, dy);
+        engine.camera.zoomToCursor(mid.x, mid.y, zoomFactor);
+        wasMultiTouchGesture = true;
+        options.hideTooltip();
+        options.onAfterCameraTransform?.();
+      }
+      lastPinchDist = dist;
+      lastPinchMid = mid;
+      return;
+    }
+
+    const lockPx = options.getTouchScrollLockPx();
+    if (
+      e.pointerType === 'touch' &&
+      activePointers.size === 1 &&
+      lockPx > 0 &&
+      touchScrollAxis === 'undecided'
+    ) {
+      const absDx = Math.abs(e.clientX - pointerOriginClientX);
+      const absDy = Math.abs(e.clientY - pointerOriginClientY);
+      if (absDx >= lockPx || absDy >= lockPx) {
+        if (absDy > absDx) {
+          touchScrollAxis = 'vertical';
+          touchYieldedToScroll = true;
+          isDraggingPan = false;
+          panStarted = false;
+        } else {
+          touchScrollAxis = 'horizontal';
+        }
+      }
+    }
+
+    if (marqueeArmed && activePointers.has(e.pointerId)) {
+      marqueeCurrentX = x;
+      marqueeCurrentY = y;
+      if (
+        !isMarqueeSelecting &&
+        Math.hypot(x - marqueeStartX, y - marqueeStartY) > 4
+      ) {
+        isMarqueeSelecting = true;
+        options.hideTooltip();
+        surfaceEl.style.cursor = 'crosshair';
+      }
+      if (isMarqueeSelecting) {
+        options.onMarqueeChange(
+          normalizeSimplexMarqueeRect(marqueeStartX, marqueeStartY, x, y),
+        );
+        return;
+      }
+    }
+
+    if (isDraggingPan && zoomMode === 'free-camera') {
+      if (
+        e.pointerType === 'touch' &&
+        lockPx > 0 &&
+        touchScrollAxis !== 'horizontal'
+      ) {
+        return;
+      }
+      const dx = e.clientX - dragLastClientX;
+      const dy = e.clientY - dragLastClientY;
+      const panThreshold =
+        e.pointerType === 'touch' ? (lockPx > 0 ? 0 : 6) : 3;
+      if (!panStarted && Math.hypot(dx, dy) > panThreshold) {
+        panStarted = true;
+      }
+      if (panStarted) {
+        surfaceEl.style.cursor = 'grabbing';
+        dragLastClientX = e.clientX;
+        dragLastClientY = e.clientY;
+        engine.camera.panBy(dx, dy);
+        options.hideTooltip();
+        options.onAfterCameraTransform?.();
+      }
+      return;
+    }
+
+    if (e.pointerType === 'touch') {
+      return;
+    }
+
+    engine.handlePointerMove(x, y);
+    surfaceEl.style.cursor = resolveSimplexCursorForPoint(engine, x, y);
+    options.onScheduleFrame();
+  };
+
+  const resetGestureState = (): void => {
+    isDraggingPan = false;
+    panStarted = false;
+    hasActiveGestureOrigin = false;
+    wasMultiTouchGesture = false;
+    touchYieldedToScroll = false;
+    touchScrollAxis = 'undecided';
+  };
+
+  const onPointerUp = (e: SimplexDomPointerEventLike): void => {
+    activePointers.delete(e.pointerId);
+    if (activePointers.size < 2) {
+      resetTouchPinchState();
+    }
+    if (activePointers.size === 0) {
+      const completedMarquee = isMarqueeSelecting;
+      const { x, y } = toLocal(e.clientX, e.clientY);
+      if (completedMarquee) {
+        options.onMarqueeCommit(
+          marqueeStartX,
+          marqueeStartY,
+          marqueeCurrentX,
+          marqueeCurrentY,
+          e.altKey,
+        );
+        surfaceEl.style.cursor =
+          e.pointerType !== 'touch'
+            ? resolveSimplexCursorForPoint(engine, x, y)
+            : idleCursor();
+      }
+      cancelMarquee();
+
+      const clickTol = options.getClickTolerancePx();
+      const shouldSuppress =
+        completedMarquee ||
+        pointerMaxDisplacement > clickTol ||
+        touchYieldedToScroll ||
+        wasMultiTouchGesture;
+
+      if (options.clickDispatch === 'pointerup') {
+        if (
+          !shouldSuppress &&
+          (e.pointerType !== 'mouse' || e.button === 0 || e.button === undefined)
+        ) {
+          engine.handleLeftClick(
+            toSimplexNormalizedPointerEvent(
+              {
+                button: e.button,
+                shiftKey: e.shiftKey,
+                ctrlKey: e.ctrlKey,
+                altKey: e.altKey,
+                metaKey: e.metaKey,
+              },
+              x,
+              y,
+              (sx, sy) => engine.camera.screenToWorld(sx, sy),
+            ),
+          );
+          if (e.pointerType !== 'touch') {
+            surfaceEl.style.cursor = resolveSimplexCursorForPoint(engine, x, y);
+          }
+          options.onAfterLeftClick?.();
+          options.onScheduleFrame();
+        } else if (e.pointerType !== 'touch' && !completedMarquee) {
+          surfaceEl.style.cursor = resolveSimplexCursorForPoint(engine, x, y);
+        }
+      } else {
+        if (shouldSuppress) {
+          suppressNextClick = true;
+          suppressClickStartPos = wasMultiTouchGesture
+            ? null
+            : { x: pointerOriginClientX, y: pointerOriginClientY };
+          suppressClickEndPos = { x: e.clientX, y: e.clientY };
+          suppressClickDeadline = nowMs() + 400;
+        } else {
+          suppressNextClick = false;
+          suppressClickStartPos = null;
+          suppressClickEndPos = null;
+        }
+        if (isDraggingPan) {
+          surfaceEl.style.cursor = idleCursor();
+        }
+      }
+
+      resetGestureState();
+    }
+  };
+
+  const onPointerCancel = (e: SimplexDomPointerEventLike): void => {
+    activePointers.delete(e.pointerId);
+    if (activePointers.size < 2) {
+      resetTouchPinchState();
+    }
+    if (activePointers.size === 0) {
+      cancelMarquee();
+      resetGestureState();
+      suppressNextClick = false;
+      suppressClickStartPos = null;
+      suppressClickEndPos = null;
+      surfaceEl.style.cursor = idleCursor();
+    }
+  };
+
+  const onPointerLeave = (e: SimplexDomPointerEventLike): void => {
+    activePointers.delete(e.pointerId);
+    if (activePointers.size < 2) {
+      resetTouchPinchState();
+    }
+    if (activePointers.size === 0) {
+      cancelMarquee();
+      isDraggingPan = false;
+      panStarted = false;
+    }
+    options.hideTooltip();
+    engine.handlePointerLeave();
+    if (options.clickDispatch === 'pointerup') {
+      surfaceEl.style.cursor = idleCursor();
+    }
+    options.onScheduleFrame();
+  };
+
+  const onClick = (e: SimplexDomMouseEventLike): void => {
+    if (suppressNextClick) {
+      suppressNextClick = false;
+      const matchTol = Math.max(24, options.getClickTolerancePx() * 2);
+      const matchesEnd =
+        suppressClickEndPos !== null &&
+        Math.hypot(
+          e.clientX - suppressClickEndPos.x,
+          e.clientY - suppressClickEndPos.y,
+        ) <= matchTol;
+      const matchesStart =
+        suppressClickStartPos !== null &&
+        Math.hypot(
+          e.clientX - suppressClickStartPos.x,
+          e.clientY - suppressClickStartPos.y,
+        ) <= matchTol;
+      suppressClickStartPos = null;
+      suppressClickEndPos = null;
+      if (nowMs() <= suppressClickDeadline && (matchesEnd || matchesStart)) {
+        return;
+      }
+    }
+    const { x, y } = toLocal(e.clientX, e.clientY);
+    engine.handleLeftClick(
+      toSimplexNormalizedPointerEvent(e, x, y, (sx, sy) =>
+        engine.camera.screenToWorld(sx, sy),
+      ),
+    );
+    options.onAfterLeftClick?.();
+    options.onScheduleFrame();
+  };
+
+  const onContextMenu = (e: SimplexDomMouseEventLike): void => {
+    const { x, y } = toLocal(e.clientX, e.clientY);
+    const suppress = engine.handleRightClick(
+      toSimplexNormalizedPointerEvent(e, x, y, (sx, sy) =>
+        engine.camera.screenToWorld(sx, sy),
+      ),
+    );
+    if (suppress) {
+      e.preventDefault();
+    }
+    options.onScheduleFrame();
+  };
+
+  const onWheel = (e: SimplexDomWheelEventLike): void => {
+    const { x, y } = toLocal(e.clientX, e.clientY);
+    if (engine.getZoomStrategy().mode === 'drill-down' && e.ctrlKey) {
+      e.preventDefault();
+      const action = stepSimplexDrillDownWheelPinch(wheelPinchState, e.deltaY);
+      if (action === 'drill-in') {
+        options.onPinchDrillIn(x, y);
+      } else if (action === 'drill-up') {
+        options.onDrillUp();
+      }
+      return;
+    }
+    const handled = engine.handleWheel({
+      screenX: x,
+      screenY: y,
+      deltaX: e.deltaX,
+      deltaY: e.deltaY,
+      ctrlKey: e.ctrlKey,
+      shiftKey: e.shiftKey,
+    });
+    if (handled) {
+      e.preventDefault();
+      options.onScheduleFrame();
+    }
+  };
+
+  const onKeyDown = (e: SimplexDomKeyboardEventLike): void => {
+    if (options.isDestroyed?.()) return;
+    if (e.key === 'Escape' && (isMarqueeSelecting || marqueeArmed)) {
+      e.preventDefault();
+      cancelMarquee();
+      surfaceEl.style.cursor = idleCursor();
+      return;
+    }
+    options.onKeyDown(e);
+  };
+
+  const asListener = <TEvent>(
+    fn: (event: TEvent) => void,
+  ): ((event: unknown) => void) => fn as (event: unknown) => void;
+
+  const hTouchStart = asListener(onTouchStart);
+  const hTouchMove = asListener(onTouchMove);
+  const hTouchEnd = asListener(onTouchEnd);
+  const hTouchCancel = asListener(onTouchCancel);
+  const hPointerDown = asListener(onPointerDown);
+  const hPointerMove = asListener(onPointerMove);
+  const hPointerUp = asListener(onPointerUp);
+  const hPointerCancel = asListener(onPointerCancel);
+  const hPointerLeave = asListener(onPointerLeave);
+  const hClick = asListener(onClick);
+  const hContextMenu = asListener(onContextMenu);
+  const hWheel = asListener(onWheel);
+  const hKeyDown = asListener(onKeyDown);
+  const hFocus = options.onFocus ? asListener<unknown>(options.onFocus) : null;
+  const hBlur = options.onBlur ? asListener<unknown>(options.onBlur) : null;
+
+  syncTouchAction();
+
+  if (options.bindTouchListeners) {
+    surfaceEl.addEventListener('touchstart', hTouchStart, { passive: true });
+    surfaceEl.addEventListener('touchmove', hTouchMove, { passive: false });
+    surfaceEl.addEventListener('touchend', hTouchEnd, { passive: true });
+    surfaceEl.addEventListener('touchcancel', hTouchCancel, { passive: true });
+  }
+  surfaceEl.addEventListener('pointerdown', hPointerDown);
+  surfaceEl.addEventListener('pointermove', hPointerMove);
+  surfaceEl.addEventListener('pointerup', hPointerUp);
+  surfaceEl.addEventListener('pointercancel', hPointerCancel);
+  surfaceEl.addEventListener('pointerleave', hPointerLeave);
+  if (options.clickDispatch === 'click-event') {
+    surfaceEl.addEventListener('click', hClick);
+  }
+  surfaceEl.addEventListener('contextmenu', hContextMenu);
+  surfaceEl.addEventListener('wheel', hWheel, { passive: false });
+  if (hFocus) surfaceEl.addEventListener('focus', hFocus);
+  if (hBlur) surfaceEl.addEventListener('blur', hBlur);
+  surfaceEl.addEventListener('keydown', hKeyDown);
+
+  return {
+    syncTouchAction,
+    cancelMarquee,
+    destroy() {
+      cancelMarquee();
+      activePointers.clear();
+      if (options.bindTouchListeners) {
+        surfaceEl.removeEventListener('touchstart', hTouchStart);
+        surfaceEl.removeEventListener('touchmove', hTouchMove);
+        surfaceEl.removeEventListener('touchend', hTouchEnd);
+        surfaceEl.removeEventListener('touchcancel', hTouchCancel);
+      }
+      surfaceEl.removeEventListener('pointerdown', hPointerDown);
+      surfaceEl.removeEventListener('pointermove', hPointerMove);
+      surfaceEl.removeEventListener('pointerup', hPointerUp);
+      surfaceEl.removeEventListener('pointercancel', hPointerCancel);
+      surfaceEl.removeEventListener('pointerleave', hPointerLeave);
+      if (options.clickDispatch === 'click-event') {
+        surfaceEl.removeEventListener('click', hClick);
+      }
+      surfaceEl.removeEventListener('contextmenu', hContextMenu);
+      surfaceEl.removeEventListener('wheel', hWheel);
+      if (hFocus) surfaceEl.removeEventListener('focus', hFocus);
+      if (hBlur) surfaceEl.removeEventListener('blur', hBlur);
+      surfaceEl.removeEventListener('keydown', hKeyDown);
+    },
+  };
+}
+
 

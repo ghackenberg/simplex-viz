@@ -1285,3 +1285,33 @@ export type SimplexInteractiveTarget<
       readonly hull: ConvexGeometry;
       readonly isFilteredDimmed: boolean;
     };
+
+/**
+ * Discriminated hover/tooltip target payload shared across `@simplex-viz/core`,
+ * `@simplex-viz/svg`, `@simplex-viz/canvas`, and `@simplex-viz/react`.
+ */
+export type SimplexHoverTarget<
+  TItem = DefaultTaggedItem,
+  TContentVisual = unknown,
+  TClusterVisual = unknown,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> =
+  | ({ readonly kind: 'content' } & ContentHoverEvent<
+      TItem,
+      TContentVisual,
+      TTagMeta,
+      TClusterMeta
+    >)
+  | ({ readonly kind: 'cluster' } & ClusterHoverEvent<
+      TItem,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >)
+  | ({ readonly kind: 'triangle' } & TriangleHoverEvent<
+      TItem,
+      TTagMeta,
+      TClusterMeta
+    >);
+

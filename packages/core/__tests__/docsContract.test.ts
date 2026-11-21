@@ -310,17 +310,73 @@ describe('Documentation & package.json subpath contract verification', () => {
       }
     }
 
-    // Explicitly verify zero @simplex-viz/core/dom runtime/DOM-helper exports leak onto @simplex-viz/core root
-    const coreRootDts = path.join(REPO_ROOT, 'packages', 'core', 'dist', 'index.d.ts');
+    // Verify all side-effect-free exclusive subpaths (@simplex-viz/core/dom, @simplex-viz/core/worker, @simplex-viz/svg/ssr)
+    // do not leak symbols onto their package roots or wrapper package roots (@simplex-viz/canvas, @simplex-viz/react).
+    const coreWorkerDts = path.join(REPO_ROOT, 'packages', 'core', 'dist', 'worker.d.ts');
     const coreDomDts = path.join(REPO_ROOT, 'packages', 'core', 'dist', 'dom.d.ts');
-    const coreRootExports = exportsByDts.get(coreRootDts)!;
+    const svgSsrDts = path.join(REPO_ROOT, 'packages', 'svg', 'dist', 'ssr.d.ts');
+    const canvasRootDts = path.join(REPO_ROOT, 'packages', 'canvas', 'dist', 'index.d.ts');
+    const reactRootDts = path.join(REPO_ROOT, 'packages', 'react', 'dist', 'index.d.ts');
+
     const coreDomExports = exportsByDts.get(coreDomDts)!;
+    const coreWorkerExports = exportsByDts.get(coreWorkerDts)!;
+    const svgSsrExports = exportsByDts.get(svgSsrDts)!;
     expect(coreDomExports.size).toBeGreaterThan(15);
-    for (const domSym of coreDomExports) {
+    expect(coreWorkerExports.size).toBeGreaterThan(10);
+    expect(svgSsrExports.size).toBeGreaterThan(5);
+
+    for (const { shortName, pkgJson, apiMdx } of pkgRecords) {
+      const rootDtsPath = path.join(REPO_ROOT, 'packages', shortName, pkgJson.exports['.']!.types!);
+      const rootExports = exportsByDts.get(rootDtsPath)!;
+      for (const ep of apiMdx.entryPoints) {
+        if (ep.subpath === '.' || ep.rootReExported || ep.sideEffects) continue;
+        const subTarget = pkgJson.exports[ep.subpath]!;
+        const subExports = exportsByDts.get(
+          path.join(REPO_ROOT, 'packages', shortName, subTarget.types!),
+        )!;
+        for (const sym of subExports) {
+          expect(
+            rootExports.has(sym),
+            `Exclusive subpath ${ep.importPath} symbol ${sym} must NOT leak onto ${pkgJson.name} root`,
+          ).toBe(false);
+        }
+      }
+    }
+
+    const canvasRootExports = exportsByDts.get(canvasRootDts)!;
+    for (const workerSym of coreWorkerExports) {
       expect(
-        coreRootExports.has(domSym),
-        `@simplex-viz/core/dom symbol ${domSym} must NOT leak onto @simplex-viz/core root`,
+        canvasRootExports.has(workerSym),
+        `@simplex-viz/core/worker symbol ${workerSym} must NOT leak onto @simplex-viz/canvas root`,
       ).toBe(false);
+    }
+
+    const reactRootExports = exportsByDts.get(reactRootDts)!;
+    for (const ssrSym of svgSsrExports) {
+      expect(
+        reactRootExports.has(ssrSym),
+        `@simplex-viz/svg/ssr symbol ${ssrSym} must NOT leak onto @simplex-viz/react root`,
+      ).toBe(false);
+    }
+
+    // Verify full @simplex-viz/core root re-export parity across svg, canvas, and react roots
+    const coreRootDts = path.join(REPO_ROOT, 'packages', 'core', 'dist', 'index.d.ts');
+    const svgRootDts = path.join(REPO_ROOT, 'packages', 'svg', 'dist', 'index.d.ts');
+    const coreRootExports = exportsByDts.get(coreRootDts)!;
+    const svgRootExports = exportsByDts.get(svgRootDts)!;
+    const svgReExportedCoreSymbols = [...svgRootExports].filter((sym) =>
+      coreRootExports.has(sym),
+    );
+    expect(svgReExportedCoreSymbols.length).toBeGreaterThan(100);
+    for (const coreSym of svgReExportedCoreSymbols) {
+      expect(
+        canvasRootExports.has(coreSym),
+        `@simplex-viz/svg re-exported @simplex-viz/core symbol ${coreSym} missing from @simplex-viz/canvas root`,
+      ).toBe(true);
+      expect(
+        reactRootExports.has(coreSym),
+        `@simplex-viz/svg re-exported @simplex-viz/core symbol ${coreSym} missing from @simplex-viz/react root`,
+      ).toBe(true);
     }
   });
 

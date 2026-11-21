@@ -1,14 +1,15 @@
 import {
-  NAMED_POLYGON_SIDES,
-  computeConvexHull,
-  regularPolygon,
+  SIMPLEX_PRESET_DEFAULTS,
+  getGeometricShapeVertices,
+  measureGeometricShapeHull,
+  resolveEffectiveGeometricPolygon,
   resolveGeometricShapeSpec,
-  starConvexHull,
   type ConvexGeometry,
   type GeometricShapeKind,
   type GeometricShapeSpec,
   type NodeRenderState,
   type Point2D,
+  type ResolvedGeometricPolygon,
 } from '@simplex-viz/core';
 import { SVG_NS } from '../hullMeasure.js';
 import type { SvgNodeView } from '../types.js';
@@ -76,122 +77,20 @@ export interface GeometricShapeVisual {
 
 const MORPH_SAMPLES = 64;
 
-interface ResolvedPolygonSpec {
-  readonly kind: 'circle' | 'diamond' | 'star' | 'polygon';
-  readonly sides?: number;
-  readonly rotationRad: number;
-  readonly radiusScale: number;
-}
-
-function regularPolygonRadiusScale(sides: number): number {
-  if (sides <= 3) return 1.18;
-  if (sides === 4) return 1.1;
-  if (sides === 5) return 1.08;
-  if (sides === 6) return 1.05;
-  if (sides === 7) return 1.04;
-  return 1.03;
-}
-
-function resolveEffectiveGeometry(
-  visual: GeometricShapeVisual,
-  viewOptions?: GeometricShapeSvgViewOptions,
-): ResolvedPolygonSpec {
-  const effectiveSidesRaw = viewOptions?.sides ?? visual.sides;
-  const effectiveShape =
-    viewOptions?.sides !== undefined
-      ? (viewOptions.shape ?? 'polygon')
-      : (viewOptions?.shape ?? visual.shape);
-
-  if (
-    effectiveShape === 'polygon' ||
-    (effectiveSidesRaw !== undefined &&
-      Number.isFinite(effectiveSidesRaw) &&
-      effectiveShape !== 'circle' &&
-      effectiveShape !== 'diamond' &&
-      effectiveShape !== 'star')
-  ) {
-    const namedFallback = NAMED_POLYGON_SIDES[effectiveShape];
-    const sides = Math.max(
-      3,
-      Math.round(effectiveSidesRaw ?? namedFallback ?? 6),
-    );
-    const defaultRot =
-      effectiveShape === 'square' ||
-      (viewOptions?.sides === 4 && viewOptions.shape === undefined)
-        ? -Math.PI / 4
-        : -Math.PI / 2;
-    return {
-      kind: 'polygon',
-      sides,
-      rotationRad: viewOptions?.rotationRad ?? visual.rotationRad ?? defaultRot,
-      radiusScale: regularPolygonRadiusScale(sides),
-    };
-  }
-
-  const namedSides = NAMED_POLYGON_SIDES[effectiveShape];
-  if (namedSides !== undefined) {
-    const defaultRot = effectiveShape === 'square' ? -Math.PI / 4 : -Math.PI / 2;
-    return {
-      kind: 'polygon',
-      sides: namedSides,
-      rotationRad: viewOptions?.rotationRad ?? visual.rotationRad ?? defaultRot,
-      radiusScale: regularPolygonRadiusScale(namedSides),
-    };
-  }
-
-  if (effectiveShape === 'circle') {
-    return { kind: 'circle', rotationRad: -Math.PI / 2, radiusScale: 1 };
-  }
-  if (effectiveShape === 'diamond') {
-    return { kind: 'diamond', rotationRad: -Math.PI / 2, radiusScale: 1.12 };
-  }
-  return { kind: 'star', rotationRad: -Math.PI / 2, radiusScale: 1.24 };
-}
-
 function sampleShapePerimeter(
-  resolved: ResolvedPolygonSpec,
+  resolved: ResolvedGeometricPolygon,
   radius: number,
 ): readonly Point2D[] {
-  const r = Math.max(3, radius);
+  if (resolved.kind === 'circle') {
+    return getGeometricShapeVertices(resolved, radius, {
+      circleSamples: MORPH_SAMPLES,
+    });
+  }
+
+  const polyVerts = getGeometricShapeVertices(resolved, radius);
   const pts: Point2D[] = [];
 
-  if (resolved.kind === 'circle') {
-    for (let i = 0; i < MORPH_SAMPLES; i++) {
-      const a = (i / MORPH_SAMPLES) * Math.PI * 2 - Math.PI / 2;
-      pts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
-    }
-    return pts;
-  }
-
-  // Construct polygon vertices then resample evenly along edges
-  const polyVerts: Point2D[] = [];
-  if (resolved.kind === 'diamond') {
-    const d = r * 1.12;
-    polyVerts.push(
-      { x: 0, y: -d },
-      { x: d * 0.88, y: 0 },
-      { x: 0, y: d },
-      { x: -d * 0.88, y: 0 },
-    );
-  } else if (resolved.kind === 'polygon') {
-    const sides = Math.max(3, resolved.sides ?? 6);
-    const polyR = r * resolved.radiusScale;
-    for (let i = 0; i < sides; i++) {
-      const a = resolved.rotationRad + (i * Math.PI * 2) / sides;
-      polyVerts.push({ x: Math.cos(a) * polyR, y: Math.sin(a) * polyR });
-    }
-  } else {
-    // 5-point star (10 vertices alternating outer & inner)
-    const outer = r * 1.24;
-    const inner = r * 0.56;
-    for (let i = 0; i < 10; i++) {
-      const a = -Math.PI / 2 + (i * Math.PI) / 5;
-      const rad = i % 2 === 0 ? outer : inner;
-      polyVerts.push({ x: Math.cos(a) * rad, y: Math.sin(a) * rad });
-    }
-  }
-
-  // Compute cumulative perimeter lengths
+  // Compute cumulative perimeter lengths and resample evenly for 64-point morphing
   const edgeLens: number[] = [];
   let totalLen = 0;
   for (let i = 0; i < polyVerts.length; i++) {
@@ -273,32 +172,10 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
     const baseStrokeWidth =
       this.options.strokeWidth !== undefined && Number.isFinite(this.options.strokeWidth)
         ? Math.max(0, this.options.strokeWidth)
-        : (visual.strokeWidth ?? 1.5);
+        : (visual.strokeWidth ?? SIMPLEX_PRESET_DEFAULTS.svgDefaultMeasureStrokeWidth);
     const r = visual.radius + baseStrokeWidth;
-    const resolved = resolveEffectiveGeometry(visual, this.options);
-    if (resolved.kind === 'circle') {
-      return { kind: 'circle', radius: r };
-    }
-    if (resolved.kind === 'diamond') {
-      const d = r * 1.12;
-      return {
-        kind: 'polygon',
-        vertices: computeConvexHull([
-          { x: 0, y: -d },
-          { x: d * 0.88, y: 0 },
-          { x: 0, y: d },
-          { x: -d * 0.88, y: 0 },
-        ]),
-      };
-    }
-    if (resolved.kind === 'polygon') {
-      return regularPolygon(
-        resolved.sides ?? 6,
-        r * resolved.radiusScale,
-        resolved.rotationRad,
-      );
-    }
-    return starConvexHull(5, r * 1.24);
+    const resolved = resolveEffectiveGeometricPolygon(visual, this.options);
+    return measureGeometricShapeHull(resolved, r);
   }
 
   private ensureElements(groupEl: SVGGElement): {
@@ -333,7 +210,7 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
     state: NodeRenderState<GeometricShapeVisual>,
   ): void {
     const { pathEl, ringEl, selectionRingEl } = this.ensureElements(groupEl);
-    const resolved = resolveEffectiveGeometry(visual, this.options);
+    const resolved = resolveEffectiveGeometricPolygon(visual, this.options);
     const pts = sampleShapePerimeter(resolved, visual.radius);
     const d = pointsToSvgPath(pts);
     const isLight = visual.theme === 'light';
@@ -406,11 +283,11 @@ export class GeometricShapeSvgView implements SvgNodeView<GeometricShapeVisual> 
   ): boolean {
     const { pathEl, ringEl, selectionRingEl } = this.ensureElements(groupEl);
     const ptsA = sampleShapePerimeter(
-      resolveEffectiveGeometry(from, this.options),
+      resolveEffectiveGeometricPolygon(from, this.options),
       from.radius,
     );
     const ptsB = sampleShapePerimeter(
-      resolveEffectiveGeometry(to, this.options),
+      resolveEffectiveGeometricPolygon(to, this.options),
       to.radius,
     );
     const morphed: Point2D[] = [];

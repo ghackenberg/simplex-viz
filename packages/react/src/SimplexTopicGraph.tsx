@@ -24,6 +24,7 @@ import {
   type NormalizedPointerEvent,
   type ReducedMotionPreference,
   type SimplexColorStrategy,
+  type SimplexHoverTarget,
   type SimplexLayoutStrategy,
   type SimplexLegendModel,
   type SimplexMeshStrategy,
@@ -40,6 +41,7 @@ import {
   buildSimplexTooltipContentModel,
   computeSimplexTooltipCoords,
   dispatchSimplexDefaultLeftClick,
+  getSimplexTooltipThemeTokens,
   isSimplexHoverEventConsumed,
 } from '@simplex-viz/core/dom';
 import {
@@ -80,24 +82,13 @@ export type SimplexReactTooltipTarget<
   TClusterVisual = DefaultClusterPresetVisual,
   TTagMeta = undefined,
   TClusterMeta = undefined,
-> =
-  | ({ readonly kind: 'content' } & ContentHoverEvent<
-      TItem,
-      TContentVisual,
-      TTagMeta,
-      TClusterMeta
-    >)
-  | ({ readonly kind: 'cluster' } & ClusterHoverEvent<
-      TItem,
-      TClusterVisual,
-      TTagMeta,
-      TClusterMeta
-    >)
-  | ({ readonly kind: 'triangle' } & TriangleHoverEvent<
-      TItem,
-      TTagMeta,
-      TClusterMeta
-    >);
+> = SimplexHoverTarget<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta
+>;
 
 /**
  * Payload passed to `onContentClick` when an active content node is clicked.
@@ -504,6 +495,19 @@ export function SimplexTopicGraph<
   const syncedTriangleViewRef = useRef(props.triangleView);
   const syncedEdgeViewRef = useRef(props.edgeView);
   const syncedTimelineRef = useRef(props.timeline);
+  const syncedTouchScrollLockPxRef = useRef(props.touchScrollLockPx);
+  const syncedClickTolerancePxRef = useRef(props.clickTolerancePx);
+  const syncedAriaLabelRef = useRef(props.ariaLabel);
+  const syncedKeyboardNavigationRef = useRef(props.keyboardNavigation);
+  const syncedReducedMotionRef = useRef(props.reducedMotion);
+  const syncedOnWheelRef = useRef(props.onWheel);
+  const syncedPinnedIdsRef = useRef(props.pinnedIds);
+  const syncedHighlightedIdsRef = useRef(props.highlightedIds);
+  const syncedSelectedIdsRef = useRef(props.selectedIds);
+  const syncedMarqueeSelectionRef = useRef(props.marqueeSelection);
+  const syncedShiftClickSelectsRef = useRef(props.shiftClickSelects);
+  const syncedFocusedClusterUidRef = useRef(props.focusedClusterUid);
+  const syncedFocusedTriangleIndexRef = useRef(props.focusedTriangleIndex);
   const syncedVisualDepsRef = useRef<readonly unknown[] | null>(null);
 
   const resolveTimelineOption = (
@@ -870,6 +874,20 @@ export function SimplexTopicGraph<
       onFpsUpdate: (fps) => latestPropsRef.current.onFpsUpdate?.(fps),
     });
     ctrlRef.current = ctrl;
+    if (p.pinnedIds !== undefined) {
+      ctrl.setPinnedIds(p.pinnedIds);
+    }
+    if (p.highlightedIds !== undefined) {
+      ctrl.setHighlightedIds(p.highlightedIds);
+    }
+    if (p.focusedClusterUid !== undefined) {
+      internalFocusedUidRef.current = p.focusedClusterUid;
+      ctrl.setFocusedClusterUid(p.focusedClusterUid);
+    }
+    if (p.focusedTriangleIndex !== undefined) {
+      internalFocusedTriangleRef.current = p.focusedTriangleIndex;
+      ctrl.setFocusedTriangleIndex(p.focusedTriangleIndex);
+    }
     if (p.controllerRef) {
       p.controllerRef.current = ctrl;
     }
@@ -976,6 +994,29 @@ export function SimplexTopicGraph<
       nextTimeline,
     );
 
+    const touchScrollLockPxChanged =
+      syncedTouchScrollLockPxRef.current !== props.touchScrollLockPx;
+    const clickTolerancePxChanged =
+      syncedClickTolerancePxRef.current !== props.clickTolerancePx;
+    const ariaLabelChanged = syncedAriaLabelRef.current !== props.ariaLabel;
+    const keyboardNavigationChanged =
+      syncedKeyboardNavigationRef.current !== props.keyboardNavigation;
+    const reducedMotionChanged =
+      syncedReducedMotionRef.current !== props.reducedMotion;
+    const onWheelChanged = syncedOnWheelRef.current !== props.onWheel;
+    const pinnedIdsChanged = syncedPinnedIdsRef.current !== props.pinnedIds;
+    const highlightedIdsChanged =
+      syncedHighlightedIdsRef.current !== props.highlightedIds;
+    const selectedIdsChanged = syncedSelectedIdsRef.current !== props.selectedIds;
+    const marqueeSelectionChanged =
+      syncedMarqueeSelectionRef.current !== props.marqueeSelection;
+    const shiftClickSelectsChanged =
+      syncedShiftClickSelectsRef.current !== props.shiftClickSelects;
+    const focusedClusterUidChanged =
+      syncedFocusedClusterUidRef.current !== props.focusedClusterUid;
+    const focusedTriangleIndexChanged =
+      syncedFocusedTriangleIndexRef.current !== props.focusedTriangleIndex;
+
     syncedMeshOptionsRef.current = nextMeshOpts;
     syncedLayoutOptionsRef.current = nextLayoutOpts;
     syncedTimelineRef.current = nextTimeline;
@@ -997,7 +1038,20 @@ export function SimplexTopicGraph<
       !meshOptionsChanged &&
       !layoutOptionsChanged &&
       !triangleOrEdgeChanged &&
-      !timelineChanged
+      !timelineChanged &&
+      !touchScrollLockPxChanged &&
+      !clickTolerancePxChanged &&
+      !ariaLabelChanged &&
+      !keyboardNavigationChanged &&
+      !reducedMotionChanged &&
+      !onWheelChanged &&
+      !pinnedIdsChanged &&
+      !highlightedIdsChanged &&
+      !selectedIdsChanged &&
+      !marqueeSelectionChanged &&
+      !shiftClickSelectsChanged &&
+      !focusedClusterUidChanged &&
+      !focusedTriangleIndexChanged
     ) {
       return;
     }
@@ -1125,6 +1179,97 @@ export function SimplexTopicGraph<
         ctrl.setTimelineOptions(resolveTimelineOption(nextTimeline));
       }
 
+      if (touchScrollLockPxChanged) {
+        syncedTouchScrollLockPxRef.current = props.touchScrollLockPx;
+        if (props.touchScrollLockPx !== undefined) {
+          ctrl.setTouchScrollLockPx(props.touchScrollLockPx);
+        }
+      }
+
+      if (clickTolerancePxChanged) {
+        syncedClickTolerancePxRef.current = props.clickTolerancePx;
+        if (props.clickTolerancePx !== undefined) {
+          ctrl.setClickTolerancePx(props.clickTolerancePx);
+        }
+      }
+
+      if (ariaLabelChanged) {
+        syncedAriaLabelRef.current = props.ariaLabel;
+        if (props.ariaLabel !== undefined) {
+          ctrl.setAriaLabel(props.ariaLabel);
+        }
+      }
+
+      if (keyboardNavigationChanged) {
+        syncedKeyboardNavigationRef.current = props.keyboardNavigation;
+        if (props.keyboardNavigation !== undefined) {
+          ctrl.setKeyboardNavigation(props.keyboardNavigation);
+        }
+      }
+
+      if (reducedMotionChanged) {
+        syncedReducedMotionRef.current = props.reducedMotion;
+        if (props.reducedMotion !== undefined) {
+          ctrl.setReducedMotion(props.reducedMotion);
+        }
+      }
+
+      if (onWheelChanged) {
+        syncedOnWheelRef.current = props.onWheel;
+        ctrl.setInteractions(buildReactInteractions(props.onWheel));
+      }
+
+      if (pinnedIdsChanged) {
+        syncedPinnedIdsRef.current = props.pinnedIds;
+        if (props.pinnedIds !== undefined) {
+          ctrl.setPinnedIds(props.pinnedIds);
+        }
+      }
+
+      if (highlightedIdsChanged) {
+        syncedHighlightedIdsRef.current = props.highlightedIds;
+        if (props.highlightedIds !== undefined) {
+          ctrl.setHighlightedIds(props.highlightedIds);
+        }
+      }
+
+      if (selectedIdsChanged) {
+        syncedSelectedIdsRef.current = props.selectedIds;
+        if (props.selectedIds !== undefined) {
+          ctrl.setSelectedIds(props.selectedIds);
+        }
+      }
+
+      if (marqueeSelectionChanged) {
+        syncedMarqueeSelectionRef.current = props.marqueeSelection;
+        if (props.marqueeSelection !== undefined) {
+          ctrl.setMarqueeSelection(props.marqueeSelection);
+        }
+      }
+
+      if (shiftClickSelectsChanged) {
+        syncedShiftClickSelectsRef.current = props.shiftClickSelects;
+        if (props.shiftClickSelects !== undefined) {
+          ctrl.setShiftClickSelects(props.shiftClickSelects);
+        }
+      }
+
+      if (focusedClusterUidChanged) {
+        syncedFocusedClusterUidRef.current = props.focusedClusterUid;
+        if (props.focusedClusterUid !== undefined) {
+          internalFocusedUidRef.current = props.focusedClusterUid;
+          ctrl.setFocusedClusterUid(props.focusedClusterUid);
+        }
+      }
+
+      if (focusedTriangleIndexChanged) {
+        syncedFocusedTriangleIndexRef.current = props.focusedTriangleIndex;
+        if (props.focusedTriangleIndex !== undefined) {
+          internalFocusedTriangleRef.current = props.focusedTriangleIndex;
+          ctrl.setFocusedTriangleIndex(props.focusedTriangleIndex);
+        }
+      }
+
       if (itemsChanged) {
         syncedItemsRef.current = props.items;
         ctrl.setItems(props.items);
@@ -1167,89 +1312,20 @@ export function SimplexTopicGraph<
     props.triangleView,
     props.edgeView,
     props.timeline,
+    props.touchScrollLockPx,
+    props.clickTolerancePx,
+    props.ariaLabel,
+    props.keyboardNavigation,
+    props.reducedMotion,
+    props.onWheel,
+    props.pinnedIds,
+    props.highlightedIds,
+    props.selectedIds,
+    props.marqueeSelection,
+    props.shiftClickSelects,
+    props.focusedClusterUid,
+    props.focusedTriangleIndex,
   ]);
-
-  // Sync touchScrollLockPx & clickTolerancePx
-  useEffect(() => {
-    if (props.touchScrollLockPx !== undefined) {
-      ctrlRef.current?.setTouchScrollLockPx(props.touchScrollLockPx);
-    }
-  }, [props.touchScrollLockPx]);
-
-  useEffect(() => {
-    if (props.clickTolerancePx !== undefined) {
-      ctrlRef.current?.setClickTolerancePx(props.clickTolerancePx);
-    }
-  }, [props.clickTolerancePx]);
-
-  // Sync ariaLabel & keyboardNavigation
-  useEffect(() => {
-    if (props.ariaLabel !== undefined) {
-      ctrlRef.current?.setAriaLabel(props.ariaLabel);
-    }
-  }, [props.ariaLabel]);
-
-  useEffect(() => {
-    if (props.keyboardNavigation !== undefined) {
-      ctrlRef.current?.setKeyboardNavigation(props.keyboardNavigation);
-    }
-  }, [props.keyboardNavigation]);
-
-  useEffect(() => {
-    if (props.reducedMotion !== undefined) {
-      ctrlRef.current?.setReducedMotion(props.reducedMotion);
-    }
-  }, [props.reducedMotion]);
-
-  // Sync wheel policy so `'none'`, `'pan-vertical'`, `'zoom-to-cursor'`, and custom callbacks stay live
-  useEffect(() => {
-    ctrlRef.current?.setInteractions(buildReactInteractions(props.onWheel));
-  }, [props.onWheel]);
-
-  // Sync pinned / highlighted / focused cluster / focused triangle
-  useEffect(() => {
-    if (props.pinnedIds !== undefined) {
-      ctrlRef.current?.setPinnedIds(props.pinnedIds);
-    }
-  }, [props.pinnedIds]);
-
-  useEffect(() => {
-    if (props.highlightedIds !== undefined) {
-      ctrlRef.current?.setHighlightedIds(props.highlightedIds);
-    }
-  }, [props.highlightedIds]);
-
-  useEffect(() => {
-    if (props.selectedIds !== undefined) {
-      ctrlRef.current?.setSelectedIds(props.selectedIds);
-    }
-  }, [props.selectedIds]);
-
-  useEffect(() => {
-    if (props.marqueeSelection !== undefined) {
-      ctrlRef.current?.setMarqueeSelection(props.marqueeSelection);
-    }
-  }, [props.marqueeSelection]);
-
-  useEffect(() => {
-    if (props.shiftClickSelects !== undefined) {
-      ctrlRef.current?.setShiftClickSelects(props.shiftClickSelects);
-    }
-  }, [props.shiftClickSelects]);
-
-  useEffect(() => {
-    if (props.focusedClusterUid !== undefined) {
-      internalFocusedUidRef.current = props.focusedClusterUid;
-      ctrlRef.current?.setFocusedClusterUid(props.focusedClusterUid);
-    }
-  }, [props.focusedClusterUid]);
-
-  useEffect(() => {
-    if (props.focusedTriangleIndex !== undefined) {
-      internalFocusedTriangleRef.current = props.focusedTriangleIndex;
-      ctrlRef.current?.setFocusedTriangleIndex(props.focusedTriangleIndex);
-    }
-  }, [props.focusedTriangleIndex]);
 
   // Clear built-in tooltip if prop toggled off
   useEffect(() => {
@@ -1270,7 +1346,7 @@ export function SimplexTopicGraph<
       screenY: hoveredTarget.screenPosition.y,
     });
 
-    const isLight = props.theme === 'light';
+    const tooltipTokens = getSimplexTooltipThemeTokens(props.theme ?? 'dark');
     const ctrl = ctrlRef.current;
 
     let content: ReactNode;
@@ -1288,11 +1364,11 @@ export function SimplexTopicGraph<
       if (model.kind === 'content') {
         content = (
           <div>
-            <div style={{ fontWeight: 600, color: isLight ? '#0f172a' : '#f8fafc' }}>
+            <div style={{ fontWeight: 600, color: tooltipTokens.color }}>
               {model.title}
             </div>
             {model.subtitle ? (
-              <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
+              <div style={{ marginTop: 3, fontSize: 11, color: tooltipTokens.mutedColor }}>
                 {model.subtitle}
               </div>
             ) : null}
@@ -1308,7 +1384,7 @@ export function SimplexTopicGraph<
                   fontWeight: 700,
                   letterSpacing: '0.04em',
                   textTransform: 'uppercase',
-                  color: isLight ? '#64748b' : '#94a3b8',
+                  color: tooltipTokens.eyebrowColor,
                   marginBottom: 1,
                 }}
               >
@@ -1318,7 +1394,7 @@ export function SimplexTopicGraph<
             <div style={{ fontWeight: 600, color: model.accentColorHex }}>
               {model.title}
             </div>
-            <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
+            <div style={{ marginTop: 3, fontSize: 11, color: tooltipTokens.mutedColor }}>
               {model.hint ? `${model.countText} · ${model.hint}` : model.countText}
             </div>
           </div>
@@ -1326,13 +1402,13 @@ export function SimplexTopicGraph<
       } else {
         content = (
           <div>
-            <div style={{ fontWeight: 600, color: isLight ? '#0f172a' : '#f8fafc' }}>
+            <div style={{ fontWeight: 600, color: tooltipTokens.color }}>
               {model.title}
             </div>
-            <div style={{ marginTop: 3, fontSize: 11, color: isLight ? '#475569' : '#94a3b8' }}>
+            <div style={{ marginTop: 3, fontSize: 11, color: tooltipTokens.mutedColor }}>
               {model.cornersDetailed}
             </div>
-            <div style={{ marginTop: 2, fontSize: 11, color: isLight ? '#64748b' : '#94a3b8' }}>
+            <div style={{ marginTop: 2, fontSize: 11, color: tooltipTokens.eyebrowColor }}>
               {model.hint
                 ? `${model.interiorSummaryText} · ${model.hint}`
                 : model.interiorSummaryText}
@@ -1353,17 +1429,13 @@ export function SimplexTopicGraph<
           maxWidth: 244,
           padding: '7px 10px',
           borderRadius: 8,
-          background: isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(9, 13, 22, 0.94)',
-          border: isLight
-            ? '1px solid rgba(203, 213, 225, 0.95)'
-            : '1px solid rgba(51, 65, 85, 0.85)',
-          color: isLight ? '#0f172a' : '#f1f5f9',
+          background: tooltipTokens.background,
+          border: tooltipTokens.border,
+          color: tooltipTokens.color,
           fontSize: 12,
           lineHeight: 1.4,
           pointerEvents: 'none',
-          boxShadow: isLight
-            ? '0 10px 24px rgba(15, 23, 42, 0.12)'
-            : '0 10px 24px rgba(0, 0, 0, 0.45)',
+          boxShadow: tooltipTokens.boxShadow,
         }}
       >
         {content}

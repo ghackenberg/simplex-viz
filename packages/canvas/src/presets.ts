@@ -1,12 +1,14 @@
 import {
+  SIMPLEX_PRESET_DEFAULTS,
   estimateSimplexTextWidth,
   extractSimplexItemLabel,
+  getGeometricShapeVertices,
   hexWithAlpha,
+  measureGeometricShapeHull,
   rectToConvexPolygon,
-  regularPolygon,
   resolveClusterBadgeTitle,
   resolveGeometricShapeSpec,
-  starConvexHull,
+  resolveRankGeometricShape,
   truncateSimplexBadgeTitle,
   type ClusterDescriptor,
   type ContentLayoutContext,
@@ -77,21 +79,21 @@ function getUnitVertices(spec: ResolvedPolygonSpec): readonly Point2D[] {
   const cached = unitPolygonCache.get(key);
   if (cached) return cached;
 
-  const verts: Point2D[] = [];
-  if (spec.kind === 'star') {
-    const inner = 0.48;
-    const total = spec.sides * 2;
-    for (let i = 0; i < total; i++) {
-      const r = i % 2 === 0 ? 1 : inner;
-      const a = spec.rotationRad + (i * Math.PI) / spec.sides;
-      verts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
-    }
-  } else {
-    for (let i = 0; i < spec.sides; i++) {
-      const a = spec.rotationRad + (i * TAU) / spec.sides;
-      verts.push({ x: Math.cos(a), y: Math.sin(a) });
-    }
-  }
+  const verts = getGeometricShapeVertices(
+    {
+      kind: spec.kind === 'circle' ? 'polygon' : spec.kind,
+      sides: spec.sides,
+      rotationRad: spec.rotationRad,
+      radiusScale: 1,
+    },
+    1,
+    {
+      minRadius: 1,
+      useRadiusScale: false,
+      starOuterScale: 1,
+      starInnerScale: 0.48,
+    },
+  );
 
   unitPolygonCache.set(key, verts);
   return verts;
@@ -102,7 +104,7 @@ function getUnitVertices(spec: ResolvedPolygonSpec): readonly Point2D[] {
  */
 export function measureGeometricContentHull(
   visual: CanvasGeometricVisual,
-  defaultStrokeWidth = 1.2,
+  defaultStrokeWidth: number = SIMPLEX_PRESET_DEFAULTS.canvasStrokeWidth,
 ): ConvexGeometry {
   const strokePad = Math.max(0, visual.strokeWidth ?? defaultStrokeWidth) * 0.5;
   const r = Math.max(2, visual.radius + strokePad);
@@ -110,10 +112,16 @@ export function measureGeometricContentHull(
   if (spec.kind === 'circle') {
     return { kind: 'circle', radius: r };
   }
-  if (spec.kind === 'star') {
-    return starConvexHull(spec.sides, r);
-  }
-  return regularPolygon(spec.sides, r, spec.rotationRad);
+  return measureGeometricShapeHull(
+    {
+      kind: spec.kind,
+      sides: spec.sides,
+      rotationRad: spec.rotationRad,
+      radiusScale: 1,
+    },
+    r,
+    { useRadiusScale: false, starOuterScale: 1 },
+  );
 }
 
 /**
@@ -257,7 +265,7 @@ export function createCanvasPresetVisualResolver<
             : [{ colorHex: ctx.mixedColorHex, weight: 1 }];
         return {
           kind: 'glyph',
-          radius: 10,
+          radius: SIMPLEX_PRESET_DEFAULTS.canvasGlyphRadius,
           sectors,
           label,
           theme,
@@ -271,14 +279,13 @@ export function createCanvasPresetVisualResolver<
             ? options.getShape(item, ctx)
             : options.getShape;
       } else {
-        const rank = ctx.unitClusters.length;
-        shape = rank >= 3 ? 'star' : rank === 2 ? 'diamond' : 'circle';
+        shape = resolveRankGeometricShape(ctx.unitClusters.length);
       }
 
       return {
         kind: 'geometric',
         shape,
-        radius: 9.5,
+        radius: SIMPLEX_PRESET_DEFAULTS.contentRadius,
         colorHex: ctx.mixedColorHex,
         label,
         theme,
@@ -316,7 +323,10 @@ export function createCanvasPresetVisualResolver<
         code: cluster.code,
         title,
         colorHex: cluster.colorHex,
-        radius: variant === 'intermediate' ? 14 : 21,
+        radius:
+          variant === 'intermediate'
+            ? 14
+            : SIMPLEX_PRESET_DEFAULTS.canvasClusterAnchorRadius,
         memberCount: cluster.members.length,
         variant,
         parentContextLabel: cluster.parentContextLabel,
@@ -513,7 +523,9 @@ export function drawFastContentNode(
   shapeOptions?: CanvasShapeOptions,
 ): void {
   const { isHovered, isSelected, isHighlighted, isPinned } = state.interaction;
-  const hoverFactor = isHovered ? (shapeOptions?.hoverScale ?? 1.16) : 1;
+  const hoverFactor = isHovered
+    ? (shapeOptions?.hoverScale ?? SIMPLEX_PRESET_DEFAULTS.canvasHoverScale)
+    : 1;
   const r = Math.max(1.25, visual.radius * state.scale * hoverFactor);
   const x = state.x;
   const y = state.y;

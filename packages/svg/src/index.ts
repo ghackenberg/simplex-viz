@@ -3,7 +3,6 @@ export * from './colorContrast.js';
 export * from './hullMeasure.js';
 export * from './presets.js';
 export * from './export.js';
-export * from './ssr.js';
 export * from './SvgRendererAdapter.js';
 export * from './SimplexSvgController.js';
 export * from './views/GeometricShapeSvgView.js';
@@ -150,6 +149,7 @@ export {
   type SimplexClusteringStrategy,
   type SimplexColorStrategy,
   type SimplexColorTheme,
+  type SimplexHoverTarget,
   type SimplexInteractiveTarget,
   type SimplexItemAnchorContext,
   type SimplexItemAnchorFn,

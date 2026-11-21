@@ -1,6 +1,8 @@
 import {
+  SIMPLEX_PRESET_DEFAULTS,
   extractSimplexItemLabel,
   resolveClusterBadgeTitle,
+  resolveRankGeometricShape,
   type ClusterDescriptor,
   type ContentLayoutContext,
   type DefaultTaggedItem,
@@ -195,8 +197,8 @@ export function createPresetVisualResolver<
     ): DefaultContentPresetVisual => {
       if (preset === 'glyphs') {
         return {
-          outerRadius: 11.5,
-          innerRadius: 4.5,
+          outerRadius: SIMPLEX_PRESET_DEFAULTS.svgGlyphOuterRadius,
+          innerRadius: SIMPLEX_PRESET_DEFAULTS.svgGlyphInnerRadius,
           sectors: ctx.unitClusters.map((uc) => ({
             colorHex: uc.cluster.colorHex,
             weight: uc.weight,
@@ -214,21 +216,21 @@ export function createPresetVisualResolver<
           ...(resolvedShape.rotationRad !== undefined
             ? { rotationRad: resolvedShape.rotationRad }
             : {}),
-          radius: resolvedShape.radius ?? 9.5,
+          radius: resolvedShape.radius ?? SIMPLEX_PRESET_DEFAULTS.contentRadius,
           fillHex: ctx.mixedColorHex,
           strokeHex: theme === 'light' ? '#ffffff' : '#07090E',
-          strokeWidth: 1.4,
+          strokeWidth: SIMPLEX_PRESET_DEFAULTS.svgStrokeWidth,
           label: extractDefaultItemLabel(item, ctx.id, getLabel),
           theme,
         };
       }
       const rank = ctx.unitClusters.length;
       return {
-        shape: rank >= 3 ? 'star' : rank === 2 ? 'diamond' : 'circle',
-        radius: 9.5,
+        shape: resolveRankGeometricShape(rank),
+        radius: SIMPLEX_PRESET_DEFAULTS.contentRadius,
         fillHex: ctx.mixedColorHex,
         strokeHex: theme === 'light' ? '#ffffff' : '#07090E',
-        strokeWidth: 1.4,
+        strokeWidth: SIMPLEX_PRESET_DEFAULTS.svgStrokeWidth,
         label: extractDefaultItemLabel(item, ctx.id, getLabel),
         theme,
       };
@@ -270,7 +272,7 @@ export function createPresetVisualResolver<
         label: cluster.defaultLabel,
         memberCount: cluster.members.length,
         colorHex: cluster.colorHex,
-        radius: 22,
+        radius: SIMPLEX_PRESET_DEFAULTS.svgClusterAnchorRadius,
         theme,
         variant,
         parentContextLabel: isIntermediate ? cluster.parentContextLabel : undefined,

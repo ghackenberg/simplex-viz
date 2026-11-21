@@ -773,7 +773,7 @@ export class SimplexTopicGraphElement<
   set timeline(value: boolean | TimelinePlayerOptions<TItem>) {
     this._timeline = value;
     if (this._controller) {
-      this._controller.setOptions({ timeline: this.wrapTimelineOption(value) });
+      this._controller.setOptions({ timeline: value });
       this.syncTimelineSubscription();
     }
   }
@@ -1088,9 +1088,6 @@ export class SimplexTopicGraphElement<
       ...options,
       ...(options.interactions !== undefined
         ? { interactions: this.buildComposedInteractions() }
-        : {}),
-      ...(options.timeline !== undefined
-        ? { timeline: this.wrapTimelineOption(options.timeline) }
         : {}),
     };
     this._controller.setOptions(forwarded);
@@ -1480,7 +1477,7 @@ export class SimplexTopicGraphElement<
         const enabled = parseBooleanAttr(newValue, false);
         this._timeline = enabled;
         if (live) {
-          live.setOptions({ timeline: this.wrapTimelineOption(enabled) });
+          live.setOptions({ timeline: enabled });
           this.syncTimelineSubscription();
         }
         break;
@@ -1563,7 +1560,7 @@ export class SimplexTopicGraphElement<
       itemFilter: this._itemFilter,
       itemFilterMode: this._itemFilterMode,
       showZoomBreadcrumbs: this._showZoomBreadcrumbs,
-      timeline: this.wrapTimelineOption(this._timeline),
+      timeline: this._timeline,
       relayoutOnFontLoad: this._relayoutOnFontLoad,
       deferInitialLayout: this._deferInitialLayout,
       touchScrollLockPx: this._touchScrollLockPx,
@@ -1680,12 +1677,6 @@ export class SimplexTopicGraphElement<
       }
       isFirst = false;
     });
-  }
-
-  private wrapTimelineOption(
-    opt: boolean | TimelinePlayerOptions<TItem>,
-  ): boolean | TimelinePlayerOptions<TItem> {
-    return opt;
   }
 
   private buildComposedInteractions(): InteractionHandlers<

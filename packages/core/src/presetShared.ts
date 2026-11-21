@@ -1,12 +1,15 @@
+import { computeConvexHull, regularPolygon, starConvexHull } from './geometry.js';
 import { hexToOklab, oklabToHex } from './oklab.js';
-import type { FinalSeededLayoutScaleMode } from './strategies.js';
+import type { FinalSeededLayoutScaleMode, SimplexColorTheme } from './strategies.js';
 import type { SimplexTimelineState } from './timeline.js';
 import type {
   ClusterDescriptor,
+  ConvexGeometry,
   DefaultTaggedItem,
   EmptyClusterBehavior,
   LayoutSolverOptions,
   MeshOptions,
+  Point2D,
 } from './types.js';
 
 // ============================================================================
@@ -598,4 +601,303 @@ export function areSimplexTimelineOptionsEqual(
     Boolean(a.compareFrameKeys) === Boolean(b.compareFrameKeys)
   );
 }
+
+// ============================================================================
+// Shared Preset Defaults, Geometric Polygon/Hull Builders & Background/DataURL
+// ============================================================================
+
+export const SIMPLEX_PRESET_DEFAULTS = {
+  contentRadius: 9.5,
+  svgStrokeWidth: 1.4,
+  svgDefaultMeasureStrokeWidth: 1.5,
+  canvasStrokeWidth: 1.2,
+  svgDimmedOpacity: 0.34,
+  canvasDimmedOpacity: 0.28,
+  canvasHoverScale: 1.16,
+  svgClusterAnchorRadius: 22,
+  canvasClusterAnchorRadius: 21,
+  svgGlyphOuterRadius: 11.5,
+  svgGlyphInnerRadius: 4.5,
+  canvasGlyphRadius: 10,
+} as const;
+
+export function resolveRankGeometricShape(
+  rank: number,
+): 'circle' | 'diamond' | 'star' {
+  return rank >= 3 ? 'star' : rank === 2 ? 'diamond' : 'circle';
+}
+
+export interface ResolvedGeometricPolygon {
+  readonly kind: 'circle' | 'diamond' | 'star' | 'polygon';
+  readonly sides?: number;
+  readonly rotationRad: number;
+  readonly radiusScale: number;
+}
+
+export function getRegularPolygonRadiusScale(sides: number): number {
+  if (sides <= 3) return 1.18;
+  if (sides === 4) return 1.1;
+  if (sides === 5) return 1.08;
+  if (sides === 6) return 1.05;
+  if (sides === 7) return 1.04;
+  return 1.03;
+}
+
+/**
+ * Resolves a base geometric shape visual plus optional view-level overrides
+ * into canonical polygon kind, side count, rotation, and area-equalized scale.
+ */
+export function resolveEffectiveGeometricPolygon(
+  base: {
+    readonly shape: GeometricShapeKind;
+    readonly sides?: number;
+    readonly rotationRad?: number;
+  },
+  overrides?: {
+    readonly shape?: GeometricShapeKind;
+    readonly sides?: number;
+    readonly rotationRad?: number;
+  },
+): ResolvedGeometricPolygon {
+  const effectiveSidesRaw = overrides?.sides ?? base.sides;
+  const effectiveShape =
+    overrides?.sides !== undefined
+      ? (overrides.shape ?? 'polygon')
+      : (overrides?.shape ?? base.shape);
+
+  if (
+    effectiveShape === 'polygon' ||
+    (effectiveSidesRaw !== undefined &&
+      Number.isFinite(effectiveSidesRaw) &&
+      effectiveShape !== 'circle' &&
+      effectiveShape !== 'diamond' &&
+      effectiveShape !== 'star')
+  ) {
+    const namedFallback = NAMED_POLYGON_SIDES[effectiveShape];
+    const sides = Math.max(
+      3,
+      Math.round(effectiveSidesRaw ?? namedFallback ?? 6),
+    );
+    const defaultRot =
+      effectiveShape === 'square' ||
+      (overrides?.sides === 4 && overrides.shape === undefined)
+        ? -Math.PI / 4
+        : -Math.PI / 2;
+    return {
+      kind: 'polygon',
+      sides,
+      rotationRad: overrides?.rotationRad ?? base.rotationRad ?? defaultRot,
+      radiusScale: getRegularPolygonRadiusScale(sides),
+    };
+  }
+
+  const namedSides = NAMED_POLYGON_SIDES[effectiveShape];
+  if (namedSides !== undefined) {
+    const defaultRot = effectiveShape === 'square' ? -Math.PI / 4 : -Math.PI / 2;
+    return {
+      kind: 'polygon',
+      sides: namedSides,
+      rotationRad: overrides?.rotationRad ?? base.rotationRad ?? defaultRot,
+      radiusScale: getRegularPolygonRadiusScale(namedSides),
+    };
+  }
+
+  if (effectiveShape === 'circle') {
+    return { kind: 'circle', rotationRad: -Math.PI / 2, radiusScale: 1 };
+  }
+  if (effectiveShape === 'diamond') {
+    return { kind: 'diamond', rotationRad: -Math.PI / 2, radiusScale: 1.12 };
+  }
+  return { kind: 'star', rotationRad: -Math.PI / 2, radiusScale: 1.24 };
+}
+
+/**
+ * Generates perimeter vertices in local coordinates for a resolved geometric shape.
+ */
+export function getGeometricShapeVertices(
+  resolved: ResolvedGeometricPolygon,
+  radius: number,
+  options?: {
+    readonly circleSamples?: number;
+    readonly minRadius?: number;
+    readonly starOuterScale?: number;
+    readonly starInnerScale?: number;
+    readonly useRadiusScale?: boolean;
+  },
+): readonly Point2D[] {
+  const r = Math.max(options?.minRadius ?? 3, radius);
+  const verts: Point2D[] = [];
+
+  if (resolved.kind === 'circle') {
+    const samples = Math.max(8, Math.round(options?.circleSamples ?? 48));
+    for (let i = 0; i < samples; i++) {
+      const a = (i / samples) * Math.PI * 2 - Math.PI / 2;
+      verts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+    }
+    return verts;
+  }
+
+  if (resolved.kind === 'diamond') {
+    const d = r * 1.12;
+    return [
+      { x: 0, y: -d },
+      { x: d * 0.88, y: 0 },
+      { x: 0, y: d },
+      { x: -d * 0.88, y: 0 },
+    ];
+  }
+
+  if (resolved.kind === 'polygon') {
+    const sides = Math.max(3, resolved.sides ?? 6);
+    const polyR = options?.useRadiusScale === false ? r : r * resolved.radiusScale;
+    for (let i = 0; i < sides; i++) {
+      const a = resolved.rotationRad + (i * Math.PI * 2) / sides;
+      verts.push({ x: Math.cos(a) * polyR, y: Math.sin(a) * polyR });
+    }
+    return verts;
+  }
+
+  const outer = r * (options?.starOuterScale ?? 1.24);
+  const inner = r * (options?.starInnerScale ?? 0.56);
+  for (let i = 0; i < 10; i++) {
+    const a = resolved.rotationRad + (i * Math.PI) / 5;
+    const rad = i % 2 === 0 ? outer : inner;
+    verts.push({ x: Math.cos(a) * rad, y: Math.sin(a) * rad });
+  }
+  return verts;
+}
+
+/**
+ * Builds the exact analytical convex collision hull matching `getGeometricShapeVertices()`.
+ */
+export function measureGeometricShapeHull(
+  resolved: ResolvedGeometricPolygon,
+  radius: number,
+  options?: { readonly useRadiusScale?: boolean; readonly starOuterScale?: number },
+): ConvexGeometry {
+  if (resolved.kind === 'circle') {
+    return { kind: 'circle', radius };
+  }
+  if (resolved.kind === 'diamond') {
+    return {
+      kind: 'polygon',
+      vertices: computeConvexHull(getGeometricShapeVertices(resolved, radius)),
+    };
+  }
+  if (resolved.kind === 'polygon') {
+    const scale = options?.useRadiusScale === false ? 1 : resolved.radiusScale;
+    return regularPolygon(
+      resolved.sides ?? 6,
+      radius * scale,
+      resolved.rotationRad,
+    );
+  }
+  return starConvexHull(5, radius * (options?.starOuterScale ?? 1.24));
+}
+
+/**
+ * Returns the canonical backdrop fill color for `'dark'` and `'light'` themes
+ * on SVG or Canvas surfaces.
+ */
+export function resolveSimplexThemeBackgroundColor(
+  theme: SimplexColorTheme,
+  surface: 'svg' | 'canvas' = 'svg',
+): string {
+  if (surface === 'canvas') {
+    return theme === 'light' ? '#f8fafc' : '#0b1120';
+  }
+  return theme === 'light' ? '#ffffff' : '#07090e';
+}
+
+const BASE64_ALPHABET =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const BASE64_LUT = (() => {
+  const lut = new Int16Array(128).fill(-1);
+  for (let i = 0; i < BASE64_ALPHABET.length; i++) {
+    lut[BASE64_ALPHABET.charCodeAt(i)] = i;
+  }
+  return lut;
+})();
+
+function decodeBase64BytesPure(raw: string): Uint8Array<ArrayBuffer> {
+  const out: number[] = [];
+  let buffer = 0;
+  let bits = 0;
+  for (let i = 0; i < raw.length; i++) {
+    const code = raw.charCodeAt(i);
+    if (code === 61 /* '=' */) break;
+    const val = code < 128 ? BASE64_LUT[code]! : -1;
+    if (val < 0) continue;
+    buffer = (buffer << 6) | val;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out.push((buffer >> bits) & 0xff);
+    }
+  }
+  const bytes = new Uint8Array(new ArrayBuffer(out.length));
+  bytes.set(out);
+  return bytes;
+}
+
+function encodeUtf8BytesPure(text: string): Uint8Array<ArrayBuffer> {
+  const out: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const cp = text.codePointAt(i)!;
+    if (cp > 0xffff) i += 1;
+    if (cp < 0x80) {
+      out.push(cp);
+    } else if (cp < 0x800) {
+      out.push(0xc0 | (cp >> 6), 0x80 | (cp & 0x3f));
+    } else if (cp < 0x10000) {
+      out.push(
+        0xe0 | (cp >> 12),
+        0x80 | ((cp >> 6) & 0x3f),
+        0x80 | (cp & 0x3f),
+      );
+    } else {
+      out.push(
+        0xf0 | (cp >> 18),
+        0x80 | ((cp >> 12) & 0x3f),
+        0x80 | ((cp >> 6) & 0x3f),
+        0x80 | (cp & 0x3f),
+      );
+    }
+  }
+  const bytes = new Uint8Array(new ArrayBuffer(out.length));
+  bytes.set(out);
+  return bytes;
+}
+
+/**
+ * Pure-ES2022 decoder converting a `data:` URL (base64 or percent-encoded)
+ * into raw bytes + resolved MIME type without `atob`, `Blob`, or DOM globals.
+ */
+export function decodeSimplexDataUrlToBytes(
+  dataUrl: string,
+  fallbackMime = 'application/octet-stream',
+): { readonly bytes: Uint8Array<ArrayBuffer>; readonly mimeType: string } {
+  const commaIdx = dataUrl.indexOf(',');
+  if (commaIdx === -1) {
+    return {
+      bytes: new Uint8Array(new ArrayBuffer(0)),
+      mimeType: fallbackMime,
+    };
+  }
+  const header = dataUrl.slice(0, commaIdx);
+  const body = dataUrl.slice(commaIdx + 1);
+  const mimeMatch = /^data:([^;]+)/i.exec(header);
+  const mimeType = mimeMatch?.[1] || fallbackMime;
+  if (/;base64$/i.test(header)) {
+    return {
+      bytes: decodeBase64BytesPure(body),
+      mimeType,
+    };
+  }
+  return {
+    bytes: encodeUtf8BytesPure(decodeURIComponent(body)),
+    mimeType,
+  };
+}
+
 

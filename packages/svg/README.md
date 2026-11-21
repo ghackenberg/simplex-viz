@@ -44,7 +44,7 @@ npm install @simplex-viz/svg
 | Import Path | Target Runtime | DOM-Free | Side Effects | Root Re-Export | Purpose |
 | --- | --- | --- | --- | --- | --- |
 | `@simplex-viz/svg` | Browser DOM (`Vanilla TS`, `Vue`, `Angular`, `Svelte`, `Solid`) | No | `false` | Root | Interactive SVG controller, offscreen `getBBox()` hulls, `Svg*View` plugins, SVG/PNG export. |
-| `@simplex-viz/svg/ssr` | Node.js, Edge, Astro / Next.js SSR builds | Yes | `false` | Also re-exported from root | Zero-DOM SVG string renderer (`renderSimplexSvgString`, `estimateSsrTextWidth`, `createSsrPresetHullMeasurers`). |
+| `@simplex-viz/svg/ssr` | Node.js, Edge, Astro / Next.js SSR builds | Yes | `false` | **Exclusive subpath** | Zero-DOM SVG string renderer (`renderSimplexSvgString`, `estimateSsrTextWidth`, `createSsrPresetHullMeasurers`). |
 
 ## Quickstart (Zero-Config)
 
@@ -474,7 +474,7 @@ controller.restoreViewState(JSON.parse(localStorage.getItem('atlas-view')!));
 | `focusItem(itemId \| null, options?)` / `getFocusedItemId()` | Programmatically focuses an item (`{ highlight?, hover?, announce? }`) with synchronized hover tooltip, SVG focus ring, and polite screen-reader announcement. |
 | `zoomToItem(itemId, options?)` | Smoothly centers & zooms onto an item in `free-camera` mode (`zoom`) or automatically drills down across covering triangles (`maxDrillSteps`) in `drill-down` mode. |
 | `exportSvg(options?)` / `exportPng(options?)` | Exports a standalone `<svg>` string (`includeBackground`, `backgroundColor`, `padding`, `width`, `height`, `inlineStyles`, `includeFocusRing`, `title`, `xmlDeclaration`) or rasterized HiDPI PNG `Blob` / `dataUrl` (`scale`, `format`, `mimeType`, `quality`). |
-| `renderSimplexSvgString(itemsOrSnapshot, options?)` | Zero-DOM SSR SVG string renderer exported from `@simplex-viz/svg/ssr` (and `@simplex-viz/svg`) supporting raw items or `SimplexLayoutSnapshot`, deterministic font metrics (`estimateSsrTextWidth`, `createSsrPresetHullMeasurers`, pluggable `measureText`), all presets/themes/filters/highlights/selectedIds, and custom SVG string render hooks. |
+| `renderSimplexSvgString(itemsOrSnapshot, options?)` | Zero-DOM SSR SVG string renderer exported exclusively from `@simplex-viz/svg/ssr` supporting raw items or `SimplexLayoutSnapshot`, deterministic font metrics (`estimateSsrTextWidth`, `createSsrPresetHullMeasurers`, pluggable `measureText`), all presets/themes/filters/highlights/selectedIds, and custom SVG string render hooks. |
 | `itemFilter` / `itemFilterMode` / `setItemFilter(predicate, options?)` / `getItemFilter()` | Zero-relayout item filtering (`'dim' \| 'hide'`); `'hide'` suppresses visuals, hit-testing, and keyboard traversal while preserving exact SAT node positions. |
 | `batch(fn)` / `setOptions(opts)` | Coalesces multiple runtime option or strategy updates (`SimplexSvgUpdateOptions`, including `highlightedIds`, `selectedIds`, `focusedItemId`, `reducedMotion`, `marqueeSelection`) into a single minimal pipeline recomputation (re-entrant). |
 | `ariaLabel` / `setAriaLabel(label)` | Sets the accessible `aria-label` on the root `<svg role="application">` element. |

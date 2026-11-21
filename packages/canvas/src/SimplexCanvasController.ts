@@ -22,7 +22,6 @@ import {
   type LayoutMetrics,
   type LayoutSolverOptions,
   type MeshOptions,
-  type NormalizedWheelEvent,
   type ReducedMotionPreference,
   type RestoreViewStateOptions,
   type SelectInRectOptions,
@@ -46,28 +45,25 @@ import {
 } from '@simplex-viz/core';
 import {
   applySimplexPinchDrillTarget,
-  applySimplexTooltipTheme,
+  bindSimplexInteractiveViewport,
   buildSimplexTooltipContentModel,
   createSimplexSrAnnouncer,
+  createSimplexTooltipOverlay,
   dispatchSimplexDefaultLeftClick,
   formatSimplexInteractiveTargetAriaLabel,
   isSimplexHoverEventConsumed,
   measureSimplexContainer,
-  normalizeSimplexMarqueeRect,
   observeSimplexContainerResize,
-  positionSimplexTooltipElement,
   resolveNextSimplexKeyboardFocusIndex,
   resolveSimplexContainer,
-  resolveSimplexCursorForPoint,
   resolveSimplexPinchDrillTarget,
   resolveSimplexReducedMotion,
-  stepSimplexDrillDownWheelPinch,
   subscribeSimplexReducedMotionMedia,
   toSimplexKeyboardFocusTargetRef,
-  toSimplexNormalizedPointerEvent,
+  type SimplexInteractiveViewportHandle,
   type SimplexResizeObserverHandle,
   type SimplexSrAnnouncerHandle,
-  type SimplexWheelPinchState,
+  type SimplexTooltipOverlay,
 } from '@simplex-viz/core/dom';
 import {
   CanvasRendererAdapter,
@@ -259,7 +255,14 @@ export class SimplexCanvasController<
   private readonly rootEl: HTMLDivElement;
   private readonly canvas: HTMLCanvasElement;
   private readonly srAnnouncer: SimplexSrAnnouncerHandle;
-  private readonly tooltipEl: HTMLDivElement;
+  private readonly tooltipOverlay: SimplexTooltipOverlay<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta,
+    HTMLDivElement
+  >;
   private readonly adapter: CanvasRendererAdapter<
     TContentVisual,
     TClusterVisual,
@@ -283,14 +286,6 @@ export class SimplexCanvasController<
   private getShape?: CanvasContentShapeOption<TItem, TTagMeta, TClusterMeta>;
   private shapeOptions?: CanvasShapeOptions;
   private customResolver: boolean;
-
-  private tooltipOption: CanvasTooltipOption<
-    TItem,
-    TContentVisual,
-    TClusterVisual,
-    TTagMeta,
-    TClusterMeta
-  >;
   private interactions: InteractionHandlers<
     TItem,
     TContentVisual,
@@ -325,10 +320,9 @@ export class SimplexCanvasController<
   private deferredPending = false;
   private focusedClusterUidState: string | null = null;
   private focusedTriangleIndexState: number | null = null;
-  private wheelPinchState: SimplexWheelPinchState = { accum: 0, cooldownUntil: 0 };
   private resizeObserverHandle: SimplexResizeObserverHandle | null = null;
   private cleanupReducedMotionMedia: (() => void) | null = null;
-  private cleanupDomListeners: (() => void) | null = null;
+  private viewportHandle: SimplexInteractiveViewportHandle | null = null;
 
   constructor(
     container: HTMLElement | string,
@@ -349,7 +343,6 @@ export class SimplexCanvasController<
     this.getShape = options.getShape;
     this.shapeOptions = options.shapeOptions;
     this.customResolver = Boolean(options.visualResolver);
-    this.tooltipOption = options.tooltip ?? false;
     this.interactions = options.interactions ?? {};
     this.marqueeSelection = options.marqueeSelection ?? true;
     this.touchScrollLockPx = Math.max(0, options.touchScrollLockPx ?? 8);
@@ -381,25 +374,40 @@ export class SimplexCanvasController<
       options.ariaLabel ?? 'Interactive SimplexViz topic graph canvas',
     );
 
-    this.tooltipEl = doc.createElement('div');
-    this.tooltipEl.className = 'sv-canvas-tooltip';
-    this.tooltipEl.style.position = 'absolute';
-    this.tooltipEl.style.pointerEvents = 'none';
-    this.tooltipEl.style.display = 'none';
-    this.tooltipEl.style.zIndex = '20';
-    this.tooltipEl.style.padding = '6px 10px';
-    this.tooltipEl.style.borderRadius = '8px';
-    this.tooltipEl.style.fontSize = '12px';
-    this.tooltipEl.style.fontFamily =
-      '"Plus Jakarta Sans", system-ui, -apple-system, sans-serif';
-    this.tooltipEl.style.lineHeight = '1.35';
-    this.tooltipEl.style.maxWidth = '240px';
-    this.applyTooltipTheme();
-
     this.rootEl.appendChild(this.canvas);
-    this.rootEl.appendChild(this.tooltipEl);
     this.srAnnouncer = createSimplexSrAnnouncer(this.rootEl, doc);
     this.container.appendChild(this.rootEl);
+
+    this.tooltipOverlay = createSimplexTooltipOverlay<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta,
+      HTMLDivElement
+    >({
+      hostEl: this.rootEl,
+      baseClassName: 'sv-canvas-tooltip',
+      ensureHostPositioned: false,
+      initialTheme: this.theme,
+      initialOption: options.tooltip ?? false,
+      getDefaultText: (target) => {
+        if (target.kind === 'content') {
+          return buildSimplexTooltipContentModel(target, {
+            getLabel: this.getLabel,
+          }).title;
+        }
+        if (target.kind === 'cluster') {
+          const model = buildSimplexTooltipContentModel(target, {
+            preferSubclusterLabel: true,
+          });
+          return model.kind === 'cluster'
+            ? `${model.label} (${target.cluster.members.length})`
+            : '';
+        }
+        return '';
+      },
+    });
 
     const measured = measureSimplexContainer(
       this.container,
@@ -554,50 +562,9 @@ export class SimplexCanvasController<
     );
   }
 
-  private applyTooltipTheme(): void {
-    applySimplexTooltipTheme(this.tooltipEl, this.theme);
-  }
-
-  private showTooltip(text: string, screenX: number, screenY: number): void {
-    if (!text) {
-      this.hideTooltip();
-      return;
-    }
-    this.tooltipEl.textContent = text;
-    this.tooltipEl.style.display = 'block';
-    positionSimplexTooltipElement(this.rootEl, this.tooltipEl, screenX, screenY, {
-      offsetX: 14,
-      offsetY: 14,
-      margin: 8,
-    });
-  }
-
-  private hideTooltip(): void {
-    this.tooltipEl.style.display = 'none';
-  }
-
   private announce(message: string): void {
     if (this.destroyed || !message) return;
     this.srAnnouncer.announce(message);
-  }
-
-  private updateCursorForPoint(screenX: number, screenY: number): void {
-    this.canvas.style.cursor = resolveSimplexCursorForPoint(
-      this.engine,
-      screenX,
-      screenY,
-    );
-  }
-
-  private triggerPinchDrillIn(screenX: number, screenY: number): boolean {
-    return applySimplexPinchDrillTarget(
-      resolveSimplexPinchDrillTarget(this.engine, screenX, screenY),
-      {
-        drillToNeighbor: (id) => this.drillToNeighbor(id),
-        drillDownTriangle: (idx) => this.drillDownTriangle(idx),
-        drillDownCluster: (uid) => this.drillDownCluster(uid),
-      },
-    );
   }
 
   private buildWrappedInteractions(): InteractionHandlers<
@@ -613,18 +580,11 @@ export class SimplexCanvasController<
           this.interactions.onContentHover,
           ev,
         );
-        if (consumed || !this.tooltipOption || !ev) {
-          if (!ev) this.hideTooltip();
+        if (consumed || !ev) {
+          this.tooltipOverlay.hide();
           return consumed;
         }
-        const text =
-          typeof this.tooltipOption === 'object' && this.tooltipOption.formatContent
-            ? this.tooltipOption.formatContent(ev)
-            : buildSimplexTooltipContentModel(
-                { kind: 'content', ...ev },
-                { getLabel: this.getLabel },
-              ).title;
-        this.showTooltip(text, ev.screenPosition.x, ev.screenPosition.y);
+        this.tooltipOverlay.showForTarget({ kind: 'content', ...ev });
         return consumed;
       },
       onClusterHover: (ev) => {
@@ -632,24 +592,11 @@ export class SimplexCanvasController<
           this.interactions.onClusterHover,
           ev,
         );
-        if (consumed || !this.tooltipOption || !ev) {
-          if (!ev) this.hideTooltip();
+        if (consumed || !ev) {
+          this.tooltipOverlay.hide();
           return consumed;
         }
-        let text: string;
-        if (typeof this.tooltipOption === 'object' && this.tooltipOption.formatCluster) {
-          text = this.tooltipOption.formatCluster(ev);
-        } else {
-          const model = buildSimplexTooltipContentModel(
-            { kind: 'cluster', ...ev },
-            { preferSubclusterLabel: true },
-          );
-          text =
-            model.kind === 'cluster'
-              ? `${model.label} (${ev.cluster.members.length})`
-              : '';
-        }
-        this.showTooltip(text, ev.screenPosition.x, ev.screenPosition.y);
+        this.tooltipOverlay.showForTarget({ kind: 'cluster', ...ev });
         return consumed;
       },
       onTriangleHover: (ev) => {
@@ -657,16 +604,11 @@ export class SimplexCanvasController<
           this.interactions.onTriangleHover,
           ev,
         );
-        if (consumed || !this.tooltipOption || !ev) {
-          if (!ev) this.hideTooltip();
+        if (consumed || !ev) {
+          this.tooltipOverlay.hide();
           return consumed;
         }
-        if (typeof this.tooltipOption === 'object' && this.tooltipOption.formatTriangle) {
-          const text = this.tooltipOption.formatTriangle(ev);
-          this.showTooltip(text, ev.screenPosition.x, ev.screenPosition.y);
-        } else {
-          this.hideTooltip();
-        }
+        this.tooltipOverlay.showForTarget({ kind: 'triangle', ...ev });
         return consumed;
       },
       onLeftClick: (target, rawEvent) =>
@@ -730,250 +672,7 @@ export class SimplexCanvasController<
     });
   }
 
-  private toCanvasLocal(clientX: number, clientY: number): { x: number; y: number } {
-    const rect = this.canvas.getBoundingClientRect();
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-    };
-  }
-
-  private toNormalizedPointer(
-    ev: PointerEvent | MouseEvent,
-    localX: number,
-    localY: number,
-  ) {
-    return toSimplexNormalizedPointerEvent(
-      ev,
-      localX,
-      localY,
-      (x, y) => this.engine.camera.screenToWorld(x, y),
-    );
-  }
-
   private bindDomEvents(): void {
-    let activePointerId: number | null = null;
-    let isDragging = false;
-    let isMarquee = false;
-    let startX = 0;
-    let startY = 0;
-    let lastX = 0;
-    let lastY = 0;
-    let peakDisplacement = 0;
-    let touchLockedAxis: 'none' | 'vertical' | 'canvas' = 'none';
-    const activeTouches = new Map<number, { x: number; y: number }>();
-    let lastPinchDist = 0;
-    let pinchStartDist = 0;
-    let pinchHandledInGesture = false;
-
-    const onPointerDown = (ev: PointerEvent): void => {
-      if (ev.button !== 0 && ev.pointerType === 'mouse') return;
-      const local = this.toCanvasLocal(ev.clientX, ev.clientY);
-
-      if (ev.pointerType === 'touch') {
-        activeTouches.set(ev.pointerId, local);
-        if (activeTouches.size === 2) {
-          const pts = Array.from(activeTouches.values());
-          const initialDist = Math.hypot(pts[1]!.x - pts[0]!.x, pts[1]!.y - pts[0]!.y);
-          lastPinchDist = initialDist;
-          pinchStartDist = initialDist;
-          pinchHandledInGesture = false;
-          isDragging = false;
-          return;
-        }
-      }
-
-      activePointerId = ev.pointerId;
-      startX = local.x;
-      startY = local.y;
-      lastX = local.x;
-      lastY = local.y;
-      peakDisplacement = 0;
-      touchLockedAxis = 'none';
-      isMarquee = Boolean(ev.shiftKey && this.marqueeSelection && ev.pointerType !== 'touch');
-      isDragging = true;
-
-      if (typeof this.canvas.setPointerCapture === 'function') {
-        try {
-          this.canvas.setPointerCapture(ev.pointerId);
-        } catch {
-          // Ignore synthetic pointer events in tests
-        }
-      }
-    };
-
-    const onPointerMove = (ev: PointerEvent): void => {
-      const local = this.toCanvasLocal(ev.clientX, ev.clientY);
-
-      if (ev.pointerType === 'touch' && activeTouches.has(ev.pointerId)) {
-        activeTouches.set(ev.pointerId, local);
-        if (activeTouches.size === 2) {
-          const pts = Array.from(activeTouches.values());
-          const dist = Math.hypot(pts[1]!.x - pts[0]!.x, pts[1]!.y - pts[0]!.y);
-          const midX = (pts[0]!.x + pts[1]!.x) * 0.5;
-          const midY = (pts[0]!.y + pts[1]!.y) * 0.5;
-          const zoomMode = this.engine.getZoomStrategy().mode;
-          if (zoomMode === 'free-camera') {
-            if (lastPinchDist > 4 && dist > 4) {
-              this.engine.camera.zoomToCursor(midX, midY, dist / lastPinchDist);
-              this.scheduleFrame();
-            }
-          } else if (zoomMode === 'drill-down' && !pinchHandledInGesture && pinchStartDist > 8) {
-            const ratio = dist / pinchStartDist;
-            if (ratio >= 1.24) {
-              pinchHandledInGesture = true;
-              this.triggerPinchDrillIn(midX, midY);
-            } else if (ratio <= 0.78) {
-              pinchHandledInGesture = true;
-              this.drillUp();
-            }
-          }
-          lastPinchDist = dist;
-          return;
-        }
-      }
-
-      if (isDragging && ev.pointerId === activePointerId) {
-        const dxTotal = local.x - startX;
-        const dyTotal = local.y - startY;
-        const dist = Math.hypot(dxTotal, dyTotal);
-        if (dist > peakDisplacement) peakDisplacement = dist;
-
-        if (isMarquee) {
-          if (dist > 4) {
-            this.hideTooltip();
-            this.canvas.style.cursor = 'crosshair';
-          }
-          const rect: CanvasMarqueeRect = normalizeSimplexMarqueeRect(
-            startX,
-            startY,
-            local.x,
-            local.y,
-          );
-          this.adapter.setMarqueeRect(rect);
-          return;
-        }
-
-        if (ev.pointerType === 'touch' && this.touchScrollLockPx > 0 && touchLockedAxis === 'none') {
-          if (dist >= this.touchScrollLockPx) {
-            touchLockedAxis = Math.abs(dyTotal) > Math.abs(dxTotal) ? 'vertical' : 'canvas';
-          }
-        }
-        if (touchLockedAxis === 'vertical') return;
-
-        if (this.engine.getZoomStrategy().mode === 'free-camera' && peakDisplacement > 3) {
-          this.canvas.style.cursor = 'grabbing';
-          this.hideTooltip();
-          this.engine.camera.panBy(local.x - lastX, local.y - lastY);
-          this.scheduleFrame();
-        }
-        lastX = local.x;
-        lastY = local.y;
-        return;
-      }
-
-      if (ev.pointerType === 'touch') {
-        return;
-      }
-
-      // Hover hit-testing & cursor parity with SimplexSvgController
-      this.engine.handlePointerMove(local.x, local.y);
-      this.updateCursorForPoint(local.x, local.y);
-      this.scheduleFrame();
-    };
-
-    const onPointerUp = (ev: PointerEvent): void => {
-      const local = this.toCanvasLocal(ev.clientX, ev.clientY);
-      activeTouches.delete(ev.pointerId);
-      if (activeTouches.size < 2) {
-        lastPinchDist = 0;
-        pinchStartDist = 0;
-        pinchHandledInGesture = false;
-      }
-
-      if (ev.pointerId !== activePointerId) return;
-      const wasMarquee = isMarquee;
-      const moved = peakDisplacement;
-      isDragging = false;
-      isMarquee = false;
-      activePointerId = null;
-
-      if (wasMarquee) {
-        this.adapter.setMarqueeRect(null);
-        if (moved > 4) {
-          this.engine.selectItemsInScreenRect(
-            Math.min(startX, local.x),
-            Math.min(startY, local.y),
-            Math.max(startX, local.x),
-            Math.max(startY, local.y),
-            { mode: ev.altKey ? 'toggle' : 'add' },
-          );
-          this.updateCursorForPoint(local.x, local.y);
-          this.scheduleFrame();
-          return;
-        }
-      }
-
-      if (moved <= this.clickTolerancePx && touchLockedAxis !== 'vertical') {
-        this.engine.handleLeftClick(this.toNormalizedPointer(ev, local.x, local.y));
-        if (ev.pointerType !== 'touch') {
-          this.updateCursorForPoint(local.x, local.y);
-        }
-        this.scheduleFrame();
-      } else if (ev.pointerType !== 'touch') {
-        this.updateCursorForPoint(local.x, local.y);
-      }
-    };
-
-    const onPointerLeave = (): void => {
-      this.engine.handlePointerLeave();
-      this.hideTooltip();
-      this.canvas.style.cursor =
-        this.engine.getZoomStrategy().mode === 'drill-down' ? 'default' : 'grab';
-      this.scheduleFrame();
-    };
-
-    const onContextMenu = (ev: MouseEvent): void => {
-      const local = this.toCanvasLocal(ev.clientX, ev.clientY);
-      const consumed = this.engine.handleRightClick(
-        this.toNormalizedPointer(ev, local.x, local.y),
-      );
-      if (consumed) ev.preventDefault();
-      this.scheduleFrame();
-    };
-
-    const onWheel = (ev: WheelEvent): void => {
-      const local = this.toCanvasLocal(ev.clientX, ev.clientY);
-      // Support discrete trackpad pinch-in / pinch-out when in drill-down mode
-      if (this.engine.getZoomStrategy().mode === 'drill-down' && ev.ctrlKey) {
-        ev.preventDefault();
-        const action = stepSimplexDrillDownWheelPinch(
-          this.wheelPinchState,
-          ev.deltaY,
-        );
-        if (action === 'drill-in') {
-          this.triggerPinchDrillIn(local.x, local.y);
-        } else if (action === 'drill-up') {
-          this.drillUp();
-        }
-        return;
-      }
-
-      const wheelEv: NormalizedWheelEvent = {
-        screenX: local.x,
-        screenY: local.y,
-        deltaX: ev.deltaX,
-        deltaY: ev.deltaY,
-        ctrlKey: ev.ctrlKey,
-        shiftKey: ev.shiftKey,
-      };
-      const handled = this.engine.handleWheel(wheelEv);
-      if (handled) {
-        ev.preventDefault();
-        this.scheduleFrame();
-      }
-    };
-
     const describeTarget = (
       target: SimplexInteractiveTarget<
         TItem,
@@ -992,95 +691,117 @@ export class SimplexCanvasController<
         },
       );
 
-    const onKeyDown = (ev: KeyboardEvent): void => {
-      if (!this.keyboardNavigation) return;
-      if (
-        ev.key === 'ArrowRight' ||
-        ev.key === 'ArrowDown' ||
-        ev.key === 'ArrowLeft' ||
-        ev.key === 'ArrowUp' ||
-        ev.key === 'Home' ||
-        ev.key === 'End'
-      ) {
-        ev.preventDefault();
-        this.keyboardTargets = this.engine.getInteractiveTargets();
-        const nextIdx = resolveNextSimplexKeyboardFocusIndex(
-          this.keyboardTargets.length,
-          this.keyboardFocusIndex,
-          ev.key,
+    this.viewportHandle?.destroy();
+    this.viewportHandle = bindSimplexInteractiveViewport({
+      surfaceEl: this.canvas,
+      engine: this.engine,
+      clickDispatch: 'pointerup',
+      bindTouchListeners: false,
+      capturePointer: true,
+      pinchDrillInRatio: 1.24,
+      getTouchScrollLockPx: () => this.touchScrollLockPx,
+      getClickTolerancePx: () => this.clickTolerancePx,
+      isMarqueeEnabled: () => this.marqueeSelection,
+      isDestroyed: () => this.destroyed,
+      hideTooltip: () => this.tooltipOverlay.hide(),
+      onMarqueeChange: (rect) => {
+        this.adapter.setMarqueeRect(rect);
+      },
+      onMarqueeCommit: (x1, y1, x2, y2, altKey) => {
+        this.engine.selectItemsInScreenRect(
+          Math.min(x1, x2),
+          Math.min(y1, y2),
+          Math.max(x1, x2),
+          Math.max(y1, y2),
+          { mode: altKey ? 'toggle' : 'add' },
         );
-        if (nextIdx === null) return;
-        this.keyboardFocusIndex = nextIdx;
-
-        const target = this.keyboardTargets[this.keyboardFocusIndex]!;
-        const focusTarget = toSimplexKeyboardFocusTargetRef(target);
-        this.engine.hoverInteractiveTarget(focusTarget);
-        this.adapter.setKeyboardFocusTarget(focusTarget);
-        this.announce(describeTarget(target));
         this.scheduleFrame();
-        return;
-      }
-
-      if (ev.key === 'Enter' || ev.key === ' ') {
+      },
+      onPinchDrillIn: (midX, midY) =>
+        applySimplexPinchDrillTarget(
+          resolveSimplexPinchDrillTarget(this.engine, midX, midY),
+          {
+            drillToNeighbor: (id) => this.drillToNeighbor(id),
+            drillDownTriangle: (idx) => this.drillDownTriangle(idx),
+            drillDownCluster: (uid) => this.drillDownCluster(uid),
+          },
+        ),
+      onDrillUp: () => this.drillUp(),
+      onAfterCameraTransform: () => {
+        this.scheduleFrame();
+      },
+      onScheduleFrame: () => {
+        this.scheduleFrame();
+      },
+      onBlur: () => {
+        this.keyboardFocusIndex = -1;
+        this.adapter.setKeyboardFocusTarget(null);
+      },
+      onKeyDown: (ev) => {
+        if (!this.keyboardNavigation) return;
         if (
-          this.keyboardFocusIndex >= 0 &&
-          this.keyboardFocusIndex < this.keyboardTargets.length
+          ev.key === 'ArrowRight' ||
+          ev.key === 'ArrowDown' ||
+          ev.key === 'ArrowLeft' ||
+          ev.key === 'ArrowUp' ||
+          ev.key === 'Home' ||
+          ev.key === 'End'
         ) {
           ev.preventDefault();
+          this.keyboardTargets = this.engine.getInteractiveTargets();
+          const nextIdx = resolveNextSimplexKeyboardFocusIndex(
+            this.keyboardTargets.length,
+            this.keyboardFocusIndex,
+            ev.key,
+          );
+          if (nextIdx === null) return;
+          this.keyboardFocusIndex = nextIdx;
+
           const target = this.keyboardTargets[this.keyboardFocusIndex]!;
-          if (ev.shiftKey && target.kind === 'item') {
-            this.engine.toggleSelectedId(target.id);
+          const focusTarget = toSimplexKeyboardFocusTargetRef(target);
+          this.engine.hoverInteractiveTarget(focusTarget);
+          this.adapter.setKeyboardFocusTarget(focusTarget);
+          this.announce(describeTarget(target));
+          this.scheduleFrame();
+          return;
+        }
+
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          if (
+            this.keyboardFocusIndex >= 0 &&
+            this.keyboardFocusIndex < this.keyboardTargets.length
+          ) {
+            ev.preventDefault();
+            const target = this.keyboardTargets[this.keyboardFocusIndex]!;
+            if (ev.shiftKey && target.kind === 'item') {
+              this.engine.toggleSelectedId(target.id);
+            } else {
+              this.engine.activateInteractiveTarget(
+                toSimplexKeyboardFocusTargetRef(target),
+              );
+            }
+            this.scheduleFrame();
+          }
+          return;
+        }
+
+        if (ev.key === 'Escape') {
+          ev.preventDefault();
+          this.keyboardFocusIndex = -1;
+          this.adapter.setKeyboardFocusTarget(null);
+          this.engine.handlePointerLeave();
+          if (this.engine.getSelectedIds().size > 0) {
+            this.engine.clearSelection();
+          } else if (this.engine.getZoomState().depth > 0) {
+            this.engine.drillUp();
           } else {
-            this.engine.activateInteractiveTarget(toSimplexKeyboardFocusTargetRef(target));
+            this.engine.setFocusedClusterUid(null);
+            this.engine.setFocusedTriangleIndex(null);
           }
           this.scheduleFrame();
         }
-        return;
-      }
-
-      if (ev.key === 'Escape') {
-        ev.preventDefault();
-        this.keyboardFocusIndex = -1;
-        this.adapter.setKeyboardFocusTarget(null);
-        this.engine.handlePointerLeave();
-        if (this.engine.getSelectedIds().size > 0) {
-          this.engine.clearSelection();
-        } else if (this.engine.getZoomState().depth > 0) {
-          this.engine.drillUp();
-        } else {
-          this.engine.setFocusedClusterUid(null);
-          this.engine.setFocusedTriangleIndex(null);
-        }
-        this.scheduleFrame();
-      }
-    };
-
-    const onBlur = (): void => {
-      this.keyboardFocusIndex = -1;
-      this.adapter.setKeyboardFocusTarget(null);
-    };
-
-    this.canvas.addEventListener('pointerdown', onPointerDown);
-    this.canvas.addEventListener('pointermove', onPointerMove);
-    this.canvas.addEventListener('pointerup', onPointerUp);
-    this.canvas.addEventListener('pointercancel', onPointerUp);
-    this.canvas.addEventListener('pointerleave', onPointerLeave);
-    this.canvas.addEventListener('contextmenu', onContextMenu);
-    this.canvas.addEventListener('wheel', onWheel, { passive: false });
-    this.canvas.addEventListener('keydown', onKeyDown);
-    this.canvas.addEventListener('blur', onBlur);
-
-    this.cleanupDomListeners = () => {
-      this.canvas.removeEventListener('pointerdown', onPointerDown);
-      this.canvas.removeEventListener('pointermove', onPointerMove);
-      this.canvas.removeEventListener('pointerup', onPointerUp);
-      this.canvas.removeEventListener('pointercancel', onPointerUp);
-      this.canvas.removeEventListener('pointerleave', onPointerLeave);
-      this.canvas.removeEventListener('contextmenu', onContextMenu);
-      this.canvas.removeEventListener('wheel', onWheel);
-      this.canvas.removeEventListener('keydown', onKeyDown);
-      this.canvas.removeEventListener('blur', onBlur);
-    };
+      },
+    });
   }
 
   private bindResizeObserver(): void {
@@ -1243,7 +964,7 @@ export class SimplexCanvasController<
   setTheme(theme: CanvasTheme): void {
     this.theme = theme;
     this.adapter.setTheme(theme);
-    this.applyTooltipTheme();
+    this.tooltipOverlay.setTheme(theme);
     this.engine.setTheme(theme);
     if (!this.customResolver) {
       this.engine.setVisualResolver(
@@ -1585,8 +1306,7 @@ export class SimplexCanvasController<
         this.setSelectedIds(options.selectedIds);
       }
       if (options.tooltip !== undefined) {
-        this.tooltipOption = options.tooltip;
-        if (!options.tooltip) this.hideTooltip();
+        this.tooltipOverlay.setOption(options.tooltip);
       }
       if (options.interactions !== undefined) {
         this.interactions = options.interactions;
@@ -1643,8 +1363,9 @@ export class SimplexCanvasController<
     this.resizeObserverHandle = null;
     this.cleanupReducedMotionMedia?.();
     this.cleanupReducedMotionMedia = null;
-    this.cleanupDomListeners?.();
-    this.cleanupDomListeners = null;
+    this.viewportHandle?.destroy();
+    this.viewportHandle = null;
+    this.tooltipOverlay.destroy();
     this.srAnnouncer.destroy();
     this.engine.destroy();
     this.rootEl.remove();

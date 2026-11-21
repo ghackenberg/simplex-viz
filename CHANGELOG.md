@@ -13,6 +13,8 @@ All notable changes to **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, 
 - **`@simplex-viz/react` & `@simplex-viz/wc`**:
   - Unified React prop option comparisons (`areSimplexMeshOptionsEqual`, `areSimplexLayoutOptionsEqual`, `areSimplexTimelineOptionsEqual`), built-in tooltip formatting/edge-flipping (`buildSimplexTooltipContentModel`, `computeSimplexTooltipCoords`), viewport zoom (`zoomSimplexViewportByFactor`), and click delegation (`dispatchSimplexDefaultLeftClick`) with `@simplex-viz/core` and `@simplex-viz/core/dom`.
   - `<SimplexTopicGraph />` built-in JSX tooltips now automatically flip cleanly at container edges to match `SimplexSvgController` and `SimplexCanvasController`.
+- **Exclusive Subpath Entry Points (`@simplex-viz/core/worker`, `@simplex-viz/core/dom`, `@simplex-viz/svg/ssr`, `@simplex-viz/wc/define`)**:
+  - Removed root convenience re-exports of `@simplex-viz/core/worker` from `@simplex-viz/core` and `@simplex-viz/canvas`, and removed root convenience re-exports of `@simplex-viz/svg/ssr` from `@simplex-viz/svg` and `@simplex-viz/react`. All four specialized subpaths are now strict canonical entrypoints with automated CI contract enforcement (`docsContract.test.ts`), preventing worker/SSR/DOM symbol leakage across package boundaries.
 
 ## [0.14.0] - 2026-11-20
 
