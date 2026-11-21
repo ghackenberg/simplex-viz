@@ -1,0 +1,30 @@
+---
+title: Hertzsprung-Russell Stellar Spectral Atlas (Canvas + Worker)
+datasetId: stellar-atlas
+domainLabel: High-Capacity Astrophysics
+representationLabel: 8D Float32Array · Canvas 2D + Worker
+requiresTags: false
+dimensionsSummary: log(Teff), log(L/L☉), log(R/R☉), log(M/M☉), B−V color index, [Fe/H] metallicity, log(Age), and surface gravity log(g)
+meshStrategy: adaptive-hex-mesh
+clusteringStrategy: soft-simplex-embeddings
+colorStrategy: theme-adaptive-oklab
+layoutStrategy: pbd-uniform-layout
+zoomStrategy: free-camera-zoom
+nodeView: geometric
+publishedDate: "2026-11-21"
+description: Demonstrates high-capacity HTML5 Canvas 2D rendering (@simplex-viz/canvas) paired with off-main-thread Web Worker solving (@simplex-viz/core/worker) across 1,000 to 3,500 stars.
+order: 7
+---
+
+## Off-Main-Thread Solving + 60 FPS Canvas 2D Rendering
+
+When a dataset grows beyond a few hundred interactive SVG nodes into **thousands of records**, two bottlenecks emerge in browser apps: running iterative QAP annealing and PBD collision relaxation synchronously on the UI thread, and mutating thousands of DOM/SVG elements during pan and zoom.
+
+This example pairs **`@simplex-viz/core/worker`** with **`@simplex-viz/canvas`** to keep the main thread completely fluid across **1,000**, **2,000**, and **3,500** stars modeled on the **Morgan–Keenan / Hertzsprung–Russell (H–R)** spectral sequence and evolutionary branches (*O–M Main Sequence*, *Red Giants*, *Yellow & Red Supergiants*, *Hot White Dwarfs*, and *Halo Subdwarfs*).
+
+## Architecture Highlights
+
+1. **Zero-Copy Worker Handoff (`createSimplexWorkerClient` + `attachSimplexWorkerHandler`)**: Each star carries an 8D astrophysical `Float32Array` embedding (`log Teff`, `log L`, `log R`, `log M`, `B−V`, `[Fe/H]`, `log Age`, `log g`). With `transferEmbeddings: true`, `SimplexWorkerClient` transfers standalone `ArrayBuffer`s across the Worker boundary without JSON cloning, solves the full 12-cluster Soft-Simplex triangulation off-thread, and rehydrates your original main-thread `StellarRecord` objects on return.
+2. **Automatic Stale-Generation Cancellation**: Toggle rapidly between **`1,000`**, **`2,000`**, and **`3,500`** stars in the bottom bar—`cancelPreviousByDefault: true` supersedes earlier in-flight generations automatically while keeping the previous Canvas snapshot interactive at 60 FPS until the newest snapshot settles.
+3. **Frustum Culling & Automatic Level-of-Detail (`CanvasRendererAdapter`)**: At overview magnification, `lodThresholdPx: 3.5` collapses sub-threshold stars into single-pass flat fills; as you zoom smoothly (wheel, pinch, double-click, or `−`/`+` stepper) or click a cluster badge or simplex triangle to frame it, visible stars upgrade to full geometric shapes (circles for core stars, diamonds for 2-population bridges, and stars for 3-cluster hybrids) while off-screen stars are culled before touching the Canvas 2D context.
+4. **Zero-Relayout Cluster & Star Inspection**: Clicking a cluster badge frames that stellar population and opens its Cluster Inspector (core vs. hybrid breakdown and representative stars); clicking any star inspects its astrophysical parameters and barycentric simplex weights inside the container-query side drawer without altering the Canvas stage dimensions or triggering a worker re-solve.

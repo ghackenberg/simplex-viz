@@ -16,6 +16,7 @@ import palmerPenguinsJson from './open/palmer-penguins.json';
 import uciVowelsJson from './open/uci-vowels.json';
 import uciZooJson from './open/uci-zoo.json';
 import vegaMoviesJson from './open/vega-movies.json';
+import { buildStellarCatalog, type StellarRecord } from './stellarCatalog';
 
 export const DEMO_DATASET_IDS = [
   'knowledge',
@@ -24,6 +25,7 @@ export const DEMO_DATASET_IDS = [
   'voice',
   'zoo-species',
   'body-shape',
+  'stellar-atlas',
 ] as const;
 
 export type DemoDatasetId = (typeof DEMO_DATASET_IDS)[number];
@@ -85,6 +87,15 @@ export const OPEN_DATASET_SOURCES: Record<DemoDatasetId, OpenDatasetSourceInfo> 
     sourceUrl: 'https://allisonhorst.github.io/palmerpenguins/',
     license: 'CC0 1.0',
     attribution: 'Dr. Kristen Gorman & Palmer Station Antarctica LTER',
+  },
+  'stellar-atlas': {
+    datasetId: 'stellar-atlas',
+    sourceName: 'Morgan-Keenan / Hipparcos-Gaia H-R Spectral Model',
+    sourceShort: 'MK / Gaia H-R',
+    sourceUrl: 'https://www.cosmos.esa.int/web/gaia/dr3',
+    license: 'CC0 1.0 (Synthetic Model)',
+    attribution:
+      'Deterministic 8D astrophysical stellar catalog modeled on Morgan-Keenan spectral classes (O–M, WD) & Gaia DR3 Hertzsprung-Russell evolutionary tracks (1,000–3,500 stars)',
   },
 };
 
@@ -213,6 +224,13 @@ export type DemoEntity =
       readonly title: string;
       readonly subtitleMeta: string;
       readonly body: BodyShapeItem;
+    }
+  | {
+      readonly kind: 'stellar';
+      readonly id: string;
+      readonly title: string;
+      readonly subtitleMeta: string;
+      readonly star: StellarRecord;
     };
 
 export interface DemoClusterSummary {
@@ -515,6 +533,14 @@ export function buildDemoCatalog(dataset: DemoDatasetId): readonly DemoEntity[] 
       title: z.title,
       subtitleMeta: `${z.taxonomicGroup} · ${z.legs} legs${z.aquatic ? ' · aquatic' : ''}${z.airborne ? ' · airborne' : ''}${z.predator ? ' · predator' : ''}`,
       zoo: z,
+    }));
+  } else if (dataset === 'stellar-atlas') {
+    result = buildStellarCatalog(2000).map((star) => ({
+      kind: 'stellar' as const,
+      id: star.id,
+      title: `${star.name} (${star.catalogId})`,
+      subtitleMeta: `${star.spectralType} · ${star.tempK.toLocaleString('en-US')} K · ${star.populationLabel}`,
+      star,
     }));
   } else {
     result = palmerPenguinsJson.map((p) => {

@@ -8,6 +8,7 @@
     "noEmit": true,
     "paths": {
       "@/*": ["./*"],
+      "@simplex-viz/core/worker": ["./packages/core/src/worker.ts"],
       "@simplex-viz/core": ["./packages/core/src/index.ts"],
       "@simplex-viz/svg": ["./packages/svg/src/index.ts"],
       "@simplex-viz/canvas": ["./packages/canvas/src/index.ts"],

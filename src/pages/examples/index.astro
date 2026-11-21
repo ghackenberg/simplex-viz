@@ -12,7 +12,7 @@ const datasets = (await getCollection('datasets')).sort(
 
 <BaseLayout
   title="Interactive Examples"
-  description="Explore six interactive SimplexViz examples built on real open-access datasets across tagged repositories, academic preprints, multi-modal cinema vectors, spoken vowel formants, animal trait kernels, and Antarctic morphometrics."
+  description="Explore seven interactive SimplexViz examples spanning tagged repositories, academic preprints, multi-modal cinema vectors, spoken vowel formants, animal trait kernels, Antarctic morphometrics, and a high-capacity Canvas 2D + Web Worker stellar atlas."
 >
   <div class="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
     <header class="mx-auto max-w-3xl text-center">
@@ -22,7 +22,7 @@ const datasets = (await getCollection('datasets')).sort(
         Interactive Domain Examples
       </h1>
       <p class="mx-auto mt-3.5 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-300">
-        Six real-world open datasets paired with their optimal mesh, clustering, OKLab color, collision layout, and drill-down strategies. Want to test your own tagged JSON dataset? Open the standalone{' '}
+        Seven interactive domain datasets paired with their optimal mesh, clustering, OKLab color, collision layout, Web Worker, and Canvas/SVG rendering strategies. Want to test your own tagged JSON dataset? Open the standalone{' '}
         <a
           href={withBase('/playground')}
           class="font-semibold text-cyan-700 hover:underline dark:text-cyan-300"

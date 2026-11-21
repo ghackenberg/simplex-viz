@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <!-- Hexagonal Simplex Mesh Backdrop -->
+  <g class="sv-edge" fill="none" stroke="#1E293B" stroke-width="1.8" stroke-dasharray="5 5">
+    <polygon points="400,76 226,176 574,176" fill="#38BDF8" fill-opacity="0.045"/>
+    <polygon points="226,176 574,176 400,276" fill="#6366F1" fill-opacity="0.05"/>
+    <polygon points="226,176 154,328 400,276" fill="#F59E0B" fill-opacity="0.04"/>
+    <polygon points="574,176 646,328 400,276" fill="#F43F5E" fill-opacity="0.045"/>
+    <polygon points="154,328 400,276 400,388" fill="#A855F7" fill-opacity="0.04"/>
+    <polygon points="646,328 400,276 400,388" fill="#10B981" fill-opacity="0.04"/>
+  </g>
+
+  <!-- High-Density Stellar Field (Canvas LOD & Hybrid Star Glyphs) -->
+  <g opacity="0.9">
+    <!-- Top O-B Blue Supergiant / B-Main-Seq Pocket -->
+    <circle cx="386" cy="120" r="3.4" fill="#60A5FA"/>
+    <circle cx="414" cy="116" r="2.8" fill="#38BDF8"/>
+    <circle cx="399" cy="136" r="4.2" fill="#7DD3FC"/>
+    <circle cx="368" cy="144" r="3.0" fill="#60A5FA"/>
+    <circle cx="432" cy="142" r="3.2" fill="#818CF8"/>
+    <circle cx="350" cy="160" r="2.6" fill="#38BDF8"/>
+    <circle cx="450" cy="158" r="2.8" fill="#93C5FD"/>
+    <circle cx="382" cy="156" r="2.4" fill="#BAE6FD"/>
+    <circle cx="418" cy="154" r="2.6" fill="#60A5FA"/>
+    <circle cx="312" cy="166" r="3.2" fill="#7DD3FC"/>
+    <circle cx="486" cy="165" r="3.0" fill="#A5B4FC"/>
+
+    <!-- Center Main Sequence & Transition Pocket -->
+    <circle cx="342" cy="204" r="3.4" fill="#38BDF8"/>
+    <circle cx="366" cy="196" r="2.6" fill="#818CF8"/>
+    <circle cx="394" cy="202" r="3.8" fill="#E0F2FE"/>
+    <circle cx="424" cy="198" r="3.0" fill="#FDE047"/>
+    <circle cx="456" cy="206" r="3.2" fill="#FB923C"/>
+    <circle cx="320" cy="222" r="2.8" fill="#60A5FA"/>
+    <circle cx="356" cy="226" r="3.5" fill="#A78BFA"/>
+    <circle cx="388" cy="228" r="2.7" fill="#FEF08A"/>
+    <circle cx="414" cy="224" r="4.0" fill="#FACC15"/>
+    <circle cx="444" cy="228" r="2.9" fill="#F97316"/>
+    <circle cx="476" cy="220" r="3.3" fill="#FB7185"/>
+    <circle cx="372" cy="248" r="3.1" fill="#FDE047"/>
+    <circle cx="404" cy="248" r="2.6" fill="#FB923C"/>
+    <circle cx="434" cy="246" r="3.4" fill="#F87171"/>
+
+    <!-- Left Solar / Subdwarf Pocket -->
+    <circle cx="242" cy="230" r="3.2" fill="#FACC15"/>
+    <circle cx="268" cy="244" r="3.8" fill="#F59E0B"/>
+    <circle cx="294" cy="252" r="2.8" fill="#FDE047"/>
+    <circle cx="222" cy="262" r="2.9" fill="#FB923C"/>
+    <circle cx="254" cy="274" r="3.6" fill="#FBBF24"/>
+    <circle cx="288" cy="278" r="2.6" fill="#F59E0B"/>
+    <circle cx="322" cy="268" r="3.0" fill="#FDE68A"/>
+    <circle cx="204" cy="296" r="3.4" fill="#FB923C"/>
+    <circle cx="238" cy="304" r="2.7" fill="#F97316"/>
+    <circle cx="274" cy="302" r="3.2" fill="#FBBF24"/>
+
+    <!-- Right Red Giant / Supergiant Pocket -->
+    <circle cx="534" cy="232" r="3.4" fill="#FB7185"/>
+    <circle cx="556" cy="248" r="4.2" fill="#F43F5E"/>
+    <circle cx="508" cy="252" r="2.8" fill="#FB923C"/>
+    <circle cx="578" cy="266" r="3.5" fill="#EF4444"/>
+    <circle cx="540" cy="274" r="3.0" fill="#F87171"/>
+    <circle cx="496" cy="276" r="3.2" fill="#FB7185"/>
+    <circle cx="596" cy="294" r="3.8" fill="#F43F5E"/>
+    <circle cx="560" cy="302" r="2.7" fill="#EF4444"/>
+    <circle cx="520" cy="298" r="3.1" fill="#FB7185"/>
+
+    <!-- Bottom White Dwarf & Halo Subdwarf Pocket -->
+    <circle cx="332" cy="324" r="3.2" fill="#A78BFA"/>
+    <circle cx="362" cy="336" r="2.8" fill="#C084FC"/>
+    <circle cx="386" cy="316" r="3.6" fill="#818CF8"/>
+    <circle cx="418" cy="322" r="3.0" fill="#34D399"/>
+    <circle cx="448" cy="336" r="3.4" fill="#2DD4BF"/>
+    <circle cx="472" cy="320" r="2.7" fill="#10B981"/>
+    <circle cx="352" cy="356" r="2.6" fill="#A78BFA"/>
+    <circle cx="384" cy="352" r="3.2" fill="#C4B5FD"/>
+    <circle cx="418" cy="354" r="2.8" fill="#6EE7B7"/>
+    <circle cx="448" cy="358" r="2.5" fill="#34D399"/>
+  </g>
+
+  <!-- Hybrid 3-Cluster Star Glyphs -->
+  <g>
+    <polygon points="400,192 403,200 411,200 405,205 407,213 400,208 393,213 395,205 389,200 397,200" fill="#38BDF8" stroke="#FFFFFF" stroke-width="1.2"/>
+    <polygon points="282,256 285,263 292,263 286,268 288,275 282,270 276,275 278,268 272,263 279,263" fill="#FACC15" stroke="#FFFFFF" stroke-width="1.2"/>
+    <polygon points="528,260 531,267 538,267 532,272 534,279 528,274 522,279 524,272 518,267 525,267" fill="#F43F5E" stroke="#FFFFFF" stroke-width="1.2"/>
+  </g>
+
+  <!-- Primary Spectral Cluster Anchors -->
+  <g>
+    <!-- Top: O-B Supergiants -->
+    <circle class="sv-stroke-cyan" cx="400" cy="76" r="32" fill="none" stroke="#38BDF8" stroke-opacity="0.38" stroke-width="2" stroke-dasharray="5 4"/>
+    <circle class="sv-panel" cx="400" cy="76" r="22" fill="#0B101B" stroke="#38BDF8" stroke-width="3"/>
+    <circle cx="400" cy="76" r="8" fill="#38BDF8"/>
+
+    <!-- Mid-Left: A/F Main Sequence -->
+    <circle class="sv-panel" cx="226" cy="176" r="21" fill="#0B101B" stroke="#818CF8" stroke-width="3"/>
+    <circle cx="226" cy="176" r="7.5" fill="#818CF8"/>
+
+    <!-- Mid-Right: Red Giants -->
+    <circle class="sv-panel" cx="574" cy="176" r="21" fill="#0B101B" stroke="#FB923C" stroke-width="3"/>
+    <circle cx="574" cy="176" r="7.5" fill="#FB923C"/>
+
+    <!-- Center: G-Type Solar Analogs -->
+    <circle cx="400" cy="276" r="34" fill="none" stroke="#FACC15" stroke-opacity="0.34" stroke-width="2" stroke-dasharray="5 4"/>
+    <circle class="sv-panel" cx="400" cy="276" r="24" fill="#0B101B" stroke="#FACC15" stroke-width="3.2"/>
+    <circle cx="400" cy="276" r="9" fill="#FACC15"/>
+
+    <!-- Bottom-Left: K/M Dwarfs -->
+    <circle class="sv-panel" cx="154" cy="328" r="19" fill="#0B101B" stroke="#F59E0B" stroke-width="2.8"/>
+    <circle cx="154" cy="328" r="7" fill="#F59E0B"/>
+
+    <!-- Bottom-Right: Red Supergiants -->
+    <circle class="sv-panel" cx="646" cy="328" r="19" fill="#0B101B" stroke="#F43F5E" stroke-width="2.8"/>
+    <circle cx="646" cy="328" r="7" fill="#F43F5E"/>
+
+    <!-- Bottom-Center: White Dwarfs -->
+    <circle class="sv-panel" cx="400" cy="388" r="19" fill="#0B101B" stroke="#A855F7" stroke-width="2.8"/>
+    <circle cx="400" cy="388" r="7" fill="#A855F7"/>
+  </g>
+</svg>

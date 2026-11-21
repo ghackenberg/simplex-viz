@@ -3,6 +3,7 @@ import { Code } from 'astro:components';
 import { getCollection, render } from 'astro:content';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import PageMeta from '../../components/PageMeta.astro';
+import { LargeScaleCanvasWorkerAtlas } from '../../components/islands/LargeScaleCanvasWorkerAtlas';
 import { UseCaseMiniAtlas } from '../../components/islands/UseCaseMiniAtlas';
 import { buildCommonsThumbManifest } from '../../demo/commonsThumbs.server';
 import {
@@ -94,6 +95,27 @@ function formatDatasetRecord(entity: DemoEntity): Record<string, unknown> {
       traits16D: entity.zoo.traits,
     };
   }
+  if (entity.kind === 'stellar') {
+    const s = entity.star;
+    return {
+      id: s.id,
+      catalogId: s.catalogId,
+      name: s.name,
+      constellation: s.constellation,
+      spectralType: s.spectralType,
+      population: s.populationLabel,
+      tempK: s.tempK,
+      luminositySolar: s.luminositySolar,
+      radiusSolar: s.radiusSolar,
+      massSolar: s.massSolar,
+      bvColor: s.bvColor,
+      metallicityFeH: s.metallicityFeH,
+      distancePc: s.distancePc,
+      ageGyr: s.ageGyr,
+      logG: s.logG,
+      embedding8D: Array.from(s.embedding, (v) => Number(v.toFixed(3))),
+    };
+  }
   return {
     id: entity.body.id,
     specimen: entity.body.title,
@@ -108,13 +130,25 @@ function formatDatasetRecord(entity: DemoEntity): Record<string, unknown> {
   };
 }
 
-const datasetJson = JSON.stringify(
-  catalogItems.map(formatDatasetRecord),
-  null,
-  2,
-).replace(/\[\n\s+([-\d.,\s\n]+?)\n\s+\]/g, (_, inner: string) => {
-  return `[${inner.replace(/\s+/g, ' ').trim()}]`;
-});
+const isLargeCanvasWorkerExample = datasetId === 'stellar-atlas';
+const jsonPreviewItems =
+  catalogItems.length > 80 ? catalogItems.slice(0, 40) : catalogItems;
+const rawDatasetPayload =
+  catalogItems.length > 80
+    ? {
+        totalRecords: catalogItems.length,
+        previewRecordsShown: jsonPreviewItems.length,
+        note: 'First 40 deterministic records shown here; the live Preview tab solves 1,000, 2,000, or 3,500 stars off-thread in a Web Worker.',
+        records: jsonPreviewItems.map(formatDatasetRecord),
+      }
+    : jsonPreviewItems.map(formatDatasetRecord);
+
+const datasetJson = JSON.stringify(rawDatasetPayload, null, 2).replace(
+  /\[\n\s+([-\d.,\s\n]+?)\n\s+\]/g,
+  (_, inner: string) => {
+    return `[${inner.replace(/\s+/g, ' ').trim()}]`;
+  },
+);
 
 const examplePreviewPath = `/examples/${entry.id}.png`;
 const examplePreviewUrl = new URL(
@@ -260,19 +294,23 @@ const jsonLd = {
         aria-labelledby="tab-example-preview"
         data-example-panel="preview"
       >
-        <UseCaseMiniAtlas
-          datasetId={datasetId}
-          meshStrategy={entry.data.meshStrategy}
-          clusteringStrategy={entry.data.clusteringStrategy}
-          colorStrategy={entry.data.colorStrategy}
-          layoutStrategy={entry.data.layoutStrategy}
-          zoomStrategy={entry.data.zoomStrategy}
-          nodeView={entry.data.nodeView}
-          thumbManifest={thumbManifest}
-          timelineEnabled={entry.data.timelineEnabled}
-          embedded
-          client:load
-        />
+        {isLargeCanvasWorkerExample ? (
+          <LargeScaleCanvasWorkerAtlas embedded client:load />
+        ) : (
+          <UseCaseMiniAtlas
+            datasetId={datasetId}
+            meshStrategy={entry.data.meshStrategy}
+            clusteringStrategy={entry.data.clusteringStrategy}
+            colorStrategy={entry.data.colorStrategy}
+            layoutStrategy={entry.data.layoutStrategy}
+            zoomStrategy={entry.data.zoomStrategy}
+            nodeView={entry.data.nodeView}
+            thumbManifest={thumbManifest}
+            timelineEnabled={entry.data.timelineEnabled}
+            embedded
+            client:load
+          />
+        )}
       </div>
 
       <!-- Panel 2: Minimalist TypeScript Code with Top-Right Copy Overlay -->

@@ -1546,6 +1546,9 @@ function resolveEntityShape(entity: DemoEntity): GeometricShapeKind {
         return 'star';
     }
   }
+  if (entity.kind === 'stellar') {
+    return entity.star.luminosityClass.startsWith('I') ? 'star' : 'circle';
+  }
   switch (entity.body.posture) {
     case 'athletic':
       return 'hexagon';
@@ -1571,6 +1574,9 @@ function resolveEntitySizeBonus(entity: DemoEntity): number {
   if (entity.kind === 'zoo-species') {
     return entity.zoo.predator ? 1.2 : 0;
   }
+  if (entity.kind === 'stellar') {
+    return entity.star.luminosityClass.startsWith('I') ? 1.5 : 0;
+  }
   return Math.max(0, Math.min(3.0, (entity.body.heightCm - 18) / 3));
 }
 
@@ -1586,6 +1592,9 @@ function formatEntityCardMeta(entity: DemoEntity): string {
   }
   if (entity.kind === 'zoo-species') {
     return `${entity.zoo.taxonomicGroup} · ${entity.zoo.legs} legs`;
+  }
+  if (entity.kind === 'stellar') {
+    return `${entity.star.spectralType} · ${entity.star.tempK} K`;
   }
   return `${entity.body.species} · ${entity.body.bodyMassG}g`;
 }
@@ -1708,25 +1717,27 @@ export function createDemoVisualResolver(
         }
 
         // Palmer Penguins Biometrics
-        const statureBonus = config.scaleByReadingTime
-          ? Math.max(-1.4, Math.min(2.8, (item.body.bodyMassG - 3800) / 600))
-          : 0;
-        return {
-          kind: 'domain-body',
-          theme,
-          radius: Number(((16.2 + statureBonus) * s).toFixed(1)),
-          species: item.body.species,
-          billLengthMm: item.body.billLengthMm,
-          billDepthMm: item.body.billDepthMm,
-          flipperLengthMm: item.body.flipperLengthMm,
-          bodyMassG: item.body.bodyMassG,
-          proportions: item.body.proportions,
-          heightCm: item.body.heightCm,
-          posture: item.body.posture,
-          colorHex: ctx.mixedColorHex,
-          showCalibrationRing: config.bodyShowCalibrationRing,
-          showHeightLabel: config.bodyShowHeightLabel,
-        };
+        if (item.kind === 'body-shape') {
+          const statureBonus = config.scaleByReadingTime
+            ? Math.max(-1.4, Math.min(2.8, (item.body.bodyMassG - 3800) / 600))
+            : 0;
+          return {
+            kind: 'domain-body',
+            theme,
+            radius: Number(((16.2 + statureBonus) * s).toFixed(1)),
+            species: item.body.species,
+            billLengthMm: item.body.billLengthMm,
+            billDepthMm: item.body.billDepthMm,
+            flipperLengthMm: item.body.flipperLengthMm,
+            bodyMassG: item.body.bodyMassG,
+            proportions: item.body.proportions,
+            heightCm: item.body.heightCm,
+            posture: item.body.posture,
+            colorHex: ctx.mixedColorHex,
+            showCalibrationRing: config.bodyShowCalibrationRing,
+            showHeightLabel: config.bodyShowHeightLabel,
+          };
+        }
       }
 
       if (config.contentRenderer === 'geometric') {

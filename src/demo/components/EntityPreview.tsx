@@ -127,6 +127,20 @@ export function EntitySpecBadge({
     );
   }
 
+  if (entity.kind === 'stellar') {
+    const s = entity.star;
+    return (
+      <div className="mt-2.5 space-y-1 text-xs">
+        <div className="font-mono font-semibold text-slate-900 dark:text-slate-100">
+          {s.spectralType} · {s.tempK.toLocaleString('en-US')} K
+        </div>
+        <div className="text-slate-500 dark:text-slate-400">
+          {s.populationLabel} · {s.constellation}
+        </div>
+      </div>
+    );
+  }
+
   const b = entity.body;
   const p = b.proportions;
   const sw = p.shoulderW * 15;

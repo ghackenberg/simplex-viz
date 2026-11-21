@@ -223,4 +223,54 @@ const penguinFeatures = [
   })}
   showZoomBreadcrumbs
 />;`,
+
+  'stellar-atlas': `// 1. simplex.worker.ts (dedicated Vite ES module Web Worker)
+import { attachSimplexWorkerHandler } from '@simplex-viz/core/worker';
+
+attachSimplexWorkerHandler();
+
+// 2. Main thread: off-thread solve + high-capacity Canvas 2D rendering
+import {
+  createSimplexWorkerClient,
+  isSimplexWorkerCancelledError,
+} from '@simplex-viz/core/worker';
+import {
+  CanvasRendererAdapter,
+  renderSimplexSnapshotToCanvas,
+} from '@simplex-viz/canvas';
+
+const workerClient = createSimplexWorkerClient(
+  () => new Worker(new URL('./simplex.worker.ts', import.meta.url), { type: 'module' }),
+  { cancelPreviousByDefault: true, fallbackToInThread: true },
+);
+
+// Solve 2,000+ stars off the main thread with zero-copy Float32Array handoff
+const { snapshot } = await workerClient.solve(stellarCatalog, {
+  getId: (star) => star.id,
+  getEmbedding: (star) => new Float32Array(star.embedding),
+  transferEmbeddings: true,
+  width: canvas.clientWidth,
+  height: canvas.clientHeight,
+  itemRadius: 2.4,
+  clusterRadius: 20,
+  theme: 'dark',
+  meshStrategy: { kind: 'adaptive-hex' },
+  clusteringStrategy: {
+    kind: 'soft-simplex-embedding',
+    metric: 'cosine',
+    clusterCount: 12,
+    triangleSpread: 0.82,
+    balanceLoad: true,
+  },
+  colorStrategy: { kind: 'theme-adaptive-oklab' },
+  layoutStrategy: { kind: 'pbd-uniform' },
+  layoutOptions: { itemGapPx: 0.85, relaxationIterations: 12 },
+});
+
+// Paint snapshot onto HiDPI Canvas 2D with automatic LOD & frustum culling
+renderSimplexSnapshotToCanvas(canvas, snapshot, {
+  theme: 'dark',
+  lodThresholdPx: 3.5,
+  devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+});`,
 };

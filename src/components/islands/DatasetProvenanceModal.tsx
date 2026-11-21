@@ -75,6 +75,14 @@ const DATASET_DISPLAY_SPEC: Record<
       'Culmen length, culmen depth, flipper span, body mass, culmen ratio & size index across Antarctic islands',
     requiresTags: false,
   },
+  'stellar-atlas': {
+    title: 'Hertzsprung-Russell Stellar Spectral Atlas (Canvas + Worker)',
+    domainLabel: 'High-Capacity Astrophysics',
+    representationLabel: '8D Float32Array · Canvas 2D + Web Worker',
+    dimensionsSummary:
+      'log(Teff), log(L/L☉), log(R/R☉), log(M/M☉), B-V color index, [Fe/H] metallicity, log(Age), and surface gravity log(g)',
+    requiresTags: false,
+  },
 };
 
 export function resolveDatasetProvenanceMeta(
