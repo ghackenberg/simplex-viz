@@ -4,7 +4,7 @@ shortTitle: Views, Timeline & SSR
 description: Customize content nodes, cluster anchors, triangle faces, mesh edges, chronological timeline playback, and headless Node.js/Worker snapshots.
 section: Customization
 order: 2
-updatedDate: "2026-11-20"
+updatedDate: "2026-11-21"
 summaryPoints:
   - Measure arbitrary React JSX cards or custom SVG glyphs automatically via offscreen getBBox() convex hull extraction.
   - Swap SvgTriangleView and SvgEdgeView plugins independently—internal 1:4 drillable previews automatically inherit your SvgEdgeView.
@@ -13,7 +13,7 @@ summaryPoints:
 relatedApiSlug: svg
 ---
 
-SimplexViz separates **mathematical solving** (`@simplex-viz/core` + `@simplex-viz/core/worker`) from **scene rendering & framework adapters** (`@simplex-viz/svg`, `@simplex-viz/canvas`, `@simplex-viz/react`, and `@simplex-viz/wc`). Every visual layer can be customized without rewriting layout or collision code.
+SimplexViz separates **mathematical solving** (`@simplex-viz/core` + `@simplex-viz/core/worker`) and **shared structural DOM/interaction utilities** (`@simplex-viz/core/dom`) from **scene rendering & framework adapters** (`@simplex-viz/svg`, `@simplex-viz/canvas`, `@simplex-viz/react`, and `@simplex-viz/wc`). Every visual layer can be customized without rewriting layout or collision code.
 
 ## 1. Declarative React JSX Node Renderers
 
@@ -141,18 +141,19 @@ const controller = createSimplexCanvas('#atlas', {
 });
 ```
 
-## 4. Composable Interactions, Mobile Touch-Scroll & Zero-Size Mount Recovery
+## 4. Composable Interactions, Tooltips, Mobile Touch-Scroll & Zero-Size Mount Recovery
 
-Every interaction handler across `@simplex-viz/core`, `@simplex-viz/svg`, and `@simplex-viz/react` (`onContentClick`, `onClusterClick`, `onTriangleClick`, `onBackgroundClick`, `onLeftClick`, `onRightClick`, `onContentHover`, `onClusterHover`, `onTriangleHover`, and custom `onWheel`) follows one uniform contract:
+Every interaction handler across `@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/canvas`, `@simplex-viz/react`, and `@simplex-viz/wc` (`onContentClick`, `onClusterClick`, `onTriangleClick`, `onBackgroundClick`, `onLeftClick`, `onRightClick`, `onContentHover`, `onClusterHover`, `onTriangleHover`, and custom `onWheel`) follows one uniform contract powered by `@simplex-viz/core/dom`:
 
 - Return `void` or `false` to **compose** with built-in behavior (drill-down navigation, focus toggles, hover tooltips, or cursor zoom).
 - Return `true` to **consume** the event and suppress the built-in default for that interaction.
 
-For embedded production pages, `@simplex-viz/svg` and `@simplex-viz/react` also handle three common browser edge cases out of the box:
+Across browser packages (`@simplex-viz/svg`, `@simplex-viz/canvas`, `@simplex-viz/react`, and `@simplex-viz/wc`), shared `@simplex-viz/core/dom` primitives handle four common browser behaviors uniformly:
 
-- **Mobile Touch-Scroll Direction-Locking (`touchScrollLockPx`, default `8`)**: Sets `touch-action: pan-y` on the SVG so vertical single-finger swipes yield smoothly to native page scrolling while horizontal swipes and two-finger pinches lock onto the canvas. Pass `touchScrollLockPx={0}` to restore `touch-action: none` for full 2D touch panning.
+- **Viewport Edge-Flipped Tooltips (`computeSimplexTooltipCoords`, `buildSimplexTooltipContentModel`)**: Built-in DOM and React JSX tooltips share the same target model, tag/weight formatting, drill-down hints, and dynamic viewport edge-flipping so tooltips never clip past container edges.
+- **Mobile Touch-Scroll Direction-Locking (`touchScrollLockPx`, default `8`)**: Sets `touch-action: pan-y` on the graph surface so vertical single-finger swipes yield smoothly to native page scrolling while horizontal swipes and two-finger pinches lock onto the canvas. Pass `touchScrollLockPx={0}` to restore `touch-action: none` for full 2D touch panning.
 - **Drag-vs-Click Peak-Displacement Tolerance (`clickTolerancePx`, default `12`)**: Tracks peak pointer displacement from `pointerdown` across the entire gesture and suppresses trailing clicks whenever movement exceeds `clickTolerancePx`—in both `free-camera` and `drill-down` modes.
-- **Zero-Size (`0×0`) Container Mounts & Webfont Auto-Relayout (`deferInitialLayout`, `relayoutOnFontLoad`)**: If a graph mounts inside a hidden tab, modal, or before async CSS applies, `SimplexSvgController` automatically invalidates cached hulls and performs a clean `'initial'` viewport re-initialization (with zero spring jump) on the first non-zero `ResizeObserver` entry. Pass `deferInitialLayout` (`true` or `{ fallbackTimeoutMs }`) to skip the provisional `960×620` solve entirely until the container becomes visible. Once webfonts finish loading (`document.fonts.ready` / `loadingdone`), `relayoutOnFontLoad: true` automatically re-measures hulls and re-solves layout.
+- **Zero-Size (`0×0`) Container Mounts & Webfont Auto-Relayout (`deferInitialLayout`, `relayoutOnFontLoad`)**: If a graph mounts inside a hidden tab, modal, or before async CSS applies, controllers automatically invalidate cached hulls and perform a clean `'initial'` viewport re-initialization (with zero spring jump) on the first non-zero `ResizeObserver` entry via `observeSimplexContainerResize()`. Pass `deferInitialLayout` (`true` or `{ fallbackTimeoutMs }`) to skip the provisional `960×620` solve entirely until the container becomes visible. Once webfonts finish loading (`document.fonts.ready` / `loadingdone`), `relayoutOnFontLoad: true` automatically re-measures hulls and re-solves layout.
 
 ## 5. Tag Display Labels, Cluster Badge Options & Geometric Shape Styling (`getShape`, `shapeOptions`)
 

@@ -24,7 +24,7 @@ export const GET: APIRoute = async () => {
     `Complete concatenated Markdown corpus for AI agents: ${toAbs('/llms-full.txt')}`,
     '',
     '## Packages',
-    '- `@simplex-viz/core`: Zero-dependency, DOM-free TypeScript engine (mesh, clustering, OKLab, convex SAT layout, 1:4 hierarchical zoom, and `@simplex-viz/core/worker` offloading).',
+    '- `@simplex-viz/core`: Zero-dependency TypeScript engine with DOM-free ES2022 root & `@simplex-viz/core/worker` offloading (mesh, clustering, OKLab, convex SAT layout, 1:4 hierarchical zoom) plus optional structurally-typed browser/host helpers (`@simplex-viz/core/dom`).',
     '- `@simplex-viz/svg`: Framework-agnostic SVG scene graph, view plugins, offscreen getBBox() hull measurement, zero-DOM SSR (`@simplex-viz/svg/ssr`), and breadcrumbs.',
     '- `@simplex-viz/canvas`: High-capacity HTML5 Canvas 2D renderer for 2,000–10,000+ items with viewport culling, automatic LOD, 1:4 zoom/drill-down, timeline playback, and native PNG export.',
     '- `@simplex-viz/react`: Type-safe React 18/19 `<SimplexTopicGraph />` component and `useSimplexGraphController()` hook.',

@@ -24,7 +24,7 @@ Before diving into the TypeScript API, the schematic diagram below traces a sing
 
 ## Key Capabilities
 
-- **Zero dependencies & zero DOM**: Compiled strictly against `lib: ["ES2022"]` with `"dependencies": {}`. Runs identically in browsers, Node.js, Deno, Bun, Web Workers, and Edge runtimes.
+- **Zero dependencies & DOM-free core**: Root `@simplex-viz/core` and `@simplex-viz/core/worker` compile strictly against `lib: ["ES2022"]` with `"dependencies": {}` and zero DOM globals—running identically in browsers, Node.js, Deno, Bun, Web Workers, and Edge runtimes. Browser renderers and adapters can additionally opt into `@simplex-viz/core/dom`, which shares container, tooltip, accessibility, and gesture helpers typed purely via structural interfaces (`SimplexDomElementLike`, `SimplexDomDocumentLike`, etc.) so TypeScript builds without `DOM` in `lib` still type-check cleanly.
 - **Representation-agnostic & end-to-end type safe**: Works with arbitrary `<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>` via conditional hybrid accessors (`StrategyItemIdentityConfig<TItem, TTagMeta>`). Passing a non-tag `clusteringStrategy` (embeddings, pairwise similarity, or custom) makes `getTags` completely optional; using the default tag path enforces `getTags` only when `TItem` lacks `tags`.
 - **Pluggable 5-stage pipeline**: Swap algorithms cleanly at construction or runtime via `SimplexMeshStrategy`, `SimplexClusteringStrategy` (`requiresTags`, `initialize`, incremental `update`), `SimplexColorStrategy`, `SimplexLayoutStrategy`, and `SimplexZoomStrategy`.
 - **Soft-Simplex, embeddings, similarities & tag specialization**:
@@ -143,6 +143,44 @@ try {
 } catch (err) {
   if (!isSimplexWorkerCancelledError(err)) throw err;
 }
+```
+
+### Shared Host & DOM Helpers (`@simplex-viz/core/dom`)
+
+When building browser controllers, custom renderers, or UI wrappers on top of `SimplexGraphEngine`, import shared DOM, tooltip, accessibility, and interaction helpers from `@simplex-viz/core/dom` (reused internally by `@simplex-viz/svg`, `@simplex-viz/canvas`, `@simplex-viz/react`, and `@simplex-viz/wc`). All functions depend solely on structural interfaces (`SimplexDomElementLike`, `SimplexDomDivLike`, `SimplexDomDocumentLike`, `SimplexDomWindowLike`), preserving zero runtime dependencies and strict `skipLibCheck: false` compatibility:
+
+- **Container & `ResizeObserver`**: `resolveSimplexContainer`, `measureSimplexContainer`, `ensureSimplexContainerPositioned`, `observeSimplexContainerResize` (coordinated `deferInitialLayout` & `0×0` recovery).
+- **Motion & Webfont Relayout**: `resolveSimplexReducedMotion`, `subscribeSimplexReducedMotionMedia`, `subscribeSimplexFontLoadRelayout`.
+- **Accessibility & Live Regions**: `createSimplexSrAnnouncer`, `computeSimplexZoomAnnouncementSignature`, `formatSimplexInteractiveTargetAriaLabel`, `formatSimplexZoomLevelAnnouncement`.
+- **Tooltips (Model, Theme & Edge-Flipping)**: `applySimplexTooltipTheme`, `computeSimplexTooltipCoords`, `positionSimplexTooltipElement`, `buildSimplexTooltipContentModel`, `formatSimplexTooltipText`.
+- **Clicks, Cursors, Drill-Pinch, Keyboard & Zoom**: `dispatchSimplexDefaultLeftClick`, `resolveSimplexCursorForPoint`, `resolveSimplexPinchDrillTarget`, `applySimplexPinchDrillTarget`, `stepSimplexDrillDownWheelPinch`, `normalizeSimplexMarqueeRect`, `isSameSimplexKeyboardTarget`, `toSimplexKeyboardFocusTargetRef`, `resolveNextSimplexKeyboardFocusIndex`, `isSimplexHoverEventConsumed`, `zoomSimplexViewportByFactor`, `toSimplexNormalizedPointerEvent`.
+
+```ts
+import {
+  buildSimplexTooltipContentModel,
+  computeSimplexTooltipCoords,
+  observeSimplexContainerResize,
+} from '@simplex-viz/core/dom';
+
+const observer = observeSimplexContainerResize({
+  container,
+  pendingInitialViewport: true,
+  shouldDeferSolve: true,
+  deferFallbackTimeoutMs: 1500,
+  isDestroyed: () => destroyed,
+  onDeferredInit: (w, h) => engine.reinitializeViewport(w, h),
+  onResize: (w, h) => engine.setViewportSize(w, h),
+});
+
+// Edge-flipped tooltip placement shared across SVG, Canvas & React:
+const coords = computeSimplexTooltipCoords({
+  containerWidth: 1200,
+  containerHeight: 760,
+  tipWidth: 240,
+  tipHeight: 72,
+  screenX,
+  screenY,
+});
 ```
 
 ### Quickstart Default Settings (`solveSimplexSnapshot` & `SimplexGraphEngine`)
@@ -416,7 +454,8 @@ Every algorithmic building block can also be imported standalone:
 - **Layout Solver**: `solveComposedLayout`, `solveTwoPhaseLayout`, `solveLocalAdaptiveLayout`, `solveCollisionDrivenLayout`, `buildItemCoveringTriangles`, `measureLayoutOverlaps`
 - **Geometry & Collision**: `computeConvexHull`, `rectToConvexPolygon`, `regularPolygon`, `starConvexHull`, `isPointInTriangle`, `computeConvexMtv`, `computeCirclePolygonMtv`, `hitTestConvexGeometry`, `UniformSpatialHashGrid`
 - **Color Science**: `hexToOklab`, `oklabToHex`, `mixOklabColors`, `lerpOklabHex`, `generatePerceptualClusterPalette`, `buildDistinctOklabPalette`, `assignMeshClusterColors`, `assignGreedyEdgeContrastColors`
-- **Chronological Timeline Playback**: `SimplexTimelineController`, `createSimplexTimeline`, `createFinalSeededLayoutStrategy` — Zero-DOM headless chronological frame grouper & player (`play()`, `pause()`, `toggle()`, `stepBy(delta)`, `seek(step)`, `resetToEnd()`, `setSpeed(speed)`, `tick(dtMs)`, `subscribe(listener)`) supporting `getTimestamp`, `getFrameKey`, undated step-`0` baseline items, full-corpus layout freezing (`scaleMode: 'pinned' | 'adaptive'`), configurable `emptyClusterBehavior: 'normal' | 'dim' | 'hide'`, and seamless composition with `createFinalSeededClusteringStrategy`.
+- **Chronological Timeline Playback**: `SimplexTimelineController`, `createSimplexTimeline`, `createFinalSeededLayoutStrategy`, `normalizeTimelineLayoutScaleMode`, `wrapClusteringStrategyForTimeline`, `wrapLayoutStrategyForTimeline` — Zero-DOM headless chronological frame grouper & player (`play()`, `pause()`, `toggle()`, `stepBy(delta)`, `seek(step)`, `resetToEnd()`, `setSpeed(speed)`, `tick(dtMs)`, `subscribe(listener)`) supporting `getTimestamp`, `getFrameKey`, undated step-`0` baseline items, full-corpus layout freezing (`scaleMode: 'pinned' | 'adaptive'`), configurable `emptyClusterBehavior: 'normal' | 'dim' | 'hide'`, and seamless composition with `createFinalSeededClusteringStrategy`.
+- **Shared Preset, Color & Option Helpers (DOM-free)**: `extractSimplexItemLabel`, `truncateSimplexBadgeTitle`, `resolveClusterBadgeTitle`, `resolveGeometricShapeSpec`, `NAMED_POLYGON_SIDES`, `getHexRelativeLuminance`, `resolveClusterSurfaceColors`, `hexWithAlpha`, `estimateSimplexTextWidth`, `createSimplexTimelineNotifier`, `areSimplexMeshOptionsEqual`, `areSimplexLayoutOptionsEqual`, `areSimplexTimelineOptionsEqual`.
 - **Animation & Camera**: `stepCriticallyDampedSpring`, `retargetVisualTransition`, `stepVisualTransition`, `SimplexCamera`
 
 ## License

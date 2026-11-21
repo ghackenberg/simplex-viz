@@ -28,7 +28,7 @@ In React, `<SimplexTopicGraph />` lets you drop custom JSX directly into cluster
   2. **Portable `Svg*View` Plugins** (`contentView`, `clusterView`, `triangleView`, `edgeView` from `@simplex-viz/svg`): Direct SVG DOM updates with zero React reconciliation overhead per animation frame.
 - **5 Pluggable Strategy Axes (`Mesh`, `Clustering`, `Color`, `Layout`, `Zoom`)**: Swap tag clustering, soft-simplex clustering, multi-modal embeddings, pairwise similarity, composable layout (`Seeder × Relaxer × ScaleController`), and conformal **`1:4` hierarchical drill-down** (`zoomStrategy`) via declarative props.
 - **Full generic type inference**: Infers `<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>` end-to-end across `items`, `getId`, `getTags`, `deriveClusterMeta`, `visualResolver`, `renderContentNode`, `renderClusterNode`, tooltips, hover events, and click targets.
-- **Chronological Timeline Playback, Multi-Selection, Deep-Linking, Linked Views, Export & Batched Sync**: Opt-in `timeline` prop with built-in floating Play/Pause/Step/Scrubber HUD, interactive `Shift+Click` & `Shift+Drag` marquee multi-selection (`selectedIds`, `marqueeSelection`, `onSelectionChange`), OS `prefers-reduced-motion` support (`reducedMotion: 'auto'`), JSON-serializable deep-linking (`handle.getViewState()` / `handle.restoreViewState()`), zero-relayout `itemFilter` / `itemFilterMode` (`'dim' | 'hide'`), programmatic search/focus/zoom (`setHighlightedItems`, `focusItem`, `zoomToItem`), client-side `exportSvg()` / `exportPng()` snapshots, unified batched React prop synchronization (`controller.batch(...)` per render commit), built-in WCAG 2.1 AA keyboard navigation & screen-reader announcements (`ariaLabel`, `keyboardNavigation`), and reactive `useSimplexTimeline()` alongside `useSimplexGraphController()`.
+- **Chronological Timeline Playback, Multi-Selection, Deep-Linking, Linked Views, Export & Batched Sync**: Opt-in `timeline` prop with built-in floating Play/Pause/Step/Scrubber HUD, interactive `Shift+Click` & `Shift+Drag` marquee multi-selection (`selectedIds`, `marqueeSelection`, `onSelectionChange`), OS `prefers-reduced-motion` support (`reducedMotion: 'auto'`), JSON-serializable deep-linking (`handle.getViewState()` / `handle.restoreViewState()`), zero-relayout `itemFilter` / `itemFilterMode` (`'dim' | 'hide'`), programmatic search/focus/zoom (`setHighlightedItems`, `focusItem`, `zoomToItem`), client-side `exportSvg()` / `exportPng()` snapshots, unified batched React prop synchronization (`controller.batch(...)` per render commit with shared option equality via `@simplex-viz/core`), viewport edge-flipped built-in tooltips via `@simplex-viz/core/dom`, built-in WCAG 2.1 AA keyboard navigation & screen-reader announcements (`ariaLabel`, `keyboardNavigation`), and reactive `useSimplexTimeline()` alongside `useSimplexGraphController()`.
 
 ## Installation
 
@@ -90,7 +90,7 @@ export function QuickTopicMap() {
 | `selectedIds` / `shiftClickSelects` / `marqueeSelection` | `[]` / `true` / `true` | Independent multi-selection state supporting `Shift+Click` (handled before consuming `onContentClick` unless `shiftClickSelects={false}`), `Shift+Drag` rectangular marquee, violet selection rings, and `onSelectionChange`. |
 | `onLegendChange` | `undefined` | Diff-gated callback receiving structured `SimplexLegendModel` snapshots (also queryable via `handle.getLegendModel(options?)`), synced with zoom, filtering, focus, and timeline state. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode when `focused*` is uncontrolled and click is not consumed (`return true`). |
-| `tooltip` | `false` | Set `tooltip` (`true`) or pass `(target) => ReactNode` to render a floating tooltip overlay. |
+| `tooltip` | `false` | Set `tooltip` (`true`) or pass `(target) => ReactNode` to render a floating, viewport edge-flipped tooltip overlay (`computeSimplexTooltipCoords` + `buildSimplexTooltipContentModel`). |
 
 ---
 
@@ -471,7 +471,7 @@ Filter items visually without re-clustering or shifting any SAT positions (`item
 ### Interactions, Tooltips, Telemetry & Controller
 | Prop | Default / Signature | Description |
 | --- | --- | --- |
-| `tooltip` | `false` | `boolean \| ((target: SimplexReactTooltipTarget) => ReactNode)` — Floating React `role="tooltip"` overlay for `'content'`, `'cluster'`, and `'triangle'`. |
+| `tooltip` | `false` | `boolean \| ((target: SimplexReactTooltipTarget) => ReactNode)` — Floating, viewport edge-flipped React `role="tooltip"` overlay for `'content'`, `'cluster'`, and `'triangle'` powered by `@simplex-viz/core/dom`. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Automatically toggles cluster or triangle focus on click in `free-camera` mode when uncontrolled. |
 | `onContentHover` / `onClusterHover` / `onTriangleHover` | — | Hover callbacks returning `boolean \| void` (`true` suppresses the built-in tooltip for that hover target). |
 | `onContentClick` / `onClusterClick` / `onTriangleClick` / `onBackgroundClick` | — | Target-specific left-click callbacks returning `boolean \| void` (`true` consumes the click and skips `onLeftClick` and built-in defaults). |

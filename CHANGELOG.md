@@ -2,6 +2,18 @@
 
 All notable changes to **SimplexViz** (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/canvas`, `@simplex-viz/react`, `@simplex-viz/wc`, and the documentation/showcase site) are documented in this file following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), coordinated with per-package release notes via `@changesets/cli`.
 
+## [Unreleased]
+
+### Changed (Architectural Consolidation Toward `v1.0.0`)
+- **`@simplex-viz/core` & New `@simplex-viz/core/dom` Subpath**:
+  - Added the dedicated `@simplex-viz/core/dom` subpath exporting zero-dependency, structurally typed host/browser helpers (`resolveSimplexContainer`, `measureSimplexContainer`, `ensureSimplexContainerPositioned`, `observeSimplexContainerResize`, `resolveSimplexReducedMotion`, `subscribeSimplexReducedMotionMedia`, `subscribeSimplexFontLoadRelayout`, `createSimplexSrAnnouncer`, `computeSimplexZoomAnnouncementSignature`, `formatSimplexInteractiveTargetAriaLabel`, `formatSimplexZoomLevelAnnouncement`, `applySimplexTooltipTheme`, `computeSimplexTooltipCoords`, `positionSimplexTooltipElement`, `buildSimplexTooltipContentModel`, `formatSimplexTooltipText`, `resolveSimplexPinchDrillTarget`, `applySimplexPinchDrillTarget`, `resolveSimplexCursorForPoint`, `stepSimplexDrillDownWheelPinch`, `normalizeSimplexMarqueeRect`, `dispatchSimplexDefaultLeftClick`, `isSameSimplexKeyboardTarget`, `toSimplexKeyboardFocusTargetRef`, `resolveNextSimplexKeyboardFocusIndex`, `isSimplexHoverEventConsumed`, `zoomSimplexViewportByFactor`, `toSimplexNormalizedPointerEvent`). Because all interfaces are structural (`SimplexDomElementLike`, `SimplexDomDocumentLike`, `SimplexDomWindowLike`), `@simplex-viz/core` root and `@simplex-viz/core/worker` remain strictly `ES2022` / DOM-free and `skipLibCheck: false` compatible.
+  - Extracted shared DOM-free utilities into `@simplex-viz/core` (`extractSimplexItemLabel`, `truncateSimplexBadgeTitle`, `resolveClusterBadgeTitle`, `resolveGeometricShapeSpec`, `NAMED_POLYGON_SIDES`, `getHexRelativeLuminance`, `resolveClusterSurfaceColors`, `hexWithAlpha`, `estimateSimplexTextWidth`, `createSimplexTimelineNotifier`, `areSimplexMeshOptionsEqual`, `areSimplexLayoutOptionsEqual`, `areSimplexTimelineOptionsEqual`, `normalizeTimelineLayoutScaleMode`, `wrapClusteringStrategyForTimeline`, `wrapLayoutStrategyForTimeline`).
+- **`@simplex-viz/svg` & `@simplex-viz/canvas`**:
+  - Deduplicated container resolution/resizing, `prefers-reduced-motion` media subscriptions, webfont relayout subscriptions, screen-reader announcers & ARIA target formatters, tooltip modeling/edge-flipping, cursor & pinch-drill resolution, left-click dispatching, keyboard focus stepping, timeline strategy wrapping/notifiers, OKLab badge surface palettes, shape-spec resolution, and SSR/Canvas text width estimation onto `@simplex-viz/core` + `@simplex-viz/core/dom`, while preserving strict package independence (`@simplex-viz/canvas` has zero dependency on `@simplex-viz/svg`).
+- **`@simplex-viz/react` & `@simplex-viz/wc`**:
+  - Unified React prop option comparisons (`areSimplexMeshOptionsEqual`, `areSimplexLayoutOptionsEqual`, `areSimplexTimelineOptionsEqual`), built-in tooltip formatting/edge-flipping (`buildSimplexTooltipContentModel`, `computeSimplexTooltipCoords`), viewport zoom (`zoomSimplexViewportByFactor`), and click delegation (`dispatchSimplexDefaultLeftClick`) with `@simplex-viz/core` and `@simplex-viz/core/dom`.
+  - `<SimplexTopicGraph />` built-in JSX tooltips now automatically flip cleanly at container edges to match `SimplexSvgController` and `SimplexCanvasController`.
+
 ## [0.14.0] - 2026-11-20
 
 ### Added

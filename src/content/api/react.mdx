@@ -16,7 +16,7 @@ exportsTable:
       >
         {...props}
       />
-    summary: "Primary responsive React component supporting presets, shapeOptions, getShape, badgeOptions, reducedMotion, Shift+Click & Shift+Drag multi-selection (selectedIds, shiftClickSelects, marqueeSelection, onSelectionChange), structured legend subscriptions (onLegendChange), zero-relayout itemFilter/itemFilterMode, batched prop sync, WCAG 2.1 AA ariaLabel/keyboardNavigation, timeline playback, deferInitialLayout, mobile touchScrollLockPx/clickTolerancePx, JSX node renderers, and drill-down."
+    summary: "Primary responsive React component supporting presets, shapeOptions, getShape, badgeOptions, viewport edge-flipped built-in JSX tooltips (@simplex-viz/core/dom), reducedMotion, Shift+Click & Shift+Drag multi-selection (selectedIds, shiftClickSelects, marqueeSelection, onSelectionChange), structured legend subscriptions (onLegendChange), zero-relayout itemFilter/itemFilterMode, batched prop sync, WCAG 2.1 AA ariaLabel/keyboardNavigation, timeline playback, deferInitialLayout, mobile touchScrollLockPx/clickTolerancePx, JSX node renderers, and drill-down."
   - symbol: "useSimplexGraphController"
     kind: "Hook"
     signature: |-
@@ -45,7 +45,7 @@ exportsTable:
 
 ## `<SimplexTopicGraph />` Props Overview
 
-`<SimplexTopicGraph />` syncs declarative React prop updates into the underlying `SimplexSvgController` without remounting the SVG scene or interrupting active spring animations:
+`<SimplexTopicGraph />` syncs declarative React prop updates into the underlying `SimplexSvgController` without remounting the SVG scene or interrupting active spring animations (using shared option-equality helpers from `@simplex-viz/core` plus viewport edge-flipped tooltips via `@simplex-viz/core/dom`):
 
 ```tsx
 import {

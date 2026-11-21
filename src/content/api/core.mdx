@@ -154,11 +154,53 @@ exportsTable:
         options?: SolveSimplexSnapshotAsyncOptions<TItem>,
       ): Promise<SimplexLayoutSnapshot<TItem>>
     summary: "Subpath @simplex-viz/core/worker — async counterpart to solveSimplexSnapshot() delegating to an optional SimplexWorkerClient or a yielded macrotask turn."
+  - symbol: "observeSimplexContainerResize"
+    kind: "Function"
+    signature: |-
+      observeSimplexContainerResize(
+        options: ObserveSimplexContainerResizeOptions,
+      ): SimplexResizeObserverHandle
+    summary: "Subpath @simplex-viz/core/dom — coordinates ResizeObserver viewport updates, 0x0 auto-recovery, and optional deferInitialLayout fallback timers across SVG and Canvas controllers."
+  - symbol: "computeSimplexTooltipCoords"
+    kind: "Function"
+    signature: |-
+      computeSimplexTooltipCoords(
+        input: ComputeSimplexTooltipCoordsInput,
+      ): SimplexTooltipCoords
+    summary: "Subpath @simplex-viz/core/dom — computes viewport edge-flipped, margin-clamped tooltip (left, top) coordinates shared by SVG, Canvas, and React tooltips."
+  - symbol: "buildSimplexTooltipContentModel"
+    kind: "Function"
+    signature: |-
+      buildSimplexTooltipContentModel<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>(
+        target: SimplexTooltipTargetInput<...>,
+        options?: BuildSimplexTooltipModelOptions<TItem>,
+      ): SimplexTooltipContentModel
+    summary: "Subpath @simplex-viz/core/dom — builds normalized tooltip titles, formatted tags, OKLab accents, cluster counts, and drill-down/neighbor hints."
+  - symbol: "dispatchSimplexDefaultLeftClick"
+    kind: "Function"
+    signature: |-
+      dispatchSimplexDefaultLeftClick<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>(
+        target: HitTarget<...>,
+        rawEvent: NormalizedPointerEvent,
+        context: ...,
+      ): boolean
+    summary: "Subpath @simplex-viz/core/dom — unifies composable user click callbacks, 1:4 drill-down navigation, and free-camera focus/selection clearing."
+  - symbol: "zoomSimplexViewportByFactor"
+    kind: "Function"
+    signature: |-
+      zoomSimplexViewportByFactor(
+        element: Pick<SimplexDomElementLike, 'getBoundingClientRect' | 'clientWidth' | 'clientHeight'>,
+        camera: Pick<CameraController, 'zoomToCursor'>,
+        factor: number,
+        fallbackWidth?: number,
+        fallbackHeight?: number,
+      ): void
+    summary: "Subpath @simplex-viz/core/dom — zooms any renderer viewport around its current center using structural element dimensions."
 ---
 
 ## Overview & Runtime Guarantees
 
-`@simplex-viz/core` compiles strictly against `lib: ["ES2022"]` with `"dependencies": {}`. ESLint enforces module boundaries banning `window`, `document`, SVG, or React imports inside `packages/core`.
+`@simplex-viz/core` root and `@simplex-viz/core/worker` compile strictly against `lib: ["ES2022"]` with `"dependencies": {}`. ESLint enforces module boundaries banning `window`, `document`, SVG, or React imports inside `packages/core`. Shared browser/host helpers live on `@simplex-viz/core/dom` behind purely structural TypeScript interfaces (`SimplexDomElementLike`, `SimplexDomDocumentLike`, `SimplexDomWindowLike`) so `skipLibCheck: false` consumers without DOM `lib` entries continue to compile cleanly.
 
 ## Imperative Engine Lifecycle (`SimplexGraphEngine`)
 
@@ -248,6 +290,16 @@ try {
 }
 ```
 
+## Shared Host & DOM Helpers (`@simplex-viz/core/dom`)
+
+Custom browser renderers and host wrappers can reuse the exact same container, tooltip, accessibility, and pointer-interaction primitives that power `@simplex-viz/svg`, `@simplex-viz/canvas`, `@simplex-viz/react`, and `@simplex-viz/wc`:
+
+- **Container & ResizeObserver**: `resolveSimplexContainer`, `measureSimplexContainer`, `ensureSimplexContainerPositioned`, `observeSimplexContainerResize`
+- **Reduced Motion & Webfonts**: `resolveSimplexReducedMotion`, `subscribeSimplexReducedMotionMedia`, `subscribeSimplexFontLoadRelayout`
+- **Screen-Reader Live Regions & ARIA**: `createSimplexSrAnnouncer`, `computeSimplexZoomAnnouncementSignature`, `formatSimplexInteractiveTargetAriaLabel`, `formatSimplexZoomLevelAnnouncement`
+- **Tooltips (Model, Theme & Edge-Flipping)**: `applySimplexTooltipTheme`, `computeSimplexTooltipCoords`, `positionSimplexTooltipElement`, `buildSimplexTooltipContentModel`, `formatSimplexTooltipText`
+- **Gestures, Clicks, Cursors, Keyboard & Zoom**: `dispatchSimplexDefaultLeftClick`, `resolveSimplexCursorForPoint`, `resolveSimplexPinchDrillTarget`, `applySimplexPinchDrillTarget`, `stepSimplexDrillDownWheelPinch`, `normalizeSimplexMarqueeRect`, `isSameSimplexKeyboardTarget`, `toSimplexKeyboardFocusTargetRef`, `resolveNextSimplexKeyboardFocusIndex`, `isSimplexHoverEventConsumed`, `zoomSimplexViewportByFactor`, `toSimplexNormalizedPointerEvent`
+
 ## Low-Level Pure Math Primitives
 
 All internal solvers are exported as pure standalone functions:
@@ -256,3 +308,4 @@ All internal solvers are exported as pure standalone functions:
 - **Clustering, QAP & Discriminative Labeling**: `computeSimplexClustering`, `embedSimilarityMatrixOnMesh`, `partitionTagsJaccard`, `embedClustersQapAnnealing`, `completePlanarSharedTags`, `matchClustersHungarian`, `assignDiscriminativeClusterLabels`, `resolveDiscriminativeClusterLabel`, `disambiguatePeerClusterTitle`
 - **Convex Geometry & SAT**: `computeConvexHull`, `rectToConvexPolygon`, `regularPolygon`, `starConvexHull`, `isPointInTriangle`, `computeConvexMtv`, `hitTestConvexGeometry`, `UniformSpatialHashGrid`
 - **OKLab Perceptual Color**: `hexToOklab`, `oklabToHex`, `mixOklabColors`, `lerpOklabHex`, `generatePerceptualClusterPalette`, `assignMeshClusterColors`
+- **Shared Preset, Timeline & Option Helpers**: `extractSimplexItemLabel`, `truncateSimplexBadgeTitle`, `resolveClusterBadgeTitle`, `resolveGeometricShapeSpec`, `NAMED_POLYGON_SIDES`, `getHexRelativeLuminance`, `resolveClusterSurfaceColors`, `hexWithAlpha`, `estimateSimplexTextWidth`, `createSimplexTimelineNotifier`, `areSimplexMeshOptionsEqual`, `areSimplexLayoutOptionsEqual`, `areSimplexTimelineOptionsEqual`, `normalizeTimelineLayoutScaleMode`, `wrapClusteringStrategyForTimeline`, `wrapLayoutStrategyForTimeline`

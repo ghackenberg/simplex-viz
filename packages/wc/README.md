@@ -12,7 +12,7 @@ Framework-agnostic Web Component (`<simplex-topic-graph>`) for **SimplexViz** �
 
 ## Custom Element & Light DOM Architecture
 
-`<simplex-topic-graph>` wraps `@simplex-viz/core` and `@simplex-viz/svg` in a standard, SSR-safe Custom Element that renders directly into Light DOM — supporting declarative HTML attributes, inline `<script type="application/json">` data, imperative controller methods, and bubbling `CustomEvent`s:
+`<simplex-topic-graph>` wraps `@simplex-viz/core` (including shared viewport zoom, click-dispatch, and notifier primitives from `@simplex-viz/core/dom`) and `@simplex-viz/svg` in a standard, SSR-safe Custom Element that renders directly into Light DOM with zero React dependency — supporting declarative HTML attributes, inline `<script type="application/json">` data, imperative controller methods, and bubbling `CustomEvent`s:
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/ghackenberg/simplex-viz/main/docs/assets/preview-wc.png" width="100%" alt="@simplex-viz/wc preview showing declarative HTML <simplex-topic-graph> markup, reactive attributes, bubbling CustomEvents, and a live 60° Light DOM simplex atlas with Shift+Drag marquee selection and hover tooltips" />

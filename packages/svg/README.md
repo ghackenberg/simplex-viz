@@ -88,7 +88,7 @@ const controller = createSimplexSvg('#graph', items);
 | `selectedIds` / `shiftClickSelects` / `marqueeSelection` | `[]` / `true` / `true` | Independent multi-selection state supporting `Shift+Click` (handled before consuming `onContentClick` unless `shiftClickSelects: false`), `Shift+Drag` marquee overlay (excluded from `exportSvg()`), violet selection rings, and `onSelectionChange`. |
 | `onLegendChange` | `undefined` | Diff-gated callback receiving structured `SimplexLegendModel` snapshots (also queryable via `controller.getLegendModel(options?)`), synced with zoom depth, `itemFilter`, `emptyClusterBehavior`, focus, and active `timelineStep`. |
 | `focusOnClusterClick` / `focusOnTriangleClick` | `true` / `true` | Click-to-isolate in `free-camera` mode unless consumed (`return true`) by a click handler. |
-| `tooltip` | `true` for `createSimplexSvg(el, items)`, `false` in options | Floating DOM hover tooltip: `boolean`, nullable string formatter `(target) => string \| null \| undefined`, or custom `SimplexDomTooltipRenderer` (`{ render(target, container), onHide?, className?, unstyled?, pointerEvents? }`) reusing built-in positioning and dynamic viewport edge-flipping. |
+| `tooltip` | `true` for `createSimplexSvg(el, items)`, `false` in options | Floating DOM hover tooltip: `boolean`, nullable string formatter `(target) => string \| null \| undefined`, or custom `SimplexDomTooltipRenderer` (`{ render(target, container), onHide?, className?, unstyled?, pointerEvents? }`) reusing `@simplex-viz/core/dom` container observation, edge-flipped positioning, and unified target modeling. |
 
 ---
 
