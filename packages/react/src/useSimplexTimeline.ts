@@ -12,7 +12,8 @@ import {
 } from 'react';
 
 /**
- * Minimal structural contract satisfied by `SimplexSvgController<TItem, ...>` regardless of visual/meta generics.
+ * Minimal structural contract satisfied by `SimplexSvgController` and
+ * `SimplexCanvasController` regardless of visual/meta generics.
  */
 export interface SimplexTimelineHost<TItem = DefaultTaggedItem> {
   getTimeline(): SimplexTimelineController<TItem> | null;
@@ -105,30 +106,50 @@ export function useSimplexTimeline<TItem = DefaultTaggedItem>(
     return null;
   });
 
-  useEffect(() => {
-    if (!source) {
-      setState(null);
-      return;
-    }
+  const attachedHostRef = useRef<SimplexTimelineHost<TItem> | null>(null);
+  const hostUnsubRef = useRef<(() => void) | null>(null);
 
-    if (source instanceof SimplexTimelineController) {
+  const detachHost = useCallback(() => {
+    hostUnsubRef.current?.();
+    hostUnsubRef.current = null;
+    attachedHostRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (!source || source instanceof SimplexTimelineController) {
+      detachHost();
+      if (!source) {
+        setState(null);
+        return undefined;
+      }
       setState(source.getState());
       return source.subscribe((next) => {
         setState(next);
       });
     }
+    return undefined;
+  }, [source, detachHost]);
 
-    if (isControllerRef(source)) {
-      const ctrl = source.current;
-      if (ctrl) {
-        return ctrl.subscribeTimeline((next) => {
-          setState(next);
-        });
-      }
+  useEffect(() => {
+    if (!isControllerRef(source)) return;
+    const ctrl = source.current;
+    if (attachedHostRef.current === ctrl) return;
+    detachHost();
+    attachedHostRef.current = ctrl;
+    if (ctrl) {
+      hostUnsubRef.current = ctrl.subscribeTimeline((next) => {
+        setState(next);
+      });
+    } else {
       setState(null);
     }
-    return undefined;
-  }, [source]);
+  });
+
+  useEffect(() => {
+    return () => {
+      detachHost();
+    };
+  }, [detachHost]);
 
   const play = useCallback(() => {
     resolveTimeline()?.play();

@@ -21,7 +21,9 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "issue": "tsx scripts/gh-issue.ts",
-    "validate:packages": "node -e \"const { execSync } = require('node:child_process'); const has = (c) => { try { execSync(c + ' --version', { stdio: 'ignore' }); return true; } catch { return false; } }; const pack = has('pnpm') ? 'pnpm' : has('bun') ? 'bun' : 'false'; for (const p of ['packages/core', 'packages/svg', 'packages/canvas', 'packages/react', 'packages/wc']) execSync('publint ' + p + ' --pack ' + pack, { stdio: 'inherit' });\""
+    "validate:packages": "node -e \"const { execSync } = require('node:child_process'); const has = (c) => { try { execSync(c + ' --version', { stdio: 'ignore' }); return true; } catch { return false; } }; const pack = has('pnpm') ? 'pnpm' : has('bun') ? 'bun' : 'false'; for (const p of ['packages/core', 'packages/svg', 'packages/canvas', 'packages/react', 'packages/wc']) execSync('publint ' + p + ' --pack ' + pack, { stdio: 'inherit' });\"",
+    "version:packages": "changeset version && npm run build:packages && npm run validate:packages",
+    "release:check": "npm run sync:brand:check && npm run lint && npm run build:packages && npm run validate:packages && npm test && npm run build:demo"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.3.9",

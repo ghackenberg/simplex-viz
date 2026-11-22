@@ -600,4 +600,113 @@ describe('@simplex-viz/wc (<simplex-topic-graph>) (Issue #26)', () => {
       wrapper.remove();
     }
   });
+
+  it('supports { x, y, width, height } screen-rect overload on selectItemsInScreenRect', () => {
+    const wrapper = document.createElement('div');
+    sizeElement(wrapper, 720, 480);
+    const el = document.createElement(
+      'simplex-topic-graph',
+    ) as SimplexTopicGraphElement<{ readonly id: string; readonly label: string; readonly tags: readonly string[] }>;
+    sizeElement(el, 720, 480);
+
+    el.items = [
+      { id: 'w1', label: 'One', tags: ['alpha', 'beta'] },
+      { id: 'w2', label: 'Two', tags: ['beta', 'gamma'] },
+      { id: 'w3', label: 'Three', tags: ['alpha', 'gamma'] },
+    ];
+    el.tooltip = {
+      formatContent: (ev) => `WC:${ev.item.label}`,
+    };
+
+    wrapper.appendChild(el);
+    document.body.appendChild(wrapper);
+
+    try {
+      const coords = [...el.selectItemsInScreenRect(0, 0, 720, 480)].sort();
+      el.clearSelection();
+      const rect = [
+        ...el.selectItemsInScreenRect({ x: 0, y: 0, width: 720, height: 480 }),
+      ].sort();
+      expect(rect).toEqual(coords);
+      expect(rect.length).toBe(3);
+    } finally {
+      wrapper.remove();
+    }
+  });
+
+  it('avoids duplicate timeline notifications on dynamic toggle, resets aria-label on removal/null, and preserves full corpus across addItems/removeItems during timeline playback', () => {
+    defineSimplexTopicGraphElement();
+
+    interface DatedWcItem {
+      readonly id: string;
+      readonly label: string;
+      readonly tags: readonly string[];
+      readonly year: number;
+    }
+
+    const datedItems: readonly DatedWcItem[] = [
+      { id: 'd1', label: 'A', tags: ['alpha', 'beta'], year: 2020 },
+      { id: 'd2', label: 'B', tags: ['beta', 'gamma'], year: 2020 },
+      { id: 'd3', label: 'C', tags: ['alpha', 'gamma'], year: 2022 },
+      { id: 'd4', label: 'D', tags: ['alpha', 'beta', 'gamma'], year: 2022 },
+    ];
+
+    const wrapper = document.createElement('div');
+    sizeElement(wrapper, 720, 480);
+    const el = document.createElement(
+      'simplex-topic-graph',
+    ) as SimplexTopicGraphElement<DatedWcItem>;
+    sizeElement(el, 720, 480);
+    el.items = datedItems;
+    el.setAttribute('aria-label', 'Custom Atlas');
+    wrapper.appendChild(el);
+    document.body.appendChild(wrapper);
+
+    try {
+      const svg = el.getSvgElement()!;
+      expect(svg.getAttribute('aria-label')).toBe('Custom Atlas');
+
+      // Removing attribute or setting ariaLabel = null resets to default non-empty ARIA label
+      el.removeAttribute('aria-label');
+      const defaultLabel = svg.getAttribute('aria-label');
+      expect(defaultLabel).toBeTruthy();
+      expect(defaultLabel).not.toBe('Custom Atlas');
+
+      el.ariaLabel = 'Via JS';
+      expect(svg.getAttribute('aria-label')).toBe('Via JS');
+      el.ariaLabel = null;
+      expect(svg.getAttribute('aria-label')).toBe(defaultLabel);
+
+      // Enabling timeline dynamically fires simplex-timeline-change & subscribeTimeline exactly once
+      const timelineEvents: number[] = [];
+      const subscribedSteps: Array<number | null> = [];
+      el.addEventListener('simplex-timeline-change', (ev) => {
+        timelineEvents.push((ev as CustomEvent<SimplexTimelineState<DatedWcItem>>).detail.step);
+      });
+      const unsub = el.subscribeTimeline((state) => {
+        subscribedSteps.push(state ? state.step : null);
+      });
+      expect(subscribedSteps).toEqual([null]);
+
+      el.timeline = { getTimestamp: (it) => it.year, showControls: false };
+      expect(timelineEvents).toEqual([1]);
+      expect(subscribedSteps).toEqual([null, 1]);
+
+      // Seek to step 0 (only 2020 items active), remove one item & upsert another, then reconnect:
+      // full corpus (remaining 2020 + 2022 items) must be preserved
+      el.getTimeline()!.seek(0);
+      expect(el.getLegendModel()!.totalItems).toBe(2);
+      el.removeItems('d1');
+      el.addItems({ id: 'd3', label: 'C-Updated', tags: ['alpha', 'gamma'], year: 2022 });
+
+      el.remove();
+      wrapper.appendChild(el);
+      const legendAfterReconnect = el.getLegendModel()!;
+      expect(legendAfterReconnect.totalItems).toBe(3);
+
+      unsub();
+    } finally {
+      wrapper.remove();
+    }
+  });
 });

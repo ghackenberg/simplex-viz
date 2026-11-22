@@ -25,6 +25,7 @@ import {
   type SimplexLegendModel,
   type SimplexLegendModelOptions,
   type SimplexMeshStrategy,
+  type SimplexCorpusSyncCallbacks,
   type SimplexTimelineHostSession,
   type SimplexTimelineHostSessionHooks,
   type SimplexTimelineState,
@@ -94,6 +95,7 @@ import type {
   DeferInitialLayoutOptions,
   SimplexDomTooltipRenderer,
   SimplexDomTooltipRenderResult,
+  SimplexStructuredTooltipOption,
   SimplexSvgControllerOptions,
   SimplexSvgControllerResolvedOptions,
   SimplexSvgTooltipOption,
@@ -114,6 +116,7 @@ export type {
   DeferInitialLayoutOptions,
   SimplexDomTooltipRenderer,
   SimplexDomTooltipRenderResult,
+  SimplexStructuredTooltipOption,
   SimplexSvgControllerOptions,
   SimplexSvgControllerResolvedOptions,
   SimplexSvgTooltipOption,
@@ -740,91 +743,53 @@ export class SimplexSvgController<
     return this.engine.getItems();
   }
 
+  private getCorpusSyncCallbacks(): SimplexCorpusSyncCallbacks<TItem, TTagMeta> {
+    return {
+      getId: this.getIdExtractor,
+      setCanonicalSeedItems: (items) => this.engine.setCanonicalSeedItems(items),
+      setClusteringStrategy: (strategy) => this.engine.setClusteringStrategy(strategy),
+      setEngineItems: (items) => this.engine.setItems(items),
+      addEngineItems: (items) => this.engine.addItems(items),
+      removeEngineItems: (ids) => this.engine.removeItems(ids),
+    };
+  }
+
   addItems(items: TItem | readonly TItem[]): void {
-    const incoming = Array.isArray(items) ? (items as readonly TItem[]) : [items as TItem];
-    if (incoming.length === 0) return;
-
-    const byId = new Map<string, number>();
-    const merged = this.fullCorpusItems.slice();
-    merged.forEach((item, idx) => {
-      const id = this.getIdExtractor(item);
-      if (id) byId.set(id, idx);
-    });
-    for (const item of incoming) {
-      const id = this.getIdExtractor(item);
-      if (id && byId.has(id)) {
-        merged[byId.get(id)!] = item;
-      } else {
-        if (id) byId.set(id, merged.length);
-        merged.push(item);
-      }
-    }
-    this.fullCorpusItems = merged;
-    this.lastExternalItemsRef = merged;
-
-    const timelineCtrl = this.timelineSession.getController();
-    if (timelineCtrl) {
-      this.engine.setCanonicalSeedItems(this.fullCorpusItems);
-      this.timelineSession.syncFinalSeededClusteringForCorpus(
-        this.fullCorpusItems,
-        (strategy) => this.engine.setClusteringStrategy(strategy),
-      );
-      timelineCtrl.setItems(this.fullCorpusItems);
-      this.ensureLoopRunning();
-      return;
-    }
-
-    this.engine.addItems(items);
+    const sync = this.timelineSession.syncCorpusAddItems(
+      items,
+      this.fullCorpusItems,
+      this.lastExternalItemsRef,
+      this.getCorpusSyncCallbacks(),
+    );
+    if (!sync.changed) return;
+    this.fullCorpusItems = sync.fullItems;
+    this.lastExternalItemsRef = sync.lastExternalItemsRef;
     this.ensureLoopRunning();
   }
 
   removeItems(ids: string | readonly string[]): void {
-    const idList = Array.isArray(ids) ? (ids as readonly string[]) : [ids as string];
-    const removeSet = new Set(idList);
-    if (removeSet.size === 0) return;
-
-    const filtered = this.fullCorpusItems.filter(
-      (item) => !removeSet.has(this.getIdExtractor(item)),
+    const sync = this.timelineSession.syncCorpusRemoveItems(
+      ids,
+      this.fullCorpusItems,
+      this.lastExternalItemsRef,
+      this.getCorpusSyncCallbacks(),
     );
-    this.fullCorpusItems = filtered;
-    this.lastExternalItemsRef = filtered;
-
-    const timelineCtrl = this.timelineSession.getController();
-    if (timelineCtrl) {
-      this.engine.setCanonicalSeedItems(this.fullCorpusItems);
-      this.timelineSession.syncFinalSeededClusteringForCorpus(
-        this.fullCorpusItems,
-        (strategy) => this.engine.setClusteringStrategy(strategy),
-      );
-      timelineCtrl.setItems(this.fullCorpusItems);
-      this.ensureLoopRunning();
-      return;
-    }
-
-    this.engine.removeItems(ids);
+    if (!sync.changed) return;
+    this.fullCorpusItems = sync.fullItems;
+    this.lastExternalItemsRef = sync.lastExternalItemsRef;
     this.ensureLoopRunning();
   }
 
   setItems(items: readonly TItem[]): void {
-    const timelineCtrl = this.timelineSession.getController();
-    if (timelineCtrl) {
-      if (items === this.lastExternalItemsRef) {
-        return;
-      }
-      this.lastExternalItemsRef = items;
-      this.fullCorpusItems = items.slice();
-      this.engine.setCanonicalSeedItems(this.fullCorpusItems);
-      this.timelineSession.syncFinalSeededClusteringForCorpus(
-        this.fullCorpusItems,
-        (strategy) => this.engine.setClusteringStrategy(strategy),
-      );
-      timelineCtrl.setItems(this.fullCorpusItems);
-      this.ensureLoopRunning();
-      return;
-    }
-    this.lastExternalItemsRef = items;
-    this.fullCorpusItems = items.slice();
-    this.engine.setItems(items);
+    const sync = this.timelineSession.syncCorpusSetItems(
+      items,
+      this.fullCorpusItems,
+      this.lastExternalItemsRef,
+      this.getCorpusSyncCallbacks(),
+    );
+    if (!sync.changed) return;
+    this.fullCorpusItems = sync.fullItems;
+    this.lastExternalItemsRef = sync.lastExternalItemsRef;
     this.ensureLoopRunning();
   }
 
@@ -1532,13 +1497,50 @@ export class SimplexSvgController<
    * Selects active content items intersecting the given SVG-local screen rectangle.
    */
   selectItemsInScreenRect(
+    rect: {
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+    },
+    options?: SelectInRectOptions,
+  ): ReadonlySet<string>;
+  selectItemsInScreenRect(
     x1: number,
     y1: number,
     x2: number,
     y2: number,
     options?: SelectInRectOptions,
+  ): ReadonlySet<string>;
+  selectItemsInScreenRect(
+    rectOrX1:
+      | number
+      | {
+          readonly x: number;
+          readonly y: number;
+          readonly width: number;
+          readonly height: number;
+        },
+    y1OrOptions?: number | SelectInRectOptions,
+    x2?: number,
+    y2?: number,
+    options?: SelectInRectOptions,
   ): ReadonlySet<string> {
-    const next = this.engine.selectItemsInScreenRect(x1, y1, x2, y2, options);
+    const isRect = typeof rectOrX1 === 'object' && rectOrX1 !== null;
+    const left = isRect ? rectOrX1.x : rectOrX1;
+    const top = isRect ? rectOrX1.y : (y1OrOptions as number);
+    const right = isRect ? rectOrX1.x + rectOrX1.width : (x2 as number);
+    const bottom = isRect ? rectOrX1.y + rectOrX1.height : (y2 as number);
+    const resolvedOptions = isRect
+      ? (y1OrOptions as SelectInRectOptions | undefined)
+      : options;
+    const next = this.engine.selectItemsInScreenRect(
+      left,
+      top,
+      right,
+      bottom,
+      resolvedOptions,
+    );
     this.engine.renderNow();
     this.ensureLoopRunning();
     return next;

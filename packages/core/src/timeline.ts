@@ -941,6 +941,26 @@ export interface SimplexTimelineHostSessionHooks<
   readonly isDestroyed?: () => boolean;
 }
 
+export interface SimplexCorpusSyncCallbacks<
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+> {
+  readonly getId: (item: TItem) => string;
+  readonly setCanonicalSeedItems: (items: readonly TItem[] | null) => void;
+  readonly setClusteringStrategy: (
+    strategy: SimplexClusteringStrategy<TItem, TTagMeta>,
+  ) => void;
+  readonly setEngineItems: (items: readonly TItem[]) => void;
+  readonly addEngineItems: (items: TItem | readonly TItem[]) => void;
+  readonly removeEngineItems: (ids: string | readonly string[]) => void;
+}
+
+export interface SimplexCorpusSyncResult<TItem = DefaultTaggedItem> {
+  readonly changed: boolean;
+  readonly fullItems: readonly TItem[];
+  readonly lastExternalItemsRef: readonly TItem[];
+}
+
 export interface SimplexTimelineHostSession<
   TItem = DefaultTaggedItem,
   TTagMeta = undefined,
@@ -967,6 +987,24 @@ export interface SimplexTimelineHostSession<
     seedItems: readonly TItem[],
     applyStrategy: (strategy: SimplexClusteringStrategy<TItem, TTagMeta>) => void,
   ): void;
+  syncCorpusSetItems(
+    items: readonly TItem[],
+    currentFullItems: readonly TItem[],
+    lastExternalItemsRef: readonly TItem[],
+    callbacks: SimplexCorpusSyncCallbacks<TItem, TTagMeta>,
+  ): SimplexCorpusSyncResult<TItem>;
+  syncCorpusAddItems(
+    items: TItem | readonly TItem[],
+    currentFullItems: readonly TItem[],
+    lastExternalItemsRef: readonly TItem[],
+    callbacks: SimplexCorpusSyncCallbacks<TItem, TTagMeta>,
+  ): SimplexCorpusSyncResult<TItem>;
+  syncCorpusRemoveItems(
+    ids: string | readonly string[],
+    currentFullItems: readonly TItem[],
+    lastExternalItemsRef: readonly TItem[],
+    callbacks: SimplexCorpusSyncCallbacks<TItem, TTagMeta>,
+  ): SimplexCorpusSyncResult<TItem>;
   configureInitial(
     timeline: boolean | SimplexTimelinePlayerOptions<TItem> | null | undefined,
     fullCorpusItems: readonly TItem[],
@@ -1080,6 +1118,36 @@ export function createSimplexTimelineHostSession<
       ? timelineEmptyClusterBehavior
       : baseEmptyClusterBehavior;
 
+  const syncFinalSeededClustering = (
+    seedItems: readonly TItem[],
+    applyStrategy: (strategy: SimplexClusteringStrategy<TItem, TTagMeta>) => void,
+  ): void => {
+    if (!controller || !autoFinalSeed) return;
+    if (
+      rawClusteringStrategy &&
+      rawClusteringStrategy.name.startsWith('final-seeded(')
+    ) {
+      return;
+    }
+    const nextStrategy = resolveEffectiveClusteringStrategy(
+      rawClusteringStrategy,
+      seedItems,
+    );
+    if (nextStrategy) {
+      applyStrategy(nextStrategy);
+    }
+  };
+
+  const syncTimelineCorpus = (
+    nextFull: readonly TItem[],
+    callbacks: SimplexCorpusSyncCallbacks<TItem, TTagMeta>,
+  ): void => {
+    if (!controller) return;
+    callbacks.setCanonicalSeedItems(nextFull);
+    syncFinalSeededClustering(nextFull, callbacks.setClusteringStrategy);
+    controller.setItems(nextFull);
+  };
+
   return {
     getController: () => controller,
     getShowControls: () => showControls,
@@ -1101,21 +1169,93 @@ export function createSimplexTimelineHostSession<
       timelineEmptyClusterBehavior = undefined;
       return behavior;
     },
-    syncFinalSeededClusteringForCorpus(seedItems, applyStrategy) {
-      if (!controller || !autoFinalSeed) return;
-      if (
-        rawClusteringStrategy &&
-        rawClusteringStrategy.name.startsWith('final-seeded(')
-      ) {
-        return;
+    syncFinalSeededClusteringForCorpus: syncFinalSeededClustering,
+    syncCorpusSetItems(items, currentFullItems, lastExternalItemsRef, callbacks) {
+      if (controller && items === lastExternalItemsRef) {
+        return {
+          changed: false,
+          fullItems: currentFullItems,
+          lastExternalItemsRef,
+        };
       }
-      const nextStrategy = resolveEffectiveClusteringStrategy(
-        rawClusteringStrategy,
-        seedItems,
+      const nextFull = items.slice();
+      if (controller) {
+        syncTimelineCorpus(nextFull, callbacks);
+      } else {
+        callbacks.setEngineItems(nextFull);
+      }
+      return {
+        changed: true,
+        fullItems: nextFull,
+        lastExternalItemsRef: items,
+      };
+    },
+    syncCorpusAddItems(items, currentFullItems, lastExternalItemsRef, callbacks) {
+      const incoming = Array.isArray(items)
+        ? (items as readonly TItem[])
+        : [items as TItem];
+      if (incoming.length === 0) {
+        return {
+          changed: false,
+          fullItems: currentFullItems,
+          lastExternalItemsRef,
+        };
+      }
+
+      const byId = new Map<string, number>();
+      const merged = currentFullItems.slice();
+      merged.forEach((item, idx) => {
+        const id = callbacks.getId(item);
+        if (id) byId.set(id, idx);
+      });
+      for (const item of incoming) {
+        const id = callbacks.getId(item);
+        if (id && byId.has(id)) {
+          merged[byId.get(id)!] = item;
+        } else {
+          if (id) byId.set(id, merged.length);
+          merged.push(item);
+        }
+      }
+
+      if (controller) {
+        syncTimelineCorpus(merged, callbacks);
+      } else {
+        callbacks.addEngineItems(incoming);
+      }
+
+      return {
+        changed: true,
+        fullItems: merged,
+        lastExternalItemsRef: merged,
+      };
+    },
+    syncCorpusRemoveItems(ids, currentFullItems, lastExternalItemsRef, callbacks) {
+      const idList = Array.isArray(ids) ? (ids as readonly string[]) : [ids as string];
+      const removeSet = new Set(idList);
+      if (removeSet.size === 0) {
+        return {
+          changed: false,
+          fullItems: currentFullItems,
+          lastExternalItemsRef,
+        };
+      }
+
+      const filtered = currentFullItems.filter(
+        (item) => !removeSet.has(callbacks.getId(item)),
       );
-      if (nextStrategy) {
-        applyStrategy(nextStrategy);
+
+      if (controller) {
+        syncTimelineCorpus(filtered, callbacks);
+      } else {
+        callbacks.removeEngineItems(idList);
       }
+
+      return {
+        changed: true,
+        fullItems: filtered,
+        lastExternalItemsRef: filtered,
+      };
     },
     configureInitial(timeline, fullCorpusItems) {
       const resolved = resolveTimelinePlayerConfig(timeline);

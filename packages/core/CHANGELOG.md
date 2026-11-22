@@ -1,5 +1,14 @@
 # @simplex-viz/core
 
+## 1.0.0
+
+### Major Changes
+
+- **v1.0.0 Public Release**: Initial stable `v1.0.0` release across the fixed SimplexViz package group (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/canvas`, `@simplex-viz/react`, `@simplex-viz/wc`):
+  - Headless, DOM-free core engine (`@simplex-viz/core` & `@simplex-viz/core/worker`) and shared browser runtime helpers (`@simplex-viz/core/dom`).
+  - Unified corpus & timeline synchronization, legend change detection, viewport/tooltip/accessibility bindings, and `selectItemsInScreenRect` (`rect` and coordinate signatures) across SVG, Canvas, React, and Web Component packages.
+  - Reactive `SimplexCanvasController.camera` proxy scheduling, pre-capture `renderNow()` + post-destroy guard in `exportPng()`, structured tooltip support (`SimplexStructuredTooltipOption`), React `useSimplexTimeline` conditional mount/unmount tracking, and complete package documentation.
+
 ## 0.14.0
 
 ### Minor Changes

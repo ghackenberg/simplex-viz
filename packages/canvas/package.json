@@ -1,8 +1,9 @@
 {
   "name": "@simplex-viz/canvas",
-  "version": "0.14.0",
+  "version": "1.0.0",
   "description": "High-capacity HTML5 Canvas 2D renderer, viewport culling, LOD simplification, hierarchical 1:4 zoom/drill-down, chronological timeline playback, and native PNG export for @simplex-viz/core (2,000–10,000+ items at 60 FPS).",
   "license": "MIT",
+  "author": "SimplexViz Contributors",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",

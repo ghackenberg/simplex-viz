@@ -56,6 +56,7 @@ export {
   type PresetVisualResolverOptions,
   type SimplexDomTooltipRenderResult,
   type SimplexDomTooltipRenderer,
+  type SimplexStructuredTooltipOption,
   type SimplexSvgControllerOptions,
   type SimplexSvgTooltipOption,
   type SimplexSvgTooltipTarget,

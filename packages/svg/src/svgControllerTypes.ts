@@ -1,7 +1,9 @@
 import type {
   ClusterDerivationContext,
   ClusterDescriptor,
+  ClusterHoverEvent,
   ClusterMetaConfig,
+  ContentHoverEvent,
   DefaultTaggedItem,
   EmptyClusterBehavior,
   InteractionHandlers,
@@ -21,6 +23,7 @@ import type {
   SimplexZoomState,
   SimplexZoomStrategy,
   StrategyItemIdentityConfig,
+  TriangleHoverEvent,
   VisualResolver,
 } from '@simplex-viz/core';
 import type { DeferInitialLayoutOptions } from '@simplex-viz/core/dom';
@@ -122,6 +125,24 @@ export interface SimplexDomTooltipRenderer<
   readonly onHide?: (containerEl: HTMLDivElement) => void;
 }
 
+export interface SimplexStructuredTooltipOption<
+  TItem = DefaultTaggedItem,
+  TContentVisual = DefaultContentPresetVisual,
+  TClusterVisual = DefaultClusterPresetVisual,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+> {
+  readonly formatContent?: (
+    event: ContentHoverEvent<TItem, TContentVisual, TTagMeta, TClusterMeta>,
+  ) => string | null | undefined | false;
+  readonly formatCluster?: (
+    event: ClusterHoverEvent<TItem, TClusterVisual, TTagMeta, TClusterMeta>,
+  ) => string | null | undefined | false;
+  readonly formatTriangle?: (
+    event: TriangleHoverEvent<TItem, TTagMeta, TClusterMeta>,
+  ) => string | null | undefined | false;
+}
+
 export type SimplexSvgTooltipOption<
   TItem = DefaultTaggedItem,
   TContentVisual = DefaultContentPresetVisual,
@@ -131,6 +152,13 @@ export type SimplexSvgTooltipOption<
 > =
   | boolean
   | SimplexTooltipFormatter<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>
+  | SimplexStructuredTooltipOption<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >
   | SimplexDomTooltipRenderer<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>;
 
 /**

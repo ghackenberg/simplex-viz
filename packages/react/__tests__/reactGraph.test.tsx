@@ -1533,6 +1533,187 @@ describe('@simplex-viz/react integration', () => {
     unsubscribe();
     unmount();
   });
+
+  it('clears selection and focus on free-camera background click, handles rect overload on handle.selectItemsInScreenRect, and tracks conditional mount/unmount in useSimplexTimeline', () => {
+    const items = [
+      { id: 'rf-1', label: 'Alpha', year: 2021, tags: ['alpha', 'beta'] },
+      { id: 'rf-2', label: 'Beta', year: 2022, tags: ['beta', 'gamma'] },
+      { id: 'rf-3', label: 'Gamma', year: 2023, tags: ['alpha', 'gamma'] },
+    ];
+
+    const exposed: {
+      handle: ReturnType<typeof useSimplexGraphController<(typeof items)[number]>>['handle'] | null;
+    } = { handle: null };
+
+    const Host = ({ showGraph }: { showGraph: boolean }) => {
+      const { controllerRef, handle } = useSimplexGraphController<(typeof items)[number]>();
+      const tl = useSimplexTimeline(controllerRef);
+      exposed.handle = handle;
+      return (
+        <div style={{ width: 720, height: 480 }}>
+          <span data-testid="tl-ready">{String(tl.isReady)}</span>
+          <span data-testid="tl-step">{tl.state?.step ?? -1}</span>
+          {showGraph && (
+            <SimplexTopicGraph
+              controllerRef={controllerRef}
+              items={items}
+              timeline={{
+                getTimestamp: (it) => it.year,
+                showControls: false,
+              }}
+            />
+          )}
+        </div>
+      );
+    };
+
+    const { container, getByTestId, rerender, unmount } = render(<Host showGraph={false} />);
+    expect(getByTestId('tl-ready').textContent).toBe('false');
+    expect(getByTestId('tl-step').textContent).toBe('-1');
+
+    // Mount graph conditionally -> useSimplexTimeline attaches cleanly without re-render ping-pong
+    rerender(<Host showGraph={true} />);
+    expect(getByTestId('tl-ready').textContent).toBe('true');
+    expect(getByTestId('tl-step').textContent).toBe('2');
+
+    // Select items via { x, y, width, height } rect overload and focus an item
+    let selectedRect: ReadonlySet<string> = new Set();
+    let selectedCoords: ReadonlySet<string> = new Set();
+    act(() => {
+      selectedRect = exposed.handle!.selectItemsInScreenRect({
+        x: 0,
+        y: 0,
+        width: 720,
+        height: 480,
+      });
+      exposed.handle!.clearSelection();
+      selectedCoords = exposed.handle!.selectItemsInScreenRect(0, 0, 720, 480);
+      exposed.handle!.focusItem('rf-1');
+    });
+    expect([...selectedRect].sort()).toEqual([...selectedCoords].sort());
+    expect(exposed.handle!.getSelectedIds().size).toBe(3);
+    expect(exposed.handle!.getFocusedItemId()).toBe('rf-1');
+
+    // Background click in free-camera mode clears both selectedIds and focusedItemId
+    const svg = container.querySelector('svg')!;
+    Object.defineProperty(svg, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 720, height: 480, right: 720, bottom: 480 }),
+    });
+    act(() => {
+      svg.dispatchEvent(
+        new MouseEvent('click', { button: 0, clientX: 4, clientY: 4, bubbles: true }),
+      );
+    });
+    expect(exposed.handle!.getSelectedIds().size).toBe(0);
+    expect(exposed.handle!.getFocusedItemId()).toBeNull();
+
+    // Unmount graph -> useSimplexTimeline resets state cleanly to null, and re-attaches on remount
+    rerender(<Host showGraph={false} />);
+    expect(getByTestId('tl-ready').textContent).toBe('false');
+    expect(getByTestId('tl-step').textContent).toBe('-1');
+
+    rerender(<Host showGraph={true} />);
+    expect(getByTestId('tl-ready').textContent).toBe('true');
+    expect(getByTestId('tl-step').textContent).toBe('2');
+
+    unmount();
+  });
+
+  it('suppresses empty tooltip box for falsy formatter results, resets ariaLabel when undefined, and syncs badgeOptions & getLabel dynamically', () => {
+    const items = [
+      { id: 'rt-1', label: 'Longer Cluster Title A', tags: ['alpha', 'beta'] },
+      { id: 'rt-2', label: 'Longer Cluster Title B', tags: ['beta', 'gamma'] },
+      { id: 'rt-3', label: 'Longer Cluster Title C', tags: ['alpha', 'gamma'] },
+    ];
+
+    const exposed: {
+      handle: ReturnType<typeof useSimplexGraphController<(typeof items)[number]>>['handle'] | null;
+    } = { handle: null };
+
+    const Host = ({
+      ariaLabel,
+      formatTitle,
+      maxTitleChars,
+      getLabel,
+      tooltipMode,
+    }: {
+      ariaLabel?: string;
+      formatTitle?: (title: string) => string;
+      maxTitleChars?: number;
+      getLabel?: (item: (typeof items)[number]) => string;
+      tooltipMode: 'custom' | 'suppress' | 'default';
+    }) => {
+      const { controllerRef, handle } = useSimplexGraphController<(typeof items)[number]>();
+      exposed.handle = handle;
+      return (
+        <div style={{ width: 640, height: 420 }}>
+          <SimplexTopicGraph
+            controllerRef={controllerRef}
+            items={items}
+            preset="badges"
+            ariaLabel={ariaLabel}
+            getLabel={getLabel}
+            badgeOptions={
+              formatTitle || maxTitleChars !== undefined
+                ? { formatTitle, maxTitleChars }
+                : undefined
+            }
+            tooltip={
+              tooltipMode === 'default'
+                ? true
+                : (target) => {
+                    if (tooltipMode === 'suppress') return null;
+                    return target.kind === 'content' ? `Tip:${target.item.id}` : '';
+                  }
+            }
+          />
+        </div>
+      );
+    };
+
+    const { container, rerender, unmount } = render(
+      <Host ariaLabel="Custom React Atlas" tooltipMode="custom" />,
+    );
+
+    const svg = container.querySelector('svg')!;
+    expect(svg.getAttribute('aria-label')).toBe('Custom React Atlas');
+
+    // Reset ariaLabel back to undefined -> restores default non-empty label
+    rerender(<Host ariaLabel={undefined} tooltipMode="custom" />);
+    const resetLabel = svg.getAttribute('aria-label');
+    expect(resetLabel).toBeTruthy();
+    expect(resetLabel).not.toBe('Custom React Atlas');
+
+    // Focus content item -> shows tooltip, then suppress via null/'' -> no empty tooltip container rendered
+    act(() => {
+      expect(exposed.handle!.focusItem('rt-1')).toBe(true);
+    });
+    expect(container.querySelector('[role="tooltip"]')?.textContent).toContain('Tip:rt-1');
+
+    rerender(<Host ariaLabel={undefined} tooltipMode="suppress" />);
+    expect(container.querySelector('[role="tooltip"]')).toBeNull();
+
+    // Update badgeOptions (formatTitle + maxTitleChars) & getLabel dynamically
+    rerender(
+      <Host
+        ariaLabel={undefined}
+        tooltipMode="default"
+        getLabel={(it) => `Custom-${it.id}`}
+        maxTitleChars={5}
+        formatTitle={(t) => `TR:${t}`}
+      />,
+    );
+    const ctrl = exposed.handle!.getRawController()!;
+    for (let i = 0; i < 15; i++) ctrl.stepForTest(20);
+    expect(container.textContent).toContain('TR:');
+
+    act(() => {
+      expect(exposed.handle!.focusItem('rt-1')).toBe(true);
+    });
+    expect(container.querySelector('[role="tooltip"]')?.textContent).toContain('Custom-rt-1');
+
+    unmount();
+  });
 });
 
 

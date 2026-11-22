@@ -26,6 +26,7 @@ import {
   type SimplexLegendModel,
   type SimplexLegendModelOptions,
   type SimplexMeshStrategy,
+  type SimplexCorpusSyncCallbacks,
   type SimplexTimelineHostSession,
   type SimplexTimelineHostSessionHooks,
   type SimplexTimelineState,
@@ -211,6 +212,7 @@ export class SimplexCanvasController<
   private fontLoadCleanup: (() => void) | null = null;
   private cleanupReducedMotionMedia: (() => void) | null = null;
   private viewportHandle: SimplexInteractiveViewportHandle | null = null;
+  private readonly cameraProxy: CameraController;
 
   constructor(
     container: HTMLElement | string,
@@ -493,6 +495,33 @@ export class SimplexCanvasController<
     this.syncZoomOverlays(initialZoomState);
     this.onZoomStateChangeCallback?.(initialZoomState);
     this.timelineSession.attachInitial(this.getTimelineSessionHooks());
+
+    const baseCamera = this.engine.camera;
+    const scheduleCameraFrame = (): void => {
+      if (this.destroyed) return;
+      this.scheduleFrame();
+    };
+    this.cameraProxy = {
+      getState: () => baseCamera.getState(),
+      setState: (next) => {
+        baseCamera.setState(next);
+        scheduleCameraFrame();
+      },
+      zoomToCursor: (screenX, screenY, zoomFactor) => {
+        baseCamera.zoomToCursor(screenX, screenY, zoomFactor);
+        scheduleCameraFrame();
+      },
+      panBy: (dx, dy) => {
+        baseCamera.panBy(dx, dy);
+        scheduleCameraFrame();
+      },
+      reset: () => {
+        baseCamera.reset();
+        scheduleCameraFrame();
+      },
+      screenToWorld: (screenX, screenY) => baseCamera.screenToWorld(screenX, screenY),
+      worldToScreen: (worldX, worldY) => baseCamera.worldToScreen(worldX, worldY),
+    };
 
     this.bindReducedMotionMediaQuery(this.reducedMotionPreference);
     this.bindDomEvents();
@@ -826,7 +855,7 @@ export class SimplexCanvasController<
   // ============================================================================
 
   get camera(): CameraController {
-    return this.engine.camera;
+    return this.cameraProxy;
   }
 
   get timeline(): SimplexTimelineController<TItem> | null {
@@ -872,95 +901,53 @@ export class SimplexCanvasController<
     return this.fullItems;
   }
 
+  private getCorpusSyncCallbacks(): SimplexCorpusSyncCallbacks<TItem, TTagMeta> {
+    return {
+      getId: this.getIdExtractor,
+      setCanonicalSeedItems: (items) => this.engine.setCanonicalSeedItems(items),
+      setClusteringStrategy: (strategy) => this.engine.setClusteringStrategy(strategy),
+      setEngineItems: (items) => this.engine.setItems(items),
+      addEngineItems: (items) => this.engine.addItems(items),
+      removeEngineItems: (ids) => this.engine.removeItems(ids),
+    };
+  }
+
   setItems(items: readonly TItem[]): void {
-    const timelineCtrl = this.timelineSession.getController();
-    if (timelineCtrl) {
-      if (items === this.lastExternalItemsRef) {
-        return;
-      }
-      this.lastExternalItemsRef = items;
-      this.fullItems = items.slice();
-      this.engine.setCanonicalSeedItems(this.fullItems);
-      this.timelineSession.syncFinalSeededClusteringForCorpus(
-        this.fullItems,
-        (strategy) => this.engine.setClusteringStrategy(strategy),
-      );
-      timelineCtrl.setItems(this.fullItems);
-      this.scheduleFrame();
-      return;
-    }
-    this.lastExternalItemsRef = items;
-    this.fullItems = items.slice();
-    this.engine.setItems(this.fullItems);
+    const sync = this.timelineSession.syncCorpusSetItems(
+      items,
+      this.fullItems,
+      this.lastExternalItemsRef,
+      this.getCorpusSyncCallbacks(),
+    );
+    if (!sync.changed) return;
+    this.fullItems = sync.fullItems;
+    this.lastExternalItemsRef = sync.lastExternalItemsRef;
     this.scheduleFrame();
   }
 
   addItems(items: TItem | readonly TItem[]): void {
-    const incoming: readonly TItem[] = Array.isArray(items)
-      ? (items as readonly TItem[])
-      : [items as TItem];
-    if (incoming.length === 0) return;
-
-    const byId = new Map<string, number>();
-    const merged = this.fullItems.slice();
-    merged.forEach((item, idx) => {
-      const id = this.getIdExtractor(item);
-      if (id) byId.set(id, idx);
-    });
-    for (const item of incoming) {
-      const id = this.getIdExtractor(item);
-      if (id && byId.has(id)) {
-        merged[byId.get(id)!] = item;
-      } else {
-        if (id) byId.set(id, merged.length);
-        merged.push(item);
-      }
-    }
-    this.fullItems = merged;
-    this.lastExternalItemsRef = merged;
-
-    const timelineCtrl = this.timelineSession.getController();
-    if (timelineCtrl) {
-      this.engine.setCanonicalSeedItems(this.fullItems);
-      this.timelineSession.syncFinalSeededClusteringForCorpus(
-        this.fullItems,
-        (strategy) => this.engine.setClusteringStrategy(strategy),
-      );
-      timelineCtrl.setItems(this.fullItems);
-      this.scheduleFrame();
-      return;
-    }
-
-    this.engine.addItems(incoming);
+    const sync = this.timelineSession.syncCorpusAddItems(
+      items,
+      this.fullItems,
+      this.lastExternalItemsRef,
+      this.getCorpusSyncCallbacks(),
+    );
+    if (!sync.changed) return;
+    this.fullItems = sync.fullItems;
+    this.lastExternalItemsRef = sync.lastExternalItemsRef;
     this.scheduleFrame();
   }
 
   removeItems(ids: string | readonly string[]): void {
-    const idList = Array.isArray(ids)
-      ? (ids as readonly string[])
-      : [ids as string];
-    const idSet = new Set(idList);
-    if (idSet.size === 0) return;
-
-    const filtered = this.fullItems.filter(
-      (item) => !idSet.has(this.getIdExtractor(item)),
+    const sync = this.timelineSession.syncCorpusRemoveItems(
+      ids,
+      this.fullItems,
+      this.lastExternalItemsRef,
+      this.getCorpusSyncCallbacks(),
     );
-    this.fullItems = filtered;
-    this.lastExternalItemsRef = filtered;
-
-    const timelineCtrl = this.timelineSession.getController();
-    if (timelineCtrl) {
-      this.engine.setCanonicalSeedItems(this.fullItems);
-      this.timelineSession.syncFinalSeededClusteringForCorpus(
-        this.fullItems,
-        (strategy) => this.engine.setClusteringStrategy(strategy),
-      );
-      timelineCtrl.setItems(this.fullItems);
-      this.scheduleFrame();
-      return;
-    }
-
-    this.engine.removeItems(idList);
+    if (!sync.changed) return;
+    this.fullItems = sync.fullItems;
+    this.lastExternalItemsRef = sync.lastExternalItemsRef;
     this.scheduleFrame();
   }
 
@@ -1259,13 +1246,35 @@ export class SimplexCanvasController<
   selectItemsInScreenRect(
     rect: CanvasMarqueeRect,
     options?: SelectInRectOptions,
+  ): ReadonlySet<string>;
+  selectItemsInScreenRect(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    options?: SelectInRectOptions,
+  ): ReadonlySet<string>;
+  selectItemsInScreenRect(
+    rectOrX1: number | CanvasMarqueeRect,
+    y1OrOptions?: number | SelectInRectOptions,
+    x2?: number,
+    y2?: number,
+    options?: SelectInRectOptions,
   ): ReadonlySet<string> {
+    const isRect = typeof rectOrX1 === 'object' && rectOrX1 !== null;
+    const left = isRect ? rectOrX1.x : rectOrX1;
+    const top = isRect ? rectOrX1.y : (y1OrOptions as number);
+    const right = isRect ? rectOrX1.x + rectOrX1.width : (x2 as number);
+    const bottom = isRect ? rectOrX1.y + rectOrX1.height : (y2 as number);
+    const resolvedOptions = isRect
+      ? (y1OrOptions as SelectInRectOptions | undefined)
+      : options;
     const res = this.engine.selectItemsInScreenRect(
-      rect.x,
-      rect.y,
-      rect.x + rect.width,
-      rect.y + rect.height,
-      options,
+      left,
+      top,
+      right,
+      bottom,
+      resolvedOptions,
     );
     this.repaintRequested = true;
     this.scheduleFrame();
@@ -1641,7 +1650,7 @@ export class SimplexCanvasController<
         this.setFocusedTriangleIndex(options.focusedTriangleIndex ?? null);
       }
       if (options.tooltip !== undefined) {
-        this.tooltipOverlay.setOption(options.tooltip);
+        this.setTooltip(options.tooltip);
       }
       if (options.ariaLabel !== undefined) {
         this.setAriaLabel(options.ariaLabel);
@@ -1712,7 +1721,14 @@ export class SimplexCanvasController<
 
   exportPng(options: CanvasExportPngOptions & { readonly format: 'dataUrl' }): Promise<string>;
   exportPng(options?: CanvasExportPngOptions & { readonly format?: 'blob' }): Promise<Blob>;
+  exportPng(options?: CanvasExportPngOptions): Promise<Blob | string>;
   exportPng(options?: CanvasExportPngOptions): Promise<Blob | string> {
+    if (this.destroyed) {
+      return Promise.reject(
+        new Error('SimplexCanvasController.exportPng: cannot export after destroy().'),
+      );
+    }
+    this.engine.renderNow();
     return this.adapter.exportPng(options);
   }
 

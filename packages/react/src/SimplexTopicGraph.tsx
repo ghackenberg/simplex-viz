@@ -777,8 +777,8 @@ export function SimplexTopicGraph<
         userInteractions: { onLeftClick: cur.onLeftClick },
         zoomMode: 'free-camera',
         canDrillUp: false,
-        selectedCount: 0,
-        focusedItemId: null,
+        selectedCount: ctrl.getSelectedIds().size,
+        focusedItemId: ctrl.getFocusedItemId(),
         focusedClusterUid: internalFocusedUidRef.current,
         focusedTriangleIndex: internalFocusedTriangleRef.current,
         focusOnClusterClick:
@@ -801,8 +801,12 @@ export function SimplexTopicGraph<
             ctrl.setFocusedTriangleIndex(idx);
           }
         },
-        clearFocusedItem: () => {},
-        clearSelection: () => {},
+        clearFocusedItem: () => {
+          ctrl.focusItem(null);
+        },
+        clearSelection: () => {
+          ctrl.clearSelection();
+        },
       });
       return true;
     },
@@ -926,6 +930,7 @@ export function SimplexTopicGraph<
       props.clusterView,
       props.renderContentNode,
       props.renderClusterNode,
+      props.getLabel,
       props.badgeOptions?.showCode,
       props.badgeOptions?.maxTitleChars,
       props.badgeOptions?.formatTitle,
@@ -1079,6 +1084,7 @@ export function SimplexTopicGraph<
         ctrl.setOptions({
           preset: props.preset ?? 'geometric',
           theme: nextTheme,
+          getLabel: props.getLabel,
           badgeOptions: props.badgeOptions,
           getShape: props.getShape,
           shapeOptions: props.shapeOptions,
@@ -1203,9 +1209,7 @@ export function SimplexTopicGraph<
 
       if (ariaLabelChanged) {
         syncedAriaLabelRef.current = props.ariaLabel;
-        if (props.ariaLabel !== undefined) {
-          ctrl.setAriaLabel(props.ariaLabel);
-        }
+        ctrl.setAriaLabel(props.ariaLabel ?? '');
       }
 
       if (keyboardNavigationChanged) {
@@ -1292,6 +1296,7 @@ export function SimplexTopicGraph<
     props.clusterView,
     props.renderContentNode,
     props.renderClusterNode,
+    props.getLabel,
     props.badgeOptions?.showCode,
     props.badgeOptions?.maxTitleChars,
     props.badgeOptions?.formatTitle,
@@ -1360,6 +1365,9 @@ export function SimplexTopicGraph<
     let content: ReactNode;
     if (typeof props.tooltip === 'function') {
       content = props.tooltip(hoveredTarget);
+      if (content === null || content === undefined || content === '') {
+        return null;
+      }
     } else {
       const model = buildSimplexTooltipContentModel(hoveredTarget, {
         getLabel: props.getLabel,

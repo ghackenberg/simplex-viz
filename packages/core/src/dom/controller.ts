@@ -1,3 +1,4 @@
+import { computeLegendSignature } from '../engine/legend.js';
 import type {
   SimplexTimelineController,
   SimplexTimelineState,
@@ -5,7 +6,6 @@ import type {
 import type {
   InteractionHandlers,
   RestoreViewStateOptions,
-  SimplexLegendEntry,
   SimplexLegendModel,
   SimplexViewState,
 } from '../types.js';
@@ -23,13 +23,7 @@ import type { SimplexDomDivLike } from './types.js';
 export function computeSimplexLegendSignature<TItem, TTagMeta, TClusterMeta>(
   model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
 ): string {
-  const entrySig = model.entries
-    .map(
-      (e: SimplexLegendEntry<TItem, TTagMeta, TClusterMeta>) =>
-        `${e.clusterUid}|${e.code}|${e.label}|${e.parentContextLabel ?? ''}|${e.colorHex}|${e.totalCount}|${e.visibleCount}|${e.isEmpty ? 1 : 0}|${e.isHidden ? 1 : 0}|${e.isFocused ? 1 : 0}|${e.isContext ? 1 : 0}|${e.isMidpoint ? 1 : 0}`,
-    )
-    .join(';');
-  return `${model.zoomDepth}|${model.totalItems}|${model.visibleItems}|${model.hasActiveFilter ? 1 : 0}|${model.itemFilterMode}|${model.emptyClusterBehavior}|${model.focusedClusterUid ?? ''}|${model.timelineStep ?? ''}|${entrySig}`;
+  return computeLegendSignature(model);
 }
 
 export function syncSimplexLegendTimelineStep<TItem, TTagMeta, TClusterMeta>(

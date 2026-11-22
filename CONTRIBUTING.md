@@ -6,30 +6,40 @@ Thank you for your interest in **SimplexViz**! This guide covers the local works
 
 ```bash
 pnpm install
-pnpm dev          # Starts the demo app on port 3000 (directly against package sources)
-pnpm test         # Runs the Vitest test suite
-pnpm lint         # Checks ESLint Flat Config + TypeScript module boundaries
+pnpm dev               # Starts the docs & showcase app on port 3000 against package sources
+pnpm test              # Runs the Vitest suite across all workspace packages
+pnpm lint              # Checks ESLint Flat Config + workspace TypeScript typecheck
+pnpm validate:packages # Validates package exports and ESM/CJS types via publint
+pnpm release:check     # Runs brand-check, lint, typecheck, package builds, publint, tests, and demo build
 ```
 
 ## Strict Architecture & Module Boundaries
 
-The separation of the three packages is mechanically enforced via TypeScript (`packages/core/tsconfig.json`) and ESLint (`eslint.config.js`):
+The separation across the five workspace packages is mechanically enforced via TypeScript (`packages/*/tsconfig.json`) and ESLint (`eslint.config.js`):
 
 1. **`@simplex-viz/core`** (`packages/core`):
    - **Zero** runtime dependencies (`"dependencies": {}`).
-   - **No** DOM (`lib: ["ES2022"]` without `"DOM"`), no `window`, no `document`, no `SVGElement`.
-   - **No** imports from `react`, `react-dom`, `@simplex-viz/svg`, or `@simplex-viz/react`.
+   - **No** DOM globals in `.` or `./worker` (`lib: ["ES2022"]` without `"DOM"`, no `window`, `document`, or `SVGElement`); structural browser/DOM helpers live exclusively under `@simplex-viz/core/dom`.
+   - **No** imports from `react`, `react-dom`, `@simplex-viz/svg`, `@simplex-viz/canvas`, `@simplex-viz/react`, or `@simplex-viz/wc`.
 2. **`@simplex-viz/svg`** (`packages/svg`):
-   - Depends exclusively on `@simplex-viz/core`.
-   - **No** imports from `react`, `react-dom`, or `@simplex-viz/react`.
-3. **No `any` or `as unknown` casts** when threading generic types (`TItem`, `TTagMeta`, `TClusterMeta`, `TContentVisual`, `TClusterVisual`).
+   - Depends exclusively on `@simplex-viz/core` (and `@simplex-viz/core/dom`).
+   - Headless SSR string rendering lives exclusively under `@simplex-viz/svg/ssr` (not re-exported from root).
+   - **No** imports from `react`, `react-dom`, `@simplex-viz/react`, or `@simplex-viz/wc`.
+3. **`@simplex-viz/canvas`** (`packages/canvas`):
+   - Depends exclusively on `@simplex-viz/core` (and `@simplex-viz/core/dom`) — **zero** dependency on `@simplex-viz/svg`.
+   - **No** imports from `react`, `react-dom`, `@simplex-viz/svg`, `@simplex-viz/react`, or `@simplex-viz/wc`.
+4. **`@simplex-viz/wc`** (`packages/wc`):
+   - Custom Element (`<simplex-topic-graph>`) with auto-registration exclusively under `@simplex-viz/wc/define`.
+   - Depends on `@simplex-viz/core` and `@simplex-viz/svg` — **no** imports from `react`, `react-dom`, or `@simplex-viz/react`.
+5. **`@simplex-viz/react`** (`packages/react`):
+   - React 18 & 19 bindings wrapping `@simplex-viz/core` and `@simplex-viz/svg`.
+6. **No `any` casts** when threading generic types (`TItem`, `TTagMeta`, `TClusterMeta`, `TContentVisual`, `TClusterVisual`).
 
-## Developing Custom `SvgNodeView` Plugins
+## Developing Custom Renderer Plugins
 
-1. Define a pure data descriptor `TVisual` without DOM references.
-2. Implement `mountOrUpdate(groupEl, visual, state)` around the local origin `(0, 0)`.
-3. Optionally implement `measureConvexHull(visual)` for analytical convex hulls, or omit the method so `@simplex-viz/svg` measures the bounding box automatically via offscreen `getBBox()`.
-4. Add tests under `packages/svg/__tests__` and run `pnpm test` as well as `pnpm build:packages`.
+- **SVG (`SvgNodeView`)**: Define a pure data descriptor `TVisual` without DOM references, implement `mountOrUpdate(groupEl, visual, state)` around local `(0, 0)`, and optionally implement `measureConvexHull(visual)` for analytical hulls (otherwise `@simplex-viz/svg` measures via offscreen `getBBox()`).
+- **Canvas (`Canvas*Renderer`)**: Implement pure Canvas 2D draw hooks (`drawTriangle`, `drawEdge`, `drawCluster`, `drawContent`) without DOM mutations so `renderSimplexSnapshotToCanvas()` and `exportPng()` work cleanly.
+- Add tests under `packages/<pkg>/__tests__` and run `pnpm release:check` before opening a PR.
 
 ## Changesets & Pull Requests
 
@@ -39,4 +49,4 @@ Create a changeset for user-facing changes:
 pnpm changeset
 ```
 
-Select the affected packages (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/react`), choose the SemVer bump type (`patch`, `minor`, `major`), and add a concise summary. Before opening a PR, make sure `pnpm lint`, `pnpm test`, and `pnpm build:packages` pass cleanly.
+Select the affected packages (`@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/canvas`, `@simplex-viz/react`, `@simplex-viz/wc`), choose the SemVer bump type (`patch`, `minor`, `major`), and add a concise summary. Before opening a PR, verify that `pnpm release:check` passes cleanly.

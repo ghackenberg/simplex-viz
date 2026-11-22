@@ -96,7 +96,7 @@ defineSimplexTopicGraphElement(); // registers <simplex-topic-graph>
 | `preset` | `'geometric' \| 'badges' \| 'glyphs'` | `'geometric'` |
 | `theme` | `'dark' \| 'light'` | `'dark'` |
 | `renderer` | `'svg'` | `'svg'` |
-| `tooltip` | boolean (or JS property: `SimplexSvgTooltipOption` / `SimplexDomTooltipRenderer`) | `false` |
+| `tooltip` | boolean (or JS property: `SimplexSvgTooltipOption` / `SimplexStructuredTooltipOption` / `SimplexDomTooltipRenderer`) | `false` |
 | `aria-label` | string | `'Interactive simplex topic graph'` |
 | `keyboard-navigation` | boolean | `true` |
 | `reduced-motion` | `'auto' \| 'true' \| 'false'` | `'auto'` |

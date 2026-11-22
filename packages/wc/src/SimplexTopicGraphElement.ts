@@ -534,7 +534,6 @@ interface AttributeBindingContext<
   setItemsExplicitly(items: readonly TItem[]): void;
   setHighlightedIds(ids: Iterable<string> | null): void;
   setPinnedIds(ids: ReadonlySet<string> | readonly string[] | null): void;
-  syncTimelineSubscription(): void;
 }
 
 type AttributeHandler = <
@@ -575,7 +574,7 @@ const ATTRIBUTE_HANDLERS: Record<ObservedAttributeName, AttributeHandler> = {
   },
   'aria-label': ({ config, live }, raw) => {
     config.ariaLabel = raw ?? undefined;
-    if (raw !== null) live?.setOptions({ ariaLabel: raw });
+    live?.setOptions({ ariaLabel: raw ?? '' });
   },
   'keyboard-navigation': ({ config, live }, raw) => {
     const enabled = parseBooleanAttr(raw, true);
@@ -639,13 +638,10 @@ const ATTRIBUTE_HANDLERS: Record<ObservedAttributeName, AttributeHandler> = {
   'relayout-on-font-load': ({ config }, raw) => {
     config.relayoutOnFontLoad = parseBooleanAttr(raw, true);
   },
-  timeline: (ctx, raw) => {
+  timeline: ({ config, live }, raw) => {
     const enabled = parseBooleanAttr(raw, false);
-    ctx.config.timeline = enabled;
-    if (ctx.live) {
-      ctx.live.setOptions({ timeline: enabled });
-      ctx.syncTimelineSubscription();
-    }
+    config.timeline = enabled;
+    live?.setOptions({ timeline: enabled });
   },
   items: (ctx, raw) => {
     const parsed = parseItemsJson(raw);
@@ -1042,10 +1038,7 @@ export class SimplexTopicGraphElement<
   }
   set timeline(value: boolean | TimelinePlayerOptions<TItem>) {
     this._config.timeline = value;
-    if (this._controller) {
-      this._controller.setOptions({ timeline: value });
-      this.syncTimelineSubscription();
-    }
+    this._controller?.setOptions({ timeline: value });
   }
 
   get relayoutOnFontLoad(): boolean {
@@ -1119,9 +1112,7 @@ export class SimplexTopicGraphElement<
   }
   override set ariaLabel(value: string | null) {
     this._config.ariaLabel = value ?? undefined;
-    if (this._config.ariaLabel !== undefined) {
-      this._controller?.setOptions({ ariaLabel: this._config.ariaLabel });
-    }
+    this._controller?.setOptions({ ariaLabel: value ?? '' });
   }
 
   get keyboardNavigation(): boolean {
@@ -1247,17 +1238,40 @@ export class SimplexTopicGraphElement<
   // ---------------------------------------------------------------------------
 
   addItems(items: TItem | readonly TItem[]): void {
-    const arr = Array.isArray(items) ? (items as readonly TItem[]) : [items as TItem];
-    this._config.items = [...this._config.items, ...arr];
+    const incoming = Array.isArray(items)
+      ? (items as readonly TItem[])
+      : [items as TItem];
+    if (incoming.length === 0) return;
+
+    const merged = this._config.items.slice();
+    const byId = new Map<string, number>();
+    merged.forEach((item, idx) => {
+      const id = this.resolveItemId(item);
+      if (id) byId.set(id, idx);
+    });
+    for (const item of incoming) {
+      const id = this.resolveItemId(item);
+      if (id && byId.has(id)) {
+        merged[byId.get(id)!] = item;
+      } else {
+        if (id) byId.set(id, merged.length);
+        merged.push(item);
+      }
+    }
+    this._config.items = merged;
     this._itemsExplicitlySet = true;
     this._controller?.addItems(items);
   }
 
   removeItems(ids: string | readonly string[]): void {
+    const idList = Array.isArray(ids) ? (ids as readonly string[]) : [ids as string];
+    const removeSet = new Set(idList);
+    if (removeSet.size === 0) return;
+
+    this._config.items = this._config.items.filter(
+      (item) => !removeSet.has(this.resolveItemId(item)),
+    );
     this._controller?.removeItems(ids);
-    if (this._controller) {
-      this._config.items = this._controller.getItems();
-    }
   }
 
   setItems(items: readonly TItem[]): void {
@@ -1308,9 +1322,6 @@ export class SimplexTopicGraphElement<
         : {}),
     };
     this._controller.setOptions(forwarded);
-    if (options.timeline !== undefined) {
-      this.syncTimelineSubscription();
-    }
   }
 
   batch<TResult>(fn: () => TResult): TResult {
@@ -1359,14 +1370,48 @@ export class SimplexTopicGraphElement<
   }
 
   selectItemsInScreenRect(
+    rect: {
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+    },
+    options?: SelectInRectOptions,
+  ): ReadonlySet<string>;
+  selectItemsInScreenRect(
     x1: number,
     y1: number,
     x2: number,
     y2: number,
     options?: SelectInRectOptions,
+  ): ReadonlySet<string>;
+  selectItemsInScreenRect(
+    rectOrX1:
+      | number
+      | {
+          readonly x: number;
+          readonly y: number;
+          readonly width: number;
+          readonly height: number;
+        },
+    y1OrOptions?: number | SelectInRectOptions,
+    x2?: number,
+    y2?: number,
+    options?: SelectInRectOptions,
   ): ReadonlySet<string> {
-    return (
-      this._controller?.selectItemsInScreenRect(x1, y1, x2, y2, options) ?? new Set()
+    if (!this._controller) return new Set();
+    if (typeof rectOrX1 === 'object' && rectOrX1 !== null) {
+      return this._controller.selectItemsInScreenRect(
+        rectOrX1,
+        y1OrOptions as SelectInRectOptions | undefined,
+      );
+    }
+    return this._controller.selectItemsInScreenRect(
+      rectOrX1,
+      y1OrOptions as number,
+      x2 as number,
+      y2 as number,
+      options,
     );
   }
 
@@ -1617,12 +1662,16 @@ export class SimplexTopicGraphElement<
           this._pinnedIds = ids;
           live?.setPinnedIds(ids ?? []);
         },
-        syncTimelineSubscription: () => {
-          this.syncTimelineSubscription();
-        },
       },
       newValue,
     );
+  }
+
+  private resolveItemId(item: TItem): string {
+    if (this._config.getId) return this._config.getId(item);
+    return typeof item === 'object' && item !== null && 'id' in item
+      ? String((item as { readonly id: unknown }).id)
+      : '';
   }
 
   private ensureMounted(): void {

@@ -90,6 +90,15 @@ export interface SimplexGraphHandle<
   clearSelection(): void;
   getSelectedIds(): ReadonlySet<string>;
   selectItemsInScreenRect(
+    rect: {
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+    },
+    options?: SelectInRectOptions,
+  ): ReadonlySet<string>;
+  selectItemsInScreenRect(
     x1: number,
     y1: number,
     x2: number,
@@ -324,18 +333,42 @@ export function useSimplexGraphController<
   }, []);
 
   const selectItemsInScreenRect = useCallback(
-    (
-      x1: number,
-      y1: number,
-      x2: number,
-      y2: number,
+    ((
+      rectOrX1:
+        | number
+        | {
+            readonly x: number;
+            readonly y: number;
+            readonly width: number;
+            readonly height: number;
+          },
+      y1OrOptions?: number | SelectInRectOptions,
+      x2?: number,
+      y2?: number,
       options?: SelectInRectOptions,
     ): ReadonlySet<string> => {
-      return (
-        controllerRef.current?.selectItemsInScreenRect(x1, y1, x2, y2, options) ??
-        new Set()
+      const ctrl = controllerRef.current;
+      if (!ctrl) return new Set();
+      if (typeof rectOrX1 === 'object' && rectOrX1 !== null) {
+        return ctrl.selectItemsInScreenRect(
+          rectOrX1,
+          y1OrOptions as SelectInRectOptions | undefined,
+        );
+      }
+      return ctrl.selectItemsInScreenRect(
+        rectOrX1,
+        y1OrOptions as number,
+        x2 as number,
+        y2 as number,
+        options,
       );
-    },
+    }) as SimplexGraphHandle<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >['selectItemsInScreenRect'],
     [],
   );
 

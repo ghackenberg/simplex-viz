@@ -4,16 +4,21 @@ import {
   areSimplexLayoutOptionsEqual,
   areSimplexMeshOptionsEqual,
   areSimplexTimelineOptionsEqual,
+  createJaccardAnnealingClusteringStrategy,
+  createSimplexTimelineHostSession,
   createSimplexTimelineNotifier,
   type ClusterDescriptor,
   type ContentLayoutContext,
   type DefaultTaggedItem,
   type NormalizedPointerEvent,
+  type SimplexLegendModel,
   type SimplexTimelineState,
 } from '../src/index.js';
+import { computeLegendSignature } from '../src/engine/legend.js';
 import {
   bindSimplexInteractiveViewport,
   buildSimplexTooltipContentModel,
+  computeSimplexLegendSignature,
   computeSimplexTooltipCoords,
   createSimplexKeyboardNavigator,
   createSimplexSrAnnouncer,
@@ -1060,5 +1065,172 @@ describe('@simplex-viz/core/dom & shared utilities', () => {
     nav.handleBlur();
     expect(nav.getFocusTarget()).toBeNull();
     announcer.destroy();
+  });
+
+  it('delegates computeSimplexLegendSignature directly to computeLegendSignature without drift', () => {
+    const model: SimplexLegendModel<DefaultTaggedItem> = {
+      zoomDepth: 1,
+      totalItems: 12,
+      visibleItems: 8,
+      hasActiveFilter: true,
+      itemFilterMode: 'hide',
+      emptyClusterBehavior: 'dim',
+      focusedClusterUid: 'c-2',
+      timelineStep: 3,
+      entries: [
+        {
+          clusterUid: 'c-1',
+          code: 'T1',
+          title: 'Geometry',
+          subclusterLabel: 'Meshes',
+          displayLabel: 'Geometry · Meshes',
+          colorHex: '#38bdf8',
+          solidFillHex: '#0284c7',
+          totalCount: 6,
+          visibleCount: 4,
+          isEmpty: false,
+          isDimmed: false,
+          isHidden: false,
+          isContext: false,
+          isMidpoint: false,
+          isFocused: false,
+          cluster: {} as ClusterDescriptor<DefaultTaggedItem>,
+        },
+        {
+          clusterUid: 'c-2',
+          code: 'T2',
+          title: 'Topology',
+          displayLabel: 'Topology',
+          colorHex: '#f472b6',
+          solidFillHex: '#db2777',
+          totalCount: 6,
+          visibleCount: 4,
+          isEmpty: false,
+          isDimmed: false,
+          isHidden: false,
+          isContext: false,
+          isMidpoint: true,
+          isFocused: true,
+          cluster: {} as ClusterDescriptor<DefaultTaggedItem>,
+        },
+      ],
+    };
+
+    expect(computeSimplexLegendSignature(model)).toBe(computeLegendSignature(model));
+    const mutated: SimplexLegendModel<DefaultTaggedItem> = {
+      ...model,
+      entries: [
+        model.entries[0]!,
+        { ...model.entries[1]!, visibleCount: 3 },
+      ],
+    };
+    expect(computeSimplexLegendSignature(mutated)).toBe(computeLegendSignature(mutated));
+    expect(computeSimplexLegendSignature(mutated)).not.toBe(
+      computeSimplexLegendSignature(model),
+    );
+  });
+
+  it('synchronizes corpus setItems, addItems, and removeItems through SimplexTimelineHostSession', () => {
+    const initial: readonly (DefaultTaggedItem & { readonly year: number })[] = [
+      { id: 'a', tags: ['alpha', 'beta'], year: 2021 },
+      { id: 'b', tags: ['beta', 'gamma'], year: 2022 },
+      { id: 'c', tags: ['alpha', 'gamma'], year: 2023 },
+    ];
+    let engineItems: readonly DefaultTaggedItem[] = [...initial];
+    let canonicalSeedCount = 0;
+
+    const callbacks = {
+      getId: (item: DefaultTaggedItem & { readonly year: number }) => item.id,
+      setCanonicalSeedItems: (items: readonly (DefaultTaggedItem & { readonly year: number })[]) => {
+        canonicalSeedCount = items.length;
+      },
+      setClusteringStrategy: vi.fn(),
+      setEngineItems: (items: readonly (DefaultTaggedItem & { readonly year: number })[]) => {
+        engineItems = items;
+      },
+      addEngineItems: (items: readonly (DefaultTaggedItem & { readonly year: number })[]) => {
+        engineItems = [...engineItems, ...items];
+      },
+      removeEngineItems: (ids: readonly string[]) => {
+        const drop = new Set(ids);
+        engineItems = engineItems.filter((it) => !drop.has(it.id));
+      },
+    };
+
+    // 1) Without timeline enabled: delegates directly to engine callbacks
+    const session = createSimplexTimelineHostSession<DefaultTaggedItem & { readonly year: number }>(
+      createJaccardAnnealingClusteringStrategy(),
+      undefined,
+      'normal',
+      () => undefined,
+    );
+
+    const added = { id: 'd', tags: ['alpha', 'delta'], year: 2024 };
+    const afterAdd = session.syncCorpusAddItems(added, initial, initial, callbacks);
+    expect(afterAdd.changed).toBe(true);
+    expect(afterAdd.fullItems.map((it) => it.id)).toEqual(['a', 'b', 'c', 'd']);
+    expect(engineItems.map((it) => it.id)).toEqual(['a', 'b', 'c', 'd']);
+
+    const afterRemove = session.syncCorpusRemoveItems(['b'], afterAdd.fullItems, null, callbacks);
+    expect(afterRemove.changed).toBe(true);
+    expect(afterRemove.fullItems.map((it) => it.id)).toEqual(['a', 'c', 'd']);
+    expect(engineItems.map((it) => it.id)).toEqual(['a', 'c', 'd']);
+
+    // 2) With active timeline enabled: short-circuits identical external array ref & rebuilds frames on change
+    const states: Array<SimplexTimelineState<DefaultTaggedItem & { readonly year: number }> | null> = [];
+    const hooks = {
+      batch: (fn: () => void) => fn(),
+      setCanonicalSeedItems: (
+        seedItems: readonly (DefaultTaggedItem & { readonly year: number })[] | null,
+      ) => {
+        canonicalSeedCount = seedItems ? seedItems.length : 0;
+      },
+      setClusteringStrategy: vi.fn(),
+      setLayoutStrategy: vi.fn(),
+      setEmptyClusterBehavior: vi.fn(),
+      setEngineItems: (items: readonly (DefaultTaggedItem & { readonly year: number })[]) => {
+        engineItems = items;
+      },
+      syncOverlay: vi.fn(),
+      onAfterControllerChange: (
+        st: SimplexTimelineState<DefaultTaggedItem & { readonly year: number }> | null,
+      ) => {
+        states.push(st);
+      },
+    };
+    session.setTimelineOptions(
+      { getTimestamp: (it) => it.year, autoFinalSeed: true, initialStep: 0 },
+      afterRemove.fullItems,
+      hooks,
+    );
+    expect(canonicalSeedCount).toBe(3);
+
+    const unsubTimeline = session.subscribe((st) => states.push(st));
+    expect(states.at(-1)?.totalSteps).toBe(2);
+
+    const sameRefResult = session.syncCorpusSetItems(
+      afterRemove.fullItems,
+      afterRemove.fullItems,
+      afterRemove.fullItems,
+      callbacks,
+    );
+    expect(sameRefResult.changed).toBe(false);
+
+    const replaceAll = [
+      ...afterRemove.fullItems,
+      { id: 'e', tags: ['gamma', 'delta'], year: 2025 },
+    ];
+    const afterTimelineSet = session.syncCorpusSetItems(
+      replaceAll,
+      afterRemove.fullItems,
+      afterRemove.fullItems,
+      callbacks,
+    );
+    expect(afterTimelineSet.changed).toBe(true);
+    expect(canonicalSeedCount).toBe(4);
+    expect(session.getController()?.getState().totalSteps).toBe(3);
+
+    unsubTimeline();
+    session.destroy();
   });
 });

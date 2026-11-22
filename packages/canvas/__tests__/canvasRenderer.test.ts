@@ -1129,6 +1129,101 @@ describe('@simplex-viz/canvas high-capacity Canvas 2D renderer (Issue #21)', () 
       container.remove();
     }
   });
+
+  it('schedules redraws via camera proxy mutations, supports (x1, y1, x2, y2) marquee coordinates, and renders/guards exportPng()', async () => {
+    const container = createSizedContainer(800, 560);
+    const { ctx } = createMock2DContext();
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    const origRaf = globalThis.requestAnimationFrame;
+    const origCancelRaf = globalThis.cancelAnimationFrame;
+
+    HTMLCanvasElement.prototype.getContext = function () {
+      return ctx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    let nextRafId = 1;
+    const rafQueue = new Map<number, FrameRequestCallback>();
+    globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+      const id = nextRafId++;
+      rafQueue.set(id, cb);
+      return id;
+    }) as typeof requestAnimationFrame;
+    globalThis.cancelAnimationFrame = ((id: number) => {
+      rafQueue.delete(id);
+    }) as typeof cancelAnimationFrame;
+
+    const items = makeSampleItems(14);
+    const controller = createSimplexCanvas(container, {
+      items,
+      reducedMotion: true,
+    });
+
+    try {
+      const canvas = controller.getCanvasElement();
+      Object.defineProperty(canvas, 'toDataURL', {
+        configurable: true,
+        value: () => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==',
+      });
+      Object.defineProperty(canvas, 'toBlob', {
+        configurable: true,
+        value: (cb: (b: Blob | null) => void) =>
+          cb(new Blob(['canvas-png'], { type: 'image/png' })),
+      });
+
+      // Drain initial frame scheduling until engine is completely settled & idle
+      for (let i = 0; i < 10; i++) {
+        const pending = Array.from(rafQueue.entries());
+        if (pending.length === 0) break;
+        rafQueue.clear();
+        for (const [, cb] of pending) cb(100 + i * 16.67);
+      }
+      expect(rafQueue.size).toBe(0);
+
+      // Camera mutations via controller.camera proxy must enqueue a new rAF frame
+      controller.camera.zoomToCursor(400, 280, 1.5);
+      expect(rafQueue.size).toBe(1);
+
+      // Even before the queued rAF callback executes, exportPng() flushes renderNow() immediately
+      vi.mocked(ctx.setTransform).mockClear();
+      const exported = await controller.exportPng({ format: 'dataUrl' });
+      expect(exported.startsWith('data:image/png')).toBe(true);
+      expect(ctx.setTransform).toHaveBeenCalled();
+
+      // Execute pending rAF from zoomToCursor so scheduler returns to idle,
+      // then verify panBy / setState / reset each schedule a fresh redraw
+      for (const [, cb] of rafQueue.entries()) cb(210);
+      rafQueue.clear();
+      controller.camera.panBy(24, -18);
+      expect(rafQueue.size).toBe(1);
+      for (const [, cb] of rafQueue.entries()) cb(230);
+      rafQueue.clear();
+      controller.camera.setState({ zoom: 1.25, panX: 10, panY: 10 });
+      expect(rafQueue.size).toBe(1);
+      for (const [, cb] of rafQueue.entries()) cb(250);
+      rafQueue.clear();
+      controller.camera.reset();
+      expect(rafQueue.size).toBe(1);
+      for (const [, cb] of rafQueue.entries()) cb(270);
+      rafQueue.clear();
+
+      // selectItemsInScreenRect supports both 4-coordinate and rect-object signatures identically
+      const fromCoords = [...controller.selectItemsInScreenRect(0, 0, 800, 560)].sort();
+      controller.clearSelection();
+      const fromRect = [
+        ...controller.selectItemsInScreenRect({ x: 0, y: 0, width: 800, height: 560 }),
+      ].sort();
+      expect(fromCoords).toEqual(fromRect);
+      expect(fromCoords.length).toBe(items.length);
+
+      controller.destroy();
+      await expect(controller.exportPng()).rejects.toThrow(/after destroy/i);
+    } finally {
+      globalThis.requestAnimationFrame = origRaf;
+      globalThis.cancelAnimationFrame = origCancelRaf;
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+      container.remove();
+    }
+  });
 });
 
 function originalFontsOrUndefined(

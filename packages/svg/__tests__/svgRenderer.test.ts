@@ -4586,6 +4586,71 @@ describe('@simplex-viz/svg integration', () => {
       container.remove();
     }
   });
+
+  it('supports { x, y, width, height } screen-rect overload on selectItemsInScreenRect and structured tooltip formatting', () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+    });
+    document.body.appendChild(container);
+
+    const items: DefaultTaggedItem[] = Array.from({ length: 12 }, (_, i) => ({
+      id: `rect-${i}`,
+      label: `Rect Item ${i}`,
+      tags: [`t-${i % 3}`, `t-${(i + 1) % 3}`],
+    }));
+
+    const controller = createSimplexSvg(container, {
+      items,
+      tooltip: {
+        formatContent: (ev) => `SVG-CONTENT:${ev.item.label}`,
+        formatCluster: (ev) => `SVG-CLUSTER:${ev.cluster.defaultLabel}`,
+      },
+      layoutOptions: { seed: 13 },
+    });
+
+    try {
+      for (let i = 0; i < 30; i++) controller.stepForTest(20);
+      const svg = controller.getSvgElement();
+      Object.defineProperty(svg, 'getBoundingClientRect', {
+        value: () => ({ left: 0, top: 0, width: 760, height: 500, right: 760, bottom: 500 }),
+      });
+
+      const fromCoords = [...controller.selectItemsInScreenRect(0, 0, 760, 500)].sort();
+      controller.clearSelection();
+      const fromRect = [
+        ...controller.selectItemsInScreenRect({ x: 0, y: 0, width: 760, height: 500 }),
+      ].sort();
+      expect(fromRect).toEqual(fromCoords);
+      expect(fromRect.length).toBeGreaterThan(0);
+
+      const firstTarget = controller
+        .getInteractiveTargets()
+        .find((t): t is Extract<typeof t, { kind: 'item' }> => t.kind === 'item')!;
+      const itemGroup = svg.querySelector(
+        `g.sv-node-item[data-node-id="${firstTarget.id}"]`,
+      )!;
+      const coordsMatch = itemGroup
+        .getAttribute('transform')
+        ?.match(/translate\(\s*([0-9.-]+)[,\s]+([0-9.-]+)/);
+      expect(coordsMatch).not.toBeNull();
+      svg.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: parseFloat(coordsMatch![1]!),
+          clientY: parseFloat(coordsMatch![2]!),
+          bubbles: true,
+        }),
+      );
+      const tooltipEl = container.querySelector('.sv-tooltip') as HTMLDivElement | null;
+      expect(tooltipEl?.style.display).toBe('block');
+      expect(tooltipEl?.textContent).toBe(`SVG-CONTENT:${firstTarget.item.label}`);
+    } finally {
+      controller.destroy();
+      container.remove();
+    }
+  });
 });
 
 
