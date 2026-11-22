@@ -3249,9 +3249,9 @@ describe('@simplex-viz/svg integration', () => {
         svg.querySelector(`g.sv-node-item[data-node-id="${id}"]`)!.getAttribute('opacity') ?? '1',
       );
 
-    // 1) setHighlightedItems accepts any Iterable<string> and dims non-matches
-    controller.setHighlightedItems(new Set(['doc-1', 'doc-3']));
-    expect([...controller.getHighlightedItems()].sort()).toEqual(['doc-1', 'doc-3']);
+    // 1) setHighlightedIds accepts any Iterable<string> and dims non-matches
+    controller.setHighlightedIds(new Set(['doc-1', 'doc-3']));
+    expect([...controller.getHighlightedIds()].sort()).toEqual(['doc-1', 'doc-3']);
     expect(getOpacity('doc-1')).toBeCloseTo(1, 2);
     expect(getOpacity('doc-3')).toBeCloseTo(1, 2);
     expect(getOpacity('doc-2')).toBeCloseTo(0.25, 2);
@@ -3271,12 +3271,12 @@ describe('@simplex-viz/svg integration', () => {
     controller.focusItem(null);
     expect(controller.getFocusedItemId()).toBeNull();
     expect(tooltip?.style.display).toBe('none');
-    expect([...controller.getHighlightedItems()].sort()).toEqual(['doc-1', 'doc-3']);
+    expect([...controller.getHighlightedIds()].sort()).toEqual(['doc-1', 'doc-3']);
     expect(getOpacity('doc-2')).toBeCloseTo(0.25, 2);
 
     // Clearing highlights with null restores full opacity for all items
-    controller.setHighlightedItems(null);
-    expect(controller.getHighlightedItems().size).toBe(0);
+    controller.setHighlightedIds(null);
+    expect(controller.getHighlightedIds().size).toBe(0);
     expect(getOpacity('doc-2')).toBeCloseTo(1, 2);
 
     // Missing item or item hidden via setItemFilter(mode: 'hide') returns false

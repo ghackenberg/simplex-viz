@@ -1,9 +1,6 @@
 import {
-  retargetVisualTransition,
   stepCriticallyDampedSpring,
   stepVisualTransition,
-  type SpringScalar,
-  type VisualTransitionState,
 } from './animation.js';
 import { SimplexCamera } from './camera.js';
 import {
@@ -14,13 +11,47 @@ import {
   type NormalizedContentItem,
   type PreviousClusterSnapshot,
 } from './clustering.js';
+import { buildZoomFlightState, syncFlightState } from './engine/flight.js';
 import {
-  getHullBoundingBox,
-  hitTestConvexGeometry,
-  isPointInTriangle,
-} from './geometry.js';
+  getInteractiveTargetsFromScene,
+  hitTestScene,
+  resolveHitTargetForInteractiveTargetFromScene,
+  type SceneHitTestContext,
+} from './engine/hitTest.js';
+import {
+  buildEngineLegendModel,
+  computeLegendSignature,
+} from './engine/legend.js';
+import {
+  buildAnimatedTrianglesAndEdges,
+  buildContextElements,
+  reconcileSpringNodes,
+} from './engine/reconcile.js';
+import { buildSceneFrameSnapshot } from './engine/snapshot.js';
+import {
+  defaultGetId,
+  defaultGetTags,
+  evaluateFlightCamera,
+  getRootToStackTransform,
+  resolveContainingTriangleIndexForItem,
+  type AnimatedContextClusterRecord,
+  type AnimatedContextEdgeRecord,
+  type AnimatedContextItemRecord,
+  type AnimatedContextTriangleRecord,
+  type AnimatedEdgeRecord,
+  type AnimatedNodeRecord,
+  type AnimatedTriangleRecord,
+  type DrillTransitionSpec,
+  type ZoomFlightState,
+} from './engine/types.js';
+import {
+  captureEngineViewState,
+  filterValidStringIds,
+  resolveClusterForViewStep,
+} from './engine/viewState.js';
+import { getHullBoundingBox } from './geometry.js';
 import type { TwoPhaseLayoutResult } from './layout.js';
-import { hexToOklab, lerpOklabHex, mixOklabColors, type OklabTuple } from './oklab.js';
+import { lerpOklabHex } from './oklab.js';
 import {
   createAdaptiveHexMeshStrategy,
   createJaccardAnnealingClusteringStrategy,
@@ -43,7 +74,6 @@ import type {
   ClusterDerivationContext,
   ClusterDescriptor,
   ContentLayoutContext,
-  ConvexGeometry,
   DefaultTaggedItem,
   EmptyClusterBehavior,
   FocusItemOptions,
@@ -56,13 +86,9 @@ import type {
   ItemFilterState,
   LayoutMetrics,
   LayoutSolverOptions,
-  MeshEdgeRenderState,
   MeshOptions,
-  MeshTriangleRenderState,
-  NodeRenderState,
   NormalizedPointerEvent,
   NormalizedWheelEvent,
-  Point2D,
   ReducedMotionPreference,
   RestoreViewStateOptions,
   SceneFrameSnapshot,
@@ -71,7 +97,6 @@ import type {
   SimplexEngineResolvedConfig,
   SimplexInteractiveTarget,
   SimplexKeyboardFocusTarget,
-  SimplexLegendEntry,
   SimplexLegendModel,
   SimplexLegendModelOptions,
   SimplexMesh,
@@ -82,8 +107,6 @@ import type {
   ZoomToItemOptions,
 } from './types.js';
 import {
-  IDENTITY_ZOOM_AFFINE,
-  applyZoomAffine,
   composeZoomAffine,
   createFreeCameraZoomStrategy,
   invertZoomAffine,
@@ -95,259 +118,6 @@ import {
   type ZoomItemAnchorInput,
   type ZoomSharedHelpers,
 } from './zoom.js';
-
-/**
- * Resting opacity floor inside a `cluster-star` frame at maximum simplex distance `d = 1`
- * (`w_0 = 0`, i.e. items on outer 1-ring neighbor clusters/edges), matching `contextItemNodes` (`0.32`)
- * so active outer-rim items blend continuously into the dimmed surrounding neighborhood.
- */
-const CLUSTER_STAR_MIN_ITEM_OPACITY = 0.32;
-
-function computeClusterStarItemRestOpacity<TItem, TTagMeta, TClusterMeta>(
-  activeZoomFrame: ZoomFrameSpec<TItem, TTagMeta, TClusterMeta> | undefined,
-  unitClusters: ReadonlyArray<{
-    readonly cluster: { readonly clusterIndex: number };
-    readonly weight: number;
-  }>,
-): number {
-  if (activeZoomFrame?.kind !== 'cluster-star') {
-    return 1;
-  }
-  let centerWeight = 0;
-  for (const uc of unitClusters) {
-    if (uc.cluster.clusterIndex === 0) {
-      centerWeight += uc.weight;
-    }
-  }
-  const w0 = Math.max(0, Math.min(1, centerWeight));
-  return (
-    CLUSTER_STAR_MIN_ITEM_OPACITY + (1 - CLUSTER_STAR_MIN_ITEM_OPACITY) * w0
-  );
-}
-
-interface AnimatedNodeRecord<TVisual, TDomainMeta> {
-  readonly id: string;
-  status: 'active' | 'exiting';
-  x: SpringScalar;
-  y: SpringScalar;
-  scale: SpringScalar;
-  opacity: SpringScalar;
-  visual: TVisual;
-  hull: ConvexGeometry;
-  cacheKey: string;
-  transition: VisualTransitionState<TVisual> | null;
-  domain: TDomainMeta;
-}
-
-interface AnimatedTriangleRecord {
-  readonly index: number;
-  readonly vertexIndices: readonly [number, number, number];
-  readonly targetPoints: readonly [Point2D, Point2D, Point2D];
-  points: [Point2D, Point2D, Point2D];
-  centroid: Point2D;
-  readonly coveredItemCount: number;
-  readonly interiorItemCount: number;
-  currentOklab: [number, number, number];
-  targetOklab: OklabTuple;
-  fillHex: string;
-  flightOpacity?: number;
-}
-
-interface AnimatedEdgeRecord {
-  readonly index: number;
-  readonly vertexIndices: readonly [number, number];
-  readonly targetA: Point2D;
-  readonly targetB: Point2D;
-  a: Point2D;
-  b: Point2D;
-  readonly mixedColorHex: string;
-  flightOpacity?: number;
-}
-
-interface AnimatedContextTriangleRecord<TItem, TTagMeta, TClusterMeta> {
-  readonly base: MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta>;
-  readonly targetPoints: readonly [Point2D, Point2D, Point2D];
-  points: [Point2D, Point2D, Point2D];
-  centroid: Point2D;
-  opacity: number;
-}
-
-interface AnimatedContextEdgeRecord<TItem, TTagMeta, TClusterMeta> {
-  readonly base: MeshEdgeRenderState<TItem, TTagMeta, TClusterMeta>;
-  readonly targetA: Point2D;
-  readonly targetB: Point2D;
-  a: Point2D;
-  b: Point2D;
-  opacity: number;
-}
-
-interface AnimatedContextClusterRecord<
-  TItem,
-  TClusterVisual,
-  TTagMeta,
-  TClusterMeta,
-> {
-  readonly id: string;
-  readonly neighborId?: string;
-  readonly cluster: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>;
-  readonly visual: TClusterVisual;
-  readonly cacheKey: string;
-  readonly hull: ConvexGeometry;
-  readonly targetX: number;
-  readonly targetY: number;
-  readonly targetScale: number;
-  x: number;
-  y: number;
-  scale: number;
-  opacity: number;
-}
-
-interface AnimatedContextItemRecord<
-  TItem,
-  TContentVisual,
-  TTagMeta,
-  TClusterMeta,
-> {
-  readonly id: string;
-  readonly rawId: string;
-  readonly neighborId?: string;
-  readonly item: TItem;
-  readonly layoutContext: ContentLayoutContext<TItem, TTagMeta, TClusterMeta>;
-  readonly visual: TContentVisual;
-  readonly cacheKey: string;
-  readonly hull: ConvexGeometry;
-  readonly targetX: number;
-  readonly targetY: number;
-  readonly targetScale: number;
-  x: number;
-  y: number;
-  scale: number;
-  opacity: number;
-}
-
-interface ActiveNodeFlightEndpoint {
-  readonly localStart: Point2D;
-  readonly localEnd: Point2D;
-  readonly localStartScale: number;
-  readonly targetScale: number;
-  readonly startOpacity: number;
-  readonly targetOpacity: number;
-  readonly isNewlyEntering: boolean;
-}
-
-interface FlightDepartingTriangle<TItem, TTagMeta, TClusterMeta> {
-  readonly base: MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta>;
-  readonly localPoints: readonly [Point2D, Point2D, Point2D];
-  readonly startOpacity: number;
-}
-
-interface FlightDepartingEdge<TItem, TTagMeta, TClusterMeta> {
-  readonly base: MeshEdgeRenderState<TItem, TTagMeta, TClusterMeta>;
-  readonly localA: Point2D;
-  readonly localB: Point2D;
-  readonly startOpacity: number;
-}
-
-interface FlightDepartingCluster<
-  TItem,
-  TClusterVisual,
-  TTagMeta,
-  TClusterMeta,
-> {
-  readonly id: string;
-  readonly cluster: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>;
-  readonly localStart: Point2D;
-  readonly localStartScale: number;
-  readonly localEndScale: number;
-  readonly startOpacity: number;
-  readonly visual: TClusterVisual;
-  readonly hull: ConvexGeometry;
-  readonly cacheKey: string;
-}
-
-interface FlightDepartingItem<TContentVisual> {
-  readonly rawId: string;
-  readonly id: string;
-  readonly localStart: Point2D;
-  readonly localStartScale: number;
-  readonly localEndScale: number;
-  readonly startOpacity: number;
-  readonly visual: TContentVisual;
-  readonly hull: ConvexGeometry;
-  readonly cacheKey: string;
-}
-
-interface ZoomFlightState<
-  TItem,
-  TContentVisual,
-  TClusterVisual,
-  TTagMeta,
-  TClusterMeta,
-> {
-  rawProgress: number;
-  readonly durationSec: number;
-  readonly flightTransform: ZoomAffineTransform;
-  readonly invFlight: ZoomAffineTransform;
-  readonly departingTriangles: readonly FlightDepartingTriangle<
-    TItem,
-    TTagMeta,
-    TClusterMeta
-  >[];
-  readonly departingEdges: readonly FlightDepartingEdge<
-    TItem,
-    TTagMeta,
-    TClusterMeta
-  >[];
-  readonly departingClusters: readonly FlightDepartingCluster<
-    TItem,
-    TClusterVisual,
-    TTagMeta,
-    TClusterMeta
-  >[];
-  readonly departingItems: readonly FlightDepartingItem<TContentVisual>[];
-  readonly clusterEndpoints: ReadonlyMap<string, ActiveNodeFlightEndpoint>;
-  readonly contextClusterEndpoints: ReadonlyMap<string, ActiveNodeFlightEndpoint>;
-  readonly itemEndpoints: ReadonlyMap<string, ActiveNodeFlightEndpoint>;
-  readonly contextItemEndpoints: ReadonlyMap<string, ActiveNodeFlightEndpoint>;
-}
-
-interface DrillTransitionSpec<
-  TItem,
-  TContentVisual,
-  TClusterVisual,
-  TTagMeta,
-  TClusterMeta,
-> {
-  readonly snapshot: SceneFrameSnapshot<
-    TContentVisual,
-    TClusterVisual,
-    TItem,
-    TTagMeta,
-    TClusterMeta
-  >;
-  readonly clusterDomainByNodeId: ReadonlyMap<
-    string,
-    ClusterDescriptor<TItem, TTagMeta, TClusterMeta>
-  >;
-  readonly flightTransform: ZoomAffineTransform;
-  readonly invFlight: ZoomAffineTransform;
-}
-
-function defaultGetId<TItem>(item: TItem): string {
-  if (typeof item === 'object' && item !== null && 'id' in item) {
-    const raw = (item as { readonly id: string }).id;
-    return typeof raw === 'string' ? raw : String(raw);
-  }
-  return '';
-}
-
-function defaultGetTags<TItem>(item: TItem): readonly string[] {
-  if (typeof item === 'object' && item !== null && 'tags' in item) {
-    const raw = (item as { readonly tags: readonly string[] }).tags;
-    return Array.isArray(raw) ? raw : [];
-  }
-  return [];
-}
 
 /**
  * Headless triangulation, clustering, convex-layout, animation, and hit-testing engine.
@@ -687,120 +457,21 @@ export class SimplexGraphEngine<
   getLegendModel(
     options?: SimplexLegendModelOptions,
   ): SimplexLegendModel<TItem, TTagMeta, TClusterMeta> {
-    const includeContext = options?.includeContext ?? false;
-    const includeMidpoints = options?.includeMidpoints ?? true;
-    const includeHidden = options?.includeHidden ?? true;
-    const predicate = this.itemFilterPredicate;
-    const hasActiveFilter = predicate !== null;
-
-    const countVisibleMembers = (
-      cluster: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>,
-    ): number => {
-      if (!predicate) return cluster.members.length;
-      let count = 0;
-      for (const m of cluster.members) {
-        const isFilteredOut = this.itemNodes.has(m.itemId)
-          ? this.filteredOutItemIds.has(m.itemId)
-          : !predicate(m.item);
-        if (!isFilteredOut) count += 1;
-      }
-      return count;
-    };
-
-    const entries: SimplexLegendEntry<TItem, TTagMeta, TClusterMeta>[] = [];
-
-    for (const cluster of this.currentClusters) {
-      const isMidpoint = cluster.role === 'intermediate';
-      if (isMidpoint && !includeMidpoints) continue;
-      const totalCount = cluster.members.length;
-      const visibleCount = countVisibleMembers(cluster);
-      const isHidden = totalCount === 0 && this.emptyClusterBehavior === 'hide';
-      if (isHidden && !includeHidden) continue;
-
-      entries.push({
-        clusterUid: cluster.clusterUid,
-        code: cluster.code,
-        label: cluster.subclusterLabel || cluster.defaultLabel,
-        ...(cluster.parentContextLabel !== undefined
-          ? { parentContextLabel: cluster.parentContextLabel }
-          : {}),
-        colorHex: cluster.colorHex,
-        totalCount,
-        visibleCount,
-        isEmpty: visibleCount === 0,
-        isHidden,
-        isFocused:
-          this.focusedClusterUid !== null &&
-          this.focusedClusterUid === cluster.clusterUid,
-        isContext: false,
-        isMidpoint,
-        cluster,
-      });
-    }
-
-    if (includeContext && this.contextClusterNodes.length > 0) {
-      for (const cc of this.contextClusterNodes) {
-        const cluster = cc.cluster;
-        const isMidpoint = cluster.role === 'intermediate';
-        if (isMidpoint && !includeMidpoints) continue;
-        const totalCount = cluster.members.length;
-        const visibleCount = countVisibleMembers(cluster);
-
-        entries.push({
-          clusterUid: cluster.clusterUid,
-          code: cluster.code,
-          label: cluster.subclusterLabel || cluster.defaultLabel,
-          ...(cluster.parentContextLabel !== undefined
-            ? { parentContextLabel: cluster.parentContextLabel }
-            : {}),
-          colorHex: cluster.colorHex,
-          totalCount,
-          visibleCount,
-          isEmpty: visibleCount === 0,
-          isHidden: false,
-          isFocused: false,
-          isContext: true,
-          isMidpoint,
-          cluster,
-        });
-      }
-    }
-
-    const totalItems = this.currentPlacements.length;
-    let visibleItems = totalItems;
-    if (predicate) {
-      visibleItems = 0;
-      for (const placement of this.currentPlacements) {
-        const isFilteredOut = this.itemNodes.has(placement.id)
-          ? this.filteredOutItemIds.has(placement.id)
-          : !predicate(placement.item);
-        if (!isFilteredOut) visibleItems += 1;
-      }
-    }
-
-    return {
-      entries,
-      zoomDepth: this.currentZoomState.depth,
-      totalItems,
-      visibleItems,
-      hasActiveFilter,
-      itemFilterMode: this.itemFilterMode,
-      emptyClusterBehavior: this.emptyClusterBehavior,
-      focusedClusterUid: this.focusedClusterUid,
-      timelineStep: null,
-    };
-  }
-
-  private computeLegendSignature(
-    model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
-  ): string {
-    const entrySig = model.entries
-      .map(
-        (e) =>
-          `${e.clusterUid}|${e.code}|${e.label}|${e.parentContextLabel ?? ''}|${e.colorHex}|${e.totalCount}|${e.visibleCount}|${e.isEmpty ? 1 : 0}|${e.isHidden ? 1 : 0}|${e.isFocused ? 1 : 0}|${e.isContext ? 1 : 0}|${e.isMidpoint ? 1 : 0}`,
-      )
-      .join(';');
-    return `${model.zoomDepth}|${model.totalItems}|${model.visibleItems}|${model.hasActiveFilter ? 1 : 0}|${model.itemFilterMode}|${model.emptyClusterBehavior}|${model.focusedClusterUid ?? ''}|${model.timelineStep ?? ''}|${entrySig}`;
+    return buildEngineLegendModel(
+      {
+        currentClusters: this.currentClusters,
+        currentPlacements: this.currentPlacements,
+        contextClusterNodes: this.contextClusterNodes,
+        itemNodes: this.itemNodes,
+        filteredOutItemIds: this.filteredOutItemIds,
+        itemFilterPredicate: this.itemFilterPredicate,
+        itemFilterMode: this.itemFilterMode,
+        emptyClusterBehavior: this.emptyClusterBehavior,
+        focusedClusterUid: this.focusedClusterUid,
+        zoomDepth: this.currentZoomState.depth,
+      },
+      options,
+    );
   }
 
   private emitLegendChangeIfNeeded(): void {
@@ -811,7 +482,7 @@ export class SimplexGraphEngine<
     }
     if (!this.onLegendChange) return;
     const model = this.getLegendModel();
-    const sig = this.computeLegendSignature(model);
+    const sig = computeLegendSignature(model);
     if (sig === this.lastEmittedLegendSig) return;
     this.lastEmittedLegendSig = sig;
     this.onLegendChange(model);
@@ -1353,57 +1024,10 @@ export class SimplexGraphEngine<
     return this.drillToDepth(0);
   }
 
-  private getRootToStackTransform(
-    stack: readonly ZoomFrameSpec<TItem, TTagMeta, TClusterMeta>[],
-  ): ZoomAffineTransform {
-    let acc = IDENTITY_ZOOM_AFFINE;
-    for (let i = 1; i < stack.length; i++) {
-      const t = stack[i]?.parentToFrameTransform;
-      if (t) {
-        acc = composeZoomAffine(acc, t);
-      }
-    }
-    return acc;
-  }
-
-  private evaluateFlightCamera(
-    flight: ZoomFlightState<
-      TItem,
-      TContentVisual,
-      TClusterVisual,
-      TTagMeta,
-      TClusterMeta
-    >,
-    rawProgress: number,
-  ): {
-    readonly u: number;
-    readonly camScale: number;
-    readonly M_u: ZoomAffineTransform;
-  } {
-    const t = Math.max(0, Math.min(1, rawProgress));
-    const smooth = t * t * (3 - 2 * t);
-    const cubicOut = 1 - Math.pow(1 - t, 3);
-    const u = 0.65 * smooth + 0.35 * cubicOut;
-
-    const S = Math.max(0.02, Math.min(50, flight.flightTransform.scale));
-    const alpha =
-      Math.abs(S - 1) < 1e-4 ? u : (Math.pow(S, u) - 1) / (S - 1);
-    const camScale = (1 - alpha) / S + alpha;
-    const inv = flight.invFlight;
-    const M_u: ZoomAffineTransform = {
-      scale: camScale,
-      sourceCx: inv.sourceCx,
-      sourceCy: inv.sourceCy,
-      targetCx: (1 - alpha) * inv.targetCx + alpha * inv.sourceCx,
-      targetCy: (1 - alpha) * inv.targetCy + alpha * inv.sourceCy,
-    };
-    return { u, camScale, M_u };
-  }
-
   private getCurrentScreenRootTransform(): ZoomAffineTransform {
-    const base = this.getRootToStackTransform(this.zoomStack);
+    const base = getRootToStackTransform(this.zoomStack);
     if (!this.activeFlight) return base;
-    const { M_u } = this.evaluateFlightCamera(
+    const { M_u } = evaluateFlightCamera(
       this.activeFlight,
       this.activeFlight.rawProgress,
     );
@@ -1461,7 +1085,7 @@ export class SimplexGraphEngine<
     this.neighborReturnHighlight = nextNeighborHighlight;
     this.camera.reset();
 
-    const newRootTransform = this.getRootToStackTransform(this.zoomStack);
+    const newRootTransform = getRootToStackTransform(this.zoomStack);
     const flightTransform = composeZoomAffine(
       invertZoomAffine(oldRootTransform),
       newRootTransform,
@@ -1857,19 +1481,9 @@ export class SimplexGraphEngine<
     this.dirtyRender = true;
   }
 
-  /** Alias for `setHighlightedIds(ids)` for search & linked-view highlighting (`null` clears). */
-  setHighlightedItems(ids: Iterable<string> | null): void {
-    this.setHighlightedIds(ids);
-  }
-
   /** Returns the currently highlighted item IDs. */
   getHighlightedIds(): ReadonlySet<string> {
     return new Set(this.highlightedIds);
-  }
-
-  /** Alias for `getHighlightedIds()`. */
-  getHighlightedItems(): ReadonlySet<string> {
-    return this.getHighlightedIds();
   }
 
   /** Updates the multi-selection change listener. */
@@ -2033,7 +1647,7 @@ export class SimplexGraphEngine<
    * Programmatically focuses a specific content item (highlighting it and optionally dispatching
    * hover/tooltip callbacks), or clears item focus when passed `null`.
    *
-   * Unlike `setHighlightedItems(...)`, programmatic `focusItem(...)` tracks focus independently so
+   * Unlike `setHighlightedIds(...)`, programmatic `focusItem(...)` tracks focus independently so
    * hovering or selecting a single item in a linked list/table does not erase an active search highlight set.
    *
    * @returns `true` if `itemId` was active and focused; `false` when clearing (`null`) or if not currently visible.
@@ -2166,7 +1780,11 @@ export class SimplexGraphEngine<
 
       if (zState.drillableTriangleIndices.length > 0) {
         const drillableSet = new Set(zState.drillableTriangleIndices);
-        const triIdx = this.resolveContainingTriangleIndexForItem(node, drillableSet);
+        const triIdx = resolveContainingTriangleIndexForItem(
+          node,
+          drillableSet,
+          this.triangleStates,
+        );
         if (triIdx !== null) {
           const prevDepth = this.zoomStack.length;
           if (this.drillDownTriangle(triIdx)) {
@@ -2188,7 +1806,11 @@ export class SimplexGraphEngine<
         zState.focusableTriangleIndices.length > 0
       ) {
         const focusableSet = new Set(zState.focusableTriangleIndices);
-        const focusTriIdx = this.resolveContainingTriangleIndexForItem(node, focusableSet);
+        const focusTriIdx = resolveContainingTriangleIndexForItem(
+          node,
+          focusableSet,
+          this.triangleStates,
+        );
         if (focusTriIdx !== null) {
           const prevDepth = this.zoomStack.length;
           if (this.drillDownTriangle(focusTriIdx)) {
@@ -2276,32 +1898,16 @@ export class SimplexGraphEngine<
    * (camera pan/zoom, drill-down path, focus, highlights, multi-selection, and pins).
    */
   getViewState(): SimplexViewState {
-    const cam = this.camera.getState();
-    const zoomPath: SimplexViewZoomStep[] = this.zoomStepPath.map((step) =>
-      step.kind === 'triangle'
-        ? { kind: 'triangle', index: step.index }
-        : {
-            kind: 'cluster',
-            clusterIndex: step.clusterIndex,
-            ...(step.clusterUid !== undefined ? { clusterUid: step.clusterUid } : {}),
-            ...(step.label !== undefined ? { label: step.label } : {}),
-          },
-    );
-    return {
-      version: 1,
-      camera: {
-        zoom: cam.zoom,
-        panX: cam.panX,
-        panY: cam.panY,
-      },
-      zoomPath,
+    return captureEngineViewState({
+      camera: this.camera.getState(),
+      zoomStepPath: this.zoomStepPath,
       focusedClusterUid: this.focusedClusterUid,
       focusedTriangleIndex: this.focusedTriangleIndex,
       focusedItemId: this.focusedItemId,
-      highlightedIds: Array.from(this.highlightedIds).sort(),
-      selectedIds: Array.from(this.selectedIds).sort(),
-      pinnedIds: Array.from(this.pinnedIds).sort(),
-    };
+      highlightedIds: this.highlightedIds,
+      selectedIds: this.selectedIds,
+      pinnedIds: this.pinnedIds,
+    });
   }
 
   /**
@@ -2346,7 +1952,10 @@ export class SimplexGraphEngine<
               }
               if (!this.drillDownTriangle(rawStep.index)) break;
             } else if (rawStep.kind === 'cluster') {
-              const targetCluster = this.resolveClusterForViewStep(rawStep);
+              const targetCluster = resolveClusterForViewStep(
+                this.currentClusters,
+                rawStep,
+              );
               if (!targetCluster) break;
               if (!this.drillDownCluster(targetCluster.clusterUid)) break;
             } else {
@@ -2391,33 +2000,17 @@ export class SimplexGraphEngine<
 
       // 3. Restore pinned, highlighted, and multi-selected ID sets
       if (Array.isArray(state.pinnedIds)) {
-        const validPinned: string[] = [];
-        for (const id of state.pinnedIds) {
-          if (typeof id === 'string' && (knownItemIds.has(id) || knownClusterUids.has(id))) {
-            validPinned.push(id);
-          }
-        }
-        this.setPinnedIds(validPinned);
+        this.setPinnedIds(
+          filterValidStringIds(state.pinnedIds, knownItemIds, knownClusterUids),
+        );
       }
 
       if (Array.isArray(state.highlightedIds)) {
-        const validHighlighted: string[] = [];
-        for (const id of state.highlightedIds) {
-          if (typeof id === 'string' && knownItemIds.has(id)) {
-            validHighlighted.push(id);
-          }
-        }
-        this.setHighlightedIds(validHighlighted);
+        this.setHighlightedIds(filterValidStringIds(state.highlightedIds, knownItemIds));
       }
 
       if (Array.isArray(state.selectedIds)) {
-        const validSelected: string[] = [];
-        for (const id of state.selectedIds) {
-          if (typeof id === 'string' && knownItemIds.has(id)) {
-            validSelected.push(id);
-          }
-        }
-        this.setSelectedIds(validSelected);
+        this.setSelectedIds(filterValidStringIds(state.selectedIds, knownItemIds));
       }
 
       // 4. Restore cluster, triangle, and item focus
@@ -2461,35 +2054,6 @@ export class SimplexGraphEngine<
     }
 
     return true;
-  }
-
-  private resolveClusterForViewStep(
-    step: Extract<SimplexViewZoomStep, { readonly kind: 'cluster' }>,
-  ): ClusterDescriptor<TItem, TTagMeta, TClusterMeta> | null {
-    if (typeof step.clusterUid === 'string' && step.clusterUid.length > 0) {
-      const byUid = this.currentClusters.find((c) => c.clusterUid === step.clusterUid);
-      if (byUid) return byUid;
-    }
-    const hasIndex =
-      typeof step.clusterIndex === 'number' &&
-      Number.isInteger(step.clusterIndex) &&
-      step.clusterIndex >= 0;
-    const hasLabel = typeof step.label === 'string' && step.label.length > 0;
-    if (hasIndex && hasLabel) {
-      const byBoth = this.currentClusters.find(
-        (c) => c.clusterIndex === step.clusterIndex && c.defaultLabel === step.label,
-      );
-      if (byBoth) return byBoth;
-    }
-    if (hasLabel) {
-      const byLabel = this.currentClusters.find((c) => c.defaultLabel === step.label);
-      if (byLabel) return byLabel;
-    }
-    if (hasIndex) {
-      const byIndex = this.currentClusters.find((c) => c.clusterIndex === step.clusterIndex);
-      if (byIndex) return byIndex;
-    }
-    return null;
   }
 
   /** Forces an immediate frame render using the current snapshot (deferred until batch end when inside `batch()`). */
@@ -3279,761 +2843,56 @@ export class SimplexGraphEngine<
     const effectiveDrillFlight = this.reducedMotionActive ? undefined : drillFlight;
 
     // 3. Reconcile triangle background OKLab tints, centroids, and density counts
-    const prevTriMap = new Map<number, AnimatedTriangleRecord>();
-    for (const tr of this.triangleStates) {
-      prevTriMap.set(tr.index, tr);
-    }
-
-    const fallbackOklab = hexToOklab('#1e293b');
-    this.triangleStates = mesh.triangles.map((tri) => {
-      const [va, vb, vc] = tri.vertices;
-      const pA = mesh.vertices[va]!;
-      const pB = mesh.vertices[vb]!;
-      const pC = mesh.vertices[vc]!;
-      const cA = this.currentClusters[va];
-      const cB = this.currentClusters[vb];
-      const cC = this.currentClusters[vc];
-      const mixed = mixOklabColors([
-        { oklab: cA?.oklab ?? fallbackOklab, weight: 1 },
-        { oklab: cB?.oklab ?? fallbackOklab, weight: 1 },
-        { oklab: cC?.oklab ?? fallbackOklab, weight: 1 },
-      ]);
-      const prev = prevTriMap.get(tri.index);
-      const startOklab: [number, number, number] =
-        prev && !snapImmediately && !effectiveDrillFlight
-          ? [...prev.currentOklab]
-          : [mixed.oklab[0], mixed.oklab[1], mixed.oklab[2]];
-
-      let coveredItemCount = 0;
-      let interiorItemCount = 0;
-      for (const placement of this.currentPlacements) {
-        const ucs = placement.layoutContext.unitClusters;
-        if (ucs.length === 0) continue;
-        let allInside = true;
-        for (let k = 0; k < ucs.length; k++) {
-          const cIdx = ucs[k]!.cluster.clusterIndex;
-          if (cIdx !== va && cIdx !== vb && cIdx !== vc) {
-            allInside = false;
-            break;
-          }
-        }
-        if (allInside) {
-          coveredItemCount++;
-          if (ucs.length === 3) {
-            interiorItemCount++;
-          }
-        }
-      }
-
-      const targetPoints: readonly [Point2D, Point2D, Point2D] = [
-        { x: pA.x, y: pA.y },
-        { x: pB.x, y: pB.y },
-        { x: pC.x, y: pC.y },
-      ];
-      return {
-        index: tri.index,
-        vertexIndices: [va, vb, vc],
-        targetPoints,
-        points: [targetPoints[0], targetPoints[1], targetPoints[2]],
-        centroid: {
-          x: (pA.x + pB.x + pC.x) / 3,
-          y: (pA.y + pB.y + pC.y) / 3,
-        },
-        coveredItemCount,
-        interiorItemCount,
-        currentOklab: startOklab,
-        targetOklab: mixed.oklab,
-        fillHex: lerpOklabHex(startOklab, mixed.oklab, snapImmediately || effectiveDrillFlight ? 1 : 0),
-      };
+    const reconciledMesh = buildAnimatedTrianglesAndEdges({
+      mesh,
+      currentClusters: this.currentClusters,
+      currentPlacements: this.currentPlacements,
+      previousTriangles: this.triangleStates,
+      snapColorImmediately: snapImmediately || Boolean(effectiveDrillFlight),
     });
+    this.triangleStates = reconciledMesh.triangleStates;
+    this.edgeRecords = reconciledMesh.edgeRecords;
 
-    this.edgeRecords = mesh.edges.map((e, idx) => {
-      const a = mesh.vertices[e.a]!;
-      const b = mesh.vertices[e.b]!;
-      const cA = this.currentClusters[e.a];
-      const cB = this.currentClusters[e.b];
-      const mixed = mixOklabColors([
-        { oklab: cA?.oklab ?? fallbackOklab, weight: 1 },
-        { oklab: cB?.oklab ?? fallbackOklab, weight: 1 },
-      ]);
-      const targetA = { x: a.x, y: a.y };
-      const targetB = { x: b.x, y: b.y };
-      return {
-        index: idx,
-        vertexIndices: [e.a, e.b],
-        targetA,
-        targetB,
-        a: targetA,
-        b: targetB,
-        mixedColorHex: mixed.hex,
-      };
+    const reconciledContext = buildContextElements({
+      activeZoomFrame,
+      solved,
+      sizeMultiplier: this.layoutOptions.sizeMultiplier,
+      visualResolver: this.visualResolver,
+      renderer: this.renderer,
     });
-
-    if (
-      activeZoomFrame?.contextTriangles &&
-      activeZoomFrame.contextTriangles.length > 0
-    ) {
-      this.contextTriangleStates = activeZoomFrame.contextTriangles.map(
-        (ct, idx) => {
-          const targetPoints: readonly [Point2D, Point2D, Point2D] = [
-            ct.points[0],
-            ct.points[1],
-            ct.points[2],
-          ];
-          return {
-            base: {
-              index: -(idx + 1),
-              vertexIndices: [-1, -1, -1] as const,
-              points: targetPoints,
-              centroid: ct.centroid,
-              fillHex: ct.mixedColorHex,
-              fillOpacity: 0.085,
-              clusters: ct.clusters,
-              coveredItemCount: ct.coveredItemCount,
-              interiorItemCount: ct.interiorItemCount,
-              isContext: true,
-              neighborId: ct.neighborId,
-              interaction: {
-                isHovered: false,
-                isFocused: false,
-                isDimmed: true,
-              },
-            },
-            targetPoints,
-            points: [targetPoints[0], targetPoints[1], targetPoints[2]],
-            centroid: ct.centroid,
-            opacity: 1,
-          };
-        },
-      );
-    } else {
-      this.contextTriangleStates = [];
-    }
-
-    if (activeZoomFrame?.contextEdges && activeZoomFrame.contextEdges.length > 0) {
-      this.contextEdgeRecords = activeZoomFrame.contextEdges.map((ce, idx) => ({
-        base: {
-          index: -(idx + 1),
-          vertexIndices: [-1, -1] as const,
-          a: ce.a,
-          b: ce.b,
-          mixedColorHex: ce.mixedColorHex,
-          clusters: ce.clusters,
-          isHighlighted: false,
-          isDimmed: true,
-        },
-        targetA: ce.a,
-        targetB: ce.b,
-        a: ce.a,
-        b: ce.b,
-        opacity: 1,
-      }));
-    } else {
-      this.contextEdgeRecords = [];
-    }
-
-    if (
-      activeZoomFrame?.contextClusters &&
-      activeZoomFrame.contextClusters.length > 0
-    ) {
-      const ctxScale = Math.max(0.45, Math.min(0.86, solved.clusterScale * 0.85));
-      this.contextClusterNodes = activeZoomFrame.contextClusters.map((cc) => {
-        const visual = this.visualResolver.resolveClusterVisual(cc.cluster);
-        const cacheKey = this.visualResolver.getVisualCacheKey(visual);
-        const hull = this.renderer.measureClusterHull(visual, cacheKey);
-        return {
-          id: cc.id,
-          neighborId: cc.neighborId,
-          cluster: cc.cluster,
-          visual,
-          cacheKey,
-          hull,
-          targetX: cc.x,
-          targetY: cc.y,
-          targetScale: ctxScale,
-          x: cc.x,
-          y: cc.y,
-          scale: ctxScale,
-          opacity: 0.34,
-        };
-      });
-    } else {
-      this.contextClusterNodes = [];
-    }
-
-    if (
-      activeZoomFrame?.contextItems &&
-      activeZoomFrame.contextItems.length > 0
-    ) {
-      const sizeMult = Math.max(0.1, this.layoutOptions.sizeMultiplier ?? 1);
-      const fallbackItemScale = Math.max(
-        0.3 * sizeMult,
-        Math.min(0.8 * sizeMult, solved.contentScale * 0.82),
-      );
-      this.contextItemNodes = activeZoomFrame.contextItems.map((ci) => {
-        const visual = this.visualResolver.resolveContentVisual(
-          ci.item,
-          ci.layoutContext,
-        );
-        const cacheKey = this.visualResolver.getVisualCacheKey(visual);
-        const hull = this.renderer.measureContentHull(visual, cacheKey);
-        const ctxScale =
-          ci.scale !== undefined
-            ? Math.max(0.26 * sizeMult, Math.min(0.92 * sizeMult, ci.scale))
-            : fallbackItemScale;
-        return {
-          id: ci.id,
-          rawId: ci.rawId,
-          neighborId: ci.neighborId,
-          item: ci.item,
-          layoutContext: ci.layoutContext,
-          visual,
-          cacheKey,
-          hull,
-          targetX: ci.x,
-          targetY: ci.y,
-          targetScale: ctxScale,
-          x: ci.x,
-          y: ci.y,
-          scale: ctxScale,
-          opacity: 0.32,
-        };
-      });
-    } else {
-      this.contextItemNodes = [];
-    }
+    this.contextTriangleStates = reconciledContext.contextTriangleStates;
+    this.contextEdgeRecords = reconciledContext.contextEdgeRecords;
+    this.contextClusterNodes = reconciledContext.contextClusterNodes;
+    this.contextItemNodes = reconciledContext.contextItemNodes;
 
     // 4. Reconcile cluster & item nodes (either continuous drill flight OR normal springs)
     if (effectiveDrillFlight) {
-      const { snapshot: prevSnap, clusterDomainByNodeId, flightTransform, invFlight } =
-        effectiveDrillFlight;
-      const S = Math.max(0.02, Math.min(50, flightTransform.scale));
-
-      // Index previous rendered clusters (active, context, and any mid-flight departing clusters)
-      const prevClusters = prevSnap.clusters
-        .map((pc) => {
-          const cluster = clusterDomainByNodeId.get(pc.id);
-          if (!cluster) return null;
-          const effOpacity = pc.isContext
-            ? pc.opacity
-            : pc.interaction.isDimmed
-              ? pc.opacity * 0.34
-              : pc.opacity;
-          if (effOpacity <= 0.02) return null;
-          return {
-            node: pc,
-            cluster,
-            effOpacity,
-            claimed: false,
-          };
-        })
-        .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-
-      const maxMatchRadius = Math.max(
-        110,
-        Math.min(this.viewportWidth, this.viewportHeight) * 0.3,
-      );
-      const claimMatchingCluster = (
-        targetCluster: ClusterDescriptor<TItem, TTagMeta, TClusterMeta>,
-        targetX: number,
-        targetY: number,
-      ) => {
-        const expectedOld = applyZoomAffine(invFlight, { x: targetX, y: targetY });
-        let best: (typeof prevClusters)[number] | null = null;
-        let bestScore = Infinity;
-        for (const cand of prevClusters) {
-          if (cand.claimed) continue;
-          const uidMatch = cand.cluster.clusterUid === targetCluster.clusterUid;
-          const codeMatch = cand.cluster.code === targetCluster.code;
-          if (!uidMatch && !codeMatch) continue;
-          const dist = Math.hypot(
-            cand.node.x - expectedOld.x,
-            cand.node.y - expectedOld.y,
-          );
-          if (!uidMatch && dist > maxMatchRadius) continue;
-          const score = uidMatch ? dist * 0.25 : dist;
-          if (score < bestScore) {
-            bestScore = score;
-            best = cand;
-          }
-        }
-        if (best) {
-          best.claimed = true;
-        }
-        return best;
-      };
-
-      const clusterEndpoints = new Map<string, ActiveNodeFlightEndpoint>();
-      this.clusterNodes.clear();
-      resolvedClusters.forEach((rc, idx) => {
-        const placed = solved.clusters[idx]!;
-        const uid = rc.cluster.clusterUid;
-        const matched = claimMatchingCluster(rc.cluster, placed.x, placed.y);
-        const nextTransition = matched
-          ? retargetVisualTransition(
-              null,
-              matched.node.visual,
-              matched.node.hull,
-              matched.node.cacheKey,
-              rc.visual,
-              rc.hull,
-              rc.cacheKey,
-            )
-          : null;
-
-        if (matched) {
-          const localStart = applyZoomAffine(flightTransform, {
-            x: matched.node.x,
-            y: matched.node.y,
-          });
-          clusterEndpoints.set(uid, {
-            localStart,
-            localEnd: { x: placed.x, y: placed.y },
-            localStartScale: matched.node.scale * S,
-            targetScale: placed.scale,
-            startOpacity: matched.effOpacity,
-            targetOpacity: 1,
-            isNewlyEntering: false,
-          });
-        } else {
-          clusterEndpoints.set(uid, {
-            localStart: { x: placed.x, y: placed.y },
-            localEnd: { x: placed.x, y: placed.y },
-            localStartScale: placed.scale * 0.78,
-            targetScale: placed.scale,
-            startOpacity: 0,
-            targetOpacity: 1,
-            isNewlyEntering: true,
-          });
-        }
-
-        this.clusterNodes.set(uid, {
-          id: uid,
-          status: 'active',
-          x: { value: placed.x, velocity: 0, target: placed.x },
-          y: { value: placed.y, velocity: 0, target: placed.y },
-          scale: { value: placed.scale, velocity: 0, target: placed.scale },
-          opacity: { value: 1, velocity: 0, target: 1 },
-          visual: rc.visual,
-          hull: rc.hull,
-          cacheKey: rc.cacheKey,
-          transition: nextTransition,
-          domain: rc.cluster,
-        });
+      this.activeFlight = buildZoomFlightState({
+        drillFlight: effectiveDrillFlight,
+        viewportWidth: this.viewportWidth,
+        viewportHeight: this.viewportHeight,
+        solved,
+        resolvedClusters,
+        resolvedItems,
+        activeZoomFrame,
+        clusterNodes: this.clusterNodes,
+        itemNodes: this.itemNodes,
+        contextClusterNodes: this.contextClusterNodes,
+        contextItemNodes: this.contextItemNodes,
       });
-
-      const contextClusterEndpoints = new Map<string, ActiveNodeFlightEndpoint>();
-      for (const cc of this.contextClusterNodes) {
-        const matched = claimMatchingCluster(cc.cluster, cc.targetX, cc.targetY);
-        if (matched) {
-          const localStart = applyZoomAffine(flightTransform, {
-            x: matched.node.x,
-            y: matched.node.y,
-          });
-          contextClusterEndpoints.set(cc.id, {
-            localStart,
-            localEnd: { x: cc.targetX, y: cc.targetY },
-            localStartScale: matched.node.scale * S,
-            targetScale: cc.targetScale,
-            startOpacity: matched.effOpacity,
-            targetOpacity: 0.34,
-            isNewlyEntering: false,
-          });
-        } else {
-          contextClusterEndpoints.set(cc.id, {
-            localStart: { x: cc.targetX, y: cc.targetY },
-            localEnd: { x: cc.targetX, y: cc.targetY },
-            localStartScale: cc.targetScale * 0.85,
-            targetScale: cc.targetScale,
-            startOpacity: 0,
-            targetOpacity: 0.34,
-            isNewlyEntering: true,
-          });
-        }
-      }
-
-      const departingClusters: FlightDepartingCluster<
-        TItem,
-        TClusterVisual,
-        TTagMeta,
-        TClusterMeta
-      >[] = [];
-      for (const rem of prevClusters) {
-        if (rem.claimed) continue;
-        const localStart = applyZoomAffine(flightTransform, {
-          x: rem.node.x,
-          y: rem.node.y,
-        });
-        const ghostId = rem.node.id.startsWith('ghost-cl-')
-          ? rem.node.id
-          : `ghost-cl-${rem.node.id}`;
-        departingClusters.push({
-          id: ghostId,
-          cluster: rem.cluster,
-          localStart,
-          localStartScale: rem.node.scale * S,
-          localEndScale: rem.node.scale * S * 0.82,
-          startOpacity: rem.effOpacity,
-          visual: rem.node.visual,
-          hull: rem.node.hull,
-          cacheKey: rem.node.cacheKey,
-        });
-      }
-
-      // Reconcile content items across flight (active, dimmed neighborhood context, and departing ghosts)
-      const prevItemsByRawId = new Map<
-        string,
-        {
-          readonly node: NodeRenderState<TContentVisual>;
-          readonly effOpacity: number;
-          claimed: boolean;
-        }
-      >();
-      for (const pi of prevSnap.items) {
-        const effOpacity = pi.isContext
-          ? pi.opacity
-          : pi.interaction.isDimmed
-            ? pi.opacity * 0.34
-            : pi.opacity;
-        if (effOpacity <= 0.02) continue;
-        const rawId = pi.id.startsWith('ghost-it-')
-          ? pi.id.slice(9)
-          : pi.id.startsWith('ctx-it-')
-            ? pi.id.slice(7)
-            : pi.id;
-        const existingEntry = prevItemsByRawId.get(rawId);
-        if (!existingEntry || effOpacity > existingEntry.effOpacity) {
-          prevItemsByRawId.set(rawId, { node: pi, effOpacity, claimed: false });
-        }
-      }
-
-      const itemEndpoints = new Map<string, ActiveNodeFlightEndpoint>();
-      this.itemNodes.clear();
-      resolvedItems.forEach((ri, idx) => {
-        const placed = solved.items[idx]!;
-        const id = ri.placement.id;
-        const targetOpacity = computeClusterStarItemRestOpacity(
-          activeZoomFrame,
-          ri.placement.layoutContext.unitClusters,
-        );
-        const matched = prevItemsByRawId.get(id);
-        let nextTransition: VisualTransitionState<TContentVisual> | null = null;
-
-        if (matched) {
-          matched.claimed = true;
-          nextTransition = retargetVisualTransition(
-            null,
-            matched.node.visual,
-            matched.node.hull,
-            matched.node.cacheKey,
-            ri.visual,
-            ri.hull,
-            ri.cacheKey,
-          );
-          const localStart = applyZoomAffine(flightTransform, {
-            x: matched.node.x,
-            y: matched.node.y,
-          });
-          itemEndpoints.set(id, {
-            localStart,
-            localEnd: { x: placed.x, y: placed.y },
-            localStartScale: matched.node.scale * S,
-            targetScale: placed.scale,
-            startOpacity: matched.effOpacity,
-            targetOpacity,
-            isNewlyEntering: false,
-          });
-        } else {
-          itemEndpoints.set(id, {
-            localStart: {
-              x: placed.x * 0.72 + ri.placement.anchorX * 0.28,
-              y: placed.y * 0.72 + ri.placement.anchorY * 0.28,
-            },
-            localEnd: { x: placed.x, y: placed.y },
-            localStartScale: placed.scale * 0.8,
-            targetScale: placed.scale,
-            startOpacity: 0,
-            targetOpacity,
-            isNewlyEntering: true,
-          });
-        }
-
-        this.itemNodes.set(id, {
-          id,
-          status: 'active',
-          x: { value: placed.x, velocity: 0, target: placed.x },
-          y: { value: placed.y, velocity: 0, target: placed.y },
-          scale: { value: placed.scale, velocity: 0, target: placed.scale },
-          opacity: { value: targetOpacity, velocity: 0, target: targetOpacity },
-          visual: ri.visual,
-          hull: ri.hull,
-          cacheKey: ri.cacheKey,
-          transition: nextTransition,
-          domain: ri.placement,
-        });
-      });
-
-      const contextItemEndpoints = new Map<string, ActiveNodeFlightEndpoint>();
-      for (const ci of this.contextItemNodes) {
-        const matched = prevItemsByRawId.get(ci.rawId);
-        if (matched) {
-          matched.claimed = true;
-          const localStart = applyZoomAffine(flightTransform, {
-            x: matched.node.x,
-            y: matched.node.y,
-          });
-          contextItemEndpoints.set(ci.id, {
-            localStart,
-            localEnd: { x: ci.targetX, y: ci.targetY },
-            localStartScale: matched.node.scale * S,
-            targetScale: ci.targetScale,
-            startOpacity: matched.effOpacity,
-            targetOpacity: 0.32,
-            isNewlyEntering: false,
-          });
-        } else {
-          contextItemEndpoints.set(ci.id, {
-            localStart: { x: ci.targetX, y: ci.targetY },
-            localEnd: { x: ci.targetX, y: ci.targetY },
-            localStartScale: ci.targetScale * 0.85,
-            targetScale: ci.targetScale,
-            startOpacity: 0,
-            targetOpacity: 0.32,
-            isNewlyEntering: true,
-          });
-        }
-      }
-
-      const departingItems: FlightDepartingItem<TContentVisual>[] = [];
-      for (const [rawId, rem] of prevItemsByRawId) {
-        if (rem.claimed) continue;
-        const localStart = applyZoomAffine(flightTransform, {
-          x: rem.node.x,
-          y: rem.node.y,
-        });
-        const ghostId = rem.node.id.startsWith('ghost-it-')
-          ? rem.node.id
-          : `ghost-it-${rawId}`;
-        departingItems.push({
-          rawId,
-          id: ghostId,
-          localStart,
-          localStartScale: rem.node.scale * S,
-          localEndScale: rem.node.scale * S * 0.88,
-          startOpacity: rem.effOpacity,
-          visual: rem.node.visual,
-          hull: rem.node.hull,
-          cacheKey: rem.node.cacheKey,
-        });
-      }
-
-      const departingTriangles: FlightDepartingTriangle<
-        TItem,
-        TTagMeta,
-        TClusterMeta
-      >[] = prevSnap.triangles
-        .filter((pt) => (pt.opacity ?? 1) >= 0.06)
-        .slice(-48)
-        .map((pt) => ({
-          base: {
-            ...pt,
-            isDrillable: undefined,
-            neighborId: undefined,
-            interaction: {
-              isHovered: false,
-              isFocused: false,
-              isDimmed: pt.interaction.isDimmed,
-            },
-          },
-          localPoints: [
-            applyZoomAffine(flightTransform, pt.points[0]),
-            applyZoomAffine(flightTransform, pt.points[1]),
-            applyZoomAffine(flightTransform, pt.points[2]),
-          ] as const,
-          startOpacity: pt.opacity ?? 1,
-        }));
-
-      const departingEdges: FlightDepartingEdge<
-        TItem,
-        TTagMeta,
-        TClusterMeta
-      >[] = prevSnap.edges
-        .filter((pe) => (pe.opacity ?? 1) >= 0.06)
-        .slice(-72)
-        .map((pe) => ({
-          base: {
-            ...pe,
-            isHighlighted: false,
-          },
-          localA: applyZoomAffine(flightTransform, pe.a),
-          localB: applyZoomAffine(flightTransform, pe.b),
-          startOpacity: pe.opacity ?? 1,
-        }));
-
-      const durationSec = Math.min(
-        0.66,
-        Math.max(0.46, 0.44 + Math.abs(Math.log(S)) * 0.09),
-      );
-      this.activeFlight = {
-        rawProgress: 0,
-        durationSec,
-        flightTransform,
-        invFlight,
-        departingTriangles,
-        departingEdges,
-        departingClusters,
-        departingItems,
-        clusterEndpoints,
-        contextClusterEndpoints,
-        itemEndpoints,
-        contextItemEndpoints,
-      };
       this.syncActiveFlightState(0);
     } else {
       this.activeFlight = null;
-      const activeClusterIds = new Set<string>();
-      resolvedClusters.forEach((rc, idx) => {
-        const placed = solved.clusters[idx]!;
-        const uid = rc.cluster.clusterUid;
-        activeClusterIds.add(uid);
-        const clusterTargetOpacity =
-          this.emptyClusterBehavior === 'hide' && rc.cluster.members.length === 0
-            ? 0
-            : 1;
-
-        const existing = this.clusterNodes.get(uid);
-        if (!existing || snapImmediately) {
-          this.clusterNodes.set(uid, {
-            id: uid,
-            status: 'active',
-            x: { value: placed.x, velocity: 0, target: placed.x },
-            y: { value: placed.y, velocity: 0, target: placed.y },
-            scale: {
-              value: snapImmediately ? placed.scale : placed.scale * 0.72,
-              velocity: 0,
-              target: placed.scale,
-            },
-            opacity: {
-              value: snapImmediately ? clusterTargetOpacity : 0,
-              velocity: 0,
-              target: clusterTargetOpacity,
-            },
-            visual: rc.visual,
-            hull: rc.hull,
-            cacheKey: rc.cacheKey,
-            transition: null,
-            domain: rc.cluster,
-          });
-        } else {
-          const nextTransition = retargetVisualTransition(
-            existing.transition,
-            existing.visual,
-            existing.hull,
-            existing.cacheKey,
-            rc.visual,
-            rc.hull,
-            rc.cacheKey,
-          );
-          existing.status = 'active';
-          existing.x.target = placed.x;
-          existing.y.target = placed.y;
-          existing.scale.target = placed.scale;
-          existing.opacity.target = clusterTargetOpacity;
-          existing.visual = rc.visual;
-          existing.hull = rc.hull;
-          existing.cacheKey = rc.cacheKey;
-          existing.transition = nextTransition;
-          existing.domain = rc.cluster;
-        }
+      reconcileSpringNodes({
+        resolvedClusters,
+        resolvedItems,
+        solved,
+        snapImmediately,
+        emptyClusterBehavior: this.emptyClusterBehavior,
+        activeZoomFrame,
+        clusterNodes: this.clusterNodes,
+        itemNodes: this.itemNodes,
       });
-
-      for (const [uid, node] of this.clusterNodes) {
-        if (!activeClusterIds.has(uid)) {
-          if (snapImmediately) {
-            this.clusterNodes.delete(uid);
-          } else {
-            node.status = 'exiting';
-            node.opacity.target = 0;
-            node.scale.target = node.scale.value * 0.7;
-          }
-        }
-      }
-
-      const activeItemIds = new Set<string>();
-      resolvedItems.forEach((ri, idx) => {
-        const placed = solved.items[idx]!;
-        const id = ri.placement.id;
-        const targetOpacity = computeClusterStarItemRestOpacity(
-          activeZoomFrame,
-          ri.placement.layoutContext.unitClusters,
-        );
-        activeItemIds.add(id);
-
-        const existing = this.itemNodes.get(id);
-        if (!existing || snapImmediately) {
-          this.itemNodes.set(id, {
-            id,
-            status: 'active',
-            x: {
-              value: snapImmediately ? placed.x : ri.placement.anchorX,
-              velocity: 0,
-              target: placed.x,
-            },
-            y: {
-              value: snapImmediately ? placed.y : ri.placement.anchorY,
-              velocity: 0,
-              target: placed.y,
-            },
-            scale: {
-              value: snapImmediately ? placed.scale : placed.scale * 0.5,
-              velocity: 0,
-              target: placed.scale,
-            },
-            opacity: {
-              value: snapImmediately ? targetOpacity : 0,
-              velocity: 0,
-              target: targetOpacity,
-            },
-            visual: ri.visual,
-            hull: ri.hull,
-            cacheKey: ri.cacheKey,
-            transition: null,
-            domain: ri.placement,
-          });
-        } else {
-          const nextTransition = retargetVisualTransition(
-            existing.transition,
-            existing.visual,
-            existing.hull,
-            existing.cacheKey,
-            ri.visual,
-            ri.hull,
-            ri.cacheKey,
-          );
-          existing.status = 'active';
-          existing.x.target = placed.x;
-          existing.y.target = placed.y;
-          existing.scale.target = placed.scale;
-          existing.opacity.target = targetOpacity;
-          existing.visual = ri.visual;
-          existing.hull = ri.hull;
-          existing.cacheKey = ri.cacheKey;
-          existing.transition = nextTransition;
-          existing.domain = ri.placement;
-        }
-      });
-
-      for (const [id, node] of this.itemNodes) {
-        if (!activeItemIds.has(id)) {
-          if (snapImmediately) {
-            this.itemNodes.delete(id);
-          } else {
-            node.status = 'exiting';
-            node.opacity.target = 0;
-            node.scale.target = Math.max(0.05, node.scale.value * 0.6);
-          }
-        }
-      }
     }
 
     this.refreshItemFilterCache();
@@ -4096,169 +2955,17 @@ export class SimplexGraphEngine<
   }
 
   private syncActiveFlightState(rawProgress: number): void {
-    const flight = this.activeFlight;
-    if (!flight) return;
-
-    if (rawProgress >= 1) {
-      for (const tr of this.triangleStates) {
-        tr.points = [tr.targetPoints[0], tr.targetPoints[1], tr.targetPoints[2]];
-        tr.centroid = {
-          x: (tr.targetPoints[0].x + tr.targetPoints[1].x + tr.targetPoints[2].x) / 3,
-          y: (tr.targetPoints[0].y + tr.targetPoints[1].y + tr.targetPoints[2].y) / 3,
-        };
-        tr.flightOpacity = undefined;
-      }
-      for (const ct of this.contextTriangleStates) {
-        ct.points = [ct.targetPoints[0], ct.targetPoints[1], ct.targetPoints[2]];
-        ct.centroid = {
-          x: (ct.targetPoints[0].x + ct.targetPoints[1].x + ct.targetPoints[2].x) / 3,
-          y: (ct.targetPoints[0].y + ct.targetPoints[1].y + ct.targetPoints[2].y) / 3,
-        };
-        ct.opacity = 1;
-      }
-      for (const edge of this.edgeRecords) {
-        edge.a = edge.targetA;
-        edge.b = edge.targetB;
-        edge.flightOpacity = undefined;
-      }
-      for (const ce of this.contextEdgeRecords) {
-        ce.a = ce.targetA;
-        ce.b = ce.targetB;
-        ce.opacity = 1;
-      }
-      for (const cc of this.contextClusterNodes) {
-        cc.x = cc.targetX;
-        cc.y = cc.targetY;
-        cc.scale = cc.targetScale;
-        cc.opacity = 0.34;
-      }
-      for (const ci of this.contextItemNodes) {
-        ci.x = ci.targetX;
-        ci.y = ci.targetY;
-        ci.scale = ci.targetScale;
-        ci.opacity = 0.32;
-      }
-      for (const cNode of this.clusterNodes.values()) {
-        cNode.x.value = cNode.x.target;
-        cNode.x.velocity = 0;
-        cNode.y.value = cNode.y.target;
-        cNode.y.velocity = 0;
-        cNode.scale.value = cNode.scale.target;
-        cNode.scale.velocity = 0;
-        cNode.opacity.value = cNode.opacity.target;
-        cNode.opacity.velocity = 0;
-      }
-      for (const iNode of this.itemNodes.values()) {
-        iNode.x.value = iNode.x.target;
-        iNode.x.velocity = 0;
-        iNode.y.value = iNode.y.target;
-        iNode.y.velocity = 0;
-        iNode.scale.value = iNode.scale.target;
-        iNode.scale.velocity = 0;
-        iNode.opacity.value = iNode.opacity.target;
-        iNode.opacity.velocity = 0;
-      }
-      return;
-    }
-
-    const { u, camScale, M_u } = this.evaluateFlightCamera(flight, rawProgress);
-
-    for (const tr of this.triangleStates) {
-      const p0 = applyZoomAffine(M_u, tr.targetPoints[0]);
-      const p1 = applyZoomAffine(M_u, tr.targetPoints[1]);
-      const p2 = applyZoomAffine(M_u, tr.targetPoints[2]);
-      tr.points = [p0, p1, p2];
-      tr.centroid = {
-        x: (p0.x + p1.x + p2.x) / 3,
-        y: (p0.y + p1.y + p2.y) / 3,
-      };
-      tr.flightOpacity = u;
-    }
-
-    for (const ct of this.contextTriangleStates) {
-      const p0 = applyZoomAffine(M_u, ct.targetPoints[0]);
-      const p1 = applyZoomAffine(M_u, ct.targetPoints[1]);
-      const p2 = applyZoomAffine(M_u, ct.targetPoints[2]);
-      ct.points = [p0, p1, p2];
-      ct.centroid = {
-        x: (p0.x + p1.x + p2.x) / 3,
-        y: (p0.y + p1.y + p2.y) / 3,
-      };
-      ct.opacity = u;
-    }
-
-    for (const edge of this.edgeRecords) {
-      edge.a = applyZoomAffine(M_u, edge.targetA);
-      edge.b = applyZoomAffine(M_u, edge.targetB);
-      edge.flightOpacity = u;
-    }
-
-    for (const ce of this.contextEdgeRecords) {
-      ce.a = applyZoomAffine(M_u, ce.targetA);
-      ce.b = applyZoomAffine(M_u, ce.targetB);
-      ce.opacity = u;
-    }
-
-    const evalEndpoint = (ep: ActiveNodeFlightEndpoint) => {
-      const lx = ep.localStart.x + (ep.localEnd.x - ep.localStart.x) * u;
-      const ly = ep.localStart.y + (ep.localEnd.y - ep.localStart.y) * u;
-      const pt = applyZoomAffine(M_u, { x: lx, y: ly });
-      const localScale =
-        ep.localStartScale + (ep.targetScale - ep.localStartScale) * u;
-      const scale = Math.max(0.08, camScale * localScale);
-      const opacity = ep.isNewlyEntering
-        ? Math.max(0, Math.min(1, (u - 0.08) / 0.82)) * ep.targetOpacity
-        : ep.startOpacity + (ep.targetOpacity - ep.startOpacity) * u;
-      return { pt, scale, opacity };
-    };
-
-    for (const cNode of this.clusterNodes.values()) {
-      const ep = flight.clusterEndpoints.get(cNode.id);
-      if (!ep) continue;
-      const { pt, scale, opacity } = evalEndpoint(ep);
-      cNode.x.value = pt.x;
-      cNode.x.velocity = 0;
-      cNode.y.value = pt.y;
-      cNode.y.velocity = 0;
-      cNode.scale.value = scale;
-      cNode.scale.velocity = 0;
-      cNode.opacity.value = opacity;
-      cNode.opacity.velocity = 0;
-    }
-
-    for (const cc of this.contextClusterNodes) {
-      const ep = flight.contextClusterEndpoints.get(cc.id);
-      if (!ep) continue;
-      const { pt, scale, opacity } = evalEndpoint(ep);
-      cc.x = pt.x;
-      cc.y = pt.y;
-      cc.scale = scale;
-      cc.opacity = opacity;
-    }
-
-    for (const ci of this.contextItemNodes) {
-      const ep = flight.contextItemEndpoints.get(ci.id);
-      if (!ep) continue;
-      const { pt, scale, opacity } = evalEndpoint(ep);
-      ci.x = pt.x;
-      ci.y = pt.y;
-      ci.scale = scale;
-      ci.opacity = opacity;
-    }
-
-    for (const iNode of this.itemNodes.values()) {
-      const ep = flight.itemEndpoints.get(iNode.id);
-      if (!ep) continue;
-      const { pt, scale, opacity } = evalEndpoint(ep);
-      iNode.x.value = pt.x;
-      iNode.x.velocity = 0;
-      iNode.y.value = pt.y;
-      iNode.y.velocity = 0;
-      iNode.scale.value = scale;
-      iNode.scale.velocity = 0;
-      iNode.opacity.value = opacity;
-      iNode.opacity.velocity = 0;
-    }
+    if (!this.activeFlight) return;
+    syncFlightState(this.activeFlight, rawProgress, {
+      triangleStates: this.triangleStates,
+      contextTriangleStates: this.contextTriangleStates,
+      edgeRecords: this.edgeRecords,
+      contextEdgeRecords: this.contextEdgeRecords,
+      contextClusterNodes: this.contextClusterNodes,
+      contextItemNodes: this.contextItemNodes,
+      clusterNodes: this.clusterNodes,
+      itemNodes: this.itemNodes,
+    });
   }
 
   /**
@@ -4375,155 +3082,6 @@ export class SimplexGraphEngine<
     return allSettled;
   }
 
-  private computeZoomRegionBoundary(): {
-    readonly isZoomedIn: boolean;
-    readonly activeFrameKind: ZoomFrameSpec<TItem, TTagMeta, TClusterMeta>['kind'] | undefined;
-    readonly boundaryEdgeKeys: ReadonlySet<string>;
-    readonly outerCornerVerts: ReadonlySet<number>;
-  } {
-    const isZoomedIn =
-      this.zoomStrategy.mode === 'drill-down' && this.zoomStack.length > 1;
-    const activeZoomFrame = isZoomedIn
-      ? this.zoomStack[this.zoomStack.length - 1]
-      : undefined;
-    const boundaryEdgeKeys = new Set<string>();
-    const outerCornerVerts = new Set<number>();
-
-    if (isZoomedIn && this.triangleStates.length > 0) {
-      const edgeCounts = new Map<string, number>();
-      for (const tr of this.triangleStates) {
-        const [a, b, c] = tr.vertexIndices;
-        for (const [u, v] of [
-          [a, b],
-          [b, c],
-          [c, a],
-        ] as const) {
-          const k = u < v ? `${u}:${v}` : `${v}:${u}`;
-          edgeCounts.set(k, (edgeCounts.get(k) ?? 0) + 1);
-        }
-      }
-      for (const [k, count] of edgeCounts) {
-        if (count === 1) {
-          boundaryEdgeKeys.add(k);
-        }
-      }
-
-      if (
-        (activeZoomFrame?.kind === 'triangle' ||
-          activeZoomFrame?.kind === 'cluster-spotlight') &&
-        this.triangleStates.length > 1
-      ) {
-        outerCornerVerts.add(0);
-        outerCornerVerts.add(1);
-        outerCornerVerts.add(2);
-      } else {
-        for (const k of boundaryEdgeKeys) {
-          const sep = k.indexOf(':');
-          const u = Number(k.slice(0, sep));
-          const v = Number(k.slice(sep + 1));
-          if (activeZoomFrame?.kind !== 'cluster-star' || u !== 0) {
-            outerCornerVerts.add(u);
-          }
-          if (activeZoomFrame?.kind !== 'cluster-star' || v !== 0) {
-            outerCornerVerts.add(v);
-          }
-        }
-      }
-    }
-
-    return {
-      isZoomedIn,
-      activeFrameKind: activeZoomFrame?.kind,
-      boundaryEdgeKeys,
-      outerCornerVerts,
-    };
-  }
-
-  private buildTriangleRenderState(
-    tr: AnimatedTriangleRecord,
-    hasTriangleFocus = false,
-    zoomBoundary = this.computeZoomRegionBoundary(),
-    drillableTriSet?: ReadonlySet<number> | null,
-  ): MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta> {
-    const [va, vb, vc] = tr.vertexIndices;
-    const isHovered = this.hoveredTriangleIndex === tr.index;
-    const isFocused = this.focusedTriangleIndex === tr.index;
-    const isReturnHighlighted =
-      this.neighborReturnHighlight?.kind === 'triangle' &&
-      this.neighborReturnHighlight.triangleIndex === tr.index;
-    const isHighlighted = isReturnHighlighted || zoomBoundary.isZoomedIn;
-    const isDimmed =
-      hasTriangleFocus && !isFocused && !isHovered && !isReturnHighlighted;
-    const isDrillable =
-      drillableTriSet !== undefined
-        ? Boolean(drillableTriSet?.has(tr.index))
-        : this.zoomStrategy.mode === 'drill-down' &&
-          this.currentZoomState.drillableTriangleIndices.includes(tr.index);
-
-    const pairKey = (u: number, v: number) => (u < v ? `${u}:${v}` : `${v}:${u}`);
-    const useMacroBoundaryMask =
-      zoomBoundary.isZoomedIn &&
-      this.triangleStates.length > 1 &&
-      !isHovered &&
-      !isFocused &&
-      !isReturnHighlighted;
-
-    return {
-      index: tr.index,
-      vertexIndices: tr.vertexIndices,
-      points: tr.points,
-      centroid: tr.centroid,
-      fillHex: tr.fillHex,
-      fillOpacity: 0.085,
-      opacity: tr.flightOpacity,
-      isDrillable: isDrillable || undefined,
-      clusters: [
-        this.currentClusters[va],
-        this.currentClusters[vb],
-        this.currentClusters[vc],
-      ],
-      coveredItemCount: tr.coveredItemCount,
-      interiorItemCount: tr.interiorItemCount,
-      highlightBoundary: useMacroBoundaryMask
-        ? {
-            edges: [
-              zoomBoundary.boundaryEdgeKeys.has(pairKey(va, vb)),
-              zoomBoundary.boundaryEdgeKeys.has(pairKey(vb, vc)),
-              zoomBoundary.boundaryEdgeKeys.has(pairKey(vc, va)),
-            ],
-            corners: [
-              zoomBoundary.outerCornerVerts.has(va),
-              zoomBoundary.outerCornerVerts.has(vb),
-              zoomBoundary.outerCornerVerts.has(vc),
-            ],
-          }
-        : undefined,
-      interaction: {
-        isHovered,
-        isFocused,
-        isDimmed,
-        isHighlighted,
-      },
-    };
-  }
-
-  private buildContextTriangleRenderState(
-    ct: AnimatedContextTriangleRecord<TItem, TTagMeta, TClusterMeta>,
-  ): MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta> {
-    return {
-      ...ct.base,
-      points: ct.points,
-      centroid: ct.centroid,
-      opacity: ct.opacity < 0.999 ? ct.opacity : undefined,
-      interaction: {
-        isHovered: this.hoveredTriangleIndex === ct.base.index,
-        isFocused: false,
-        isDimmed: true,
-        isHighlighted: false,
-      },
-    };
-  }
-
   private buildFrameSnapshot(): SceneFrameSnapshot<
     TContentVisual,
     TClusterVisual,
@@ -4531,652 +3089,72 @@ export class SimplexGraphEngine<
     TTagMeta,
     TClusterMeta
   > {
-    const zoomBoundary = this.computeZoomRegionBoundary();
-    const returnTriIdx =
-      this.neighborReturnHighlight?.kind === 'triangle'
-        ? this.neighborReturnHighlight.triangleIndex
-        : null;
-    const returnTriangle =
-      returnTriIdx !== null ? this.triangleStates[returnTriIdx] : undefined;
-    const returnTriVertSet = returnTriangle
-      ? new Set(returnTriangle.vertexIndices)
-      : null;
-    const returnClusterUid =
-      this.neighborReturnHighlight?.kind === 'cluster'
-        ? this.neighborReturnHighlight.clusterUid
-        : null;
-
-    const hasFocusedItemHighlight =
-      this.focusedItemId !== null && this.focusedItemHighlight;
-    const hasTriangleOnlyFocus =
-      this.focusedTriangleIndex !== null &&
-      this.focusedClusterUid === null &&
-      this.highlightedIds.size === 0 &&
-      !hasFocusedItemHighlight;
-    const focusedTriangle =
-      this.focusedTriangleIndex !== null
-        ? this.triangleStates[this.focusedTriangleIndex]
-        : undefined;
-    const hoveredTriangle =
-      this.hoveredTriangleIndex !== null && this.hoveredTriangleIndex >= 0
-        ? this.triangleStates[this.hoveredTriangleIndex]
-        : undefined;
-    const focusedTriVertSet = focusedTriangle
-      ? new Set(focusedTriangle.vertexIndices)
-      : null;
-    const hoveredTriVertSet = hoveredTriangle
-      ? new Set(hoveredTriangle.vertexIndices)
-      : null;
-
-    const hasHighlightFocus =
-      this.highlightedIds.size > 0 ||
-      hasFocusedItemHighlight ||
-      this.focusedClusterUid !== null ||
-      hasTriangleOnlyFocus;
-
-    const flightEval = this.activeFlight
-      ? this.evaluateFlightCamera(this.activeFlight, this.activeFlight.rawProgress)
-      : null;
-
-    const clusters: NodeRenderState<TClusterVisual>[] = [];
-    if (this.activeFlight && flightEval) {
-      const { u, camScale, M_u } = flightEval;
-      const fadeOut = 1 - Math.min(1, u / 0.78);
-      if (fadeOut > 0.005) {
-        for (const dc of this.activeFlight.departingClusters) {
-          const pt = applyZoomAffine(M_u, dc.localStart);
-          const localScale =
-            dc.localStartScale + (dc.localEndScale - dc.localStartScale) * u;
-          clusters.push({
-            id: dc.id,
-            x: pt.x,
-            y: pt.y,
-            scale: Math.max(0.08, camScale * localScale),
-            opacity: dc.startOpacity * fadeOut,
-            visual: dc.visual,
-            hull: dc.hull,
-            cacheKey: dc.cacheKey,
-            isContext: true,
-            interaction: {
-              isHovered: false,
-              isPinned: false,
-              isDimmed: true,
-              isHighlighted: false,
-            },
-            transition: null,
-          });
-        }
-      }
-    }
-
-    for (const cc of this.contextClusterNodes) {
-      const isHovered = this.hoveredContextClusterId === cc.id;
-      clusters.push({
-        id: cc.id,
-        x: cc.x,
-        y: cc.y,
-        scale: cc.scale,
-        opacity: cc.opacity,
-        visual: cc.visual,
-        hull: cc.hull,
-        cacheKey: cc.cacheKey,
-        isContext: true,
-        neighborId: cc.neighborId,
-        interaction: {
-          isHovered,
-          isPinned: false,
-          isDimmed: true,
-          isHighlighted: false,
-        },
-        transition: null,
-      });
-    }
-
-    for (const cNode of this.clusterNodes.values()) {
-      const isHovered = this.hoveredClusterUid === cNode.id;
-      const isFocusedCluster = this.focusedClusterUid === cNode.id;
-      const isReturnCluster = returnClusterUid === cNode.id;
-      const inReturnTriangle = Boolean(
-        returnTriVertSet?.has(cNode.domain.clusterIndex) &&
-          cNode.domain.role !== 'intermediate',
-      );
-      const isZoomHighlightedCluster = Boolean(
-        zoomBoundary.isZoomedIn &&
-          (zoomBoundary.activeFrameKind === 'cluster-star'
-            ? cNode.domain.clusterIndex === 0
-            : zoomBoundary.activeFrameKind === 'triangle-focus'
-              ? zoomBoundary.outerCornerVerts.has(cNode.domain.clusterIndex)
-              : cNode.domain.role !== 'intermediate' &&
-                zoomBoundary.outerCornerVerts.has(cNode.domain.clusterIndex)),
-      );
-      const inFocusedTriangle = Boolean(
-        hasTriangleOnlyFocus && focusedTriVertSet?.has(cNode.domain.clusterIndex),
-      );
-      const isPinned = this.pinnedIds.has(cNode.id);
-      const isEmptyCluster = cNode.domain.members.length === 0;
-      const isHiddenEmptyCluster =
-        this.emptyClusterBehavior === 'hide' && isEmptyCluster;
-      const isDimmed =
-        (this.focusedClusterUid !== null && !isFocusedCluster && !isHovered) ||
-        (hasTriangleOnlyFocus && !inFocusedTriangle && !isHovered) ||
-        (this.emptyClusterBehavior === 'dim' && isEmptyCluster && !isHovered);
-
-      clusters.push({
-        id: cNode.id,
-        x: cNode.x.value,
-        y: cNode.y.value,
-        scale: cNode.scale.value,
-        opacity: cNode.opacity.value,
-        visual: cNode.visual,
-        hull: cNode.hull,
-        cacheKey: cNode.cacheKey,
-        isPassThrough: isHiddenEmptyCluster ? true : undefined,
-        interaction: {
-          isHovered,
-          isPinned,
-          isDimmed,
-          isHighlighted:
-            isFocusedCluster ||
-            inFocusedTriangle ||
-            isReturnCluster ||
-            inReturnTriangle ||
-            isZoomHighlightedCluster,
-        },
-        transition: cNode.transition
-          ? {
-              from: cNode.transition.from,
-              fromHull: cNode.transition.fromHull,
-              fromCacheKey: cNode.transition.fromCacheKey,
-              to: cNode.transition.to,
-              toHull: cNode.transition.toHull,
-              toCacheKey: cNode.transition.toCacheKey,
-              progress: cNode.transition.progress,
-            }
-          : null,
-      });
-    }
-
-    const items: NodeRenderState<TContentVisual>[] = [];
-    if (this.activeFlight && flightEval) {
-      const { u, camScale, M_u } = flightEval;
-      const fadeOut = 1 - Math.min(1, u / 0.78);
-      if (fadeOut > 0.005) {
-        for (const di of this.activeFlight.departingItems) {
-          const pt = applyZoomAffine(M_u, di.localStart);
-          const localScale =
-            di.localStartScale + (di.localEndScale - di.localStartScale) * u;
-          items.push({
-            id: di.id,
-            x: pt.x,
-            y: pt.y,
-            scale: Math.max(0.08, camScale * localScale),
-            opacity: di.startOpacity * fadeOut,
-            visual: di.visual,
-            hull: di.hull,
-            cacheKey: di.cacheKey,
-            isContext: true,
-            interaction: {
-              isHovered: false,
-              isPinned: false,
-              isDimmed: true,
-              isHighlighted: false,
-            },
-            transition: null,
-          });
-        }
-      }
-    }
-
-    for (const ci of this.contextItemNodes) {
-      items.push({
-        id: ci.id,
-        x: ci.x,
-        y: ci.y,
-        scale: ci.scale,
-        opacity: ci.opacity,
-        visual: ci.visual,
-        hull: ci.hull,
-        cacheKey: ci.cacheKey,
-        isContext: true,
-        isPassThrough: true,
-        neighborId: ci.neighborId,
-        interaction: {
-          isHovered: false,
-          isPinned: false,
-          isDimmed: true,
-          isHighlighted: false,
-        },
-        transition: null,
-      });
-    }
-
-    const drillableTriSetForItems =
-      this.zoomStrategy.mode === 'drill-down' &&
-      this.currentZoomState.drillableTriangleIndices.length > 0
-        ? new Set(this.currentZoomState.drillableTriangleIndices)
-        : null;
-
-    for (const iNode of this.itemNodes.values()) {
-      const isFilteredOut =
-        this.itemFilterPredicate !== null && this.filteredOutItemIds.has(iNode.id);
-      const isHiddenByFilter = isFilteredOut && this.itemFilterMode === 'hide';
-      const isDimmedByFilter = isFilteredOut && this.itemFilterMode === 'dim';
-      const isPassThrough =
-        isHiddenByFilter ||
-        (drillableTriSetForItems !== null &&
-          this.resolveDrillableTriangleForActiveItem(
-            iNode,
-            { x: iNode.x.value, y: iNode.y.value },
-            drillableTriSetForItems,
-          ) !== null);
-      const isProgrammaticallyFocused =
-        !isHiddenByFilter && this.focusedItemId === iNode.id;
-      const isHovered =
-        (!isPassThrough || isProgrammaticallyFocused) &&
-        this.hoveredContentId === iNode.id;
-      const isPinned = this.pinnedIds.has(iNode.id);
-      const isSelected = !isHiddenByFilter && this.selectedIds.has(iNode.id);
-      const belongsToFocusedCluster =
-        this.focusedClusterUid !== null &&
-        iNode.domain.layoutContext.unitClusters.some(
-          (uc) => uc.cluster.clusterUid === this.focusedClusterUid,
-        );
-      const belongsToFocusedTriangle =
-        hasTriangleOnlyFocus &&
-        focusedTriVertSet !== null &&
-        iNode.domain.layoutContext.unitClusters.length > 0 &&
-        iNode.domain.layoutContext.unitClusters.every((uc) =>
-          focusedTriVertSet.has(uc.cluster.clusterIndex),
-        );
-      const isHighlighted =
-        !isHiddenByFilter &&
-        (this.highlightedIds.has(iNode.id) ||
-          (isProgrammaticallyFocused && this.focusedItemHighlight) ||
-          belongsToFocusedCluster ||
-          belongsToFocusedTriangle);
-      const isDimmed =
-        !isHiddenByFilter &&
-        ((hasHighlightFocus &&
-          !isHighlighted &&
-          !isHovered &&
-          !isPinned &&
-          !isSelected) ||
-          isDimmedByFilter);
-      const effectiveItemOpacity = isHiddenByFilter
-        ? 0
-        : !this.activeFlight
-          ? isPinned ||
-            isSelected ||
-            this.highlightedIds.has(iNode.id) ||
-            (isProgrammaticallyFocused && this.focusedItemHighlight)
-            ? Math.max(iNode.opacity.value, 1)
-            : isHovered
-              ? Math.max(iNode.opacity.value, 0.92)
-              : iNode.opacity.value
-          : iNode.opacity.value;
-
-      items.push({
-        id: iNode.id,
-        x: iNode.x.value,
-        y: iNode.y.value,
-        scale: iNode.scale.value,
-        opacity: effectiveItemOpacity,
-        visual: iNode.visual,
-        hull: iNode.hull,
-        cacheKey: iNode.cacheKey,
-        isPassThrough: isPassThrough || undefined,
-        isFilteredOut: isFilteredOut || undefined,
-        interaction: {
-          isHovered,
-          isPinned,
-          isDimmed,
-          isHighlighted,
-          isSelected,
-        },
-        transition: iNode.transition
-          ? {
-              from: iNode.transition.from,
-              fromHull: iNode.transition.fromHull,
-              fromCacheKey: iNode.transition.fromCacheKey,
-              to: iNode.transition.to,
-              toHull: iNode.transition.toHull,
-              toCacheKey: iNode.transition.toCacheKey,
-              progress: iNode.transition.progress,
-            }
-          : null,
-      });
-    }
-
-    const hasTriangleFocus = this.focusedTriangleIndex !== null;
-    const ghostTriangles: MeshTriangleRenderState<
-      TItem,
-      TTagMeta,
-      TClusterMeta
-    >[] = [];
-    if (this.activeFlight && flightEval) {
-      const { u, M_u } = flightEval;
-      const fadeOut = 1 - u;
-      if (fadeOut > 0.005) {
-        this.activeFlight.departingTriangles.forEach((dt, idx) => {
-          const p0 = applyZoomAffine(M_u, dt.localPoints[0]);
-          const p1 = applyZoomAffine(M_u, dt.localPoints[1]);
-          const p2 = applyZoomAffine(M_u, dt.localPoints[2]);
-          ghostTriangles.push({
-            ...dt.base,
-            index: -10000 - idx,
-            points: [p0, p1, p2],
-            centroid: {
-              x: (p0.x + p1.x + p2.x) / 3,
-              y: (p0.y + p1.y + p2.y) / 3,
-            },
-            opacity: dt.startOpacity * fadeOut,
-          });
-        });
-      }
-    }
-
-    const contextTriangles = this.contextTriangleStates.map((ct) =>
-      this.buildContextTriangleRenderState(ct),
-    );
-    const triangles: MeshTriangleRenderState<TItem, TTagMeta, TClusterMeta>[] = [
-      ...ghostTriangles,
-      ...contextTriangles,
-      ...this.triangleStates.map((tr) =>
-        this.buildTriangleRenderState(
-          tr,
-          hasTriangleFocus,
-          zoomBoundary,
-          drillableTriSetForItems,
-        ),
-      ),
-    ];
-
-    const ghostEdges: MeshEdgeRenderState<TItem, TTagMeta, TClusterMeta>[] = [];
-    if (this.activeFlight && flightEval) {
-      const { u, M_u } = flightEval;
-      const fadeOut = 1 - u;
-      if (fadeOut > 0.005) {
-        this.activeFlight.departingEdges.forEach((de, idx) => {
-          ghostEdges.push({
-            ...de.base,
-            index: -10000 - idx,
-            a: applyZoomAffine(M_u, de.localA),
-            b: applyZoomAffine(M_u, de.localB),
-            opacity: de.startOpacity * fadeOut,
-          });
-        });
-      }
-    }
-
-    const contextEdges: MeshEdgeRenderState<TItem, TTagMeta, TClusterMeta>[] =
-      this.contextEdgeRecords.map((ce) => ({
-        ...ce.base,
-        a: ce.a,
-        b: ce.b,
-        opacity: ce.opacity < 0.999 ? ce.opacity : undefined,
-      }));
-
-    const edges: MeshEdgeRenderState<TItem, TTagMeta, TClusterMeta>[] = [
-      ...ghostEdges,
-      ...contextEdges,
-      ...this.edgeRecords.map((edge) => {
-        const [ea, eb] = edge.vertexIndices;
-        const edgeKey = ea < eb ? `${ea}:${eb}` : `${eb}:${ea}`;
-        const cA = this.currentClusters[ea];
-        const cB = this.currentClusters[eb];
-        const onFocusedTri = Boolean(
-          focusedTriVertSet && focusedTriVertSet.has(ea) && focusedTriVertSet.has(eb),
-        );
-        const onHoveredTri = Boolean(
-          hoveredTriVertSet && hoveredTriVertSet.has(ea) && hoveredTriVertSet.has(eb),
-        );
-        const onReturnTri = Boolean(
-          returnTriVertSet && returnTriVertSet.has(ea) && returnTriVertSet.has(eb),
-        );
-        const onZoomBoundary =
-          zoomBoundary.isZoomedIn && zoomBoundary.boundaryEdgeKeys.has(edgeKey);
-        const touchesZoomStarCenter =
-          zoomBoundary.isZoomedIn &&
-          zoomBoundary.activeFrameKind === 'cluster-star' &&
-          (ea === 0 || eb === 0);
-        const touchesFocusedCluster =
-          this.focusedClusterUid !== null &&
-          (cA?.clusterUid === this.focusedClusterUid ||
-            cB?.clusterUid === this.focusedClusterUid);
-        const touchesHoveredCluster =
-          this.hoveredClusterUid !== null &&
-          (cA?.clusterUid === this.hoveredClusterUid ||
-            cB?.clusterUid === this.hoveredClusterUid);
-        const touchesReturnCluster =
-          returnClusterUid !== null &&
-          (cA?.clusterUid === returnClusterUid ||
-            cB?.clusterUid === returnClusterUid);
-        return {
-          index: edge.index,
-          vertexIndices: edge.vertexIndices,
-          a: edge.a,
-          b: edge.b,
-          mixedColorHex: edge.mixedColorHex,
-          clusters: [cA, cB] as const,
-          isHighlighted:
-            onFocusedTri ||
-            onHoveredTri ||
-            onReturnTri ||
-            onZoomBoundary ||
-            touchesZoomStarCenter ||
-            touchesFocusedCluster ||
-            touchesHoveredCluster ||
-            touchesReturnCluster,
-          opacity: edge.flightOpacity,
-        };
-      }),
-    ];
-
-    return {
+    return buildSceneFrameSnapshot({
       viewportWidth: this.viewportWidth,
       viewportHeight: this.viewportHeight,
       camera: this.camera.getState(),
-      triangles,
-      edges,
-      clusters,
-      items,
       showHulls: this.showHulls,
+      zoomMode: this.zoomStrategy.mode,
+      zoomStack: this.zoomStack,
+      currentZoomState: this.currentZoomState,
+      currentClusters: this.currentClusters,
+      triangleStates: this.triangleStates,
+      edgeRecords: this.edgeRecords,
+      contextTriangleStates: this.contextTriangleStates,
+      contextEdgeRecords: this.contextEdgeRecords,
+      contextClusterNodes: this.contextClusterNodes,
+      contextItemNodes: this.contextItemNodes,
+      clusterNodes: this.clusterNodes,
+      itemNodes: this.itemNodes,
+      activeFlight: this.activeFlight,
+      neighborReturnHighlight: this.neighborReturnHighlight,
+      focusedItemId: this.focusedItemId,
+      focusedItemHighlight: this.focusedItemHighlight,
+      focusedClusterUid: this.focusedClusterUid,
+      focusedTriangleIndex: this.focusedTriangleIndex,
+      hoveredTriangleIndex: this.hoveredTriangleIndex,
+      hoveredClusterUid: this.hoveredClusterUid,
+      hoveredContextClusterId: this.hoveredContextClusterId,
+      hoveredContentId: this.hoveredContentId,
+      pinnedIds: this.pinnedIds,
+      highlightedIds: this.highlightedIds,
+      selectedIds: this.selectedIds,
+      emptyClusterBehavior: this.emptyClusterBehavior,
+      itemFilterPredicate: this.itemFilterPredicate,
+      itemFilterMode: this.itemFilterMode,
+      filteredOutItemIds: this.filteredOutItemIds,
+    });
+  }
+
+  private getHitTestContext(): SceneHitTestContext<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  > {
+    return {
+      camera: this.camera,
+      zoomMode: this.zoomStrategy.mode,
+      zoomStack: this.zoomStack,
+      currentZoomState: this.currentZoomState,
+      currentClusters: this.currentClusters,
+      triangleStates: this.triangleStates,
+      contextTriangleStates: this.contextTriangleStates,
+      contextClusterNodes: this.contextClusterNodes,
+      contextItemNodes: this.contextItemNodes,
+      clusterNodes: this.clusterNodes,
+      itemNodes: this.itemNodes,
+      focusedClusterUid: this.focusedClusterUid,
+      focusedTriangleIndex: this.focusedTriangleIndex,
+      hoveredTriangleIndex: this.hoveredTriangleIndex,
+      neighborReturnHighlight: this.neighborReturnHighlight,
+      emptyClusterBehavior: this.emptyClusterBehavior,
+      itemFilterPredicate: this.itemFilterPredicate,
+      itemFilterMode: this.itemFilterMode,
+      filteredOutItemIds: this.filteredOutItemIds,
+      hasActiveFlight: this.activeFlight !== null,
     };
-  }
-
-  /**
-   * Checks whether an active content item `node` belongs to a currently zoomable/drillable
-   * triangle when a `drill-down` zoom strategy is active. If so, returns that owning
-   * `AnimatedTriangleRecord` so pointer hover & click pass through to the triangle face;
-   * returns `null` when the item sits in a leaf (non-drillable) region and remains interactive.
-   */
-  private resolveDrillableTriangleForActiveItem(
-    node: AnimatedNodeRecord<
-      TContentVisual,
-      ComputedItemPlacement<TItem, TTagMeta, TClusterMeta>
-    >,
-    probePosition: Point2D,
-    drillableTriSet: ReadonlySet<number>,
-  ): AnimatedTriangleRecord | null {
-    // 1. Check which active mesh triangle directly contains the pointer/probe position
-    for (let i = this.triangleStates.length - 1; i >= 0; i--) {
-      const tr = this.triangleStates[i]!;
-      if (
-        isPointInTriangle(
-          probePosition.x,
-          probePosition.y,
-          tr.points[0],
-          tr.points[1],
-          tr.points[2],
-        )
-      ) {
-        return drillableTriSet.has(tr.index) ? tr : null;
-      }
-    }
-
-    // 2. If pointer hit an overhanging rim of `node`, check which triangle contains `node`'s center
-    const nx = node.x.value;
-    const ny = node.y.value;
-    if (nx !== probePosition.x || ny !== probePosition.y) {
-      for (let i = this.triangleStates.length - 1; i >= 0; i--) {
-        const tr = this.triangleStates[i]!;
-        if (isPointInTriangle(nx, ny, tr.points[0], tr.points[1], tr.points[2])) {
-          return drillableTriSet.has(tr.index) ? tr : null;
-        }
-      }
-    }
-
-    // 3. Item relaxed slightly outside the outer mesh perimeter (e.g. 1-cluster item near a corner):
-    //    find the geometrically nearest active triangle whose corner clusters cover `node`.
-    const unitClusters = node.domain.layoutContext.unitClusters;
-    if (unitClusters.length > 0) {
-      let nearestCoveringTri: AnimatedTriangleRecord | null = null;
-      let bestDistSq = Infinity;
-      for (const tr of this.triangleStates) {
-        const [va, vb, vc] = tr.vertexIndices;
-        const covers = unitClusters.every(
-          (uc) =>
-            uc.cluster.clusterIndex === va ||
-            uc.cluster.clusterIndex === vb ||
-            uc.cluster.clusterIndex === vc,
-        );
-        if (!covers) continue;
-        const dx = nx - tr.centroid.x;
-        const dy = ny - tr.centroid.y;
-        const distSq = dx * dx + dy * dy;
-        if (distSq < bestDistSq) {
-          bestDistSq = distSq;
-          nearestCoveringTri = tr;
-        }
-      }
-      if (nearestCoveringTri && drillableTriSet.has(nearestCoveringTri.index)) {
-        return nearestCoveringTri;
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Finds the best candidate triangle index containing or covering `node` using its solved
-   * target coordinates `(node.x.target, node.y.target)` so multi-step `zoomToItem` works
-   * synchronously even while spring/flight animations are in progress.
-   */
-  private resolveContainingTriangleIndexForItem(
-    node: AnimatedNodeRecord<
-      TContentVisual,
-      ComputedItemPlacement<TItem, TTagMeta, TClusterMeta>
-    >,
-    candidateTriSet: ReadonlySet<number>,
-  ): number | null {
-    const tx = node.x.target;
-    const ty = node.y.target;
-
-    for (let i = this.triangleStates.length - 1; i >= 0; i--) {
-      const tr = this.triangleStates[i]!;
-      if (!candidateTriSet.has(tr.index)) continue;
-      if (isPointInTriangle(tx, ty, tr.points[0], tr.points[1], tr.points[2])) {
-        return tr.index;
-      }
-    }
-
-    const unitClusters = node.domain.layoutContext.unitClusters;
-    if (unitClusters.length > 0) {
-      let bestIdx: number | null = null;
-      let bestDistSq = Infinity;
-      for (const tr of this.triangleStates) {
-        if (!candidateTriSet.has(tr.index)) continue;
-        const [va, vb, vc] = tr.vertexIndices;
-        const covers = unitClusters.every(
-          (uc) =>
-            uc.cluster.clusterIndex === va ||
-            uc.cluster.clusterIndex === vb ||
-            uc.cluster.clusterIndex === vc,
-        );
-        if (!covers) continue;
-        const dx = tx - tr.centroid.x;
-        const dy = ty - tr.centroid.y;
-        const distSq = dx * dx + dy * dy;
-        if (distSq < bestDistSq) {
-          bestDistSq = distSq;
-          bestIdx = tr.index;
-        }
-      }
-      if (bestIdx !== null) return bestIdx;
-    }
-
-    return null;
-  }
-
-  /**
-   * Resolves a dimmed neighborhood `contextItemNode` (e.g. an exterior 1-cluster item or overhanging rim)
-   * to its owning `contextTriangle` so unfocused content items never capture individual hover,
-   * routing pointer hover & click cleanly to the neighbor triangle as a whole.
-   */
-  private resolveContextTriangleForContextItem(
-    ci: AnimatedContextItemRecord<TItem, TContentVisual, TTagMeta, TClusterMeta>,
-  ): AnimatedContextTriangleRecord<TItem, TTagMeta, TClusterMeta> | null {
-    for (let i = this.contextTriangleStates.length - 1; i >= 0; i--) {
-      const ct = this.contextTriangleStates[i]!;
-      if (isPointInTriangle(ci.x, ci.y, ct.points[0], ct.points[1], ct.points[2])) {
-        return ct;
-      }
-    }
-
-    if (ci.neighborId) {
-      let bestExact: AnimatedContextTriangleRecord<TItem, TTagMeta, TClusterMeta> | null =
-        null;
-      let bestExactDistSq = Infinity;
-      for (const ct of this.contextTriangleStates) {
-        if (ct.base.neighborId !== ci.neighborId) continue;
-        const dx = ci.x - ct.centroid.x;
-        const dy = ci.y - ct.centroid.y;
-        const dSq = dx * dx + dy * dy;
-        if (dSq < bestExactDistSq) {
-          bestExactDistSq = dSq;
-          bestExact = ct;
-        }
-      }
-      if (bestExact) return bestExact;
-    }
-
-    const itemClusterUids = new Set(
-      ci.layoutContext.unitClusters.map((uc) => uc.cluster.clusterUid),
-    );
-    if (itemClusterUids.size > 0) {
-      const scopePrefix = ci.neighborId?.startsWith('@')
-        ? ci.neighborId.slice(0, ci.neighborId.indexOf('/') + 1)
-        : '';
-      let nearestSharing: AnimatedContextTriangleRecord<
-        TItem,
-        TTagMeta,
-        TClusterMeta
-      > | null = null;
-      let bestDistSq = Infinity;
-      for (const ct of this.contextTriangleStates) {
-        if (
-          scopePrefix &&
-          ct.base.neighborId &&
-          !ct.base.neighborId.startsWith(scopePrefix)
-        ) {
-          continue;
-        }
-        const sharesCorner = ct.base.clusters.some(
-          (c) => c !== undefined && itemClusterUids.has(c.clusterUid),
-        );
-        if (!sharesCorner) continue;
-        const dx = ci.x - ct.centroid.x;
-        const dy = ci.y - ct.centroid.y;
-        const dSq = dx * dx + dy * dy;
-        if (dSq < bestDistSq) {
-          bestDistSq = dSq;
-          nearestSharing = ct;
-        }
-      }
-      if (nearestSharing) return nearestSharing;
-    }
-
-    return null;
   }
 
   /**
@@ -5188,240 +3166,7 @@ export class SimplexGraphEngine<
     screenX: number,
     screenY: number,
   ): HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta> {
-    const worldPosition = this.camera.screenToWorld(screenX, screenY);
-    const screenPosition = { x: screenX, y: screenY };
-    const hasTriangleFocus = this.focusedTriangleIndex !== null;
-
-    const drillableTriSet =
-      this.zoomStrategy.mode === 'drill-down' &&
-      this.currentZoomState.drillableTriangleIndices.length > 0
-        ? new Set(this.currentZoomState.drillableTriangleIndices)
-        : null;
-    let deferredDrillableTri: AnimatedTriangleRecord | null = null;
-
-    // Test content items in reverse insertion order (topmost rendered first)
-    const itemList = [...this.itemNodes.values()];
-    for (let i = itemList.length - 1; i >= 0; i--) {
-      const node = itemList[i]!;
-      if (
-        node.status !== 'active' ||
-        node.opacity.value < 0.15 ||
-        (this.itemFilterPredicate !== null &&
-          this.itemFilterMode === 'hide' &&
-          this.filteredOutItemIds.has(node.id))
-      ) {
-        continue;
-      }
-      if (
-        hitTestConvexGeometry(
-          node.hull,
-          node.x.value,
-          node.y.value,
-          node.scale.value,
-          worldPosition.x,
-          worldPosition.y,
-          3 / Math.max(0.5, this.camera.getState().zoom),
-        )
-      ) {
-        if (drillableTriSet !== null) {
-          const owningDrillable = this.resolveDrillableTriangleForActiveItem(
-            node,
-            worldPosition,
-            drillableTriSet,
-          );
-          if (owningDrillable !== null) {
-            deferredDrillableTri ??= owningDrillable;
-            continue;
-          }
-        }
-        return {
-          kind: 'content',
-          item: node.domain.item,
-          layoutContext: node.domain.layoutContext,
-          visual: node.visual,
-          worldPosition,
-          screenPosition,
-        };
-      }
-    }
-
-    // Test topic clusters
-    const clusterList = [...this.clusterNodes.values()];
-    for (let i = clusterList.length - 1; i >= 0; i--) {
-      const node = clusterList[i]!;
-      if (
-        node.status !== 'active' ||
-        node.opacity.value < 0.15 ||
-        (this.emptyClusterBehavior === 'hide' && node.domain.members.length === 0)
-      ) {
-        continue;
-      }
-      if (
-        hitTestConvexGeometry(
-          node.hull,
-          node.x.value,
-          node.y.value,
-          node.scale.value,
-          worldPosition.x,
-          worldPosition.y,
-          3 / Math.max(0.5, this.camera.getState().zoom),
-        )
-      ) {
-        return {
-          kind: 'cluster',
-          cluster: node.domain,
-          visual: node.visual,
-          worldPosition,
-          screenPosition,
-        };
-      }
-    }
-
-    // If an active item belonging to a drillable triangle passed through (including overhanging rims
-    // or exterior single-cluster items), route directly to that drillable triangle before context/background.
-    if (deferredDrillableTri !== null) {
-      let targetTri = deferredDrillableTri;
-      for (let i = this.triangleStates.length - 1; i >= 0; i--) {
-        const tr = this.triangleStates[i]!;
-        if (
-          drillableTriSet?.has(tr.index) &&
-          isPointInTriangle(
-            worldPosition.x,
-            worldPosition.y,
-            tr.points[0],
-            tr.points[1],
-            tr.points[2],
-          )
-        ) {
-          targetTri = tr;
-          break;
-        }
-      }
-      return {
-        kind: 'triangle',
-        triangle: this.buildTriangleRenderState(targetTri, hasTriangleFocus),
-        worldPosition,
-        screenPosition,
-      };
-    }
-
-    // Test dimmed neighborhood clusters
-    for (let i = this.contextClusterNodes.length - 1; i >= 0; i--) {
-      const cc = this.contextClusterNodes[i]!;
-      if (cc.opacity < 0.08) continue;
-      if (
-        hitTestConvexGeometry(
-          cc.hull,
-          cc.x,
-          cc.y,
-          cc.scale,
-          worldPosition.x,
-          worldPosition.y,
-          3 / Math.max(0.5, this.camera.getState().zoom),
-        )
-      ) {
-        return {
-          kind: 'cluster',
-          cluster: cc.cluster,
-          visual: cc.visual,
-          worldPosition,
-          screenPosition,
-          neighborId: cc.neighborId,
-        };
-      }
-    }
-
-    // Test mesh triangle faces
-    for (let i = this.triangleStates.length - 1; i >= 0; i--) {
-      const tr = this.triangleStates[i]!;
-      if (
-        isPointInTriangle(
-          worldPosition.x,
-          worldPosition.y,
-          tr.points[0],
-          tr.points[1],
-          tr.points[2],
-        )
-      ) {
-        return {
-          kind: 'triangle',
-          triangle: this.buildTriangleRenderState(tr, hasTriangleFocus),
-          worldPosition,
-          screenPosition,
-        };
-      }
-    }
-
-    // Test dimmed neighboring context triangle faces (dimmed context items inside them pass straight through)
-    for (let i = this.contextTriangleStates.length - 1; i >= 0; i--) {
-      const ct = this.contextTriangleStates[i]!;
-      if (
-        isPointInTriangle(
-          worldPosition.x,
-          worldPosition.y,
-          ct.points[0],
-          ct.points[1],
-          ct.points[2],
-        )
-      ) {
-        return {
-          kind: 'triangle',
-          triangle: this.buildContextTriangleRenderState(ct),
-          worldPosition,
-          screenPosition,
-        };
-      }
-    }
-
-    // Overhanging / exterior dimmed context item fallback: route directly to its owning neighbor triangle
-    // (or neighbor cluster) without ever exposing individual content hover in unfocused triangles
-    for (let i = this.contextItemNodes.length - 1; i >= 0; i--) {
-      const ci = this.contextItemNodes[i]!;
-      if (ci.opacity < 0.08) continue;
-      if (
-        hitTestConvexGeometry(
-          ci.hull,
-          ci.x,
-          ci.y,
-          ci.scale,
-          worldPosition.x,
-          worldPosition.y,
-          3 / Math.max(0.5, this.camera.getState().zoom),
-        )
-      ) {
-        const owningCtxTri = this.resolveContextTriangleForContextItem(ci);
-        if (owningCtxTri) {
-          return {
-            kind: 'triangle',
-            triangle: this.buildContextTriangleRenderState(owningCtxTri),
-            worldPosition,
-            screenPosition,
-          };
-        }
-        if (ci.neighborId) {
-          const owningCtxCluster = this.contextClusterNodes.find(
-            (cc) => cc.neighborId === ci.neighborId,
-          );
-          if (owningCtxCluster) {
-            return {
-              kind: 'cluster',
-              cluster: owningCtxCluster.cluster,
-              visual: owningCtxCluster.visual,
-              worldPosition,
-              screenPosition,
-              neighborId: owningCtxCluster.neighborId,
-            };
-          }
-        }
-        break;
-      }
-    }
-
-    return {
-      kind: 'background',
-      worldPosition,
-      screenPosition,
-    };
+    return hitTestScene(this.getHitTestContext(), screenX, screenY);
   }
 
   /** Returns the active cluster descriptor for a given cluster UID, if currently mounted. */
@@ -5469,180 +3214,16 @@ export class SimplexGraphEngine<
     TTagMeta,
     TClusterMeta
   >[] {
-    const targets: SimplexInteractiveTarget<
-      TItem,
-      TContentVisual,
-      TClusterVisual,
-      TTagMeta,
-      TClusterMeta
-    >[] = [];
-    const zState = this.currentZoomState;
-    const isDrillDown = this.zoomStrategy.mode === 'drill-down';
-    const hasTriangleFocus = this.focusedTriangleIndex !== null;
-    const drillableClusterSet = new Set(zState.drillableClusterUids);
-    const drillableTriSet =
-      isDrillDown && zState.drillableTriangleIndices.length > 0
-        ? new Set(zState.drillableTriangleIndices)
-        : null;
-    const focusableTriSet =
-      isDrillDown && zState.focusableTriangleIndices.length > 0
-        ? new Set(zState.focusableTriangleIndices)
-        : null;
-
-    // 1. Active visible topic clusters (ordered deterministically by vertexIndex)
-    const activeClusters = [...this.clusterNodes.values()]
-      .filter(
-        (node) =>
-          node.status === 'active' &&
-          !(this.emptyClusterBehavior === 'hide' && node.domain.members.length === 0) &&
-          (node.opacity.target >= 0.05 || node.opacity.value >= 0.15),
-      )
-      .sort((a, b) => a.domain.clusterIndex - b.domain.clusterIndex);
-
-    for (const node of activeClusters) {
-      const worldPosition: Point2D = { x: node.x.value, y: node.y.value };
-      const screenPosition = this.camera.worldToScreen(worldPosition.x, worldPosition.y);
-      targets.push({
-        kind: 'cluster',
-        id: node.id,
-        cluster: node.domain,
-        visual: node.visual,
-        worldPosition,
-        screenPosition,
-        scale: node.scale.value,
-        hull: node.hull,
-        isDrillable: isDrillDown && drillableClusterSet.has(node.domain.clusterUid),
-        isFocused: this.focusedClusterUid === node.domain.clusterUid,
-      });
-    }
-
-    // 2. Drillable / focusable mesh triangles in drill-down mode
-    if (isDrillDown) {
-      for (const tr of this.triangleStates) {
-        const isDrillable = drillableTriSet?.has(tr.index) ?? false;
-        const isFocusable = focusableTriSet?.has(tr.index) ?? false;
-        if (!isDrillable && !isFocusable) continue;
-        const worldPosition: Point2D = {
-          x: (tr.points[0].x + tr.points[1].x + tr.points[2].x) / 3,
-          y: (tr.points[0].y + tr.points[1].y + tr.points[2].y) / 3,
-        };
-        const screenPosition = this.camera.worldToScreen(worldPosition.x, worldPosition.y);
-        targets.push({
-          kind: 'triangle',
-          index: tr.index,
-          triangle: this.buildTriangleRenderState(tr, hasTriangleFocus),
-          worldPosition,
-          screenPosition,
-          isDrillable,
-          isFocusable,
-          isFocused: this.focusedTriangleIndex === tr.index,
-        });
-      }
-    }
-
-    // 3. Active visible non-pass-through content items
-    for (const node of this.itemNodes.values()) {
-      if (
-        node.status !== 'active' ||
-        (node.opacity.target < 0.05 && node.opacity.value < 0.15) ||
-        (this.itemFilterPredicate !== null &&
-          this.itemFilterMode === 'hide' &&
-          this.filteredOutItemIds.has(node.id))
-      ) {
-        continue;
-      }
-      const worldPosition: Point2D = { x: node.x.value, y: node.y.value };
-      if (
-        drillableTriSet !== null &&
-        this.resolveDrillableTriangleForActiveItem(node, worldPosition, drillableTriSet) !==
-          null
-      ) {
-        continue;
-      }
-      const screenPosition = this.camera.worldToScreen(worldPosition.x, worldPosition.y);
-      targets.push({
-        kind: 'item',
-        id: node.id,
-        item: node.domain.item,
-        layoutContext: node.domain.layoutContext,
-        visual: node.visual,
-        worldPosition,
-        screenPosition,
-        scale: node.scale.value,
-        hull: node.hull,
-        isFilteredDimmed:
-          this.itemFilterPredicate !== null &&
-          this.itemFilterMode === 'dim' &&
-          this.filteredOutItemIds.has(node.id),
-      });
-    }
-
-    return targets;
+    return getInteractiveTargetsFromScene(this.getHitTestContext());
   }
 
   private resolveHitTargetForInteractiveTarget(
     target: SimplexKeyboardFocusTarget,
   ): HitTarget<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta> | null {
-    const hasTriangleFocus = this.focusedTriangleIndex !== null;
-    if (target.kind === 'cluster') {
-      const node = this.clusterNodes.get(target.id);
-      if (
-        !node ||
-        node.status !== 'active' ||
-        (this.emptyClusterBehavior === 'hide' && node.domain.members.length === 0)
-      ) {
-        return null;
-      }
-      const worldPosition: Point2D = { x: node.x.value, y: node.y.value };
-      const screenPosition = this.camera.worldToScreen(worldPosition.x, worldPosition.y);
-      return {
-        kind: 'cluster',
-        cluster: node.domain,
-        visual: node.visual,
-        worldPosition,
-        screenPosition,
-      };
-    }
-
-    if (target.kind === 'triangle') {
-      const tr = this.triangleStates.find((t) => t.index === target.index);
-      if (!tr) return null;
-      const worldPosition: Point2D = {
-        x: (tr.points[0].x + tr.points[1].x + tr.points[2].x) / 3,
-        y: (tr.points[0].y + tr.points[1].y + tr.points[2].y) / 3,
-      };
-      const screenPosition = this.camera.worldToScreen(worldPosition.x, worldPosition.y);
-      return {
-        kind: 'triangle',
-        triangle: this.buildTriangleRenderState(tr, hasTriangleFocus),
-        worldPosition,
-        screenPosition,
-      };
-    }
-
-    const node = this.itemNodes.get(target.id);
-    if (
-      !node ||
-      node.status !== 'active' ||
-      (this.itemFilterPredicate !== null &&
-        this.itemFilterMode === 'hide' &&
-        this.filteredOutItemIds.has(node.id))
-    ) {
-      return null;
-    }
-    const worldPosition: Point2D =
-      this.activeFlight !== null
-        ? { x: node.x.target, y: node.y.target }
-        : { x: node.x.value, y: node.y.value };
-    const screenPosition = this.camera.worldToScreen(worldPosition.x, worldPosition.y);
-    return {
-      kind: 'content',
-      item: node.domain.item,
-      layoutContext: node.domain.layoutContext,
-      visual: node.visual,
-      worldPosition,
-      screenPosition,
-    };
+    return resolveHitTargetForInteractiveTargetFromScene(
+      this.getHitTestContext(),
+      target,
+    );
   }
 
   private dispatchHoverForHitTarget(

@@ -78,6 +78,43 @@ export function ensureSimplexContainerPositioned(
   }
 }
 
+export interface DeferInitialLayoutOptions {
+  /**
+   * Optional timeout in milliseconds after which the controller falls back to a
+   * provisional `960×620` layout if `ResizeObserver` has not yet reported a non-zero
+   * container size. Even after the timeout fires, the first subsequent non-zero
+   * `ResizeObserver` entry still performs a clean `'initial'` re-initialization.
+   */
+  readonly fallbackTimeoutMs?: number;
+}
+
+export interface SimplexDeferInitialLayoutConfig {
+  readonly shouldDeferSolve: boolean;
+  readonly deferFallbackTimeoutMs: number | null;
+}
+
+/**
+ * Resolves `deferInitialLayout` options into whether the initial synchronous solve
+ * should be deferred and an optional fallback timeout in milliseconds.
+ */
+export function resolveSimplexDeferInitialLayoutConfig(
+  deferOption: boolean | DeferInitialLayoutOptions | undefined,
+  hasValidInitialSize: boolean,
+  canObserveResize: boolean,
+): SimplexDeferInitialLayoutConfig {
+  const shouldDeferSolve =
+    !hasValidInitialSize && Boolean(deferOption) && canObserveResize;
+  const deferFallbackTimeoutMs =
+    typeof deferOption === 'object' &&
+    deferOption !== null &&
+    typeof deferOption.fallbackTimeoutMs === 'number' &&
+    Number.isFinite(deferOption.fallbackTimeoutMs) &&
+    deferOption.fallbackTimeoutMs > 0
+      ? deferOption.fallbackTimeoutMs
+      : null;
+  return { shouldDeferSolve, deferFallbackTimeoutMs };
+}
+
 export interface ObserveSimplexContainerResizeOptions {
   readonly container: SimplexDomElementLike;
   readonly pendingInitialViewport: boolean;

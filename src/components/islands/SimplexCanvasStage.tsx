@@ -280,30 +280,55 @@ export function SimplexCanvasStage<
       emptyClusterBehavior: initial.emptyClusterBehavior,
       highlightedIds: initial.highlightedIds,
       selectedIds: initial.selectedIds,
-      tooltip: initial.tooltip
-        ? typeof initial.tooltip === 'object'
-          ? {
-              formatContent: (ev) => {
-                const t = latestPropsRef.current.tooltip;
-                return typeof t === 'object' && t.formatContent
-                  ? t.formatContent(ev)
-                  : '';
-              },
-              formatCluster: (ev) => {
-                const t = latestPropsRef.current.tooltip;
-                return typeof t === 'object' && t.formatCluster
-                  ? t.formatCluster(ev)
-                  : '';
-              },
-              formatTriangle: (ev) => {
-                const t = latestPropsRef.current.tooltip;
-                return typeof t === 'object' && t.formatTriangle
-                  ? t.formatTriangle(ev)
-                  : '';
-              },
+      tooltip: !initial.tooltip
+        ? false
+        : typeof initial.tooltip === 'function'
+          ? (target) => {
+              const t = latestPropsRef.current.tooltip;
+              return typeof t === 'function' ? t(target) : undefined;
             }
-          : true
-        : false,
+          : typeof initial.tooltip === 'object'
+            ? 'render' in initial.tooltip
+              ? {
+                  ...initial.tooltip,
+                  render: (target, el) => {
+                    const t = latestPropsRef.current.tooltip;
+                    if (t && typeof t === 'object' && 'render' in t) {
+                      return t.render(target, el);
+                    }
+                    return undefined;
+                  },
+                }
+              : {
+                  formatContent: (ev) => {
+                    const t = latestPropsRef.current.tooltip;
+                    return t &&
+                      typeof t === 'object' &&
+                      'formatContent' in t &&
+                      t.formatContent
+                      ? t.formatContent(ev)
+                      : '';
+                  },
+                  formatCluster: (ev) => {
+                    const t = latestPropsRef.current.tooltip;
+                    return t &&
+                      typeof t === 'object' &&
+                      'formatCluster' in t &&
+                      t.formatCluster
+                      ? t.formatCluster(ev)
+                      : '';
+                  },
+                  formatTriangle: (ev) => {
+                    const t = latestPropsRef.current.tooltip;
+                    return t &&
+                      typeof t === 'object' &&
+                      'formatTriangle' in t &&
+                      t.formatTriangle
+                      ? t.formatTriangle(ev)
+                      : '';
+                  },
+                }
+            : true,
       timeline: initial.timeline ?? null,
       interactions: {
         onContentClick: (ev) => latestPropsRef.current.onContentClick?.(ev),

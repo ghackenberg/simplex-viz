@@ -23,7 +23,6 @@ import {
   type SimplexInteractiveTarget,
   type SimplexKeyboardFocusTarget,
   type SimplexLayoutStrategy,
-  type SimplexLegendEntry,
   type SimplexLegendModel,
   type SimplexLegendModelOptions,
   type SimplexMeshStrategy,
@@ -39,23 +38,30 @@ import {
 import {
   applySimplexPinchDrillTarget,
   bindSimplexInteractiveViewport,
-  buildSimplexTooltipContentModel,
+  createSimplexFpsTracker,
   createSimplexKeyboardNavigator,
+  createSimplexLegendChangeEmitter,
   createSimplexSrAnnouncer,
   createSimplexTimelineBarOverlay,
   createSimplexTooltipOverlay,
   createSimplexZoomBreadcrumbsOverlay,
-  dispatchSimplexDefaultLeftClick,
+  formatSimplexTooltipText,
   isSameSimplexKeyboardTarget,
-  isSimplexHoverEventConsumed,
   measureSimplexContainer,
   observeSimplexContainerResize,
   resolveSimplexContainer,
+  resolveSimplexDeferInitialLayoutConfig,
   resolveSimplexPinchDrillTarget,
   resolveSimplexReducedMotion,
+  restoreSimplexControllerViewState,
+  subscribeSimplexFontLoadRelayout,
   subscribeSimplexReducedMotionMedia,
+  syncSimplexLegendTimelineStep,
+  wrapSimplexControllerInteractions,
+  type SimplexFpsTracker,
   type SimplexInteractiveViewportHandle,
   type SimplexKeyboardNavigator,
+  type SimplexLegendChangeEmitter,
   type SimplexResizeObserverHandle,
   type SimplexSrAnnouncerHandle,
   type SimplexTimelineBarOverlay,
@@ -63,9 +69,16 @@ import {
   type SimplexZoomBreadcrumbsOverlay,
 } from '@simplex-viz/core/dom';
 import type {
+  CanvasDomTooltipRenderResult,
+  CanvasDomTooltipRenderer,
+  CanvasStructuredTooltipOption,
   CanvasTimelineConfig,
+  CanvasTooltipFormatter,
   CanvasTooltipOption,
+  DeferInitialLayoutOptions,
   SimplexCanvasControllerOptions,
+  SimplexCanvasControllerResolvedOptions,
+  SimplexCanvasTooltipTarget,
   SimplexCanvasUpdateOptions,
 } from './canvasControllerTypes.js';
 import { CanvasRendererAdapter } from './CanvasRendererAdapter.js';
@@ -87,9 +100,16 @@ import type {
 } from './types.js';
 
 export type {
+  CanvasDomTooltipRenderResult,
+  CanvasDomTooltipRenderer,
+  CanvasStructuredTooltipOption,
   CanvasTimelineConfig,
+  CanvasTooltipFormatter,
   CanvasTooltipOption,
+  DeferInitialLayoutOptions,
   SimplexCanvasControllerOptions,
+  SimplexCanvasControllerResolvedOptions,
+  SimplexCanvasTooltipTarget,
   SimplexCanvasUpdateOptions,
 };
 
@@ -172,27 +192,39 @@ export class SimplexCanvasController<
   private lastExternalItemsRef: readonly TItem[];
   private readonly timelineSession: SimplexTimelineHostSession<TItem, TTagMeta>;
 
+  private readonly fpsTracker: SimplexFpsTracker;
   private onZoomStateChangeCallback?: (zoomState: SimplexZoomState) => void;
-  private onLegendChangeCallback?: (
-    legend: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
-  ) => void;
-  private lastEmittedLegendSig: string | null = null;
+  private readonly legendEmitter: SimplexLegendChangeEmitter<
+    TItem,
+    TTagMeta,
+    TClusterMeta
+  >;
   private controllerBatchDepth = 0;
 
   private rafId: number | null = null;
   private lastRafTime = 0;
   private repaintRequested = false;
   private destroyed = false;
-  private deferredPending = false;
   private focusedClusterUidState: string | null = null;
   private focusedTriangleIndexState: number | null = null;
   private resizeObserverHandle: SimplexResizeObserverHandle | null = null;
+  private fontLoadCleanup: (() => void) | null = null;
   private cleanupReducedMotionMedia: (() => void) | null = null;
   private viewportHandle: SimplexInteractiveViewportHandle | null = null;
 
   constructor(
     container: HTMLElement | string,
     options: SimplexCanvasControllerOptions<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  );
+  constructor(
+    container: HTMLElement | string,
+    options: SimplexCanvasControllerResolvedOptions<
       TItem,
       TContentVisual,
       TClusterVisual,
@@ -229,8 +261,8 @@ export class SimplexCanvasController<
       this.reducedMotionPreference,
       this.container.ownerDocument,
     );
+    this.fpsTracker = createSimplexFpsTracker(options.onFpsUpdate);
     this.onZoomStateChangeCallback = options.onZoomStateChange;
-    this.onLegendChangeCallback = options.onLegendChange;
     this.lastExternalItemsRef = options.items;
     this.fullItems = options.items.slice();
 
@@ -270,22 +302,14 @@ export class SimplexCanvasController<
       ensureHostPositioned: false,
       initialTheme: this.theme,
       initialOption: options.tooltip ?? false,
-      getDefaultText: (target) => {
-        if (target.kind === 'content') {
-          return buildSimplexTooltipContentModel(target, {
-            getLabel: this.getLabel,
-          }).title;
-        }
-        if (target.kind === 'cluster') {
-          const model = buildSimplexTooltipContentModel(target, {
-            preferSubclusterLabel: true,
-          });
-          return model.kind === 'cluster'
-            ? `${model.label} (${target.cluster.members.length})`
-            : '';
-        }
-        return '';
-      },
+      getDefaultText: (target) =>
+        formatSimplexTooltipText(target, {
+          getLabel: this.getLabel,
+          formatTagLabel: this.formatTagLabel,
+          preferSubclusterLabel: true,
+          zoomMode: this.engine.getZoomStrategy().mode,
+          zoomState: this.engine.getZoomState(),
+        }),
     });
 
     this.breadcrumbOverlay = createSimplexZoomBreadcrumbsOverlay({
@@ -317,13 +341,22 @@ export class SimplexCanvasController<
       },
     });
 
+    const fallbackW = options.width ?? 960;
+    const fallbackH = options.height ?? 600;
     const measured = measureSimplexContainer(
       this.container,
-      options.width ?? 960,
-      options.height ?? 600,
-      0,
+      fallbackW,
+      fallbackH,
+      40,
     );
-    this.deferredPending = Boolean(options.deferInitialLayout && !measured.hasValidSize);
+    const hasInitialSize = measured.hasValidSize;
+    const canObserveResize = typeof ResizeObserver !== 'undefined';
+    const { shouldDeferSolve, deferFallbackTimeoutMs } =
+      resolveSimplexDeferInitialLayoutConfig(
+        options.deferInitialLayout,
+        hasInitialSize,
+        canObserveResize,
+      );
 
     this.adapter = new CanvasRendererAdapter<
       TContentVisual,
@@ -361,6 +394,13 @@ export class SimplexCanvasController<
         ? { ...options.layoutOptions, sizeMultiplier: options.sizeMultiplier }
         : options.layoutOptions;
 
+    this.legendEmitter = createSimplexLegendChangeEmitter({
+      initialCallback: options.onLegendChange,
+      isDestroyed: () => this.destroyed,
+      getEngineLegendModel: () => this.engine?.getLegendModel(),
+      getTimelineController: () => this.timelineSession.getController(),
+    });
+
     const engineConfig = {
       items: initialTimeline.initialItems,
       getId: options.getId,
@@ -388,9 +428,10 @@ export class SimplexCanvasController<
       selectedIds: options.selectedIds,
       shiftClickSelects: options.shiftClickSelects,
       reducedMotion: this.reducedMotionActive,
-      deferInitialSolve: this.deferredPending,
+      deferInitialSolve: shouldDeferSolve,
       interactions: this.buildWrappedInteractions(),
       onMetricsChange: options.onMetricsChange,
+      onClustersChange: options.onClustersChange,
       onZoomStateChange: (zs: SimplexZoomState) => {
         this.syncZoomOverlays(zs);
         this.keyboardNavigator?.handleZoomStateChange(zs);
@@ -398,7 +439,7 @@ export class SimplexCanvasController<
       },
       onSelectionChange: options.onSelectionChange,
       onLegendChange: (model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>) => {
-        this.emitControllerLegendChange(model);
+        this.legendEmitter.emit(model);
       },
     };
 
@@ -415,7 +456,7 @@ export class SimplexCanvasController<
     }
 
     if (options.highlightedIds !== undefined) {
-      this.engine.setHighlightedItems(options.highlightedIds);
+      this.engine.setHighlightedIds(options.highlightedIds);
     }
 
     const initialZoomState = this.engine.getZoomState();
@@ -455,8 +496,68 @@ export class SimplexCanvasController<
 
     this.bindReducedMotionMediaQuery(this.reducedMotionPreference);
     this.bindDomEvents();
-    this.bindResizeObserver();
-    this.scheduleFrame();
+    if (canObserveResize) {
+      this.bindResizeObserver({
+        pendingInitialViewport: !hasInitialSize,
+        shouldDeferSolve,
+        deferFallbackTimeoutMs,
+        fallbackWidth: fallbackW,
+        fallbackHeight: fallbackH,
+      });
+    }
+    if (options.relayoutOnFontLoad !== false) {
+      this.fontLoadCleanup = subscribeSimplexFontLoadRelayout(
+        this.container.ownerDocument,
+        () => {
+          if (!this.destroyed) {
+            this.relayout();
+          }
+        },
+      );
+    }
+    if (!shouldDeferSolve) {
+      this.scheduleFrame();
+    }
+  }
+
+  static createFromResolved<
+    TItem = DefaultTaggedItem,
+    TContentVisual = CanvasDefaultContentVisual,
+    TClusterVisual = CanvasDefaultClusterVisual,
+    TTagMeta = undefined,
+    TClusterMeta = undefined,
+  >(
+    container: HTMLElement | string,
+    options: SimplexCanvasControllerResolvedOptions<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): SimplexCanvasController<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  > {
+    return new (SimplexCanvasController as unknown as new (
+      el: HTMLElement | string,
+      opts: SimplexCanvasControllerResolvedOptions<
+        TItem,
+        TContentVisual,
+        TClusterVisual,
+        TTagMeta,
+        TClusterMeta
+      >,
+    ) => SimplexCanvasController<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >)(container, options);
   }
 
   private getTimelineSessionHooks(): SimplexTimelineHostSessionHooks<TItem, TTagMeta> {
@@ -469,7 +570,7 @@ export class SimplexCanvasController<
       setEngineItems: (items) => this.engine.setItems(items),
       syncOverlay: (state) => this.syncTimelineOverlay(state),
       onFrameActivity: () => this.scheduleFrame(),
-      onLegendSync: () => this.emitControllerLegendChange(),
+      onLegendSync: () => this.legendEmitter.emit(),
       isDestroyed: () => this.destroyed,
     };
   }
@@ -544,68 +645,30 @@ export class SimplexCanvasController<
     TTagMeta,
     TClusterMeta
   > {
-    return {
-      onContentHover: (ev) => {
-        const consumed = isSimplexHoverEventConsumed(
-          this.interactions.onContentHover,
-          ev,
-        );
-        if (consumed || !ev) {
-          this.tooltipOverlay.hide();
-          return consumed;
-        }
-        this.tooltipOverlay.showForTarget({ kind: 'content', ...ev });
-        return consumed;
-      },
-      onClusterHover: (ev) => {
-        const consumed = isSimplexHoverEventConsumed(
-          this.interactions.onClusterHover,
-          ev,
-        );
-        if (consumed || !ev) {
-          this.tooltipOverlay.hide();
-          return consumed;
-        }
-        this.tooltipOverlay.showForTarget({ kind: 'cluster', ...ev });
-        return consumed;
-      },
-      onTriangleHover: (ev) => {
-        const consumed = isSimplexHoverEventConsumed(
-          this.interactions.onTriangleHover,
-          ev,
-        );
-        if (consumed || !ev) {
-          this.tooltipOverlay.hide();
-          return consumed;
-        }
-        this.tooltipOverlay.showForTarget({ kind: 'triangle', ...ev });
-        return consumed;
-      },
-      onLeftClick: (target, rawEvent) =>
-        dispatchSimplexDefaultLeftClick(target, rawEvent, {
-          userInteractions: this.interactions,
-          zoomMode: this.engine.getZoomStrategy().mode,
-          canDrillUp: this.engine.getZoomState().canDrillUp,
-          selectedCount: this.engine.getSelectedIds().size,
-          focusedItemId: this.engine.getFocusedItemId(),
-          focusedClusterUid: this.focusedClusterUidState,
-          focusedTriangleIndex: this.focusedTriangleIndexState,
-          focusOnClusterClick: this.focusOnClusterClick,
-          focusOnTriangleClick: this.focusOnTriangleClick,
-          drillToNeighbor: (id) => this.drillToNeighbor(id),
-          drillDownTriangle: (idx) => this.drillDownTriangle(idx),
-          drillDownCluster: (uid) => this.drillDownCluster(uid),
-          drillUp: () => this.drillUp(),
-          setFocusedClusterUid: (uid) => this.setFocusedClusterUid(uid),
-          setFocusedTriangleIndex: (idx) => this.setFocusedTriangleIndex(idx),
-          clearFocusedItem: () => {
-            this.focusItem(null);
-          },
-          clearSelection: () => this.clearSelection(),
-        }),
-      onRightClick: (target, raw) => this.interactions.onRightClick?.(target, raw),
-      onWheel: this.interactions.onWheel ?? 'zoom-to-cursor',
-    };
+    return wrapSimplexControllerInteractions({
+      getUserInteractions: () => this.interactions,
+      tooltipOverlay: this.tooltipOverlay,
+      getLeftClickContext: () => ({
+        zoomMode: this.engine.getZoomStrategy().mode,
+        canDrillUp: this.engine.getZoomState().canDrillUp,
+        selectedCount: this.engine.getSelectedIds().size,
+        focusedItemId: this.engine.getFocusedItemId(),
+        focusedClusterUid: this.focusedClusterUidState,
+        focusedTriangleIndex: this.focusedTriangleIndexState,
+        focusOnClusterClick: this.focusOnClusterClick,
+        focusOnTriangleClick: this.focusOnTriangleClick,
+        drillToNeighbor: (id) => this.drillToNeighbor(id),
+        drillDownTriangle: (idx) => this.drillDownTriangle(idx),
+        drillDownCluster: (uid) => this.drillDownCluster(uid),
+        drillUp: () => this.drillUp(),
+        setFocusedClusterUid: (uid) => this.setFocusedClusterUid(uid),
+        setFocusedTriangleIndex: (idx) => this.setFocusedTriangleIndex(idx),
+        clearFocusedItem: () => {
+          this.focusItem(null);
+        },
+        clearSelection: () => this.clearSelection(),
+      }),
+    });
   }
 
   private bindReducedMotionMediaQuery(pref: ReducedMotionPreference): void {
@@ -687,20 +750,28 @@ export class SimplexCanvasController<
     });
   }
 
-  private bindResizeObserver(): void {
+  private bindResizeObserver(config: {
+    readonly pendingInitialViewport: boolean;
+    readonly shouldDeferSolve: boolean;
+    readonly deferFallbackTimeoutMs: number | null;
+    readonly fallbackWidth: number;
+    readonly fallbackHeight: number;
+  }): void {
     this.resizeObserverHandle = observeSimplexContainerResize({
       container: this.container,
-      pendingInitialViewport: this.deferredPending,
-      shouldDeferSolve: false,
-      deferFallbackTimeoutMs: null,
-      minValidSize: 0,
+      pendingInitialViewport: config.pendingInitialViewport,
+      shouldDeferSolve: config.shouldDeferSolve,
+      deferFallbackTimeoutMs: config.deferFallbackTimeoutMs,
+      fallbackWidth: config.fallbackWidth,
+      fallbackHeight: config.fallbackHeight,
+      minValidSize: 40,
       isDestroyed: () => this.destroyed,
       onDeferredInit: (width, height) => {
         const w = Math.round(width);
         const h = Math.round(height);
-        this.deferredPending = false;
         this.adapter.invalidateHullCaches();
         this.engine.reinitializeViewport(w, h);
+        this.repaintRequested = true;
         this.scheduleFrame();
       },
       onResize: (width, height) => {
@@ -728,6 +799,7 @@ export class SimplexCanvasController<
       if (this.destroyed) return;
       const dt = Math.min(64, Math.max(0, now - this.lastRafTime));
       this.lastRafTime = now;
+      this.fpsTracker.recordFrame(dt);
 
       const wantsRepaint = this.repaintRequested;
       this.repaintRequested = false;
@@ -777,50 +849,19 @@ export class SimplexCanvasController<
     return this.engine.getClusters();
   }
 
-  private computeLegendSignature(
-    model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
-  ): string {
-    const entrySig = model.entries
-      .map(
-        (e: SimplexLegendEntry<TItem, TTagMeta, TClusterMeta>) =>
-          `${e.clusterUid}|${e.code}|${e.label}|${e.parentContextLabel ?? ''}|${e.colorHex}|${e.totalCount}|${e.visibleCount}|${e.isEmpty ? 1 : 0}|${e.isHidden ? 1 : 0}|${e.isFocused ? 1 : 0}|${e.isContext ? 1 : 0}|${e.isMidpoint ? 1 : 0}`,
-      )
-      .join(';');
-    return `${model.zoomDepth}|${model.totalItems}|${model.visibleItems}|${model.hasActiveFilter ? 1 : 0}|${model.itemFilterMode}|${model.emptyClusterBehavior}|${model.focusedClusterUid ?? ''}|${model.timelineStep ?? ''}|${entrySig}`;
-  }
-
-  private emitControllerLegendChange(
-    engineModel?: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
-  ): void {
-    if (this.destroyed || !this.onLegendChangeCallback) return;
-    const base = engineModel ?? this.engine?.getLegendModel();
-    if (!base) return;
-    const timelineCtrl = this.timelineSession.getController();
-    const timelineStep = timelineCtrl ? timelineCtrl.getState().step : null;
-    const model =
-      timelineStep === base.timelineStep ? base : { ...base, timelineStep };
-    const sig = this.computeLegendSignature(model);
-    if (sig === this.lastEmittedLegendSig) return;
-    this.lastEmittedLegendSig = sig;
-    this.onLegendChangeCallback(model);
-  }
-
   getLegendModel(
     options?: SimplexLegendModelOptions,
   ): SimplexLegendModel<TItem, TTagMeta, TClusterMeta> {
-    const base = this.engine.getLegendModel(options);
-    const timelineCtrl = this.timelineSession.getController();
-    const timelineStep = timelineCtrl ? timelineCtrl.getState().step : null;
-    return timelineStep === base.timelineStep
-      ? base
-      : { ...base, timelineStep };
+    return syncSimplexLegendTimelineStep(
+      this.engine.getLegendModel(options),
+      this.timelineSession.getController(),
+    );
   }
 
   setOnLegendChange(
     cb?: (legend: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>) => void,
   ): void {
-    this.onLegendChangeCallback = cb;
-    this.lastEmittedLegendSig = null;
+    this.legendEmitter.setCallback(cb);
   }
 
   getItemId(item: TItem): string {
@@ -1188,16 +1229,8 @@ export class SimplexCanvasController<
     this.scheduleFrame();
   }
 
-  setHighlightedItems(ids: Iterable<string> | null): void {
-    this.setHighlightedIds(ids);
-  }
-
   getHighlightedIds(): ReadonlySet<string> {
     return this.engine.getHighlightedIds();
-  }
-
-  getHighlightedItems(): ReadonlySet<string> {
-    return this.engine.getHighlightedItems();
   }
 
   setSelectedIds(ids: Iterable<string> | null): void {
@@ -1331,30 +1364,20 @@ export class SimplexCanvasController<
     state: Partial<SimplexViewState> | null | undefined,
     options?: RestoreViewStateOptions,
   ): boolean {
-    if (this.destroyed || !state || typeof state !== 'object') return false;
-    if (state.version !== undefined && state.version !== 1) return false;
-
-    const timelineCtrl = this.timelineSession.getController();
-    if (
-      timelineCtrl &&
-      typeof state.timelineStep === 'number' &&
-      Number.isFinite(state.timelineStep)
-    ) {
-      timelineCtrl.pause();
-      timelineCtrl.seek(Math.round(state.timelineStep));
-      this.syncTimelineOverlay(timelineCtrl.getState());
-    }
-
-    const ok = this.engine.restoreViewState(state, options);
-    if (!ok) return false;
-
-    this.focusedClusterUidState = this.engine.getFocusedClusterUid();
-    this.focusedTriangleIndexState = this.engine.getFocusedTriangleIndex();
-    this.tooltipOverlay.hide();
-    this.syncZoomOverlays(this.engine.getZoomState());
-    this.repaintRequested = true;
-    this.scheduleFrame();
-    return true;
+    return restoreSimplexControllerViewState(state, options, {
+      isDestroyed: () => this.destroyed,
+      getTimelineController: () => this.timelineSession.getController(),
+      syncTimelineOverlay: (ts) => this.syncTimelineOverlay(ts),
+      restoreEngineViewState: (s, opts) => this.engine.restoreViewState(s, opts),
+      syncAfterRestore: () => {
+        this.focusedClusterUidState = this.engine.getFocusedClusterUid();
+        this.focusedTriangleIndexState = this.engine.getFocusedTriangleIndex();
+        this.tooltipOverlay.hide();
+        this.syncZoomOverlays(this.engine.getZoomState());
+        this.repaintRequested = true;
+        this.scheduleFrame();
+      },
+    });
   }
 
   setTouchScrollLockPx(px: number): void {
@@ -1593,9 +1616,6 @@ export class SimplexCanvasController<
       if ('highlightedIds' in options) {
         this.engine.setHighlightedIds(options.highlightedIds ?? null);
       }
-      if ('highlightedItems' in options) {
-        this.engine.setHighlightedItems(options.highlightedItems ?? null);
-      }
       if ('onSelectionChange' in options) {
         this.engine.setOnSelectionChange(options.onSelectionChange);
       }
@@ -1673,6 +1693,8 @@ export class SimplexCanvasController<
   }
 
   relayout(): void {
+    if (this.destroyed) return;
+    this.adapter.invalidateHullCaches();
     this.engine.relayout();
     this.repaintRequested = true;
     this.scheduleFrame();
@@ -1704,6 +1726,8 @@ export class SimplexCanvasController<
     this.timelineSession.destroy();
     this.resizeObserverHandle?.disconnect();
     this.resizeObserverHandle = null;
+    this.fontLoadCleanup?.();
+    this.fontLoadCleanup = null;
     this.cleanupReducedMotionMedia?.();
     this.cleanupReducedMotionMedia = null;
     this.viewportHandle?.destroy();
@@ -1722,6 +1746,32 @@ export class SimplexCanvasController<
  *
  * Accepts either a bare `items` array for zero-config mounting or a full options object.
  */
+export function createSimplexCanvas<TItem extends DefaultTaggedItem = DefaultTaggedItem>(
+  container: HTMLElement | string,
+  items: readonly TItem[],
+): SimplexCanvasController<TItem, CanvasDefaultContentVisual, CanvasDefaultClusterVisual>;
+export function createSimplexCanvas<
+  TItem = DefaultTaggedItem,
+  TContentVisual = CanvasDefaultContentVisual,
+  TClusterVisual = CanvasDefaultClusterVisual,
+  TTagMeta = undefined,
+  TClusterMeta = undefined,
+>(
+  container: HTMLElement | string,
+  options: SimplexCanvasControllerOptions<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >,
+): SimplexCanvasController<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta
+>;
 export function createSimplexCanvas<
   TItem = DefaultTaggedItem,
   TContentVisual = CanvasDefaultContentVisual,
@@ -1747,13 +1797,9 @@ export function createSimplexCanvas<
   TClusterMeta
 > {
   if (Array.isArray(itemsOrOptions)) {
-    return new SimplexCanvasController<
-      TItem,
-      TContentVisual,
-      TClusterVisual,
-      TTagMeta,
-      TClusterMeta
-    >(container, { items: itemsOrOptions });
+    return SimplexCanvasController.createFromResolved(container, {
+      items: itemsOrOptions,
+    });
   }
   return new SimplexCanvasController<
     TItem,

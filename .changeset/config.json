@@ -3,7 +3,13 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [
-    ["@simplex-viz/core", "@simplex-viz/svg", "@simplex-viz/react", "@simplex-viz/wc"]
+    [
+      "@simplex-viz/core",
+      "@simplex-viz/svg",
+      "@simplex-viz/canvas",
+      "@simplex-viz/react",
+      "@simplex-viz/wc"
+    ]
   ],
   "linked": [],
   "access": "public",

@@ -17,7 +17,6 @@ import {
   createSimplexWorkerClient,
   isSimplexWorkerCancelledError,
   type SimplexWorkerClient,
-  type SimplexWorkerPort,
 } from '@simplex-viz/core/worker';
 import {
   useCallback,
@@ -453,7 +452,7 @@ export function LargeScaleCanvasWorkerAtlas({
       () =>
         new Worker(new URL('../../demo/simplexDemo.worker.ts', import.meta.url), {
           type: 'module',
-        }) as unknown as SimplexWorkerPort,
+        }),
       {
         cancelPreviousByDefault: true,
         fallbackToInThread: true,

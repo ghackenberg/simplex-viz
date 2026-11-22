@@ -295,12 +295,12 @@ Three production ergonomics features keep interactive dashboards responsive, det
 
 Synchronize external search boxes, tables, or detail panels with the graph without mutating dataset layout, and export publication-grade SVG or HiDPI PNG snapshots directly from the live canvas:
 
-- **Programmatic Search & Linked-View API (`setHighlightedItems`, `focusItem`, `zoomToItem`)**: Pass any `Iterable<string> | null` to `setHighlightedItems()` / `setHighlightedIds()` (or the React `highlightedIds` prop) to emphasize matching items. Call `focusItem(itemId, { highlight?, hover?, announce? })` to focus a node with synchronized hover tooltip, SVG focus ring, and polite screen-reader announcement. Call `zoomToItem(itemId, { zoom?, maxDrillSteps?, focus? })` to smoothly frame an item in `free-camera` mode or automatically drill down across covering triangles in `drill-down` mode.
+- **Programmatic Search & Linked-View API (`setHighlightedIds`, `focusItem`, `zoomToItem`)**: Pass any `Iterable<string> | null` to `setHighlightedIds()` (or the React `highlightedIds` prop) to emphasize matching items. Call `focusItem(itemId, { highlight?, hover?, announce? })` to focus a node with synchronized hover tooltip, SVG focus ring, and polite screen-reader announcement. Call `zoomToItem(itemId, { zoom?, maxDrillSteps?, focus? })` to smoothly frame an item in `free-camera` mode or automatically drill down across covering triangles in `drill-down` mode.
 - **Client-Side Snapshot Export (`exportSvg`, `exportPng`)**: `exportSvg(options?)` clones the live SVG, inlines resolved CSS custom properties and visual styles (`inlineStyles: true`), injects a theme-matched or custom background `<rect>` (`includeBackground: true`), expands `viewBox` by `padding`, strips transient focus rings by default (`includeFocusRing: false`), and returns a standalone `<svg>` string. `exportPng(options?)` rasterizes that SVG on an offscreen HiDPI `<canvas>` (`scale: 2` default) and resolves to a `Blob` (`format: 'blob'`, default) or base64 `data:` URL (`format: 'dataUrl'`).
 
 ```ts
 // From a search bar, table row click, or export button:
-handle.setHighlightedItems(searchResultIds);
+handle.setHighlightedIds(searchResultIds);
 handle.zoomToItem(selectedId, { zoom: 2.2, maxDrillSteps: 4 });
 
 const svgString = handle.exportSvg({ padding: 24, title: 'Publications Atlas' });

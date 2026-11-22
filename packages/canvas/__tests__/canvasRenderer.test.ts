@@ -622,4 +622,518 @@ describe('@simplex-viz/canvas high-capacity Canvas 2D renderer (Issue #21)', () 
       container.remove();
     }
   });
+
+  it('supports createSimplexCanvas(container, items) array shorthand, relayoutOnFontLoad, onClustersChange, onFpsUpdate, and controller exportPng', async () => {
+    const container = createSizedContainer(800, 540);
+    const { ctx } = createMock2DContext();
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    const origRaf = globalThis.requestAnimationFrame;
+    const origCancelRaf = globalThis.cancelAnimationFrame;
+    const origPerfNow = performance.now.bind(performance);
+    const origFonts = Object.getOwnPropertyDescriptor(document, 'fonts');
+
+    HTMLCanvasElement.prototype.getContext = function () {
+      return ctx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    let rafNow = 100;
+    let nextRafId = 1;
+    const rafQueue = new Map<number, FrameRequestCallback>();
+    globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+      const id = nextRafId++;
+      rafQueue.set(id, cb);
+      return id;
+    }) as typeof requestAnimationFrame;
+    globalThis.cancelAnimationFrame = ((id: number) => {
+      rafQueue.delete(id);
+    }) as typeof cancelAnimationFrame;
+    vi.spyOn(performance, 'now').mockImplementation(() => rafNow);
+
+    let resolveFontsReady!: () => void;
+    const readyPromise = new Promise<void>((res) => {
+      resolveFontsReady = res;
+    });
+    const listeners = new Map<string, Set<EventListener>>();
+    const mockFonts = {
+      status: 'loading',
+      ready: readyPromise,
+      addEventListener: (type: string, fn: EventListener) => {
+        if (!listeners.has(type)) listeners.set(type, new Set());
+        listeners.get(type)!.add(fn);
+      },
+      removeEventListener: (type: string, fn: EventListener) => {
+        listeners.get(type)?.delete(fn);
+      },
+      dispatchLoadingDone: () => {
+        for (const fn of listeners.get('loadingdone') ?? []) {
+          fn(new Event('loadingdone'));
+        }
+      },
+    };
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: mockFonts,
+    });
+
+    try {
+      const items = makeSampleItems(14);
+      // 1) Array shorthand mounts cleanly without extra options
+      const quickCtrl = createSimplexCanvas(container, items);
+      expect(quickCtrl.getItems().length).toBe(14);
+      expect(quickCtrl.getMetrics().itemCount).toBe(14);
+      quickCtrl.destroy();
+
+      // 2) relayoutOnFontLoad: false does not subscribe to loadingdone
+      const noFontCtrl = createSimplexCanvas(container, {
+        items,
+        relayoutOnFontLoad: false,
+      });
+      expect(listeners.get('loadingdone')?.size ?? 0).toBe(0);
+      noFontCtrl.destroy();
+
+      // 3) relayoutOnFontLoad: true + onClustersChange + onFpsUpdate + exportPng
+      const clusterCounts: number[] = [];
+      const fpsSamples: number[] = [];
+      let metricsCalls = 0;
+
+      const controller = createSimplexCanvas(container, {
+        items: items.slice(0, 10),
+        timeline: {
+          getTimestamp: (it) => it.year,
+          autoPlay: true,
+        },
+        onClustersChange: (clusters) => {
+          clusterCounts.push(clusters.length);
+        },
+        onMetricsChange: () => {
+          metricsCalls += 1;
+        },
+        onFpsUpdate: (fps) => {
+          fpsSamples.push(fps);
+        },
+      });
+
+      const canvas = controller.getCanvasElement();
+      Object.defineProperty(canvas, 'toDataURL', {
+        configurable: true,
+        value: () => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==',
+      });
+      Object.defineProperty(canvas, 'toBlob', {
+        configurable: true,
+        value: (cb: (b: Blob | null) => void) =>
+          cb(new Blob(['canvas-png'], { type: 'image/png' })),
+      });
+
+      expect(clusterCounts.length).toBeGreaterThanOrEqual(1);
+      expect(listeners.get('loadingdone')?.size).toBe(1);
+
+      // Drive queued rAF frames across >500ms while timeline is playing so onFpsUpdate emits
+      for (let i = 0; i < 45; i++) {
+        const pending = Array.from(rafQueue.entries());
+        if (pending.length === 0) break;
+        rafQueue.clear();
+        rafNow += 16.67;
+        for (const [, cb] of pending) {
+          cb(rafNow);
+        }
+      }
+      controller.getTimeline()!.pause();
+      controller.getTimeline()!.resetToEnd();
+      expect(fpsSamples.length).toBeGreaterThanOrEqual(1);
+      expect(fpsSamples[0]).toBeGreaterThan(0);
+
+      // Updating items notifies onClustersChange
+      const clusterEventsBeforeUpdate = clusterCounts.length;
+      controller.setItems(items);
+      expect(clusterCounts.length).toBeGreaterThan(clusterEventsBeforeUpdate);
+
+      // document.fonts.ready and loadingdone trigger clean relayout
+      const metricsBeforeReady = metricsCalls;
+      resolveFontsReady();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(metricsCalls).toBeGreaterThan(metricsBeforeReady);
+
+      const metricsBeforeEvent = metricsCalls;
+      mockFonts.dispatchLoadingDone();
+      expect(metricsCalls).toBeGreaterThan(metricsBeforeEvent);
+
+      // Controller exportPng parity
+      const dataUrl = await controller.exportPng({ format: 'dataUrl' });
+      expect(typeof dataUrl).toBe('string');
+      expect((dataUrl as string).startsWith('data:image/png')).toBe(true);
+      const blob = await controller.exportPng({ format: 'blob' });
+      expect(blob).toBeInstanceOf(Blob);
+
+      controller.destroy();
+      expect(listeners.get('loadingdone')?.size ?? 0).toBe(0);
+    } finally {
+      vi.restoreAllMocks();
+      performance.now = origPerfNow;
+      globalThis.requestAnimationFrame = origRaf;
+      globalThis.cancelAnimationFrame = origCancelRaf;
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+      if (originalFontsOrUndefined(origFonts)) {
+        Object.defineProperty(document, 'fonts', origFonts!);
+      } else {
+        delete (document as unknown as Record<string, unknown>).fonts;
+      }
+      container.remove();
+    }
+  });
+
+  it('defers initial layout until first non-zero ResizeObserver entry or fallbackTimeoutMs when deferInitialLayout is set', async () => {
+    const items = makeSampleItems(14);
+
+    type RoCallback = (entries: ResizeObserverEntry[]) => void;
+    const observers: Array<{ target: Element; cb: RoCallback }> = [];
+    const OriginalResizeObserver = globalThis.ResizeObserver;
+    class MockResizeObserver {
+      private readonly cb: RoCallback;
+      constructor(cb: RoCallback) {
+        this.cb = cb;
+      }
+      observe(target: Element) {
+        observers.push({ target, cb: this.cb });
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
+
+    const triggerResize = (target: Element, width: number, height: number) => {
+      for (const rec of observers) {
+        if (rec.target === target) {
+          rec.cb([
+            {
+              target,
+              contentRect: {
+                x: 0,
+                y: 0,
+                width,
+                height,
+                top: 0,
+                left: 0,
+                right: width,
+                bottom: height,
+                toJSON: () => ({}),
+              },
+            } as ResizeObserverEntry,
+          ]);
+        }
+      }
+    };
+
+    const { ctx } = createMock2DContext();
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function () {
+      return ctx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    const hiddenContainer = createSizedContainer(0, 0);
+    const timeoutContainer = createSizedContainer(0, 0);
+    const destroyedContainer = createSizedContainer(0, 0);
+
+    try {
+      // 1) deferInitialLayout: true holds solving until first >= 40x40 ResizeObserver entry
+      let metricsCalls = 0;
+      const deferredCtrl = createSimplexCanvas(hiddenContainer, {
+        items: items.slice(0, 8),
+        deferInitialLayout: true,
+        reducedMotion: true,
+        layoutOptions: { seed: 42 },
+        onMetricsChange: () => {
+          metricsCalls += 1;
+        },
+      });
+
+      expect(metricsCalls).toBe(0);
+      expect(deferredCtrl.getClusters().length).toBe(0);
+      expect(deferredCtrl.getMetrics().meshSideLength).toBe(0);
+
+      deferredCtrl.setItems(items);
+      expect(metricsCalls).toBe(0);
+
+      // Tiny sizes stay ignored
+      triggerResize(hiddenContainer, 0, 0);
+      triggerResize(hiddenContainer, 24, 24);
+      expect(metricsCalls).toBe(0);
+
+      // First valid measurement triggers initial layout
+      triggerResize(hiddenContainer, 760, 520);
+      deferredCtrl.stepForTest(16.67);
+      expect(metricsCalls).toBe(1);
+      expect(deferredCtrl.getMetrics().itemCount).toBe(items.length);
+      expect(deferredCtrl.getMetrics().overlapCount).toBe(0);
+      expect(deferredCtrl.getRenderStats().drawnItems).toBe(items.length);
+
+      // 2) deferInitialLayout: { fallbackTimeoutMs } initializes on timer and re-solves cleanly on real resize
+      const timeoutCtrl = createSimplexCanvas(timeoutContainer, {
+        items,
+        deferInitialLayout: { fallbackTimeoutMs: 25 },
+        reducedMotion: true,
+        layoutOptions: { seed: 42 },
+      });
+      expect(timeoutCtrl.getClusters().length).toBe(0);
+
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      timeoutCtrl.stepForTest(16.67);
+      expect(timeoutCtrl.getClusters().length).toBeGreaterThanOrEqual(3);
+      expect(timeoutCtrl.getMetrics().itemCount).toBe(items.length);
+
+      triggerResize(timeoutContainer, 680, 460);
+      timeoutCtrl.stepForTest(16.67);
+      expect(timeoutCtrl.getMetrics().overlapCount).toBe(0);
+
+      // 3) destroy() before fallbackTimeoutMs cancels cleanly
+      let destroyedMetricsCalls = 0;
+      const destroyedCtrl = createSimplexCanvas(destroyedContainer, {
+        items,
+        deferInitialLayout: { fallbackTimeoutMs: 25 },
+        onMetricsChange: () => {
+          destroyedMetricsCalls += 1;
+        },
+      });
+      destroyedCtrl.destroy();
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expect(destroyedMetricsCalls).toBe(0);
+
+      deferredCtrl.destroy();
+      timeoutCtrl.destroy();
+    } finally {
+      globalThis.ResizeObserver = OriginalResizeObserver;
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+      hiddenContainer.remove();
+      timeoutContainer.remove();
+      destroyedContainer.remove();
+    }
+  });
+
+  it('supports SimplexDomTooltipRenderer, function/structured tooltip formatters, Shift+Drag marquee, timeline ViewState round-trip, and StrategyItemIdentityConfig generics', () => {
+    const container = createSizedContainer(840, 560);
+    const { ctx } = createMock2DContext();
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function () {
+      return ctx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    interface CustomRecord {
+      readonly recordKey: string;
+      readonly title: string;
+      readonly keywords: readonly string[];
+      readonly year: number;
+    }
+
+    const customItems: CustomRecord[] = makeSampleItems(18).map((item, idx) => ({
+      recordKey: `rec-${idx}`,
+      title: item.label,
+      keywords: item.tags,
+      year: item.year,
+    }));
+
+    const cleanupSpy = vi.fn();
+    const onHideSpy = vi.fn();
+
+    interface CustomClusterMeta {
+      readonly tag: string;
+      readonly itemCount: number;
+    }
+
+    const controller = createSimplexCanvas<
+      CustomRecord,
+      CanvasDefaultContentVisual,
+      CanvasDefaultClusterVisual,
+      undefined,
+      CustomClusterMeta
+    >(container, {
+      items: customItems,
+      getId: (r) => r.recordKey,
+      getTags: (r) => r.keywords,
+      getLabel: (r) => r.title,
+      deriveClusterMeta: (ctx) => ({
+        tag: ctx.defaultLabel,
+        itemCount: ctx.members.length,
+      }),
+      reducedMotion: true,
+      zoomStrategy: createBarycentricZoomStrategy(),
+      timeline: {
+        getTimestamp: (r) => r.year,
+        autoFinalSeed: true,
+      },
+      tooltip: {
+        render: (target, tooltipEl) => {
+          if (target.kind !== 'content') return false;
+          const strong = document.createElement('strong');
+          strong.textContent = `DOM:${target.item.title}`;
+          tooltipEl.replaceChildren(strong);
+          return cleanupSpy;
+        },
+        onHide: onHideSpy,
+      },
+    });
+
+    try {
+      controller.stepForTest(16.67);
+      const canvas = controller.getCanvasElement();
+      Object.defineProperty(canvas, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({
+          left: 0,
+          top: 0,
+          right: 840,
+          bottom: 560,
+          width: 840,
+          height: 560,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        }),
+      });
+
+      const tl = controller.getTimeline()!;
+      tl.resetToEnd();
+      controller.stepForTest(16.67);
+
+      const initialTriIdx = controller.getZoomState().drillableTriangleIndices[0];
+      if (initialTriIdx !== undefined) {
+        controller.drillDownTriangle(initialTriIdx);
+        controller.stepForTest(16.67);
+      }
+
+      const itemTargets = controller
+        .getInteractiveTargets()
+        .filter((t): t is Extract<typeof t, { kind: 'item' }> => t.kind === 'item');
+      expect(itemTargets.length).toBeGreaterThanOrEqual(2);
+      const firstPos = itemTargets[0]!.screenPosition;
+
+      // 1) Custom DOM tooltip renders, cleans up on pointerleave, and invokes onHide
+      canvas.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: firstPos.x,
+          clientY: firstPos.y,
+          bubbles: true,
+        }),
+      );
+      const tooltipEl = container.querySelector('.sv-canvas-tooltip') as HTMLDivElement;
+      expect(tooltipEl).not.toBeNull();
+      expect(tooltipEl.style.display).not.toBe('none');
+      expect(tooltipEl.textContent).toContain('DOM:');
+
+      canvas.dispatchEvent(new PointerEvent('pointerleave', { bubbles: true }));
+      expect(cleanupSpy).toHaveBeenCalledTimes(1);
+      expect(onHideSpy).toHaveBeenCalledTimes(1);
+
+      // 2) Function formatter tooltip & structured tooltip option via setOptions
+      controller.setOptions({
+        tooltip: (target) =>
+          target.kind === 'content' ? `FN:${target.item.recordKey}` : false,
+      });
+      canvas.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: firstPos.x,
+          clientY: firstPos.y,
+          bubbles: true,
+        }),
+      );
+      expect(tooltipEl.textContent).toBe(`FN:${itemTargets[0]!.item.recordKey}`);
+
+      controller.setOptions({
+        tooltip: {
+          formatContent: (ev) => `STRUCT:${ev.item.title}`,
+        },
+      });
+      canvas.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: firstPos.x,
+          clientY: firstPos.y,
+          bubbles: true,
+        }),
+      );
+      expect(tooltipEl.textContent).toBe(`STRUCT:${itemTargets[0]!.item.title}`);
+
+      // 3) Shift+Drag marquee selects multiple items within screen bounding box
+      const marqueeSlice = itemTargets.slice(0, Math.min(3, itemTargets.length));
+      const xs = marqueeSlice.map((t) => t.screenPosition.x);
+      const ys = marqueeSlice.map((t) => t.screenPosition.y);
+      const minX = Math.max(0, Math.min(...xs) - 20);
+      const minY = Math.max(0, Math.min(...ys) - 20);
+      const maxX = Math.min(840, Math.max(...xs) + 20);
+      const maxY = Math.min(560, Math.max(...ys) + 20);
+
+      canvas.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          pointerId: 3,
+          pointerType: 'mouse',
+          button: 0,
+          shiftKey: true,
+          clientX: minX,
+          clientY: minY,
+          bubbles: true,
+        }),
+      );
+      canvas.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 3,
+          pointerType: 'mouse',
+          shiftKey: true,
+          clientX: maxX,
+          clientY: maxY,
+          bubbles: true,
+        }),
+      );
+      canvas.dispatchEvent(
+        new PointerEvent('pointerup', {
+          pointerId: 3,
+          pointerType: 'mouse',
+          button: 0,
+          shiftKey: true,
+          clientX: maxX,
+          clientY: maxY,
+          bubbles: true,
+        }),
+      );
+      expect(controller.getSelectedIds().size).toBeGreaterThanOrEqual(marqueeSlice.length);
+
+      // 4) Timeline step + zoom depth ViewState round-trip
+      controller.drillToRoot();
+      tl.seek(1);
+      controller.stepForTest(16.67);
+      const triIdx = controller.getZoomState().drillableTriangleIndices[0];
+      if (triIdx !== undefined) {
+        controller.drillDownTriangle(triIdx);
+        controller.stepForTest(16.67);
+      }
+      const saved = controller.getViewState();
+      expect(saved.timelineStep).toBe(1);
+
+      controller.drillToRoot();
+      tl.resetToEnd();
+      controller.stepForTest(16.67);
+      expect(controller.getZoomState().depth).toBe(0);
+
+      controller.restoreViewState(saved);
+      controller.stepForTest(16.67);
+      expect(controller.getTimeline()!.getState().step).toBe(1);
+      if (triIdx !== undefined) {
+        expect(controller.getZoomState().depth).toBe(1);
+      }
+    } finally {
+      controller.destroy();
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+      container.remove();
+    }
+  });
 });
+
+function originalFontsOrUndefined(
+  desc: PropertyDescriptor | undefined,
+): desc is PropertyDescriptor {
+  return Boolean(desc);
+}
+

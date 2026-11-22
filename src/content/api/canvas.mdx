@@ -30,7 +30,7 @@ exportsTable:
       new SimplexCanvasController<
         TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta
       >(container: HTMLElement | string, options: SimplexCanvasControllerOptions<...>)
-    summary: "Manages ResizeObserver, rAF spring loop, frustum-culled Canvas 2D rendering, hierarchical 1:4 zoom with built-in breadcrumb HUD, timeline playback bar & subscribeTimeline(), Shift+Click/Shift+Drag marquee multi-selection, WCAG 2.1 AA keyboard navigation & focus target APIs, tooltips, getLegendModel()/setOnLegendChange(), getViewState()/restoreViewState(), full atomic setOptions()/batch(), and native exportPng()."
+    summary: "Manages ResizeObserver (with 0x0 auto-recovery & deferInitialLayout), relayoutOnFontLoad, rAF spring loop with onFpsUpdate, frustum-culled Canvas 2D rendering, hierarchical 1:4 zoom with built-in breadcrumb HUD, timeline playback bar & subscribeTimeline(), Shift+Click/Shift+Drag marquee multi-selection, WCAG 2.1 AA keyboard navigation & focus target APIs, custom DOM/HTML tooltips (SimplexDomTooltipRenderer), getLegendModel()/setOnLegendChange(), getViewState()/restoreViewState(), full atomic setOptions()/batch(), highlightedIds, onClustersChange, and native exportPng()."
   - symbol: "CanvasRendererAdapter"
     kind: "Class"
     signature: "new CanvasRendererAdapter(options: CanvasRendererAdapterOptions)"
@@ -56,7 +56,7 @@ exportsTable:
 
 ## Overview
 
-`@simplex-viz/canvas` renders the entire simplex atlas onto a single HiDPI `<canvas>` with zero per-node DOM overhead, world-space viewport frustum culling, and automatic Level-of-Detail (LOD) shape simplification for corpora of **2,000–10,000+ items** at 60 FPS. It depends exclusively on `@simplex-viz/core` (including pure preset/OKLab/timeline helpers and `@simplex-viz/core/dom` container, tooltip, breadcrumb & timeline HUD overlays, accessibility, and gesture primitives) with zero dependency on `@simplex-viz/svg`, while mirroring `SimplexSvgController`'s full interactive API (`timeline: true` shorthand, `setTimelineOptions`, `subscribeTimeline`, `showZoomBreadcrumbs`, `setZoomUiOptions`, `setOptions`, `batch`, `getKeyboardFocusTarget`, `getInteractiveTargets`, `restoreViewState`) and curated `@simplex-viz/core` root re-exports.
+`@simplex-viz/canvas` renders the entire simplex atlas onto a single HiDPI `<canvas>` with zero per-node DOM overhead, world-space viewport frustum culling, and automatic Level-of-Detail (LOD) shape simplification for corpora of **2,000–10,000+ items** at 60 FPS. It depends exclusively on `@simplex-viz/core` (including pure preset/OKLab/timeline helpers and `@simplex-viz/core/dom` container, tooltip, breadcrumb & timeline HUD overlays, accessibility, and gesture primitives) with zero dependency on `@simplex-viz/svg`, while mirroring `SimplexSvgController`'s full interactive API (`timeline: true` shorthand, `setTimelineOptions`, `subscribeTimeline`, `showZoomBreadcrumbs`, `setZoomUiOptions`, `setOptions`, `batch`, `deferInitialLayout`, `relayoutOnFontLoad`, `onClustersChange`, `onFpsUpdate`, `SimplexDomTooltipRenderer` tooltips, `getKeyboardFocusTarget`, `getInteractiveTargets`, `restoreViewState`) and curated `@simplex-viz/core` root re-exports.
 
 ## Interactive Canvas Controller
 

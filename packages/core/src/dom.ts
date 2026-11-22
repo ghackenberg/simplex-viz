@@ -35,10 +35,13 @@ export {
   measureSimplexContainer,
   observeSimplexContainerResize,
   resolveSimplexContainer,
+  resolveSimplexDeferInitialLayoutConfig,
   resolveSimplexReducedMotion,
   subscribeSimplexFontLoadRelayout,
   subscribeSimplexReducedMotionMedia,
+  type DeferInitialLayoutOptions,
   type ObserveSimplexContainerResizeOptions,
+  type SimplexDeferInitialLayoutConfig,
   type SimplexMeasuredContainerSize,
   type SimplexResizeObserverHandle,
 } from './dom/environment.js';
@@ -116,3 +119,16 @@ export {
   type SimplexKeyboardNavigator,
   type SimplexKeyboardNavigatorOptions,
 } from './dom/keyboard.js';
+
+export {
+  computeSimplexLegendSignature,
+  createSimplexFpsTracker,
+  createSimplexLegendChangeEmitter,
+  restoreSimplexControllerViewState,
+  syncSimplexLegendTimelineStep,
+  wrapSimplexControllerInteractions,
+  type CreateSimplexLegendChangeEmitterOptions,
+  type SimplexFpsTracker,
+  type SimplexLegendChangeEmitter,
+  type WrapSimplexControllerInteractionsOptions,
+} from './dom/controller.js';

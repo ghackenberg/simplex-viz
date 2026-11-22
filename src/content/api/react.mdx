@@ -34,7 +34,7 @@ exportsTable:
         controllerRef: RefObject<SimplexSvgController<...> | null>;
         handle: SimplexGraphControllerHandle<TItem>;
       }
-    summary: "Provides stable imperative access to live item mutations, multi-selection (setSelectedIds/toggleSelectedId/clearSelection/selectItemsInScreenRect), structured legend snapshots (getLegendModel), deep-linking (getViewState/restoreViewState), reducedMotion controls, setItemFilter(), linked-view setHighlightedItems()/focusItem()/zoomToItem(), exportSvg()/exportPng() snapshots, batch()/setOptions(), keyboard focus helpers, camera resets, relayout(), timeline access, and drillDown / drillUp actions."
+    summary: "Provides stable imperative access to live item mutations, multi-selection (setSelectedIds/toggleSelectedId/clearSelection/selectItemsInScreenRect), structured legend snapshots (getLegendModel), deep-linking (getViewState/restoreViewState), reducedMotion controls, setItemFilter(), linked-view setHighlightedIds()/focusItem()/zoomToItem(), exportSvg()/exportPng() snapshots, batch()/setOptions(), keyboard focus helpers, camera resets, relayout(), timeline access, and drillDown / drillUp actions."
   - symbol: "useSimplexTimeline"
     kind: "Hook"
     signature: |-
@@ -101,7 +101,7 @@ Returned by `useSimplexGraphController()`:
 
 - **Live Corpus Mutations & Filtering**: `handle.addItems(items)`, `handle.removeItems(ids)`, `handle.setItems(items)`, `handle.setItemFilter(predicate, options?)`, `handle.getItemFilter()`
 - **Multi-Selection & Deep-Linking**: `handle.setSelectedIds(ids)`, `handle.toggleSelectedId(id)`, `handle.clearSelection()`, `handle.getSelectedIds()`, `handle.selectItemsInScreenRect(rect, options?)`, `handle.getViewState()`, `handle.restoreViewState(state, options?)`
-- **Linked-View Search & Navigation**: `handle.setHighlightedIds(ids)` / `handle.setHighlightedItems(ids)`, `handle.getHighlightedIds()` / `handle.getHighlightedItems()`, `handle.focusItem(itemId | null, options?)`, `handle.getFocusedItemId()`, `handle.zoomToItem(itemId, options?)`
+- **Linked-View Search & Navigation**: `handle.setHighlightedIds(ids)`, `handle.getHighlightedIds()`, `handle.focusItem(itemId | null, options?)`, `handle.getFocusedItemId()`, `handle.zoomToItem(itemId, options?)`
 - **Client-Side Snapshot Export**: `handle.exportSvg(options?)`, `handle.exportPng(options?)` (`format: 'blob' | 'dataUrl'`, HiDPI `scale`)
 - **Atomic Batching & Options**: `handle.batch(fn)`, `handle.setOptions(options)`
 - **Hierarchical Drill-Down**: `handle.drillDownTriangle(index)`, `handle.drillDownCluster(uid)`, `handle.drillToNeighbor(neighborId)`, `handle.drillUp()`, `handle.drillToDepth(depth)`, `handle.drillToRoot()`, `handle.getZoomState()`

@@ -87,7 +87,8 @@ export interface SimplexWorkerErrorEventLike {
  * `worker_threads.Worker`, and lightweight in-memory test channels.
  */
 export interface SimplexWorkerPort {
-  postMessage(message: unknown, transfer?: SimplexTransferableLike[]): void;
+  postMessage(message: unknown): void;
+  postMessage(message: unknown, transfer: SimplexTransferableLike[]): void;
   addEventListener?: {
     (
       type: 'message',

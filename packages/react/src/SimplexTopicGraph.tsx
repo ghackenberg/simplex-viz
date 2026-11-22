@@ -407,17 +407,8 @@ export type SimplexTopicGraphProps<
     readonly style?: CSSProperties;
   };
 
-interface AutoKeyVisual {
-  readonly __svAutoKey: string;
-}
-
-function isAutoKeyVisual(v: unknown): v is AutoKeyVisual {
-  return (
-    typeof v === 'object' &&
-    v !== null &&
-    '__svAutoKey' in v &&
-    typeof (v as AutoKeyVisual).__svAutoKey === 'string'
-  );
+class ReactJsxAutoKeyToken {
+  constructor(readonly key: string) {}
 }
 
 /**
@@ -592,57 +583,74 @@ export function SimplexTopicGraph<
     );
     const base = p.visualResolver;
 
-    const getKey = (visual: TContentVisual | TClusterVisual): string => {
-      if (isAutoKeyVisual(visual)) {
-        return visual.__svAutoKey;
+    const getKey = (
+      visual:
+        | TContentVisual
+        | TClusterVisual
+        | DefaultContentPresetVisual
+        | DefaultClusterPresetVisual
+        | ReactJsxAutoKeyToken,
+    ): string => {
+      if (visual instanceof ReactJsxAutoKeyToken) {
+        return visual.key;
       }
       if (base) {
-        return base.getVisualCacheKey(visual);
+        return base.getVisualCacheKey(visual as TContentVisual | TClusterVisual);
       }
       return presetResolver.getVisualCacheKey(
-        visual as unknown as DefaultContentPresetVisual | DefaultClusterPresetVisual,
+        visual as DefaultContentPresetVisual | DefaultClusterPresetVisual,
       );
     };
 
-    return {
+    const bridged: VisualResolver<
+      TItem,
+      TContentVisual | DefaultContentPresetVisual | ReactJsxAutoKeyToken,
+      TClusterVisual | DefaultClusterPresetVisual | ReactJsxAutoKeyToken,
+      TTagMeta,
+      TClusterMeta
+    > = {
       resolveContentVisual: (item, ctx) => {
         const cur = latestPropsRef.current;
-        let visual: TContentVisual;
-        if (base) {
-          visual = base.resolveContentVisual(item, ctx);
-        } else if (cur.renderContentNode) {
-          const autoKey = cur.getContentCacheKey
-            ? cur.getContentCacheKey(item, ctx)
-            : `${ctx.id}:${ctx.mixedColorHex}:${ctx.tags.map((t) => t.tag).join(',')}:${ctx.unitClusters
-                .map((u) => `${u.cluster.clusterUid}:${u.weight.toFixed(2)}`)
-                .join(',')}`;
-          visual = { __svAutoKey: autoKey } as unknown as TContentVisual;
-        } else {
-          visual = presetResolver.resolveContentVisual(item, ctx) as unknown as TContentVisual;
-        }
+        const visual = base
+          ? base.resolveContentVisual(item, ctx)
+          : cur.renderContentNode
+            ? new ReactJsxAutoKeyToken(
+                cur.getContentCacheKey
+                  ? cur.getContentCacheKey(item, ctx)
+                  : `${ctx.id}:${ctx.mixedColorHex}:${ctx.tags.map((t) => t.tag).join(',')}:${ctx.unitClusters
+                      .map((u) => `${u.cluster.clusterUid}:${u.weight.toFixed(2)}`)
+                      .join(',')}`,
+              )
+            : presetResolver.resolveContentVisual(item, ctx);
         const key = getKey(visual);
         contentDomainByKeyRef.current.set(key, { item, ctx });
         return visual;
       },
       resolveClusterVisual: (cluster) => {
         const cur = latestPropsRef.current;
-        let visual: TClusterVisual;
-        if (base) {
-          visual = base.resolveClusterVisual(cluster);
-        } else if (cur.renderClusterNode) {
-          const autoKey = cur.getClusterCacheKey
-            ? cur.getClusterCacheKey(cluster)
-            : `${cluster.clusterUid}:${cluster.defaultLabel}:${cluster.members.length}:${cluster.colorHex}`;
-          visual = { __svAutoKey: autoKey } as unknown as TClusterVisual;
-        } else {
-          visual = presetResolver.resolveClusterVisual(cluster) as unknown as TClusterVisual;
-        }
+        const visual = base
+          ? base.resolveClusterVisual(cluster)
+          : cur.renderClusterNode
+            ? new ReactJsxAutoKeyToken(
+                cur.getClusterCacheKey
+                  ? cur.getClusterCacheKey(cluster)
+                  : `${cluster.clusterUid}:${cluster.defaultLabel}:${cluster.members.length}:${cluster.colorHex}`,
+              )
+            : presetResolver.resolveClusterVisual(cluster);
         const key = getKey(visual);
         clusterDomainByKeyRef.current.set(key, cluster);
         return visual;
       },
       getVisualCacheKey: getKey,
     };
+
+    return bridged as VisualResolver<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >;
   };
 
   const resolveActiveViews = (

@@ -1094,7 +1094,7 @@ describe('@simplex-viz/react integration', () => {
     unmount();
   });
 
-  it('exposes linked-view setHighlightedItems, focusItem, and zoomToItem on useSimplexGraphController handle (Issue #19)', () => {
+  it('exposes linked-view setHighlightedIds, focusItem, and zoomToItem on useSimplexGraphController handle (Issue #19)', () => {
     const items = [
       { id: 'r1', label: 'Alpha Item', tags: ['alpha', 'beta'] },
       { id: 'r2', label: 'Beta Item', tags: ['beta', 'gamma'] },
@@ -1124,7 +1124,7 @@ describe('@simplex-viz/react integration', () => {
 
     const { container, rerender, unmount } = render(<Host highlightedIds={['r1', 'r2']} />);
 
-    expect([...exposed.handle!.getHighlightedItems()].sort()).toEqual(['r1', 'r2']);
+    expect([...exposed.handle!.getHighlightedIds()].sort()).toEqual(['r1', 'r2']);
 
     // Imperative focusItem triggers React floating tooltip overlay
     act(() => {
@@ -1144,7 +1144,7 @@ describe('@simplex-viz/react integration', () => {
 
     // Passing highlightedIds={null} clears search highlights declaratively
     rerender(<Host highlightedIds={null} />);
-    expect(exposed.handle!.getHighlightedItems().size).toBe(0);
+    expect(exposed.handle!.getHighlightedIds().size).toBe(0);
 
     // Clearing focus hides React tooltip
     act(() => {

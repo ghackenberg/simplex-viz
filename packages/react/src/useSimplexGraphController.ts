@@ -84,9 +84,7 @@ export interface SimplexGraphHandle<
   ): void;
   getItemFilter(): ItemFilterState<TItem> | null;
   setHighlightedIds(ids: Iterable<string> | null): void;
-  setHighlightedItems(ids: Iterable<string> | null): void;
   getHighlightedIds(): ReadonlySet<string>;
-  getHighlightedItems(): ReadonlySet<string>;
   setSelectedIds(ids: Iterable<string> | null): void;
   toggleSelectedId(id: string): boolean;
   clearSelection(): void;
@@ -305,16 +303,8 @@ export function useSimplexGraphController<
     controllerRef.current?.setHighlightedIds(ids);
   }, []);
 
-  const setHighlightedItems = useCallback((ids: Iterable<string> | null) => {
-    controllerRef.current?.setHighlightedItems(ids);
-  }, []);
-
   const getHighlightedIds = useCallback((): ReadonlySet<string> => {
     return controllerRef.current?.getHighlightedIds() ?? new Set();
-  }, []);
-
-  const getHighlightedItems = useCallback((): ReadonlySet<string> => {
-    return controllerRef.current?.getHighlightedItems() ?? new Set();
   }, []);
 
   const setSelectedIds = useCallback((ids: Iterable<string> | null) => {
@@ -487,9 +477,7 @@ export function useSimplexGraphController<
       setItemFilter,
       getItemFilter,
       setHighlightedIds,
-      setHighlightedItems,
       getHighlightedIds,
-      getHighlightedItems,
       setSelectedIds,
       toggleSelectedId,
       clearSelection,

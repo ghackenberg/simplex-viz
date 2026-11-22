@@ -1285,9 +1285,6 @@ export class SimplexTopicGraphElement<
     if (options.highlightedIds !== undefined) {
       this._highlightedIds = options.highlightedIds;
     }
-    if (options.highlightedItems !== undefined) {
-      this._highlightedIds = options.highlightedItems;
-    }
     if (options.focusedItemId !== undefined) this._focusedItemId = options.focusedItemId;
     if (options.focusedClusterUid !== undefined) {
       this._focusedClusterUid = options.focusedClusterUid;
@@ -1339,15 +1336,7 @@ export class SimplexTopicGraphElement<
     this._controller?.setHighlightedIds(ids);
   }
 
-  setHighlightedItems(ids: Iterable<string> | null): void {
-    this.setHighlightedIds(ids);
-  }
-
   getHighlightedIds(): ReadonlySet<string> {
-    return this.highlightedIds;
-  }
-
-  getHighlightedItems(): ReadonlySet<string> {
     return this.highlightedIds;
   }
 

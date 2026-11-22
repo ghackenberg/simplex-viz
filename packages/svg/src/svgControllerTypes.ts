@@ -23,6 +23,7 @@ import type {
   StrategyItemIdentityConfig,
   VisualResolver,
 } from '@simplex-viz/core';
+import type { DeferInitialLayoutOptions } from '@simplex-viz/core/dom';
 import type {
   DefaultClusterPresetVisual,
   DefaultContentPresetVisual,
@@ -34,6 +35,8 @@ import type {
 import type { SvgRendererOptions } from './SvgRendererAdapter.js';
 import type { SvgEdgeView, SvgNodeView, SvgTriangleView } from './types.js';
 import type { GeometricShapeSvgViewOptions } from './views/GeometricShapeSvgView.js';
+
+export type { DeferInitialLayoutOptions };
 
 export type SimplexSvgTooltipTarget<
   TItem = DefaultTaggedItem,
@@ -136,21 +139,6 @@ export type SimplexSvgTooltipOption<
  */
 export type TimelinePlayerOptions<TItem = DefaultTaggedItem> =
   SimplexTimelinePlayerOptions<TItem>;
-
-/**
- * Options for deferring the initial triangulation, clustering, and layout solve
- * when the mount container initially measures `0×0` (for example inside hidden tabs,
- * modals, accordions, or before async CSS loads).
- */
-export interface DeferInitialLayoutOptions {
-  /**
-   * Optional timeout in milliseconds after which the controller falls back to a
-   * provisional `960×620` layout if `ResizeObserver` has not yet reported a non-zero
-   * container size. Even after the timeout fires, the first subsequent non-zero
-   * `ResizeObserver` entry still performs a clean `'initial'` re-initialization.
-   */
-  readonly fallbackTimeoutMs?: number;
-}
 
 export interface SimplexSvgControllerResolvedOptions<
   TItem = DefaultTaggedItem,
@@ -441,7 +429,6 @@ export interface SimplexSvgUpdateOptions<
   >;
   readonly pinnedIds?: ReadonlySet<string> | readonly string[];
   readonly highlightedIds?: Iterable<string> | null;
-  readonly highlightedItems?: Iterable<string> | null;
   readonly selectedIds?: Iterable<string> | null;
   readonly marqueeSelection?: boolean;
   readonly shiftClickSelects?: boolean;
