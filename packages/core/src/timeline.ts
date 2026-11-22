@@ -1,11 +1,14 @@
+import { createSimplexTimelineNotifier, type SimplexTimelineNotifier } from './presetShared.js';
 import {
+  createCollisionDrivenLayoutStrategy,
   createFinalSeededClusteringStrategy,
   createFinalSeededLayoutStrategy,
+  createSoftSimplexTagClusteringStrategy,
   type FinalSeededLayoutScaleMode,
   type SimplexClusteringStrategy,
   type SimplexLayoutStrategy,
 } from './strategies.js';
-import type { DefaultTaggedItem } from './types.js';
+import type { DefaultTaggedItem, EmptyClusterBehavior } from './types.js';
 
 /**
  * Accepted return types for `SimplexTimelineOptions.getTimestamp`.
@@ -843,4 +846,385 @@ export function wrapLayoutStrategyForTimeline(
   return createFinalSeededLayoutStrategy(baseStrategy, {
     scaleMode,
   });
+}
+
+// ============================================================================
+// Shared Host Timeline Player Options & Orchestration Session (SVG / Canvas)
+// ============================================================================
+
+/**
+ * Unified timeline player configuration options shared across `@simplex-viz/svg`,
+ * `@simplex-viz/canvas`, `@simplex-viz/react`, and `@simplex-viz/wc`.
+ */
+export interface SimplexTimelinePlayerOptions<TItem = DefaultTaggedItem>
+  extends SimplexTimelineOptions<TItem> {
+  /** Renders the built-in Play/Pause/Step/Scrubber HUD bar inside the graph container. Default: `true`. */
+  readonly showControls?: boolean;
+  /** Vertical placement of the built-in timeline player bar. Default: `'bottom'`. */
+  readonly position?: 'bottom' | 'top';
+  /**
+   * Automatically wraps the active clustering strategy in `createFinalSeededClusteringStrategy`
+   * seeded from the full corpus so clusters stay pinned across `0..N` playback frames. Default: `true`.
+   */
+  readonly autoFinalSeed?: boolean;
+  /**
+   * Automatically wraps the active layout strategy in `createFinalSeededLayoutStrategy`
+   * seeded from the full corpus (`false` | `true` | `'pinned'` | `'adaptive'`). Default: `false`.
+   */
+  readonly autoFinalSeedLayout?: boolean | FinalSeededLayoutScaleMode;
+  /**
+   * Controls how empty / not-yet-populated future clusters render while timeline playback
+   * is active (`'normal'` | `'dim'` | `'hide'`).
+   */
+  readonly emptyClusterBehavior?: EmptyClusterBehavior;
+  /** Invoked whenever the timeline playback state changes (step, play/pause, speed, corpus). */
+  readonly onStateChange?: SimplexTimelineListener<TItem>;
+}
+
+export interface ResolvedSimplexTimelinePlayerConfig<TItem = DefaultTaggedItem> {
+  readonly enabled: boolean;
+  readonly options: SimplexTimelinePlayerOptions<TItem> | null;
+  readonly showControls: boolean;
+  readonly position: 'bottom' | 'top';
+  readonly autoFinalSeed: boolean;
+  readonly autoFinalSeedLayout: false | FinalSeededLayoutScaleMode;
+  readonly emptyClusterBehavior?: EmptyClusterBehavior;
+  readonly onStateChange?: SimplexTimelineListener<TItem>;
+}
+
+/**
+ * Normalizes `boolean | SimplexTimelinePlayerOptions | null | undefined` into canonical defaults.
+ */
+export function resolveTimelinePlayerConfig<TItem = DefaultTaggedItem>(
+  timeline: boolean | SimplexTimelinePlayerOptions<TItem> | null | undefined,
+): ResolvedSimplexTimelinePlayerConfig<TItem> {
+  if (!timeline) {
+    return {
+      enabled: false,
+      options: null,
+      showControls: false,
+      position: 'bottom',
+      autoFinalSeed: true,
+      autoFinalSeedLayout: false,
+      emptyClusterBehavior: undefined,
+      onStateChange: undefined,
+    };
+  }
+  const opts: SimplexTimelinePlayerOptions<TItem> = timeline === true ? {} : timeline;
+  return {
+    enabled: true,
+    options: opts,
+    showControls: opts.showControls ?? true,
+    position: opts.position ?? 'bottom',
+    autoFinalSeed: opts.autoFinalSeed ?? true,
+    autoFinalSeedLayout: normalizeTimelineLayoutScaleMode(opts.autoFinalSeedLayout),
+    emptyClusterBehavior: opts.emptyClusterBehavior,
+    onStateChange: opts.onStateChange,
+  };
+}
+
+export interface SimplexTimelineHostSessionHooks<
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+> {
+  readonly batch: (fn: () => void) => void;
+  readonly setCanonicalSeedItems: (items: readonly TItem[] | null) => void;
+  readonly setClusteringStrategy: (
+    strategy: SimplexClusteringStrategy<TItem, TTagMeta>,
+  ) => void;
+  readonly setLayoutStrategy: (strategy: SimplexLayoutStrategy) => void;
+  readonly setEmptyClusterBehavior: (behavior: EmptyClusterBehavior) => void;
+  readonly setEngineItems: (items: readonly TItem[]) => void;
+  readonly syncOverlay: (state: SimplexTimelineState<TItem> | null) => void;
+  readonly onFrameActivity?: (state: SimplexTimelineState<TItem>) => void;
+  readonly onLegendSync?: () => void;
+  readonly isDestroyed?: () => boolean;
+}
+
+export interface SimplexTimelineHostSession<
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+> {
+  getController(): SimplexTimelineController<TItem> | null;
+  getShowControls(): boolean;
+  getPosition(): 'bottom' | 'top';
+  getBaseEmptyClusterBehavior(): EmptyClusterBehavior;
+  getEffectiveEmptyClusterBehavior(): EmptyClusterBehavior;
+  resolveEffectiveClusteringStrategy(
+    baseStrategy: SimplexClusteringStrategy<TItem, TTagMeta> | undefined,
+    seedItems: readonly TItem[],
+  ): SimplexClusteringStrategy<TItem, TTagMeta> | undefined;
+  resolveEffectiveLayoutStrategy(
+    baseStrategy: SimplexLayoutStrategy | undefined,
+  ): SimplexLayoutStrategy | undefined;
+  setRawClusteringStrategy(
+    strategy: SimplexClusteringStrategy<TItem, TTagMeta>,
+    seedItems: readonly TItem[],
+  ): SimplexClusteringStrategy<TItem, TTagMeta>;
+  setRawLayoutStrategy(strategy: SimplexLayoutStrategy): SimplexLayoutStrategy;
+  setBaseEmptyClusterBehavior(behavior: EmptyClusterBehavior): EmptyClusterBehavior;
+  syncFinalSeededClusteringForCorpus(
+    seedItems: readonly TItem[],
+    applyStrategy: (strategy: SimplexClusteringStrategy<TItem, TTagMeta>) => void,
+  ): void;
+  configureInitial(
+    timeline: boolean | SimplexTimelinePlayerOptions<TItem> | null | undefined,
+    fullCorpusItems: readonly TItem[],
+  ): {
+    readonly initialItems: readonly TItem[];
+    readonly clusteringStrategy: SimplexClusteringStrategy<TItem, TTagMeta> | undefined;
+    readonly layoutStrategy: SimplexLayoutStrategy | undefined;
+    readonly emptyClusterBehavior: EmptyClusterBehavior;
+  };
+  attachInitial(hooks: SimplexTimelineHostSessionHooks<TItem, TTagMeta>): void;
+  setTimelineOptions(
+    timeline: boolean | SimplexTimelinePlayerOptions<TItem> | null | undefined,
+    fullCorpusItems: readonly TItem[],
+    hooks: SimplexTimelineHostSessionHooks<TItem, TTagMeta>,
+  ): void;
+  subscribe(listener: (state: SimplexTimelineState<TItem> | null) => void): () => void;
+  destroy(): void;
+}
+
+/**
+ * Shared timeline player session coordinator for SVG and Canvas controllers,
+ * managing `autoFinalSeed`, `autoFinalSeedLayout`, `emptyClusterBehavior`,
+ * external subscriptions, and dynamic `setTimelineOptions` transitions.
+ */
+export function createSimplexTimelineHostSession<
+  TItem = DefaultTaggedItem,
+  TTagMeta = undefined,
+>(initialConfig?: {
+  readonly rawClusteringStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>;
+  readonly rawLayoutStrategy?: SimplexLayoutStrategy;
+  readonly baseEmptyClusterBehavior?: EmptyClusterBehavior;
+}): SimplexTimelineHostSession<TItem, TTagMeta> {
+  const notifier: SimplexTimelineNotifier<TItem> =
+    createSimplexTimelineNotifier<TItem>();
+
+  let controller: SimplexTimelineController<TItem> | null = null;
+  let unsubscribeCtrl: (() => void) | null = null;
+  let lastActiveItems: readonly TItem[] | null = null;
+
+  let showControls = true;
+  let position: 'bottom' | 'top' = 'bottom';
+  let autoFinalSeed = true;
+  let autoFinalSeedLayout: false | FinalSeededLayoutScaleMode = false;
+  let timelineEmptyClusterBehavior: EmptyClusterBehavior | undefined;
+  let onStateChange: SimplexTimelineListener<TItem> | undefined;
+
+  let rawClusteringStrategy = initialConfig?.rawClusteringStrategy;
+  let rawLayoutStrategy = initialConfig?.rawLayoutStrategy;
+  let baseEmptyClusterBehavior: EmptyClusterBehavior =
+    initialConfig?.baseEmptyClusterBehavior ?? 'normal';
+
+  const notifyListeners = (state: SimplexTimelineState<TItem> | null): void => {
+    if (state) {
+      onStateChange?.(state);
+    }
+    notifier.notify(state);
+  };
+
+  const detachController = (): void => {
+    unsubscribeCtrl?.();
+    unsubscribeCtrl = null;
+    controller?.destroy();
+    controller = null;
+  };
+
+  const attachController = (
+    ctrl: SimplexTimelineController<TItem>,
+    hooks: SimplexTimelineHostSessionHooks<TItem, TTagMeta>,
+  ): void => {
+    unsubscribeCtrl = ctrl.subscribe((state) => {
+      if (hooks.isDestroyed?.()) return;
+      if (state.activeItems !== lastActiveItems) {
+        lastActiveItems = state.activeItems;
+        hooks.setEngineItems(state.activeItems);
+      }
+      hooks.syncOverlay(state);
+      notifyListeners(state);
+      hooks.onLegendSync?.();
+      hooks.onFrameActivity?.(state);
+    });
+    const initialState = ctrl.getState();
+    hooks.syncOverlay(initialState);
+    notifyListeners(initialState);
+    hooks.onLegendSync?.();
+    if (initialState.playing) {
+      hooks.onFrameActivity?.(initialState);
+    }
+  };
+
+  const resolveEffectiveClusteringStrategy = (
+    baseStrategy: SimplexClusteringStrategy<TItem, TTagMeta> | undefined,
+    seedItems: readonly TItem[],
+  ): SimplexClusteringStrategy<TItem, TTagMeta> | undefined => {
+    if (!controller) return baseStrategy;
+    return wrapClusteringStrategyForTimeline<TItem, TTagMeta>(
+      baseStrategy,
+      seedItems,
+      autoFinalSeed,
+    );
+  };
+
+  const resolveEffectiveLayoutStrategy = (
+    baseStrategy: SimplexLayoutStrategy | undefined,
+  ): SimplexLayoutStrategy | undefined => {
+    if (!controller) return baseStrategy;
+    return wrapLayoutStrategyForTimeline(baseStrategy, autoFinalSeedLayout);
+  };
+
+  const getEffectiveEmptyClusterBehavior = (): EmptyClusterBehavior =>
+    controller && timelineEmptyClusterBehavior !== undefined
+      ? timelineEmptyClusterBehavior
+      : baseEmptyClusterBehavior;
+
+  return {
+    getController: () => controller,
+    getShowControls: () => showControls,
+    getPosition: () => position,
+    getBaseEmptyClusterBehavior: () => baseEmptyClusterBehavior,
+    getEffectiveEmptyClusterBehavior,
+    resolveEffectiveClusteringStrategy,
+    resolveEffectiveLayoutStrategy,
+    setRawClusteringStrategy(strategy, seedItems) {
+      rawClusteringStrategy = strategy;
+      return resolveEffectiveClusteringStrategy(strategy, seedItems) ?? strategy;
+    },
+    setRawLayoutStrategy(strategy) {
+      rawLayoutStrategy = strategy;
+      return resolveEffectiveLayoutStrategy(strategy) ?? strategy;
+    },
+    setBaseEmptyClusterBehavior(behavior) {
+      baseEmptyClusterBehavior = behavior;
+      timelineEmptyClusterBehavior = undefined;
+      return behavior;
+    },
+    syncFinalSeededClusteringForCorpus(seedItems, applyStrategy) {
+      if (!controller || !autoFinalSeed) return;
+      if (
+        rawClusteringStrategy &&
+        rawClusteringStrategy.name.startsWith('final-seeded(')
+      ) {
+        return;
+      }
+      const nextStrategy = resolveEffectiveClusteringStrategy(
+        rawClusteringStrategy,
+        seedItems,
+      );
+      if (nextStrategy) {
+        applyStrategy(nextStrategy);
+      }
+    },
+    configureInitial(timeline, fullCorpusItems) {
+      const resolved = resolveTimelinePlayerConfig(timeline);
+      if (resolved.enabled && resolved.options) {
+        showControls = resolved.showControls;
+        position = resolved.position;
+        autoFinalSeed = resolved.autoFinalSeed;
+        autoFinalSeedLayout = resolved.autoFinalSeedLayout;
+        timelineEmptyClusterBehavior = resolved.emptyClusterBehavior;
+        onStateChange = resolved.onStateChange;
+        controller = createSimplexTimeline(fullCorpusItems, resolved.options);
+        lastActiveItems = controller.getActiveItems();
+      }
+      return {
+        initialItems: controller ? lastActiveItems! : fullCorpusItems,
+        clusteringStrategy: resolveEffectiveClusteringStrategy(
+          rawClusteringStrategy,
+          fullCorpusItems,
+        ),
+        layoutStrategy: resolveEffectiveLayoutStrategy(rawLayoutStrategy),
+        emptyClusterBehavior: getEffectiveEmptyClusterBehavior(),
+      };
+    },
+    attachInitial(hooks) {
+      if (controller) {
+        attachController(controller, hooks);
+      }
+    },
+    setTimelineOptions(timeline, fullCorpusItems, hooks) {
+      if (hooks.isDestroyed?.()) return;
+      const resolved = resolveTimelinePlayerConfig(timeline);
+      if (!resolved.enabled || !resolved.options) {
+        if (!controller) return;
+        const hadAutoFinalSeed = autoFinalSeed;
+        const hadAutoFinalSeedLayout = autoFinalSeedLayout !== false;
+        hooks.batch(() => {
+          detachController();
+          autoFinalSeed = true;
+          autoFinalSeedLayout = false;
+          timelineEmptyClusterBehavior = undefined;
+          onStateChange = undefined;
+          lastActiveItems = null;
+          hooks.syncOverlay(null);
+          hooks.setCanonicalSeedItems(null);
+          if (rawClusteringStrategy) {
+            hooks.setClusteringStrategy(rawClusteringStrategy);
+          } else if (hadAutoFinalSeed) {
+            hooks.setClusteringStrategy(
+              createSoftSimplexTagClusteringStrategy<TItem, TTagMeta>(),
+            );
+          }
+          if (hadAutoFinalSeedLayout) {
+            hooks.setLayoutStrategy(
+              rawLayoutStrategy ?? createCollisionDrivenLayoutStrategy(),
+            );
+          }
+          hooks.setEmptyClusterBehavior(baseEmptyClusterBehavior);
+          hooks.setEngineItems(fullCorpusItems);
+        });
+        notifyListeners(null);
+        return;
+      }
+
+      const prevAutoFinalSeed = autoFinalSeed;
+      const prevAutoFinalSeedLayout = autoFinalSeedLayout;
+      showControls = resolved.showControls;
+      position = resolved.position;
+      autoFinalSeed = resolved.autoFinalSeed;
+      autoFinalSeedLayout = resolved.autoFinalSeedLayout;
+      timelineEmptyClusterBehavior = resolved.emptyClusterBehavior;
+      onStateChange = resolved.onStateChange;
+
+      hooks.batch(() => {
+        detachController();
+        controller = createSimplexTimeline(fullCorpusItems, resolved.options!);
+        hooks.setCanonicalSeedItems(fullCorpusItems);
+        const effectiveClustering = resolveEffectiveClusteringStrategy(
+          rawClusteringStrategy,
+          fullCorpusItems,
+        );
+        if (effectiveClustering) {
+          hooks.setClusteringStrategy(effectiveClustering);
+        } else if (prevAutoFinalSeed) {
+          hooks.setClusteringStrategy(
+            createSoftSimplexTagClusteringStrategy<TItem, TTagMeta>(),
+          );
+        }
+        const effectiveLayout = resolveEffectiveLayoutStrategy(rawLayoutStrategy);
+        if (effectiveLayout) {
+          hooks.setLayoutStrategy(effectiveLayout);
+        } else if (prevAutoFinalSeedLayout !== false) {
+          hooks.setLayoutStrategy(
+            rawLayoutStrategy ?? createCollisionDrivenLayoutStrategy(),
+          );
+        }
+        hooks.setEmptyClusterBehavior(getEffectiveEmptyClusterBehavior());
+        const activeItems = controller.getActiveItems();
+        lastActiveItems = activeItems;
+        hooks.setEngineItems(activeItems);
+        attachController(controller, hooks);
+      });
+      hooks.onLegendSync?.();
+    },
+    subscribe(listener) {
+      return notifier.subscribe(listener, controller?.getState() ?? null);
+    },
+    destroy() {
+      detachController();
+      notifier.clear();
+    },
+  };
 }

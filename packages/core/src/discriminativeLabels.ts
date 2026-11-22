@@ -1,3 +1,4 @@
+import { truncateSimplexBadgeTitle } from './presetShared.js';
 import type { ClusterDerivationContext, PeerClusterContext } from './types.js';
 import type { SubspaceZoomFeature } from './zoom.js';
 
@@ -39,9 +40,7 @@ interface ScoredCandidate {
 }
 
 function truncateSegmentClean(text: string, maxLen: number): string {
-  const trimmed = text.trim();
-  if (trimmed.length <= maxLen) return trimmed;
-  return `${trimmed.slice(0, Math.max(2, maxLen - 1)).trimEnd()}…`;
+  return truncateSimplexBadgeTitle(text, Math.max(2, maxLen));
 }
 
 function formatCompoundClusterLabel(
@@ -69,7 +68,7 @@ function extractExemplarTitle<TItem>(
   }
   if (item && typeof item === 'object') {
     const rec = item as Record<string, unknown>;
-    for (const key of ['shortTitle', 'title', 'speciesName', 'name', 'label', 'headline']) {
+    for (const key of ['shortTitle', 'title', 'label', 'name', 'headline']) {
       const val = rec[key];
       if (typeof val === 'string' && val.trim().length > 0) {
         const cleaned = val.trim().replace(/\s*\(\d{4}\)\s*$/, '');

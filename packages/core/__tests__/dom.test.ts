@@ -15,12 +15,18 @@ import {
   bindSimplexInteractiveViewport,
   buildSimplexTooltipContentModel,
   computeSimplexTooltipCoords,
+  createSimplexKeyboardNavigator,
   createSimplexSrAnnouncer,
+  createSimplexTimelineBarOverlay,
   createSimplexTooltipOverlay,
+  createSimplexZoomBreadcrumbsOverlay,
   dispatchSimplexDefaultLeftClick,
   ensureSimplexContainerPositioned,
+  formatSimplexClusterAriaMetadata,
   formatSimplexInteractiveTargetAriaLabel,
+  formatSimplexItemAriaMetadata,
   formatSimplexTooltipText,
+  formatSimplexTriangleAriaMetadata,
   getSimplexTooltipThemeTokens,
   measureSimplexContainer,
   observeSimplexContainerResize,
@@ -773,5 +779,286 @@ describe('@simplex-viz/core/dom & shared utilities', () => {
     expect(onPinchDrillIn).toHaveBeenCalledWith(200, 150);
 
     handle.destroy();
+  });
+
+  it('formats granular ARIA metadata and manages shared zoom breadcrumbs & timeline bar HUD overlays', () => {
+    const cluster = {
+      clusterUid: 'c-1',
+      clusterIndex: 0,
+      code: 'C1',
+      defaultLabel: 'Alpha',
+      subclusterLabel: 'Sub Alpha',
+      colorHex: '#38bdf8',
+      members: [{ item: { id: 'i1', tags: ['alpha'] }, index: 0, itemId: 'i1' }],
+    } as unknown as ClusterDescriptor<DefaultTaggedItem>;
+
+    const contentCtx = {
+      id: 'i1',
+      tags: [{ tag: 'alpha', weight: 1 }],
+      unitClusters: [{ cluster, weight: 1 }],
+      primaryCluster: cluster,
+      barycentricCoords: [1, 0, 0],
+      worldPosition: { x: 0, y: 0 },
+      rank: 0,
+      mixedColorHex: '#38bdf8',
+    } as unknown as ContentLayoutContext<DefaultTaggedItem>;
+
+    const drillZoomState = {
+      mode: 'drill-down' as const,
+      depth: 1,
+      canDrillUp: true,
+      activeFrameKind: 'triangle' as const,
+      breadcrumbs: [
+        { depth: 0, label: 'Overview', shortLabel: 'Overview', kind: 'root' as const },
+        {
+          depth: 1,
+          label: 'Alpha · Beta',
+          shortLabel: 'Alpha · Beta',
+          kind: 'triangle' as const,
+          segments: [
+            { label: 'Alpha', colorHex: '#38bdf8' },
+            { label: 'Beta', colorHex: '#f472b6' },
+          ],
+        },
+      ],
+      drillableTriangleIndices: [0],
+      focusableTriangleIndices: [],
+      drillableClusterUids: ['c-1'],
+    };
+
+    expect(
+      formatSimplexClusterAriaMetadata(cluster, drillZoomState, { isFocused: true }),
+    ).toEqual({
+      role: 'button',
+      label: 'Topic cluster: Sub Alpha, 1 item, press Enter to zoom in',
+      pressed: true,
+    });
+
+    expect(
+      formatSimplexItemAriaMetadata(
+        { id: 'i1', label: 'Node One', tags: ['alpha'] },
+        contentCtx,
+        { isFilteredDimmed: true },
+      ),
+    ).toEqual({
+      role: 'button',
+      label: 'Item: Node One, alpha, dimmed by filter',
+    });
+
+    expect(
+      formatSimplexTriangleAriaMetadata(
+        {
+          index: 2,
+          vertexIndices: [0, 1, 2],
+          clusters: [cluster, null, null],
+          coveredItemCount: 0,
+        },
+        drillZoomState,
+        { hideEmptyUninteractive: true },
+      ),
+    ).toEqual({ hidden: true });
+
+    const doc = getDomDocument();
+    const host = doc.createElement('div');
+    doc.body.appendChild(host);
+
+    const onDrillToDepth = vi.fn();
+    const breadcrumbs = createSimplexZoomBreadcrumbsOverlay({
+      hostEl: host,
+      initialTheme: 'dark',
+      onDrillToDepth,
+    });
+
+    breadcrumbs.sync(drillZoomState);
+    const bar = host.querySelector('.sv-zoom-breadcrumbs') as HTMLDivElement;
+    expect(bar).not.toBeNull();
+    expect(bar.style.display).toBe('flex');
+    const buttons = bar.querySelectorAll('button');
+    expect(buttons).toHaveLength(2);
+    buttons[0]!.click();
+    expect(onDrillToDepth).toHaveBeenCalledWith(0);
+
+    breadcrumbs.setVisible(false);
+    expect(bar.style.display).toBe('none');
+    breadcrumbs.setTheme('light');
+    breadcrumbs.setVisible(true);
+    expect(bar.style.color).toBe('#0f172a');
+    breadcrumbs.destroy();
+    expect(host.querySelector('.sv-zoom-breadcrumbs')).toBeNull();
+
+    const onTogglePlay = vi.fn();
+    const onStepBy = vi.fn();
+    const onSeek = vi.fn();
+    const timelineBar = createSimplexTimelineBarOverlay<DefaultTaggedItem>({
+      hostEl: host,
+      initialTheme: 'light',
+      onTogglePlay,
+      onStepBy,
+      onSeek,
+    });
+
+    timelineBar.sync({
+      step: 1,
+      totalSteps: 2,
+      playing: false,
+      speed: 1,
+      stepIntervalMs: 500,
+      loop: false,
+      atStart: false,
+      atEnd: false,
+      progress: 0.5,
+      activeLabel: '2022',
+      activeFrame: null,
+      activeItems: [],
+      activeItemCount: 4,
+      totalItemCount: 8,
+      frames: [{ index: 0 } as never, { index: 1 } as never, { index: 2 } as never],
+    });
+
+    const tlEl = host.querySelector('.sv-timeline-bar') as HTMLDivElement;
+    expect(tlEl).not.toBeNull();
+    expect(tlEl.style.display).toBe('flex');
+    (tlEl.querySelector('[data-sv-timeline-action="toggle"]') as HTMLButtonElement).click();
+    expect(onTogglePlay).toHaveBeenCalledTimes(1);
+    (tlEl.querySelector('[data-sv-timeline-action="prev"]') as HTMLButtonElement).click();
+    expect(onStepBy).toHaveBeenCalledWith(-1);
+    const range = tlEl.querySelector('[data-sv-timeline-action="scrubber"]') as HTMLInputElement;
+    range.value = '2';
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(onSeek).toHaveBeenCalledWith(2);
+
+    timelineBar.sync(null);
+    expect(tlEl.style.display).toBe('none');
+    timelineBar.destroy();
+    expect(host.querySelector('.sv-timeline-bar')).toBeNull();
+  });
+
+  it('drives WCAG keyboard navigation, announcements, activation, and Escape cascade via createSimplexKeyboardNavigator', () => {
+    const doc = getDomDocument();
+    const host = doc.createElement('div');
+    doc.body.appendChild(host);
+    const announcer = createSimplexSrAnnouncer(host, doc);
+
+    const targets = [
+      {
+        kind: 'item' as const,
+        id: 'i1',
+        item: { id: 'i1', label: 'Alpha', tags: ['geo'] },
+        layoutContext: {
+          id: 'i1',
+          tags: [{ tag: 'geo', weight: 1 }],
+          unitClusters: [],
+        } as never,
+        visual: {},
+        isSelected: false,
+        isHighlighted: false,
+        isPinned: false,
+        isFocused: false,
+      },
+      {
+        kind: 'item' as const,
+        id: 'i2',
+        item: { id: 'i2', label: 'Beta', tags: ['math'] },
+        layoutContext: {
+          id: 'i2',
+          tags: [{ tag: 'math', weight: 1 }],
+          unitClusters: [],
+        } as never,
+        visual: {},
+        isSelected: false,
+        isHighlighted: false,
+        isPinned: false,
+        isFocused: false,
+      },
+    ];
+
+    let focusedClusterUid: string | null = null;
+    const selectedIds = new Set<string>();
+    const onFocusTargetChange = vi.fn();
+    const onClearSelection = vi.fn(() => selectedIds.clear());
+
+    const nav = createSimplexKeyboardNavigator({
+      engine: {
+        getInteractiveTargets: () => targets,
+        getZoomState: () => ({
+          mode: 'free-camera',
+          depth: 0,
+          canDrillUp: false,
+          activeFrameKind: 'root',
+          breadcrumbs: [],
+          drillableTriangleIndices: [],
+          focusableTriangleIndices: [],
+          drillableClusterUids: [],
+        }),
+        getSelectedIds: () => new Set(selectedIds),
+        getFocusedItemId: () => null,
+        getItems: () => targets.map((t) => t.item),
+        getClusterByUid: () => undefined,
+        hoverInteractiveTarget: vi.fn(),
+        activateInteractiveTarget: (target, mods) => {
+          if (mods?.shiftKey && target.kind === 'item') {
+            selectedIds.add(target.id);
+          } else {
+            focusedClusterUid = 'c-1';
+          }
+          return true;
+        },
+        handlePointerLeave: vi.fn(),
+      },
+      srAnnouncer: announcer,
+      getLabel: (it) => it.label ?? '',
+      getItemId: (it) => it.id,
+      getFocusedClusterUid: () => focusedClusterUid,
+      getFocusedTriangleIndex: () => null,
+      onFocusTargetChange,
+      onHideTooltip: vi.fn(),
+      onRequestRender: vi.fn(),
+      onDrillUp: () => false,
+      onClearFocusedCluster: () => {
+        focusedClusterUid = null;
+      },
+      onClearFocusedTriangle: vi.fn(),
+      onClearFocusedItem: vi.fn(),
+      onClearSelection,
+    });
+
+    nav.handleFocus();
+    expect(nav.getFocusTarget()).toEqual({ kind: 'item', id: 'i1' });
+    expect(announcer.element.textContent).toContain('Alpha');
+
+    nav.handleKeyDown({
+      key: 'ArrowRight',
+      shiftKey: false,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+      preventDefault: vi.fn(),
+    });
+    expect(nav.getFocusTarget()).toEqual({ kind: 'item', id: 'i2' });
+
+    nav.handleKeyDown({
+      key: 'Enter',
+      shiftKey: true,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+      preventDefault: vi.fn(),
+    });
+    expect(selectedIds.has('i2')).toBe(true);
+    expect(announcer.element.textContent).toContain('Selected Beta (1 selected)');
+
+    nav.handleKeyDown({
+      key: 'Escape',
+      shiftKey: false,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+      preventDefault: vi.fn(),
+    });
+    expect(onClearSelection).toHaveBeenCalledTimes(1);
+
+    nav.handleBlur();
+    expect(nav.getFocusTarget()).toBeNull();
+    announcer.destroy();
   });
 });

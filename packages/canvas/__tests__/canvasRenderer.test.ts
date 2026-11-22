@@ -544,4 +544,82 @@ describe('@simplex-viz/canvas high-capacity Canvas 2D renderer (Issue #21)', () 
       container.remove();
     }
   });
+
+  it('renders shared breadcrumb & timeline HUD overlays and supports full setOptions & keyboard focus API parity', () => {
+    const container = createSizedContainer(840, 560);
+    const { ctx } = createMock2DContext();
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function () {
+      return ctx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    const items = makeSampleItems(24);
+    const legendSnapshots: number[] = [];
+    const controller = createSimplexCanvas(container, {
+      items,
+      preset: 'badges',
+      reducedMotion: true,
+      zoomStrategy: createBarycentricZoomStrategy({ stopWhenFullScale: false }),
+      showZoomBreadcrumbs: true,
+      timeline: true,
+    });
+
+    try {
+      controller.setOnLegendChange((model) => {
+        legendSnapshots.push(model.totalItems);
+      });
+
+      // Timeline shorthand (`timeline: true`) mounts shared `.sv-timeline-bar` HUD
+      const timelineBar = container.querySelector('.sv-timeline-bar') as HTMLDivElement;
+      expect(timelineBar).not.toBeNull();
+      expect(timelineBar.style.display).toBe('flex');
+
+      // Drill-down renders shared `.sv-zoom-breadcrumbs` HUD and handles depth button clicks
+      const triIdx = controller.getZoomState().drillableTriangleIndices[0]!;
+      expect(controller.drillDownTriangle(triIdx)).toBe(true);
+      controller.stepForTest(16.67);
+
+      const breadcrumbsEl = container.querySelector('.sv-zoom-breadcrumbs') as HTMLDivElement;
+      expect(breadcrumbsEl).not.toBeNull();
+      expect(breadcrumbsEl.style.display).toBe('flex');
+      const rootBtn = breadcrumbsEl.querySelectorAll('button')[0]!;
+      rootBtn.click();
+      controller.stepForTest(16.67);
+      expect(controller.getZoomState().depth).toBe(0);
+      expect(breadcrumbsEl.style.display).toBe('none');
+
+      // Keyboard navigation focus target APIs & Enter/Escape cascade
+      const canvas = controller.getCanvasElement();
+      expect(controller.getInteractiveTargets().length).toBeGreaterThan(0);
+      canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      expect(controller.getKeyboardFocusTarget()).not.toBeNull();
+      expect(container.querySelector('.sv-sr-announcer')?.textContent?.length).toBeGreaterThan(0);
+      controller.clearKeyboardFocus();
+      expect(controller.getKeyboardFocusTarget()).toBeNull();
+
+      // Atomic setOptions parity: theme, ariaLabel, sizeMultiplier, showZoomBreadcrumbs, focusedItemId, timeline null
+      controller.setOptions({
+        theme: 'light',
+        ariaLabel: 'Canvas Parity Graph',
+        sizeMultiplier: 1.15,
+        showZoomBreadcrumbs: false,
+        focusedItemId: 'item-2',
+        timeline: null,
+      });
+      expect(canvas.getAttribute('aria-label')).toBe('Canvas Parity Graph');
+      expect(controller.getFocusedItemId()).toBe('item-2');
+      expect(controller.getTimeline()).toBeNull();
+      expect(timelineBar.style.display).toBe('none');
+
+      // removeItems keeps corpus consistent and fires legend updates
+      controller.removeItems(['item-0', 'item-1']);
+      controller.stepForTest(16.67);
+      expect(controller.getItems().length).toBe(22);
+      expect(legendSnapshots.length).toBeGreaterThanOrEqual(1);
+    } finally {
+      controller.destroy();
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+      container.remove();
+    }
+  });
 });

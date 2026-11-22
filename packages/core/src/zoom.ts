@@ -1,4 +1,5 @@
 import { mixOklabColors, type OklabTuple } from './oklab.js';
+import { truncateSimplexBadgeTitle } from './presetShared.js';
 import type {
   AnalyzedTagCorpus,
   NormalizedContentItem,
@@ -1158,9 +1159,7 @@ function buildSynthesizedClusterDescriptor<TItem, TTagMeta, TClusterMeta>(params
 }
 
 function truncateClean(text: string, maxChars: number): string {
-  const clean = text.trim();
-  if (clean.length <= maxChars) return clean;
-  return `${clean.slice(0, Math.max(1, maxChars - 1)).trimEnd()}…`;
+  return truncateSimplexBadgeTitle(text, maxChars);
 }
 
 function resolveReadableClusterName<TItem, TTagMeta, TClusterMeta>(
@@ -1261,35 +1260,11 @@ function extractHumanExemplarTitle<TItem>(
       'label',
       'name',
       'headline',
-      'speciesName',
-      'fullName',
-      'speakerName',
-      'specimenCode',
     ];
     for (const k of candidateKeys) {
       const val = rec[k];
       if (typeof val === 'string' && val.trim().length > 0) {
         return val.trim().replace(/\s*\(\d{4}\)$/, '').trim();
-      }
-    }
-    for (const nestedKey of [
-      'entry',
-      'repo',
-      'animal',
-      'zoo',
-      'media',
-      'voice',
-      'body',
-    ]) {
-      const nested = rec[nestedKey];
-      if (typeof nested === 'object' && nested !== null) {
-        const nRec = nested as Record<string, unknown>;
-        for (const k of candidateKeys) {
-          const val = nRec[k];
-          if (typeof val === 'string' && val.trim().length > 0) {
-            return val.trim().replace(/\s*\(\d{4}\)$/, '').trim();
-          }
-        }
       }
     }
   }

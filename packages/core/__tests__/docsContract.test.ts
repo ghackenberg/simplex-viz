@@ -311,12 +311,13 @@ describe('Documentation & package.json subpath contract verification', () => {
     }
 
     // Verify all side-effect-free exclusive subpaths (@simplex-viz/core/dom, @simplex-viz/core/worker, @simplex-viz/svg/ssr)
-    // do not leak symbols onto their package roots or wrapper package roots (@simplex-viz/canvas, @simplex-viz/react).
+    // do not leak symbols onto their package roots or wrapper package roots (@simplex-viz/canvas, @simplex-viz/react, @simplex-viz/wc).
     const coreWorkerDts = path.join(REPO_ROOT, 'packages', 'core', 'dist', 'worker.d.ts');
     const coreDomDts = path.join(REPO_ROOT, 'packages', 'core', 'dist', 'dom.d.ts');
     const svgSsrDts = path.join(REPO_ROOT, 'packages', 'svg', 'dist', 'ssr.d.ts');
     const canvasRootDts = path.join(REPO_ROOT, 'packages', 'canvas', 'dist', 'index.d.ts');
     const reactRootDts = path.join(REPO_ROOT, 'packages', 'react', 'dist', 'index.d.ts');
+    const wcRootDts = path.join(REPO_ROOT, 'packages', 'wc', 'dist', 'index.d.ts');
 
     const coreDomExports = exportsByDts.get(coreDomDts)!;
     const coreWorkerExports = exportsByDts.get(coreWorkerDts)!;
@@ -344,6 +345,8 @@ describe('Documentation & package.json subpath contract verification', () => {
     }
 
     const canvasRootExports = exportsByDts.get(canvasRootDts)!;
+    const reactRootExports = exportsByDts.get(reactRootDts)!;
+    const wcRootExports = exportsByDts.get(wcRootDts)!;
     for (const workerSym of coreWorkerExports) {
       expect(
         canvasRootExports.has(workerSym),
@@ -351,15 +354,18 @@ describe('Documentation & package.json subpath contract verification', () => {
       ).toBe(false);
     }
 
-    const reactRootExports = exportsByDts.get(reactRootDts)!;
     for (const ssrSym of svgSsrExports) {
       expect(
         reactRootExports.has(ssrSym),
         `@simplex-viz/svg/ssr symbol ${ssrSym} must NOT leak onto @simplex-viz/react root`,
       ).toBe(false);
+      expect(
+        wcRootExports.has(ssrSym),
+        `@simplex-viz/svg/ssr symbol ${ssrSym} must NOT leak onto @simplex-viz/wc root`,
+      ).toBe(false);
     }
 
-    // Verify full @simplex-viz/core root re-export parity across svg, canvas, and react roots
+    // Verify full @simplex-viz/core root re-export parity across svg, canvas, react, and wc roots
     const coreRootDts = path.join(REPO_ROOT, 'packages', 'core', 'dist', 'index.d.ts');
     const svgRootDts = path.join(REPO_ROOT, 'packages', 'svg', 'dist', 'index.d.ts');
     const coreRootExports = exportsByDts.get(coreRootDts)!;
@@ -376,6 +382,10 @@ describe('Documentation & package.json subpath contract verification', () => {
       expect(
         reactRootExports.has(coreSym),
         `@simplex-viz/svg re-exported @simplex-viz/core symbol ${coreSym} missing from @simplex-viz/react root`,
+      ).toBe(true);
+      expect(
+        wcRootExports.has(coreSym),
+        `@simplex-viz/svg re-exported @simplex-viz/core symbol ${coreSym} missing from @simplex-viz/wc root`,
       ).toBe(true);
     }
   });

@@ -516,7 +516,7 @@ export function drawDefaultCanvasEdge<TItem, TTagMeta, TClusterMeta>(
 export function drawFastContentNode(
   ctx: CanvasRenderingContext2D,
   visual: CanvasDefaultContentVisual,
-  state: NodeRenderState<CanvasDefaultContentVisual>,
+  state: NodeRenderState<unknown>,
   alpha: number,
   cameraZoom: number,
   simplifiedLod: boolean,
@@ -626,7 +626,7 @@ export function drawFastContentNode(
 export function drawDefaultClusterNode(
   ctx: CanvasRenderingContext2D,
   visual: CanvasDefaultClusterVisual,
-  state: NodeRenderState<CanvasDefaultClusterVisual>,
+  state: NodeRenderState<unknown>,
   alpha: number,
   cameraZoom: number,
 ): void {

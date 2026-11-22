@@ -6,10 +6,14 @@ import {
   createFinalSeededClusteringStrategy,
   createFinalSeededLayoutStrategy,
   createSimplexTimeline,
+  createSimplexTimelineHostSession,
   createWarmStartPbdLayoutStrategy,
+  resolveTimelinePlayerConfig,
   type DefaultTaggedItem,
   type RenderFrameSnapshot,
   type SimplexRendererAdapter,
+  type SimplexTimelineHostSessionHooks,
+  type SimplexTimelineState,
   type VisualResolver,
 } from '../src/index.js';
 
@@ -553,5 +557,68 @@ describe('SimplexTimelineController & createSimplexTimeline (Issue #8)', () => {
       formatStepLabel: (frame) => `Empty@${frame.index}:${frame.items.length}`,
     });
     expect(emptyTl.getState().activeLabel).toBe('Empty@0:0');
+  });
+
+  it('resolves player config shorthands and coordinates host session transitions', () => {
+    expect(resolveTimelinePlayerConfig(false).enabled).toBe(false);
+    expect(resolveTimelinePlayerConfig(null).enabled).toBe(false);
+
+    const shorthand = resolveTimelinePlayerConfig(true);
+    expect(shorthand.enabled).toBe(true);
+    expect(shorthand.showControls).toBe(true);
+    expect(shorthand.position).toBe('bottom');
+    expect(shorthand.autoFinalSeed).toBe(true);
+    expect(shorthand.autoFinalSeedLayout).toBe(false);
+
+    const corpus: readonly DatedItem[] = [
+      { id: 't1', tags: ['alpha', 'beta'], year: 2021 },
+      { id: 't2', tags: ['beta', 'gamma'], year: 2022 },
+      { id: 't3', tags: ['alpha', 'gamma'], year: 2023 },
+    ];
+
+    const session = createSimplexTimelineHostSession<DatedItem>({
+      baseEmptyClusterBehavior: 'normal',
+    });
+    const initial = session.configureInitial(
+      {
+        getTimestamp: (it) => it.year,
+        autoFinalSeed: true,
+        autoFinalSeedLayout: 'adaptive',
+        emptyClusterBehavior: 'dim',
+      },
+      corpus,
+    );
+    expect(initial.emptyClusterBehavior).toBe('dim');
+    expect(initial.clusteringStrategy?.name.startsWith('final-seeded(')).toBe(true);
+    expect(initial.layoutStrategy?.name.startsWith('final-seeded(')).toBe(true);
+
+    const observedStates: Array<SimplexTimelineState<DatedItem> | null> = [];
+    const unsub = session.subscribe((s) => observedStates.push(s));
+    expect(observedStates).toHaveLength(1);
+    expect(observedStates[0]?.step).toBe(2);
+
+    const emptyChanges: string[] = [];
+    const hooks: SimplexTimelineHostSessionHooks<DatedItem> = {
+      batch: (fn) => fn(),
+      setCanonicalSeedItems: () => {},
+      setClusteringStrategy: () => {},
+      setLayoutStrategy: () => {},
+      setEmptyClusterBehavior: (behavior) => emptyChanges.push(behavior),
+      setEngineItems: () => {},
+      syncOverlay: () => {},
+    };
+
+    session.attachInitial(hooks);
+    expect(session.setBaseEmptyClusterBehavior('hide')).toBe('hide');
+    expect(session.getEffectiveEmptyClusterBehavior()).toBe('hide');
+
+    // Disabling resets timeline controller and notifies subscribers with null
+    session.setTimelineOptions(false, corpus, hooks);
+    expect(session.getController()).toBeNull();
+    expect(observedStates.at(-1)).toBeNull();
+    expect(emptyChanges.at(-1)).toBe('hide');
+
+    unsub();
+    session.destroy();
   });
 });

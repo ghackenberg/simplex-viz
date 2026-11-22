@@ -247,6 +247,37 @@ exportsTable:
         options: BindSimplexInteractiveViewportOptions<...>,
       ): SimplexInteractiveViewportHandle
     summary: "Binds shared pointer panning, multi-touch pinch, touch scroll-locking, Shift-drag marquee, wheel zoom, cursor resolution, click suppression, and keyboard handling."
+  - symbol: "createSimplexZoomBreadcrumbsOverlay"
+    entrypoint: "@simplex-viz/core/dom"
+    kind: "Function"
+    signature: |-
+      createSimplexZoomBreadcrumbsOverlay(
+        options: CreateSimplexZoomBreadcrumbsOverlayOptions,
+      ): SimplexZoomBreadcrumbsOverlay
+    summary: "Mounts and updates the theme-adaptive drill-down breadcrumb navigation bar shared by SVG and Canvas controllers."
+  - symbol: "createSimplexTimelineBarOverlay"
+    entrypoint: "@simplex-viz/core/dom"
+    kind: "Function"
+    signature: |-
+      createSimplexTimelineBarOverlay<TItem>(
+        options: CreateSimplexTimelineBarOverlayOptions,
+      ): SimplexTimelineBarOverlay<TItem>
+    summary: "Mounts and updates the compact Play/Pause/Step/Scrubber timeline HUD bar shared by SVG and Canvas controllers."
+  - symbol: "createSimplexKeyboardNavigator"
+    entrypoint: "@simplex-viz/core/dom"
+    kind: "Function"
+    signature: |-
+      createSimplexKeyboardNavigator<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>(
+        options: SimplexKeyboardNavigatorOptions<...>,
+      ): SimplexKeyboardNavigator
+    summary: "Provides the shared WCAG 2.1 AA single-tabstop keyboard traversal, selection/activation, Escape cascade, and screen-reader announcement state machine."
+  - symbol: "createSimplexTimelineHostSession"
+    kind: "Function"
+    signature: |-
+      createSimplexTimelineHostSession<TItem, TTagMeta>(
+        initialConfig?: { readonly rawClusteringStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>; readonly rawLayoutStrategy?: SimplexLayoutStrategy; readonly baseEmptyClusterBehavior?: EmptyClusterBehavior },
+      ): SimplexTimelineHostSession<TItem, TTagMeta>
+    summary: "Coordinates chronological timeline playback, autoFinalSeed/autoFinalSeedLayout wrapping, and emptyClusterBehavior transitions for renderer controllers."
   - symbol: "resolveEffectiveGeometricPolygon"
     kind: "Function"
     signature: |-
@@ -385,9 +416,9 @@ Custom browser renderers and host wrappers can reuse the exact same container, t
 
 - **Container & ResizeObserver**: `resolveSimplexContainer`, `measureSimplexContainer`, `ensureSimplexContainerPositioned`, `observeSimplexContainerResize`
 - **Reduced Motion & Webfonts**: `resolveSimplexReducedMotion`, `subscribeSimplexReducedMotionMedia`, `subscribeSimplexFontLoadRelayout`
-- **Screen-Reader Live Regions & ARIA**: `createSimplexSrAnnouncer`, `computeSimplexZoomAnnouncementSignature`, `formatSimplexInteractiveTargetAriaLabel`, `formatSimplexZoomLevelAnnouncement`
-- **Tooltips (Model, Theme & Edge-Flipping)**: `getSimplexTooltipThemeTokens`, `applySimplexTooltipTheme`, `computeSimplexTooltipCoords`, `positionSimplexTooltipElement`, `buildSimplexTooltipContentModel`, `formatSimplexTooltipText`, `createSimplexTooltipOverlay`
-- **Gestures, Clicks, Cursors, Keyboard & Zoom**: `bindSimplexInteractiveViewport`, `dispatchSimplexDefaultLeftClick`, `resolveSimplexCursorForPoint`, `resolveSimplexPinchDrillTarget`, `applySimplexPinchDrillTarget`, `stepSimplexDrillDownWheelPinch`, `normalizeSimplexMarqueeRect`, `isSameSimplexKeyboardTarget`, `toSimplexKeyboardFocusTargetRef`, `resolveNextSimplexKeyboardFocusIndex`, `isSimplexHoverEventConsumed`, `zoomSimplexViewportByFactor`, `toSimplexNormalizedPointerEvent`
+- **Screen-Reader Live Regions & ARIA**: `createSimplexSrAnnouncer`, `computeSimplexZoomAnnouncementSignature`, `formatSimplexClusterAriaMetadata`, `formatSimplexItemAriaMetadata`, `formatSimplexTriangleAriaMetadata`, `formatSimplexInteractiveTargetAriaLabel`, `formatSimplexZoomLevelAnnouncement`
+- **Tooltips & HUD Overlays**: `getSimplexTooltipThemeTokens`, `applySimplexTooltipTheme`, `computeSimplexTooltipCoords`, `positionSimplexTooltipElement`, `buildSimplexTooltipContentModel`, `formatSimplexTooltipText`, `createSimplexTooltipOverlay`, `createSimplexZoomBreadcrumbsOverlay`, `createSimplexTimelineBarOverlay`
+- **Gestures, Clicks, Cursors, Keyboard & Zoom**: `bindSimplexInteractiveViewport`, `createSimplexKeyboardNavigator`, `dispatchSimplexDefaultLeftClick`, `resolveSimplexCursorForPoint`, `resolveSimplexPinchDrillTarget`, `applySimplexPinchDrillTarget`, `stepSimplexDrillDownWheelPinch`, `normalizeSimplexMarqueeRect`, `isSameSimplexKeyboardTarget`, `toSimplexKeyboardFocusTargetRef`, `resolveNextSimplexKeyboardFocusIndex`, `isSimplexHoverEventConsumed`, `zoomSimplexViewportByFactor`, `toSimplexNormalizedPointerEvent`
 
 ## Low-Level Pure Math Primitives
 
@@ -397,4 +428,4 @@ All internal solvers are exported as pure standalone functions:
 - **Clustering, QAP & Discriminative Labeling**: `computeSimplexClustering`, `embedSimilarityMatrixOnMesh`, `partitionTagsJaccard`, `embedClustersQapAnnealing`, `completePlanarSharedTags`, `matchClustersHungarian`, `assignDiscriminativeClusterLabels`, `resolveDiscriminativeClusterLabel`, `disambiguatePeerClusterTitle`
 - **Convex Geometry & SAT**: `computeConvexHull`, `rectToConvexPolygon`, `regularPolygon`, `starConvexHull`, `isPointInTriangle`, `computeConvexMtv`, `hitTestConvexGeometry`, `UniformSpatialHashGrid`
 - **OKLab Perceptual Color**: `hexToOklab`, `oklabToHex`, `mixOklabColors`, `lerpOklabHex`, `generatePerceptualClusterPalette`, `assignMeshClusterColors`
-- **Shared Preset, Timeline & Option Helpers**: `SIMPLEX_PRESET_DEFAULTS`, `extractSimplexItemLabel`, `truncateSimplexBadgeTitle`, `resolveClusterBadgeTitle`, `resolveGeometricShapeSpec`, `resolveRankGeometricShape`, `getRegularPolygonRadiusScale`, `resolveEffectiveGeometricPolygon`, `getGeometricShapeVertices`, `measureGeometricShapeHull`, `NAMED_POLYGON_SIDES`, `getHexRelativeLuminance`, `resolveClusterSurfaceColors`, `resolveSimplexThemeBackgroundColor`, `hexWithAlpha`, `decodeSimplexDataUrlToBytes`, `estimateSimplexTextWidth`, `createSimplexTimelineNotifier`, `areSimplexMeshOptionsEqual`, `areSimplexLayoutOptionsEqual`, `areSimplexTimelineOptionsEqual`, `normalizeTimelineLayoutScaleMode`, `wrapClusteringStrategyForTimeline`, `wrapLayoutStrategyForTimeline`
+- **Shared Preset, Timeline & Option Helpers**: `SIMPLEX_PRESET_DEFAULTS`, `extractSimplexItemLabel`, `truncateSimplexBadgeTitle`, `resolveClusterBadgeTitle`, `resolveGeometricShapeSpec`, `resolveRankGeometricShape`, `getRegularPolygonRadiusScale`, `resolveEffectiveGeometricPolygon`, `getGeometricShapeVertices`, `measureGeometricShapeHull`, `NAMED_POLYGON_SIDES`, `getHexRelativeLuminance`, `resolveClusterSurfaceColors`, `resolveSimplexThemeBackgroundColor`, `hexWithAlpha`, `decodeSimplexDataUrlToBytes`, `estimateSimplexTextWidth`, `createSimplexTimelineNotifier`, `resolveTimelinePlayerConfig`, `createSimplexTimelineHostSession`, `areSimplexMeshOptionsEqual`, `areSimplexLayoutOptionsEqual`, `areSimplexTimelineOptionsEqual`, `normalizeTimelineLayoutScaleMode`, `wrapClusteringStrategyForTimeline`, `wrapLayoutStrategyForTimeline`

@@ -734,6 +734,11 @@ export class SvgRendererAdapter<
       this.clusterView,
       this.clusterViewByKey,
       'cluster',
+      (node) =>
+        this.ariaMetadataResolver?.getClusterAria?.(node) ?? {
+          role: 'button',
+          label: `Topic cluster ${node.id}`,
+        },
     );
     this.reconcileNodes(
       snapshot.items,
@@ -742,6 +747,11 @@ export class SvgRendererAdapter<
       this.contentView,
       this.contentViewByKey,
       'item',
+      (node) =>
+        this.ariaMetadataResolver?.getItemAria?.(node) ?? {
+          role: 'button',
+          label: `Item ${node.id}`,
+        },
     );
 
     // 4. High-Contrast Keyboard Focus Ring
@@ -758,6 +768,7 @@ export class SvgRendererAdapter<
     activeView: SvgNodeView<TVisual>,
     viewByKey: Map<string, SvgNodeView<TVisual>>,
     kind: 'cluster' | 'item',
+    getAria: (node: NodeRenderState<TVisual>) => SvgAriaAttributes,
   ): void {
     const aliveIds = new Set<string>();
 
@@ -839,19 +850,7 @@ export class SvgRendererAdapter<
         node.opacity < 0.05;
       const nodeAria: SvgAriaAttributes = isHiddenFromA11y
         ? { hidden: true }
-        : kind === 'cluster'
-          ? (this.ariaMetadataResolver?.getClusterAria?.(
-              node as unknown as NodeRenderState<TClusterVisual>,
-            ) ?? {
-              role: 'button',
-              label: `Topic cluster ${node.id}`,
-            })
-          : (this.ariaMetadataResolver?.getItemAria?.(
-              node as unknown as NodeRenderState<TContentVisual>,
-            ) ?? {
-              role: 'button',
-              label: `Item ${node.id}`,
-            });
+        : getAria(node);
       applyAriaAttributes(tracked.rootGroup, nodeAria);
       if (kind === 'item') {
         if (node.interaction.isSelected) {

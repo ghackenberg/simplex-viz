@@ -1,21 +1,14 @@
 import {
   SimplexGraphEngine,
   SimplexTimelineController,
-  createSimplexTimeline,
-  createSimplexTimelineNotifier,
-  normalizeTimelineLayoutScaleMode,
-  wrapClusteringStrategyForTimeline,
-  wrapLayoutStrategyForTimeline,
+  createSimplexTimelineHostSession,
+  extractSimplexItemLabel,
   type CameraController,
-  type ClusterDerivationContext,
   type ClusterDescriptor,
-  type ClusterHoverEvent,
-  type ContentHoverEvent,
   type DefaultTaggedItem,
   type EmptyClusterBehavior,
   type FocusItemOptions,
   type InteractionHandlers,
-  type ItemFilterMode,
   type ItemFilterOptions,
   type ItemFilterPredicate,
   type ItemFilterState,
@@ -28,18 +21,18 @@ import {
   type SimplexClusteringStrategy,
   type SimplexColorStrategy,
   type SimplexInteractiveTarget,
+  type SimplexKeyboardFocusTarget,
   type SimplexLayoutStrategy,
+  type SimplexLegendEntry,
   type SimplexLegendModel,
   type SimplexLegendModelOptions,
   type SimplexMeshStrategy,
-  type SimplexTimelineListener,
-  type SimplexTimelineNotifier,
-  type SimplexTimelineOptions,
+  type SimplexTimelineHostSession,
+  type SimplexTimelineHostSessionHooks,
   type SimplexTimelineState,
   type SimplexViewState,
   type SimplexZoomState,
   type SimplexZoomStrategy,
-  type TriangleHoverEvent,
   type VisualResolver,
   type ZoomToItemOptions,
 } from '@simplex-viz/core';
@@ -47,30 +40,36 @@ import {
   applySimplexPinchDrillTarget,
   bindSimplexInteractiveViewport,
   buildSimplexTooltipContentModel,
+  createSimplexKeyboardNavigator,
   createSimplexSrAnnouncer,
+  createSimplexTimelineBarOverlay,
   createSimplexTooltipOverlay,
+  createSimplexZoomBreadcrumbsOverlay,
   dispatchSimplexDefaultLeftClick,
-  formatSimplexInteractiveTargetAriaLabel,
+  isSameSimplexKeyboardTarget,
   isSimplexHoverEventConsumed,
   measureSimplexContainer,
   observeSimplexContainerResize,
-  resolveNextSimplexKeyboardFocusIndex,
   resolveSimplexContainer,
   resolveSimplexPinchDrillTarget,
   resolveSimplexReducedMotion,
   subscribeSimplexReducedMotionMedia,
-  toSimplexKeyboardFocusTargetRef,
   type SimplexInteractiveViewportHandle,
+  type SimplexKeyboardNavigator,
   type SimplexResizeObserverHandle,
   type SimplexSrAnnouncerHandle,
+  type SimplexTimelineBarOverlay,
   type SimplexTooltipOverlay,
+  type SimplexZoomBreadcrumbsOverlay,
 } from '@simplex-viz/core/dom';
-import {
-  CanvasRendererAdapter,
-} from './CanvasRendererAdapter.js';
-import {
-  createCanvasPresetVisualResolver,
-} from './presets.js';
+import type {
+  CanvasTimelineConfig,
+  CanvasTooltipOption,
+  SimplexCanvasControllerOptions,
+  SimplexCanvasUpdateOptions,
+} from './canvasControllerTypes.js';
+import { CanvasRendererAdapter } from './CanvasRendererAdapter.js';
+import { createCanvasPresetVisualResolver } from './presets.js';
 import type {
   CanvasBadgeOptions,
   CanvasContentShapeOption,
@@ -87,153 +86,14 @@ import type {
   CanvasVisualPreset,
 } from './types.js';
 
-export interface CanvasTimelineConfig<TItem = DefaultTaggedItem>
-  extends SimplexTimelineOptions<TItem> {
-  /** Wrap clustering in `createFinalSeededClusteringStrategy` so clusters stay pinned. Default: `true`. */
-  readonly autoFinalSeed?: boolean;
-  /** Pin item coordinates across frames (`false` | `'pinned'` | `'adaptive'`). Default: `false`. */
-  readonly autoFinalSeedLayout?: false | 'pinned' | 'adaptive';
-  /** Visibility for 0-item clusters across timeline frames. */
-  readonly emptyClusterBehavior?: EmptyClusterBehavior;
-  /** Optional listener invoked whenever timeline playback state changes. */
-  readonly onStateChange?: SimplexTimelineListener<TItem>;
-}
-
-export type CanvasTooltipOption<
-  TItem = DefaultTaggedItem,
-  TContentVisual = CanvasDefaultContentVisual,
-  TClusterVisual = CanvasDefaultClusterVisual,
-  TTagMeta = undefined,
-  TClusterMeta = undefined,
-> =
-  | boolean
-  | {
-      readonly formatContent?: (
-        event: ContentHoverEvent<TItem, TContentVisual, TTagMeta, TClusterMeta>,
-      ) => string;
-      readonly formatCluster?: (
-        event: ClusterHoverEvent<TItem, TClusterVisual, TTagMeta, TClusterMeta>,
-      ) => string;
-      readonly formatTriangle?: (
-        event: TriangleHoverEvent<TItem, TTagMeta, TClusterMeta>,
-      ) => string;
-    };
-
-export interface SimplexCanvasControllerOptions<
-  TItem = DefaultTaggedItem,
-  TContentVisual = CanvasDefaultContentVisual,
-  TClusterVisual = CanvasDefaultClusterVisual,
-  TTagMeta = undefined,
-  TClusterMeta = undefined,
-> {
-  readonly items: readonly TItem[];
-  readonly getId?: (item: TItem) => string;
-  readonly getTags?: (item: TItem) => readonly string[];
-  readonly getLabel?: (item: TItem) => string;
-  readonly normalizeTag?: (rawTag: string) => string;
-  readonly formatTagLabel?: (tag: string) => string;
-  readonly resolveTagMeta?: (normalizedTag: string) => TTagMeta | undefined;
-  readonly deriveClusterMeta?: (
-    ctx: ClusterDerivationContext<TItem, TTagMeta>,
-  ) => TClusterMeta;
-
-  /** Built-in visual preset (`'geometric'` | `'glyphs'` | `'badges'`). Default: `'badges'`. */
-  readonly preset?: CanvasVisualPreset;
-  /** Theme (`'dark'` | `'light'`). Default: `'dark'`. */
-  readonly theme?: CanvasTheme;
-  /** Explicit canvas background fill (`'transparent'` for alpha canvas). */
-  readonly backgroundColor?: string;
-  /** Maximum devicePixelRatio cap (default `2`). */
-  readonly maxDevicePixelRatio?: number;
-  /** Screen-space radius threshold (CSS px) below which shapes simplify for 60 FPS LOD. Default: `3.5`. */
-  readonly lodThresholdPx?: number;
-  /** World-space viewport culling margin (px). Default: `48`. */
-  readonly cullMarginPx?: number;
-
-  readonly badgeOptions?: CanvasBadgeOptions<TItem, TTagMeta, TClusterMeta>;
-  readonly getShape?: CanvasContentShapeOption<TItem, TTagMeta, TClusterMeta>;
-  readonly shapeOptions?: CanvasShapeOptions;
-
-  readonly visualResolver?: VisualResolver<
-    TItem,
-    TContentVisual,
-    TClusterVisual,
-    TTagMeta,
-    TClusterMeta
-  >;
-  readonly contentRenderer?: CanvasNodeRenderer<TContentVisual>;
-  readonly clusterRenderer?: CanvasNodeRenderer<TClusterVisual>;
-  readonly triangleRenderer?: CanvasTriangleRenderer<TItem, TTagMeta, TClusterMeta>;
-  readonly edgeRenderer?: CanvasEdgeRenderer<TItem, TTagMeta, TClusterMeta>;
-
-  readonly width?: number;
-  readonly height?: number;
-  readonly meshOptions?: MeshOptions;
-  readonly layoutOptions?: LayoutSolverOptions;
-  readonly meshStrategy?: SimplexMeshStrategy<TItem>;
-  readonly clusteringStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>;
-  readonly colorStrategy?: SimplexColorStrategy<TItem, TTagMeta>;
-  readonly layoutStrategy?: SimplexLayoutStrategy;
-  readonly zoomStrategy?: SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>;
-
-  readonly showHulls?: boolean;
-  readonly emptyClusterBehavior?: EmptyClusterBehavior;
-  readonly itemFilter?: ItemFilterPredicate<TItem> | null;
-  readonly itemFilterMode?: ItemFilterMode;
-  readonly highlightedIds?: Iterable<string> | null;
-  readonly selectedIds?: Iterable<string> | null;
-  readonly shiftClickSelects?: boolean;
-  readonly marqueeSelection?: boolean;
-  readonly reducedMotion?: ReducedMotionPreference;
-  readonly deferInitialLayout?: boolean;
-  readonly touchScrollLockPx?: number;
-  readonly clickTolerancePx?: number;
-  readonly keyboardNavigation?: boolean;
-  readonly ariaLabel?: string;
-  readonly tooltip?: CanvasTooltipOption<
-    TItem,
-    TContentVisual,
-    TClusterVisual,
-    TTagMeta,
-    TClusterMeta
-  >;
-  readonly timeline?: CanvasTimelineConfig<TItem> | null;
-
-  readonly interactions?: InteractionHandlers<
-    TItem,
-    TContentVisual,
-    TClusterVisual,
-    TTagMeta,
-    TClusterMeta
-  >;
-  readonly onMetricsChange?: (metrics: LayoutMetrics) => void;
-  readonly onZoomStateChange?: (zoomState: SimplexZoomState) => void;
-  readonly onSelectionChange?: (selectedIds: ReadonlySet<string>) => void;
-  readonly onLegendChange?: (
-    legend: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
-  ) => void;
-}
-
-export type SimplexCanvasUpdateOptions<
-  TItem = DefaultTaggedItem,
-  TContentVisual = CanvasDefaultContentVisual,
-  TClusterVisual = CanvasDefaultClusterVisual,
-  TTagMeta = undefined,
-  TClusterMeta = undefined,
-> = Partial<
-  Omit<
-    SimplexCanvasControllerOptions<
-      TItem,
-      TContentVisual,
-      TClusterVisual,
-      TTagMeta,
-      TClusterMeta
-    >,
-    'items'
-  >
-> & {
-  readonly items?: readonly TItem[];
+export type {
+  CanvasTimelineConfig,
+  CanvasTooltipOption,
+  SimplexCanvasControllerOptions,
+  SimplexCanvasUpdateOptions,
 };
+
+const DEFAULT_CANVAS_ARIA_LABEL = 'Interactive SimplexViz topic graph canvas';
 
 
 /**
@@ -263,6 +123,8 @@ export class SimplexCanvasController<
     TClusterMeta,
     HTMLDivElement
   >;
+  private readonly breadcrumbOverlay: SimplexZoomBreadcrumbsOverlay;
+  private readonly timelineOverlay: SimplexTimelineBarOverlay<TItem>;
   private readonly adapter: CanvasRendererAdapter<
     TContentVisual,
     TClusterVisual,
@@ -280,6 +142,7 @@ export class SimplexCanvasController<
 
   private preset: CanvasVisualPreset;
   private theme: CanvasTheme;
+  private readonly getIdExtractor: (item: TItem) => string;
   private getLabel?: (item: TItem) => string;
   private formatTagLabel?: (tag: string) => string;
   private badgeOptions?: CanvasBadgeOptions<TItem, TTagMeta, TClusterMeta>;
@@ -293,25 +156,28 @@ export class SimplexCanvasController<
     TTagMeta,
     TClusterMeta
   >;
+  private readonly focusOnClusterClick: boolean;
+  private readonly focusOnTriangleClick: boolean;
+  private showZoomBreadcrumbs: boolean;
   private marqueeSelection: boolean;
   private touchScrollLockPx: number;
   private clickTolerancePx: number;
   private keyboardNavigation: boolean;
-  private keyboardTargets: readonly SimplexInteractiveTarget<
-    TItem,
-    TContentVisual,
-    TClusterVisual,
-    TTagMeta,
-    TClusterMeta
-  >[] = [];
-  private keyboardFocusIndex = -1;
+  private ariaLabel: string;
+  private readonly keyboardNavigator!: SimplexKeyboardNavigator;
+  private reducedMotionPreference: ReducedMotionPreference;
+  private reducedMotionActive = false;
 
   private fullItems: readonly TItem[];
-  private timelineController: SimplexTimelineController<TItem> | null = null;
-  private timelineConfig: CanvasTimelineConfig<TItem> | null = null;
-  private timelineUnsubscribe: (() => void) | null = null;
-  private readonly timelineNotifier: SimplexTimelineNotifier<TItem> =
-    createSimplexTimelineNotifier<TItem>();
+  private lastExternalItemsRef: readonly TItem[];
+  private readonly timelineSession: SimplexTimelineHostSession<TItem, TTagMeta>;
+
+  private onZoomStateChangeCallback?: (zoomState: SimplexZoomState) => void;
+  private onLegendChangeCallback?: (
+    legend: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
+  ) => void;
+  private lastEmittedLegendSig: string | null = null;
+  private controllerBatchDepth = 0;
 
   private rafId: number | null = null;
   private lastRafTime = 0;
@@ -337,6 +203,12 @@ export class SimplexCanvasController<
     this.container = resolveSimplexContainer(container, 'createSimplexCanvas()');
     this.preset = options.preset ?? 'badges';
     this.theme = options.theme ?? 'dark';
+    this.getIdExtractor =
+      options.getId ??
+      ((item: TItem) =>
+        typeof item === 'object' && item !== null && 'id' in item
+          ? String((item as { readonly id: unknown }).id)
+          : '');
     this.getLabel = options.getLabel;
     this.formatTagLabel = options.formatTagLabel;
     this.badgeOptions = options.badgeOptions;
@@ -344,13 +216,25 @@ export class SimplexCanvasController<
     this.shapeOptions = options.shapeOptions;
     this.customResolver = Boolean(options.visualResolver);
     this.interactions = options.interactions ?? {};
+    this.focusOnClusterClick = options.focusOnClusterClick ?? true;
+    this.focusOnTriangleClick = options.focusOnTriangleClick ?? true;
+    this.showZoomBreadcrumbs = options.showZoomBreadcrumbs ?? true;
     this.marqueeSelection = options.marqueeSelection ?? true;
     this.touchScrollLockPx = Math.max(0, options.touchScrollLockPx ?? 8);
     this.clickTolerancePx = Math.max(0, options.clickTolerancePx ?? 12);
     this.keyboardNavigation = options.keyboardNavigation ?? true;
+    this.ariaLabel = options.ariaLabel?.trim() || DEFAULT_CANVAS_ARIA_LABEL;
+    this.reducedMotionPreference = options.reducedMotion ?? 'auto';
+    this.reducedMotionActive = resolveSimplexReducedMotion(
+      this.reducedMotionPreference,
+      this.container.ownerDocument,
+    );
+    this.onZoomStateChangeCallback = options.onZoomStateChange;
+    this.onLegendChangeCallback = options.onLegendChange;
+    this.lastExternalItemsRef = options.items;
     this.fullItems = options.items.slice();
 
-    // Wrapper div for canvas + optional tooltip + sr-only announcer
+    // Wrapper div for canvas + HUD/tooltip overlays + sr-only announcer
     const doc = this.container.ownerDocument ?? document;
     this.rootEl = doc.createElement('div');
     this.rootEl.className = 'sv-canvas-root';
@@ -367,12 +251,7 @@ export class SimplexCanvasController<
     this.canvas.style.height = '100%';
     this.canvas.style.outline = 'none';
     this.canvas.style.touchAction = this.touchScrollLockPx > 0 ? 'pan-y' : 'none';
-    this.canvas.setAttribute('role', 'application');
-    this.canvas.setAttribute('tabindex', this.keyboardNavigation ? '0' : '-1');
-    this.canvas.setAttribute(
-      'aria-label',
-      options.ariaLabel ?? 'Interactive SimplexViz topic graph canvas',
-    );
+    this.syncCanvasAccessibilityAttributes();
 
     this.rootEl.appendChild(this.canvas);
     this.srAnnouncer = createSimplexSrAnnouncer(this.rootEl, doc);
@@ -409,6 +288,35 @@ export class SimplexCanvasController<
       },
     });
 
+    this.breadcrumbOverlay = createSimplexZoomBreadcrumbsOverlay({
+      hostEl: this.rootEl,
+      ensureHostPositioned: false,
+      initialTheme: this.theme,
+      initialVisible: this.showZoomBreadcrumbs,
+      onDrillToDepth: (depth) => {
+        this.drillToDepth(depth);
+      },
+    });
+
+    this.timelineOverlay = createSimplexTimelineBarOverlay<TItem>({
+      hostEl: this.rootEl,
+      ensureHostPositioned: false,
+      initialTheme: this.theme,
+      onTogglePlay: () => {
+        this.timelineSession.getController()?.toggle();
+      },
+      onStepBy: (delta) => {
+        const ctrl = this.timelineSession.getController();
+        ctrl?.pause();
+        ctrl?.stepBy(delta);
+      },
+      onSeek: (step) => {
+        const ctrl = this.timelineSession.getController();
+        ctrl?.pause();
+        ctrl?.seek(step);
+      },
+    });
+
     const measured = measureSimplexContainer(
       this.container,
       options.width ?? 960,
@@ -437,43 +345,24 @@ export class SimplexCanvasController<
       shapeOptions: this.shapeOptions,
     });
 
-    const visualResolver =
-      options.visualResolver ??
-      (this.buildDefaultVisualResolver() as unknown as VisualResolver<
-        TItem,
-        TContentVisual,
-        TClusterVisual,
-        TTagMeta,
-        TClusterMeta
-      >);
+    const visualResolver = options.visualResolver ?? this.buildDefaultVisualResolver();
 
-    // Resolve initial timeline wrapping if configured
-    let initialItems: readonly TItem[] = this.fullItems;
-    let initialClustering = options.clusteringStrategy;
-    let initialLayout = options.layoutStrategy;
-    let initialEmptyBehavior = options.emptyClusterBehavior;
-
-    if (options.timeline) {
-      this.timelineConfig = options.timeline;
-      const tl = createSimplexTimeline<TItem>(this.fullItems, options.timeline);
-      this.timelineController = tl;
-      initialItems = tl.getActiveItems();
-      initialClustering = wrapClusteringStrategyForTimeline<TItem, TTagMeta>(
-        initialClustering,
-        this.fullItems,
-        options.timeline.autoFinalSeed !== false,
-      );
-      initialLayout = wrapLayoutStrategyForTimeline(
-        initialLayout,
-        normalizeTimelineLayoutScaleMode(options.timeline.autoFinalSeedLayout),
-      );
-      if (options.timeline.emptyClusterBehavior) {
-        initialEmptyBehavior = options.timeline.emptyClusterBehavior;
-      }
-    }
+    this.timelineSession = createSimplexTimelineHostSession<TItem, TTagMeta>({
+      rawClusteringStrategy: options.clusteringStrategy,
+      rawLayoutStrategy: options.layoutStrategy,
+      baseEmptyClusterBehavior: options.emptyClusterBehavior ?? 'normal',
+    });
+    const initialTimeline = this.timelineSession.configureInitial(
+      options.timeline,
+      this.fullItems,
+    );
+    const mergedLayoutOptions =
+      options.sizeMultiplier !== undefined
+        ? { ...options.layoutOptions, sizeMultiplier: options.sizeMultiplier }
+        : options.layoutOptions;
 
     const engineConfig = {
-      items: initialItems,
+      items: initialTimeline.initialItems,
       getId: options.getId,
       getTags: options.getTags,
       normalizeTag: options.normalizeTag,
@@ -486,66 +375,141 @@ export class SimplexCanvasController<
       viewportHeight: measured.height,
       theme: this.theme,
       meshOptions: options.meshOptions,
-      layoutOptions: options.layoutOptions,
+      layoutOptions: mergedLayoutOptions,
       meshStrategy: options.meshStrategy,
-      clusteringStrategy: initialClustering,
+      clusteringStrategy: initialTimeline.clusteringStrategy,
       colorStrategy: options.colorStrategy,
-      layoutStrategy: initialLayout,
+      layoutStrategy: initialTimeline.layoutStrategy,
       zoomStrategy: options.zoomStrategy,
       showHulls: options.showHulls,
-      emptyClusterBehavior: initialEmptyBehavior,
+      emptyClusterBehavior: initialTimeline.emptyClusterBehavior,
       itemFilter: options.itemFilter,
       itemFilterMode: options.itemFilterMode,
       selectedIds: options.selectedIds,
       shiftClickSelects: options.shiftClickSelects,
-      reducedMotion: resolveSimplexReducedMotion(
-        options.reducedMotion ?? 'auto',
-        this.container.ownerDocument,
-      ),
+      reducedMotion: this.reducedMotionActive,
       deferInitialSolve: this.deferredPending,
       interactions: this.buildWrappedInteractions(),
       onMetricsChange: options.onMetricsChange,
       onZoomStateChange: (zs: SimplexZoomState) => {
-        this.keyboardTargets = [];
-        this.keyboardFocusIndex = -1;
-        this.adapter.setKeyboardFocusTarget(null);
-        options.onZoomStateChange?.(zs);
+        this.syncZoomOverlays(zs);
+        this.keyboardNavigator?.handleZoomStateChange(zs);
+        this.onZoomStateChangeCallback?.(zs);
       },
       onSelectionChange: options.onSelectionChange,
-      onLegendChange: options.onLegendChange,
+      onLegendChange: (model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>) => {
+        this.emitControllerLegendChange(model);
+      },
     };
 
-    this.engine = new SimplexGraphEngine(
-      engineConfig as unknown as ConstructorParameters<
-        typeof SimplexGraphEngine<
-          TItem,
-          TContentVisual,
-          TClusterVisual,
-          TTagMeta,
-          TClusterMeta
-        >
-      >[0],
-    );
+    this.engine = SimplexGraphEngine.createFromResolved<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >(engineConfig);
 
-    if (options.timeline && this.timelineController) {
+    if (this.timelineSession.getController()) {
       this.engine.setCanonicalSeedItems(this.fullItems);
-      this.wireTimelineSubscription(options.timeline);
     }
 
     if (options.highlightedIds !== undefined) {
       this.engine.setHighlightedItems(options.highlightedIds);
     }
 
-    this.bindReducedMotionMediaQuery(options.reducedMotion ?? 'auto');
+    const initialZoomState = this.engine.getZoomState();
+    this.keyboardNavigator = createSimplexKeyboardNavigator({
+      engine: this.engine,
+      srAnnouncer: this.srAnnouncer,
+      initialEnabled: this.keyboardNavigation,
+      initialZoomState,
+      getLabel: (item) => (this.getLabel ? this.getLabel(item) : ''),
+      formatTagLabel: (tag) =>
+        this.formatTagLabel ? this.formatTagLabel(tag) : '',
+      getItemId: this.getIdExtractor,
+      getFocusedClusterUid: () => this.focusedClusterUidState,
+      getFocusedTriangleIndex: () => this.focusedTriangleIndexState,
+      onFocusTargetChange: (target) => {
+        this.adapter.setKeyboardFocusTarget(target);
+      },
+      onHideTooltip: () => this.tooltipOverlay.hide(),
+      onRequestRender: (immediate) => {
+        if (immediate) this.repaintRequested = true;
+        this.scheduleFrame();
+      },
+      onDrillUp: () => this.drillUp(),
+      onClearFocusedCluster: () => this.setFocusedClusterUid(null),
+      onClearFocusedTriangle: () => this.setFocusedTriangleIndex(null),
+      onClearFocusedItem: () => {
+        this.focusItem(null);
+      },
+      onClearSelection: () => this.clearSelection(),
+      isSurfaceActiveElement: () =>
+        (this.canvas.ownerDocument?.activeElement ?? null) === this.canvas,
+      isDestroyed: () => this.destroyed,
+    });
+    this.syncZoomOverlays(initialZoomState);
+    this.onZoomStateChangeCallback?.(initialZoomState);
+    this.timelineSession.attachInitial(this.getTimelineSessionHooks());
+
+    this.bindReducedMotionMediaQuery(this.reducedMotionPreference);
     this.bindDomEvents();
     this.bindResizeObserver();
     this.scheduleFrame();
   }
 
+  private getTimelineSessionHooks(): SimplexTimelineHostSessionHooks<TItem, TTagMeta> {
+    return {
+      batch: (fn) => this.batch(fn),
+      setCanonicalSeedItems: (items) => this.engine.setCanonicalSeedItems(items),
+      setClusteringStrategy: (strategy) => this.engine.setClusteringStrategy(strategy),
+      setLayoutStrategy: (strategy) => this.engine.setLayoutStrategy(strategy),
+      setEmptyClusterBehavior: (behavior) => this.engine.setEmptyClusterBehavior(behavior),
+      setEngineItems: (items) => this.engine.setItems(items),
+      syncOverlay: (state) => this.syncTimelineOverlay(state),
+      onFrameActivity: () => this.scheduleFrame(),
+      onLegendSync: () => this.emitControllerLegendChange(),
+      isDestroyed: () => this.destroyed,
+    };
+  }
+
+  private syncCanvasAccessibilityAttributes(): void {
+    this.canvas.setAttribute('role', 'application');
+    this.canvas.setAttribute('aria-roledescription', 'interactive topic graph');
+    this.canvas.setAttribute('aria-label', this.ariaLabel);
+    this.canvas.setAttribute('tabindex', this.keyboardNavigation ? '0' : '-1');
+    if (this.keyboardNavigation) {
+      this.canvas.setAttribute(
+        'aria-keyshortcuts',
+        'ArrowRight ArrowLeft ArrowDown ArrowUp Home End Enter Space Escape',
+      );
+    } else {
+      this.canvas.removeAttribute('aria-keyshortcuts');
+    }
+  }
+
+  private syncZoomOverlays(state: SimplexZoomState): void {
+    if (this.destroyed) return;
+    this.breadcrumbOverlay.setTheme(this.theme);
+    this.breadcrumbOverlay.sync(state, this.showZoomBreadcrumbs);
+  }
+
+  private syncTimelineOverlay(
+    state: SimplexTimelineState<TItem> | null,
+  ): void {
+    if (this.destroyed) return;
+    this.timelineOverlay.sync(state, {
+      visible: this.timelineSession.getShowControls(),
+      position: this.timelineSession.getPosition(),
+      theme: this.theme,
+    });
+  }
+
   private buildDefaultVisualResolver(): VisualResolver<
     TItem,
-    CanvasDefaultContentVisual,
-    CanvasDefaultClusterVisual,
+    TContentVisual,
+    TClusterVisual,
     TTagMeta,
     TClusterMeta
   > {
@@ -559,7 +523,13 @@ export class SimplexCanvasController<
         getShape: this.getShape,
         shapeOptions: this.shapeOptions,
       },
-    );
+    ) as unknown as VisualResolver<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >;
   }
 
   private announce(message: string): void {
@@ -620,6 +590,8 @@ export class SimplexCanvasController<
           focusedItemId: this.engine.getFocusedItemId(),
           focusedClusterUid: this.focusedClusterUidState,
           focusedTriangleIndex: this.focusedTriangleIndexState,
+          focusOnClusterClick: this.focusOnClusterClick,
+          focusOnTriangleClick: this.focusOnTriangleClick,
           drillToNeighbor: (id) => this.drillToNeighbor(id),
           drillDownTriangle: (idx) => this.drillDownTriangle(idx),
           drillDownCluster: (uid) => this.drillDownCluster(uid),
@@ -639,13 +611,17 @@ export class SimplexCanvasController<
   private bindReducedMotionMediaQuery(pref: ReducedMotionPreference): void {
     this.cleanupReducedMotionMedia?.();
     this.cleanupReducedMotionMedia = null;
-    const initial = resolveSimplexReducedMotion(pref, this.container.ownerDocument);
-    this.rootEl.dataset.reducedMotion = String(initial);
+    this.reducedMotionActive = resolveSimplexReducedMotion(
+      pref,
+      this.container.ownerDocument,
+    );
+    this.rootEl.dataset.reducedMotion = String(this.reducedMotionActive);
     this.cleanupReducedMotionMedia = subscribeSimplexReducedMotionMedia(
       pref,
       this.container.ownerDocument,
       (matches) => {
-        if (this.destroyed) return;
+        if (this.destroyed || this.reducedMotionPreference !== 'auto') return;
+        this.reducedMotionActive = matches;
         this.engine.setReducedMotion(matches);
         this.rootEl.dataset.reducedMotion = String(matches);
         this.scheduleFrame();
@@ -653,44 +629,7 @@ export class SimplexCanvasController<
     );
   }
 
-  private wireTimelineSubscription(config: CanvasTimelineConfig<TItem>): void {
-    this.timelineUnsubscribe?.();
-    this.timelineUnsubscribe = null;
-    if (!this.timelineController) return;
-
-    let lastStep = this.timelineController.getState().step;
-    this.timelineUnsubscribe = this.timelineController.subscribe((state) => {
-      if (state.step !== lastStep) {
-        lastStep = state.step;
-        this.engine.setItems(this.timelineController!.getActiveItems());
-      }
-      if (state.playing) {
-        this.scheduleFrame();
-      }
-      config.onStateChange?.(state);
-      this.timelineNotifier.notify(state);
-    });
-  }
-
   private bindDomEvents(): void {
-    const describeTarget = (
-      target: SimplexInteractiveTarget<
-        TItem,
-        TContentVisual,
-        TClusterVisual,
-        TTagMeta,
-        TClusterMeta
-      >,
-    ): string =>
-      formatSimplexInteractiveTargetAriaLabel(
-        target,
-        this.engine.getZoomState(),
-        {
-          getLabel: this.getLabel,
-          formatTagLabel: this.formatTagLabel,
-        },
-      );
-
     this.viewportHandle?.destroy();
     this.viewportHandle = bindSimplexInteractiveViewport({
       surfaceEl: this.canvas,
@@ -733,73 +672,17 @@ export class SimplexCanvasController<
       onScheduleFrame: () => {
         this.scheduleFrame();
       },
+      onPointerDownPre: () => {
+        this.keyboardNavigator.onPointerDownPre();
+      },
+      onFocus: () => {
+        this.keyboardNavigator.handleFocus();
+      },
       onBlur: () => {
-        this.keyboardFocusIndex = -1;
-        this.adapter.setKeyboardFocusTarget(null);
+        this.keyboardNavigator.handleBlur();
       },
       onKeyDown: (ev) => {
-        if (!this.keyboardNavigation) return;
-        if (
-          ev.key === 'ArrowRight' ||
-          ev.key === 'ArrowDown' ||
-          ev.key === 'ArrowLeft' ||
-          ev.key === 'ArrowUp' ||
-          ev.key === 'Home' ||
-          ev.key === 'End'
-        ) {
-          ev.preventDefault();
-          this.keyboardTargets = this.engine.getInteractiveTargets();
-          const nextIdx = resolveNextSimplexKeyboardFocusIndex(
-            this.keyboardTargets.length,
-            this.keyboardFocusIndex,
-            ev.key,
-          );
-          if (nextIdx === null) return;
-          this.keyboardFocusIndex = nextIdx;
-
-          const target = this.keyboardTargets[this.keyboardFocusIndex]!;
-          const focusTarget = toSimplexKeyboardFocusTargetRef(target);
-          this.engine.hoverInteractiveTarget(focusTarget);
-          this.adapter.setKeyboardFocusTarget(focusTarget);
-          this.announce(describeTarget(target));
-          this.scheduleFrame();
-          return;
-        }
-
-        if (ev.key === 'Enter' || ev.key === ' ') {
-          if (
-            this.keyboardFocusIndex >= 0 &&
-            this.keyboardFocusIndex < this.keyboardTargets.length
-          ) {
-            ev.preventDefault();
-            const target = this.keyboardTargets[this.keyboardFocusIndex]!;
-            if (ev.shiftKey && target.kind === 'item') {
-              this.engine.toggleSelectedId(target.id);
-            } else {
-              this.engine.activateInteractiveTarget(
-                toSimplexKeyboardFocusTargetRef(target),
-              );
-            }
-            this.scheduleFrame();
-          }
-          return;
-        }
-
-        if (ev.key === 'Escape') {
-          ev.preventDefault();
-          this.keyboardFocusIndex = -1;
-          this.adapter.setKeyboardFocusTarget(null);
-          this.engine.handlePointerLeave();
-          if (this.engine.getSelectedIds().size > 0) {
-            this.engine.clearSelection();
-          } else if (this.engine.getZoomState().depth > 0) {
-            this.engine.drillUp();
-          } else {
-            this.engine.setFocusedClusterUid(null);
-            this.engine.setFocusedTriangleIndex(null);
-          }
-          this.scheduleFrame();
-        }
+        this.keyboardNavigator.handleKeyDown(ev);
       },
     });
   }
@@ -828,7 +711,7 @@ export class SimplexCanvasController<
   }
 
   private scheduleFrame(): void {
-    if (this.destroyed || this.rafId !== null) return;
+    if (this.destroyed || this.rafId !== null || this.controllerBatchDepth > 0) return;
     if (typeof requestAnimationFrame !== 'function') {
       const wantsRepaint = this.repaintRequested;
       this.repaintRequested = false;
@@ -849,9 +732,10 @@ export class SimplexCanvasController<
       const wantsRepaint = this.repaintRequested;
       this.repaintRequested = false;
 
+      const timelineCtrl = this.timelineSession.getController();
       let needsMore = false;
-      if (this.timelineController?.getState().playing) {
-        this.timelineController.tick(dt);
+      if (timelineCtrl?.getState().playing) {
+        timelineCtrl.tick(dt);
         needsMore = true;
       }
       const settled = this.engine.step(dt);
@@ -866,7 +750,7 @@ export class SimplexCanvasController<
   }
 
   // ============================================================================
-  // Public Controller API (Parity with SimplexSvgController)
+  // Public Controller API (Full Parity with SimplexSvgController)
   // ============================================================================
 
   get camera(): CameraController {
@@ -874,7 +758,7 @@ export class SimplexCanvasController<
   }
 
   get timeline(): SimplexTimelineController<TItem> | null {
-    return this.timelineController;
+    return this.timelineSession.getController();
   }
 
   getCanvasElement(): HTMLCanvasElement {
@@ -893,20 +777,54 @@ export class SimplexCanvasController<
     return this.engine.getClusters();
   }
 
+  private computeLegendSignature(
+    model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
+  ): string {
+    const entrySig = model.entries
+      .map(
+        (e: SimplexLegendEntry<TItem, TTagMeta, TClusterMeta>) =>
+          `${e.clusterUid}|${e.code}|${e.label}|${e.parentContextLabel ?? ''}|${e.colorHex}|${e.totalCount}|${e.visibleCount}|${e.isEmpty ? 1 : 0}|${e.isHidden ? 1 : 0}|${e.isFocused ? 1 : 0}|${e.isContext ? 1 : 0}|${e.isMidpoint ? 1 : 0}`,
+      )
+      .join(';');
+    return `${model.zoomDepth}|${model.totalItems}|${model.visibleItems}|${model.hasActiveFilter ? 1 : 0}|${model.itemFilterMode}|${model.emptyClusterBehavior}|${model.focusedClusterUid ?? ''}|${model.timelineStep ?? ''}|${entrySig}`;
+  }
+
+  private emitControllerLegendChange(
+    engineModel?: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
+  ): void {
+    if (this.destroyed || !this.onLegendChangeCallback) return;
+    const base = engineModel ?? this.engine?.getLegendModel();
+    if (!base) return;
+    const timelineCtrl = this.timelineSession.getController();
+    const timelineStep = timelineCtrl ? timelineCtrl.getState().step : null;
+    const model =
+      timelineStep === base.timelineStep ? base : { ...base, timelineStep };
+    const sig = this.computeLegendSignature(model);
+    if (sig === this.lastEmittedLegendSig) return;
+    this.lastEmittedLegendSig = sig;
+    this.onLegendChangeCallback(model);
+  }
+
   getLegendModel(
     options?: SimplexLegendModelOptions,
   ): SimplexLegendModel<TItem, TTagMeta, TClusterMeta> {
-    const timelineStep = this.timelineController?.getState().step ?? null;
-    return {
-      ...this.engine.getLegendModel(options),
-      timelineStep,
-    };
+    const base = this.engine.getLegendModel(options);
+    const timelineCtrl = this.timelineSession.getController();
+    const timelineStep = timelineCtrl ? timelineCtrl.getState().step : null;
+    return timelineStep === base.timelineStep
+      ? base
+      : { ...base, timelineStep };
   }
 
   setOnLegendChange(
     cb?: (legend: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>) => void,
   ): void {
-    this.engine.setOnLegendChange(cb);
+    this.onLegendChangeCallback = cb;
+    this.lastEmittedLegendSig = null;
+  }
+
+  getItemId(item: TItem): string {
+    return this.getIdExtractor(item);
   }
 
   getItems(): readonly TItem[] {
@@ -914,74 +832,131 @@ export class SimplexCanvasController<
   }
 
   setItems(items: readonly TItem[]): void {
-    this.fullItems = items.slice();
-    if (this.timelineController) {
+    const timelineCtrl = this.timelineSession.getController();
+    if (timelineCtrl) {
+      if (items === this.lastExternalItemsRef) {
+        return;
+      }
+      this.lastExternalItemsRef = items;
+      this.fullItems = items.slice();
       this.engine.setCanonicalSeedItems(this.fullItems);
-      this.timelineController.setItems(this.fullItems);
-      this.engine.setItems(this.timelineController.getActiveItems());
-    } else {
-      this.engine.setItems(this.fullItems);
+      this.timelineSession.syncFinalSeededClusteringForCorpus(
+        this.fullItems,
+        (strategy) => this.engine.setClusteringStrategy(strategy),
+      );
+      timelineCtrl.setItems(this.fullItems);
+      this.scheduleFrame();
+      return;
     }
+    this.lastExternalItemsRef = items;
+    this.fullItems = items.slice();
+    this.engine.setItems(this.fullItems);
     this.scheduleFrame();
   }
 
   addItems(items: TItem | readonly TItem[]): void {
-    const arr: readonly TItem[] = Array.isArray(items)
+    const incoming: readonly TItem[] = Array.isArray(items)
       ? (items as readonly TItem[])
       : [items as TItem];
-    this.fullItems = [...this.fullItems, ...arr];
-    if (this.timelineController) {
-      this.setItems(this.fullItems);
-    } else {
-      this.engine.addItems(arr);
-      this.scheduleFrame();
+    if (incoming.length === 0) return;
+
+    const byId = new Map<string, number>();
+    const merged = this.fullItems.slice();
+    merged.forEach((item, idx) => {
+      const id = this.getIdExtractor(item);
+      if (id) byId.set(id, idx);
+    });
+    for (const item of incoming) {
+      const id = this.getIdExtractor(item);
+      if (id && byId.has(id)) {
+        merged[byId.get(id)!] = item;
+      } else {
+        if (id) byId.set(id, merged.length);
+        merged.push(item);
+      }
     }
+    this.fullItems = merged;
+    this.lastExternalItemsRef = merged;
+
+    const timelineCtrl = this.timelineSession.getController();
+    if (timelineCtrl) {
+      this.engine.setCanonicalSeedItems(this.fullItems);
+      this.timelineSession.syncFinalSeededClusteringForCorpus(
+        this.fullItems,
+        (strategy) => this.engine.setClusteringStrategy(strategy),
+      );
+      timelineCtrl.setItems(this.fullItems);
+      this.scheduleFrame();
+      return;
+    }
+
+    this.engine.addItems(incoming);
+    this.scheduleFrame();
   }
 
   removeItems(ids: string | readonly string[]): void {
-    const idSet = new Set(Array.isArray(ids) ? ids : [ids]);
-    this.engine.removeItems(Array.from(idSet));
+    const idList = Array.isArray(ids)
+      ? (ids as readonly string[])
+      : [ids as string];
+    const idSet = new Set(idList);
+    if (idSet.size === 0) return;
+
+    const filtered = this.fullItems.filter(
+      (item) => !idSet.has(this.getIdExtractor(item)),
+    );
+    this.fullItems = filtered;
+    this.lastExternalItemsRef = filtered;
+
+    const timelineCtrl = this.timelineSession.getController();
+    if (timelineCtrl) {
+      this.engine.setCanonicalSeedItems(this.fullItems);
+      this.timelineSession.syncFinalSeededClusteringForCorpus(
+        this.fullItems,
+        (strategy) => this.engine.setClusteringStrategy(strategy),
+      );
+      timelineCtrl.setItems(this.fullItems);
+      this.scheduleFrame();
+      return;
+    }
+
+    this.engine.removeItems(idList);
     this.scheduleFrame();
   }
 
   setPreset(preset: CanvasVisualPreset, getLabel?: (item: TItem) => string): void {
     this.preset = preset;
-    if (getLabel) this.getLabel = getLabel;
+    if (getLabel !== undefined) this.getLabel = getLabel;
     this.customResolver = false;
     this.adapter.invalidateHullCaches();
-    this.engine.setVisualResolver(
-      this.buildDefaultVisualResolver() as unknown as VisualResolver<
-        TItem,
-        TContentVisual,
-        TClusterVisual,
-        TTagMeta,
-        TClusterMeta
-      >,
-    );
+    this.engine.setVisualResolver(this.buildDefaultVisualResolver());
     this.scheduleFrame();
   }
 
   setTheme(theme: CanvasTheme): void {
-    this.theme = theme;
-    this.adapter.setTheme(theme);
-    this.tooltipOverlay.setTheme(theme);
-    this.engine.setTheme(theme);
-    if (!this.customResolver) {
-      this.engine.setVisualResolver(
-        this.buildDefaultVisualResolver() as unknown as VisualResolver<
-          TItem,
-          TContentVisual,
-          TClusterVisual,
-          TTagMeta,
-          TClusterMeta
-        >,
-      );
+    if (this.theme === theme) return;
+    this.batch(() => {
+      this.theme = theme;
+      this.adapter.setTheme(theme);
+      this.tooltipOverlay.setTheme(theme);
+      this.breadcrumbOverlay.setTheme(theme);
+      this.timelineOverlay.setTheme(theme);
+      this.engine.setTheme(theme);
+      if (!this.customResolver) {
+        this.engine.setVisualResolver(this.buildDefaultVisualResolver());
+      }
+    });
+    this.syncZoomOverlays(this.engine.getZoomState());
+    const timelineCtrl = this.timelineSession.getController();
+    if (timelineCtrl) {
+      this.syncTimelineOverlay(timelineCtrl.getState());
     }
+    this.repaintRequested = true;
     this.scheduleFrame();
   }
 
   setBackgroundColor(color: string | undefined): void {
     this.adapter.setBackgroundColor(color);
+    this.repaintRequested = true;
     this.scheduleFrame();
   }
 
@@ -989,15 +964,7 @@ export class SimplexCanvasController<
     this.shapeOptions = shapeOptions;
     this.adapter.setShapeOptions(shapeOptions);
     if (!this.customResolver) {
-      this.engine.setVisualResolver(
-        this.buildDefaultVisualResolver() as unknown as VisualResolver<
-          TItem,
-          TContentVisual,
-          TClusterVisual,
-          TTagMeta,
-          TClusterMeta
-        >,
-      );
+      this.engine.setVisualResolver(this.buildDefaultVisualResolver());
     }
     this.scheduleFrame();
   }
@@ -1025,6 +992,7 @@ export class SimplexCanvasController<
   }): void {
     this.adapter.setRenderers(renderers);
     this.engine.relayout();
+    this.repaintRequested = true;
     this.scheduleFrame();
   }
 
@@ -1034,17 +1002,23 @@ export class SimplexCanvasController<
   }
 
   setClusteringStrategy(strategy: SimplexClusteringStrategy<TItem, TTagMeta>): void {
-    this.engine.setClusteringStrategy(strategy);
+    const effective = this.timelineSession.setRawClusteringStrategy(
+      strategy,
+      this.fullItems,
+    );
+    this.engine.setClusteringStrategy(effective);
     this.scheduleFrame();
   }
 
   setColorStrategy(strategy: SimplexColorStrategy<TItem, TTagMeta>): void {
     this.engine.setColorStrategy(strategy);
+    this.repaintRequested = true;
     this.scheduleFrame();
   }
 
   setLayoutStrategy(strategy: SimplexLayoutStrategy): void {
-    this.engine.setLayoutStrategy(strategy);
+    const effective = this.timelineSession.setRawLayoutStrategy(strategy);
+    this.engine.setLayoutStrategy(effective);
     this.scheduleFrame();
   }
 
@@ -1053,6 +1027,35 @@ export class SimplexCanvasController<
   ): void {
     this.engine.setZoomStrategy(strategy);
     this.scheduleFrame();
+  }
+
+  getMeshStrategy(): SimplexMeshStrategy<TItem> {
+    return this.engine.getMeshStrategy();
+  }
+
+  getClusteringStrategy(): SimplexClusteringStrategy<TItem, TTagMeta> {
+    return this.engine.getClusteringStrategy();
+  }
+
+  getColorStrategy(): SimplexColorStrategy<TItem, TTagMeta> {
+    return this.engine.getColorStrategy();
+  }
+
+  getLayoutStrategy(): SimplexLayoutStrategy {
+    return this.engine.getLayoutStrategy();
+  }
+
+  getZoomStrategy(): SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta> {
+    return this.engine.getZoomStrategy();
+  }
+
+  setZoomUiOptions(options: {
+    readonly showZoomBreadcrumbs?: boolean;
+  }): void {
+    if (options.showZoomBreadcrumbs !== undefined) {
+      this.showZoomBreadcrumbs = options.showZoomBreadcrumbs;
+    }
+    this.syncZoomOverlays(this.engine.getZoomState());
   }
 
   getZoomState(): SimplexZoomState {
@@ -1105,8 +1108,26 @@ export class SimplexCanvasController<
     this.scheduleFrame();
   }
 
+  setSizeMultiplier(multiplier: number): void {
+    this.engine.setSizeMultiplier(multiplier);
+    this.scheduleFrame();
+  }
+
+  setTooltip(
+    tooltip: CanvasTooltipOption<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): void {
+    this.tooltipOverlay.setOption(tooltip);
+  }
+
   setShowHulls(show: boolean): void {
     this.engine.setShowHulls(show);
+    this.repaintRequested = true;
     this.scheduleFrame();
   }
 
@@ -1115,6 +1136,7 @@ export class SimplexCanvasController<
   }
 
   setEmptyClusterBehavior(behavior: EmptyClusterBehavior): void {
+    this.timelineSession.setBaseEmptyClusterBehavior(behavior);
     this.engine.setEmptyClusterBehavior(behavior);
     this.scheduleFrame();
   }
@@ -1128,12 +1150,50 @@ export class SimplexCanvasController<
     options?: ItemFilterOptions,
   ): void {
     this.engine.setItemFilter(predicate, options);
+    const currentFocus = this.keyboardNavigator.getFocusTarget();
+    if (currentFocus !== null) {
+      const stillVisible = this.engine
+        .getInteractiveTargets()
+        .some((t) => isSameSimplexKeyboardTarget(currentFocus, t));
+      if (!stillVisible) {
+        this.clearKeyboardFocus();
+      }
+    }
+    this.repaintRequested = true;
+    this.scheduleFrame();
+  }
+
+  setInteractions(
+    interactions: InteractionHandlers<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >,
+  ): void {
+    this.interactions = interactions;
+    this.engine.setInteractions(this.buildWrappedInteractions());
+  }
+
+  setPinnedIds(ids: ReadonlySet<string> | readonly string[]): void {
+    this.engine.setPinnedIds(ids);
+    this.repaintRequested = true;
+    this.scheduleFrame();
+  }
+
+  setHighlightedIds(ids: Iterable<string> | null): void {
+    this.engine.setHighlightedIds(ids);
+    this.repaintRequested = true;
     this.scheduleFrame();
   }
 
   setHighlightedItems(ids: Iterable<string> | null): void {
-    this.engine.setHighlightedItems(ids);
-    this.scheduleFrame();
+    this.setHighlightedIds(ids);
+  }
+
+  getHighlightedIds(): ReadonlySet<string> {
+    return this.engine.getHighlightedIds();
   }
 
   getHighlightedItems(): ReadonlySet<string> {
@@ -1142,17 +1202,20 @@ export class SimplexCanvasController<
 
   setSelectedIds(ids: Iterable<string> | null): void {
     this.engine.setSelectedIds(ids);
+    this.repaintRequested = true;
     this.scheduleFrame();
   }
 
   toggleSelectedId(id: string): boolean {
     const res = this.engine.toggleSelectedId(id);
+    this.repaintRequested = true;
     this.scheduleFrame();
     return res;
   }
 
   clearSelection(): void {
     this.engine.clearSelection();
+    this.repaintRequested = true;
     this.scheduleFrame();
   }
 
@@ -1171,75 +1234,215 @@ export class SimplexCanvasController<
       rect.y + rect.height,
       options,
     );
+    this.repaintRequested = true;
     this.scheduleFrame();
     return res;
+  }
+
+  setMarqueeSelection(enabled: boolean): void {
+    this.marqueeSelection = enabled;
+    if (!enabled) {
+      this.viewportHandle?.cancelMarquee();
+      this.adapter.setMarqueeRect(null);
+      this.repaintRequested = true;
+      this.scheduleFrame();
+    }
+  }
+
+  isMarqueeSelectionEnabled(): boolean {
+    return this.marqueeSelection;
+  }
+
+  setShiftClickSelects(enabled: boolean): void {
+    this.engine.setShiftClickSelects(enabled);
+  }
+
+  getShiftClickSelects(): boolean {
+    return this.engine.getShiftClickSelects();
+  }
+
+  setOnSelectionChange(cb?: (selectedIds: ReadonlySet<string>) => void): void {
+    this.engine.setOnSelectionChange(cb);
   }
 
   setFocusedClusterUid(clusterUid: string | null): void {
     this.focusedClusterUidState = clusterUid;
     this.engine.setFocusedClusterUid(clusterUid);
+    this.repaintRequested = true;
     this.scheduleFrame();
   }
 
   setFocusedTriangleIndex(triangleIndex: number | null): void {
     this.focusedTriangleIndexState = triangleIndex;
     this.engine.setFocusedTriangleIndex(triangleIndex);
+    this.repaintRequested = true;
     this.scheduleFrame();
   }
 
-  focusItem(itemId: string | null, options?: FocusItemOptions): boolean {
+  getFocusedItemId(): string | null {
+    return this.engine.getFocusedItemId();
+  }
+
+  focusItem(
+    itemId: string | null,
+    options?: FocusItemOptions & { readonly announce?: boolean },
+  ): boolean {
+    if (itemId === null) {
+      this.engine.focusItem(null, options);
+      if (options?.hover !== false) {
+        this.tooltipOverlay.hide();
+      }
+      this.repaintRequested = true;
+      this.scheduleFrame();
+      return false;
+    }
     const ok = this.engine.focusItem(itemId, options);
+    if (!ok) return false;
+    if (options?.announce) {
+      const rec = this.engine.getItemLayoutById(itemId);
+      const label = rec
+        ? extractSimplexItemLabel(rec.item, itemId, this.getLabel)
+        : itemId;
+      this.announce(`Focused item: ${label}`);
+    }
+    this.repaintRequested = true;
     this.scheduleFrame();
-    return ok;
+    return true;
   }
 
   zoomToItem(itemId: string, options?: ZoomToItemOptions): boolean {
     const ok = this.engine.zoomToItem(itemId, options);
-    if (ok) this.scheduleFrame();
-    return ok;
+    if (!ok) return false;
+    this.syncZoomOverlays(this.engine.getZoomState());
+    this.repaintRequested = true;
+    this.scheduleFrame();
+    return true;
   }
 
   getViewState(): SimplexViewState {
     const base = this.engine.getViewState();
-    const timelineStep = this.timelineController?.getState().step;
-    return timelineStep !== undefined ? { ...base, timelineStep } : base;
+    const timelineCtrl = this.timelineSession.getController();
+    return timelineCtrl
+      ? { ...base, timelineStep: timelineCtrl.getState().step }
+      : base;
   }
 
   restoreViewState(
-    state: SimplexViewState,
+    state: Partial<SimplexViewState> | null | undefined,
     options?: RestoreViewStateOptions,
-  ): void {
-    if (this.timelineController && typeof state.timelineStep === 'number') {
-      this.timelineController.seek(state.timelineStep);
+  ): boolean {
+    if (this.destroyed || !state || typeof state !== 'object') return false;
+    if (state.version !== undefined && state.version !== 1) return false;
+
+    const timelineCtrl = this.timelineSession.getController();
+    if (
+      timelineCtrl &&
+      typeof state.timelineStep === 'number' &&
+      Number.isFinite(state.timelineStep)
+    ) {
+      timelineCtrl.pause();
+      timelineCtrl.seek(Math.round(state.timelineStep));
+      this.syncTimelineOverlay(timelineCtrl.getState());
     }
-    this.engine.restoreViewState(state, options);
+
+    const ok = this.engine.restoreViewState(state, options);
+    if (!ok) return false;
+
+    this.focusedClusterUidState = this.engine.getFocusedClusterUid();
+    this.focusedTriangleIndexState = this.engine.getFocusedTriangleIndex();
+    this.tooltipOverlay.hide();
+    this.syncZoomOverlays(this.engine.getZoomState());
+    this.repaintRequested = true;
     this.scheduleFrame();
+    return true;
+  }
+
+  setTouchScrollLockPx(px: number): void {
+    this.touchScrollLockPx = Number.isFinite(px) ? Math.max(0, px) : 8;
+    this.viewportHandle?.syncTouchAction();
+  }
+
+  setClickTolerancePx(px: number): void {
+    this.clickTolerancePx = Number.isFinite(px) ? Math.max(0, px) : 12;
   }
 
   setReducedMotion(pref: ReducedMotionPreference): void {
+    if (this.destroyed) return;
+    this.reducedMotionPreference = pref;
     this.bindReducedMotionMediaQuery(pref);
-    this.engine.setReducedMotion(
-      resolveSimplexReducedMotion(pref, this.container.ownerDocument),
-    );
+    this.engine.setReducedMotion(this.reducedMotionActive);
     this.scheduleFrame();
   }
 
+  getReducedMotion(): ReducedMotionPreference {
+    return this.reducedMotionPreference;
+  }
+
+  isReducedMotionActive(): boolean {
+    return this.reducedMotionActive;
+  }
+
+  setAriaLabel(label: string): void {
+    this.ariaLabel = label.trim() || DEFAULT_CANVAS_ARIA_LABEL;
+    this.syncCanvasAccessibilityAttributes();
+  }
+
+  setKeyboardNavigation(enabled: boolean): void {
+    if (this.keyboardNavigation === enabled) return;
+    this.keyboardNavigation = enabled;
+    this.keyboardNavigator.setEnabled(enabled);
+    this.syncCanvasAccessibilityAttributes();
+  }
+
+  getKeyboardFocusTarget(): SimplexKeyboardFocusTarget | null {
+    return this.keyboardNavigator.getFocusTarget();
+  }
+
+  clearKeyboardFocus(options?: { readonly preserveHover?: boolean }): void {
+    this.keyboardNavigator.clearFocus(options);
+  }
+
+  getInteractiveTargets(): readonly SimplexInteractiveTarget<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >[] {
+    return this.engine.getInteractiveTargets();
+  }
+
   getTimeline(): SimplexTimelineController<TItem> | null {
-    return this.timelineController;
+    return this.timelineSession.getController();
   }
 
   subscribeTimeline(
     listener: (state: SimplexTimelineState<TItem> | null) => void,
   ): () => void {
-    return this.timelineNotifier.subscribe(
-      listener as (state: SimplexTimelineState<TItem> | null) => void,
-      this.timelineController?.getState() ?? null,
+    return this.timelineSession.subscribe(listener);
+  }
+
+  setTimelineOptions(
+    timeline: boolean | CanvasTimelineConfig<TItem> | null | undefined,
+  ): void {
+    if (this.destroyed) return;
+    this.timelineSession.setTimelineOptions(
+      timeline,
+      this.fullItems,
+      this.getTimelineSessionHooks(),
     );
   }
 
-  batch(fn: () => void): void {
-    this.engine.batch(fn);
-    this.scheduleFrame();
+  batch<TResult>(fn: () => TResult): TResult {
+    this.controllerBatchDepth += 1;
+    try {
+      return this.engine.batch(fn);
+    } finally {
+      this.controllerBatchDepth -= 1;
+      if (this.controllerBatchDepth === 0) {
+        this.scheduleFrame();
+      }
+    }
   }
 
   setOptions(
@@ -1251,11 +1454,60 @@ export class SimplexCanvasController<
       TClusterMeta
     >,
   ): void {
+    if (this.destroyed) return;
+    let shouldSyncZoomOverlays = false;
+    let shouldSyncTimelineOverlay = false;
+
     this.batch(() => {
-      if (options.theme !== undefined) this.setTheme(options.theme);
-      if (options.backgroundColor !== undefined) {
-        this.setBackgroundColor(options.backgroundColor);
+      let resolverInputsChanged = false;
+
+      if (options.preset !== undefined && options.preset !== this.preset) {
+        this.preset = options.preset;
+        resolverInputsChanged = true;
       }
+      if ('getLabel' in options && options.getLabel !== this.getLabel) {
+        this.getLabel = options.getLabel;
+        resolverInputsChanged = true;
+      }
+      if (
+        'formatTagLabel' in options &&
+        options.formatTagLabel !== this.formatTagLabel
+      ) {
+        this.formatTagLabel = options.formatTagLabel;
+        resolverInputsChanged = true;
+      }
+      if ('badgeOptions' in options && options.badgeOptions !== this.badgeOptions) {
+        this.badgeOptions = options.badgeOptions;
+        this.adapter.invalidateHullCaches();
+        resolverInputsChanged = true;
+      }
+      if ('getShape' in options && options.getShape !== this.getShape) {
+        this.getShape = options.getShape;
+        this.adapter.invalidateHullCaches();
+        resolverInputsChanged = true;
+      }
+      if ('shapeOptions' in options && options.shapeOptions !== this.shapeOptions) {
+        this.shapeOptions = options.shapeOptions;
+        this.adapter.setShapeOptions(this.shapeOptions);
+        resolverInputsChanged = true;
+      }
+
+      if (options.theme !== undefined && options.theme !== this.theme) {
+        this.theme = options.theme;
+        this.adapter.setTheme(options.theme);
+        this.tooltipOverlay.setTheme(options.theme);
+        this.breadcrumbOverlay.setTheme(options.theme);
+        this.timelineOverlay.setTheme(options.theme);
+        this.engine.setTheme(options.theme);
+        shouldSyncZoomOverlays = true;
+        shouldSyncTimelineOverlay = true;
+        resolverInputsChanged = true;
+      }
+
+      if ('backgroundColor' in options) {
+        this.adapter.setBackgroundColor(options.backgroundColor);
+      }
+
       if (
         options.contentRenderer !== undefined ||
         options.clusterRenderer !== undefined ||
@@ -1277,45 +1529,138 @@ export class SimplexCanvasController<
             : {}),
         });
       }
-      if (options.visualResolver !== undefined) {
-        this.setVisualResolver(options.visualResolver);
-      } else if (options.preset !== undefined) {
-        this.setPreset(options.preset, options.getLabel);
+
+      if ('visualResolver' in options) {
+        if (options.visualResolver === null) {
+          this.customResolver = false;
+          this.adapter.invalidateHullCaches();
+          this.engine.setVisualResolver(this.buildDefaultVisualResolver());
+        } else if (options.visualResolver !== undefined) {
+          this.setVisualResolver(options.visualResolver);
+        }
+      } else if (!this.customResolver && resolverInputsChanged) {
+        this.adapter.invalidateHullCaches();
+        this.engine.setVisualResolver(this.buildDefaultVisualResolver());
       }
-      if (options.shapeOptions !== undefined) this.setShapeOptions(options.shapeOptions);
-      if (options.meshOptions !== undefined) this.setMeshOptions(options.meshOptions);
-      if (options.layoutOptions !== undefined) this.setLayoutOptions(options.layoutOptions);
-      if (options.meshStrategy !== undefined) this.setMeshStrategy(options.meshStrategy);
+
+      if (options.meshOptions !== undefined) {
+        this.engine.setMeshOptions(options.meshOptions);
+      }
+      if (options.layoutOptions !== undefined) {
+        const mergedLayout =
+          options.sizeMultiplier !== undefined
+            ? { ...options.layoutOptions, sizeMultiplier: options.sizeMultiplier }
+            : options.layoutOptions;
+        this.engine.setLayoutOptions(mergedLayout);
+      } else if (options.sizeMultiplier !== undefined) {
+        this.engine.setSizeMultiplier(options.sizeMultiplier);
+      }
+      if (options.meshStrategy !== undefined) {
+        this.engine.setMeshStrategy(options.meshStrategy);
+      }
       if (options.clusteringStrategy !== undefined) {
         this.setClusteringStrategy(options.clusteringStrategy);
       }
-      if (options.colorStrategy !== undefined) this.setColorStrategy(options.colorStrategy);
-      if (options.layoutStrategy !== undefined) this.setLayoutStrategy(options.layoutStrategy);
-      if (options.zoomStrategy !== undefined) this.setZoomStrategy(options.zoomStrategy);
-      if (options.showHulls !== undefined) this.setShowHulls(options.showHulls);
+      if (options.colorStrategy !== undefined) {
+        this.engine.setColorStrategy(options.colorStrategy);
+      }
+      if (options.layoutStrategy !== undefined) {
+        this.setLayoutStrategy(options.layoutStrategy);
+      }
+      if (options.zoomStrategy !== undefined) {
+        this.engine.setZoomStrategy(options.zoomStrategy);
+        shouldSyncZoomOverlays = true;
+      }
+
+      if (options.showHulls !== undefined) {
+        this.engine.setShowHulls(options.showHulls);
+      }
       if (options.emptyClusterBehavior !== undefined) {
         this.setEmptyClusterBehavior(options.emptyClusterBehavior);
       }
-      if (options.itemFilter !== undefined) {
-        this.setItemFilter(options.itemFilter, { mode: options.itemFilterMode });
+      if ('itemFilter' in options || 'itemFilterMode' in options) {
+        const currentFilter = this.engine.getItemFilter();
+        const nextPredicate =
+          'itemFilter' in options
+            ? (options.itemFilter ?? null)
+            : currentFilter.predicate;
+        const nextMode = options.itemFilterMode ?? currentFilter.mode;
+        this.setItemFilter(nextPredicate, { mode: nextMode });
       }
-      if (options.highlightedIds !== undefined) {
-        this.setHighlightedItems(options.highlightedIds);
+      if (options.pinnedIds !== undefined) {
+        this.engine.setPinnedIds(options.pinnedIds);
       }
-      if (options.selectedIds !== undefined) {
-        this.setSelectedIds(options.selectedIds);
+      if ('highlightedIds' in options) {
+        this.engine.setHighlightedIds(options.highlightedIds ?? null);
+      }
+      if ('highlightedItems' in options) {
+        this.engine.setHighlightedItems(options.highlightedItems ?? null);
+      }
+      if ('onSelectionChange' in options) {
+        this.engine.setOnSelectionChange(options.onSelectionChange);
+      }
+      if ('onLegendChange' in options) {
+        this.setOnLegendChange(options.onLegendChange);
+      }
+      if ('selectedIds' in options) {
+        this.engine.setSelectedIds(options.selectedIds ?? null);
+      }
+      if (options.marqueeSelection !== undefined) {
+        this.setMarqueeSelection(options.marqueeSelection);
+      }
+      if (options.shiftClickSelects !== undefined) {
+        this.setShiftClickSelects(options.shiftClickSelects);
+      }
+      if ('focusedItemId' in options) {
+        this.focusItem(options.focusedItemId ?? null);
+      }
+      if ('focusedClusterUid' in options) {
+        this.setFocusedClusterUid(options.focusedClusterUid ?? null);
+      }
+      if ('focusedTriangleIndex' in options) {
+        this.setFocusedTriangleIndex(options.focusedTriangleIndex ?? null);
       }
       if (options.tooltip !== undefined) {
         this.tooltipOverlay.setOption(options.tooltip);
       }
+      if (options.ariaLabel !== undefined) {
+        this.setAriaLabel(options.ariaLabel);
+      }
+      if (options.keyboardNavigation !== undefined) {
+        this.setKeyboardNavigation(options.keyboardNavigation);
+      }
+      if (options.reducedMotion !== undefined) {
+        this.setReducedMotion(options.reducedMotion);
+      }
+      if (options.touchScrollLockPx !== undefined) {
+        this.setTouchScrollLockPx(options.touchScrollLockPx);
+      }
+      if (options.clickTolerancePx !== undefined) {
+        this.setClickTolerancePx(options.clickTolerancePx);
+      }
       if (options.interactions !== undefined) {
-        this.interactions = options.interactions;
-        this.engine.setInteractions(this.buildWrappedInteractions());
+        this.setInteractions(options.interactions);
+      }
+      if (options.showZoomBreadcrumbs !== undefined) {
+        this.showZoomBreadcrumbs = options.showZoomBreadcrumbs;
+        shouldSyncZoomOverlays = true;
+      }
+      if ('timeline' in options) {
+        this.setTimelineOptions(options.timeline);
       }
       if (options.items !== undefined) {
         this.setItems(options.items);
       }
+      this.repaintRequested = true;
     });
+
+    if (shouldSyncZoomOverlays) {
+      this.syncZoomOverlays(this.engine.getZoomState());
+    }
+    const timelineCtrl = this.timelineSession.getController();
+    if (shouldSyncTimelineOverlay && timelineCtrl) {
+      this.syncTimelineOverlay(timelineCtrl.getState());
+    }
   }
 
   /**
@@ -1329,6 +1674,7 @@ export class SimplexCanvasController<
 
   relayout(): void {
     this.engine.relayout();
+    this.repaintRequested = true;
     this.scheduleFrame();
   }
 
@@ -1336,8 +1682,8 @@ export class SimplexCanvasController<
    * Advances simulation & timeline deterministically by `dtMs` milliseconds (useful in tests & headless captures).
    */
   stepForTest(dtMs = 16.67): boolean {
-    if (this.timelineController?.getState().playing) {
-      this.timelineController.tick(dtMs);
+    if (this.timelineSession.getController()?.getState().playing) {
+      this.timelineSession.getController()?.tick(dtMs);
     }
     return this.engine.step(dtMs);
   }
@@ -1355,16 +1701,15 @@ export class SimplexCanvasController<
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
-    this.timelineUnsubscribe?.();
-    this.timelineUnsubscribe = null;
-    this.timelineController?.pause();
-    this.timelineNotifier.clear();
+    this.timelineSession.destroy();
     this.resizeObserverHandle?.disconnect();
     this.resizeObserverHandle = null;
     this.cleanupReducedMotionMedia?.();
     this.cleanupReducedMotionMedia = null;
     this.viewportHandle?.destroy();
     this.viewportHandle = null;
+    this.breadcrumbOverlay.destroy();
+    this.timelineOverlay.destroy();
     this.tooltipOverlay.destroy();
     this.srAnnouncer.destroy();
     this.engine.destroy();

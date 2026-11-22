@@ -51,7 +51,6 @@ import {
   type GeometricShapeSvgViewOptions,
   type PresetBadgeClusterOptions,
   type PresetContentShapeOption,
-  type SimplexSvgControllerOptions,
   type SimplexSvgTooltipOption,
   type SimplexSvgUpdateOptions,
   type SimplexTheme,
@@ -243,6 +242,180 @@ const UPGRADEABLE_PROPERTIES = [
   'interactions',
 ] as const;
 
+interface SimplexWcControllerConfig<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+> {
+  items: readonly TItem[];
+  getId?: (item: TItem) => string;
+  getTags?: (item: TItem) => readonly string[];
+  getLabel?: (item: TItem) => string;
+  normalizeTag?: (rawTag: string) => string;
+  formatTagLabel?: (tag: string) => string;
+  resolveTagMeta?: (normalizedTag: string) => TTagMeta | undefined;
+  deriveClusterMeta?: (
+    ctx: ClusterDerivationContext<TItem, TTagMeta>,
+  ) => TClusterMeta;
+  preset: SimplexVisualPreset;
+  theme: SimplexTheme;
+  visualResolver?: VisualResolver<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >;
+  contentView?: SvgNodeView<TContentVisual>;
+  clusterView?: SvgNodeView<TClusterVisual>;
+  triangleView?: SvgTriangleView<TItem, TTagMeta, TClusterMeta>;
+  edgeView?: SvgEdgeView<TItem, TTagMeta, TClusterMeta>;
+  badgeOptions?: PresetBadgeClusterOptions<TItem, TTagMeta, TClusterMeta>;
+  getShape?: PresetContentShapeOption<TItem, TTagMeta, TClusterMeta>;
+  shapeOptions?: GeometricShapeSvgViewOptions;
+  meshOptions?: MeshOptions;
+  layoutOptions?: LayoutSolverOptions;
+  meshStrategy?: SimplexMeshStrategy<TItem>;
+  clusteringStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>;
+  colorStrategy?: SimplexColorStrategy<TItem, TTagMeta>;
+  layoutStrategy?: SimplexLayoutStrategy;
+  zoomStrategy?: SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>;
+  showHulls: boolean;
+  emptyClusterBehavior: EmptyClusterBehavior;
+  itemFilter: ItemFilterPredicate<TItem> | null;
+  itemFilterMode: ItemFilterMode;
+  showZoomBreadcrumbs: boolean;
+  timeline: boolean | TimelinePlayerOptions<TItem>;
+  relayoutOnFontLoad: boolean;
+  deferInitialLayout: boolean | DeferInitialLayoutOptions;
+  touchScrollLockPx?: number;
+  clickTolerancePx?: number;
+  focusOnClusterClick: boolean;
+  focusOnTriangleClick: boolean;
+  tooltip: SimplexSvgTooltipOption<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >;
+  ariaLabel?: string;
+  keyboardNavigation: boolean;
+  reducedMotion: ReducedMotionPreference;
+  selectedIds: Iterable<string> | null;
+  marqueeSelection: boolean;
+  shiftClickSelects: boolean;
+}
+
+function createInitialControllerConfig<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+>(): SimplexWcControllerConfig<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta
+> {
+  return {
+    items: [],
+    preset: 'geometric',
+    theme: 'dark',
+    showHulls: false,
+    emptyClusterBehavior: 'normal',
+    itemFilter: null,
+    itemFilterMode: 'dim',
+    showZoomBreadcrumbs: true,
+    timeline: false,
+    relayoutOnFontLoad: true,
+    deferInitialLayout: false,
+    focusOnClusterClick: true,
+    focusOnTriangleClick: true,
+    tooltip: false,
+    keyboardNavigation: true,
+    reducedMotion: 'auto',
+    selectedIds: null,
+    marqueeSelection: true,
+    shiftClickSelects: true,
+  };
+}
+
+const DIRECT_CONFIG_UPDATE_KEYS = [
+  'preset',
+  'theme',
+  'getLabel',
+  'triangleView',
+  'edgeView',
+  'badgeOptions',
+  'getShape',
+  'shapeOptions',
+  'meshOptions',
+  'layoutOptions',
+  'meshStrategy',
+  'clusteringStrategy',
+  'colorStrategy',
+  'layoutStrategy',
+  'zoomStrategy',
+  'showHulls',
+  'emptyClusterBehavior',
+  'itemFilter',
+  'itemFilterMode',
+  'showZoomBreadcrumbs',
+  'timeline',
+  'tooltip',
+  'ariaLabel',
+  'keyboardNavigation',
+  'reducedMotion',
+  'touchScrollLockPx',
+  'clickTolerancePx',
+  'selectedIds',
+  'marqueeSelection',
+  'shiftClickSelects',
+] as const;
+
+const NULLABLE_CONFIG_UPDATE_KEYS = [
+  'visualResolver',
+  'contentView',
+  'clusterView',
+] as const;
+
+function copyDefinedConfigKeys<
+  TTarget extends object,
+  K extends keyof TTarget,
+>(
+  target: TTarget,
+  source: { readonly [P in K]?: TTarget[P] },
+  keys: readonly K[],
+): void {
+  for (const key of keys) {
+    const value = source[key];
+    if (value !== undefined) {
+      target[key] = value;
+    }
+  }
+}
+
+function copyNullableConfigKeys<
+  TTarget extends object,
+  K extends keyof TTarget,
+>(
+  target: TTarget,
+  source: { readonly [P in K]?: TTarget[P] | null },
+  keys: readonly K[],
+): void {
+  for (const key of keys) {
+    const value = source[key];
+    if (value !== undefined) {
+      target[key] = (value ?? undefined) as TTarget[K];
+    }
+  }
+}
+
 function parseBooleanAttr(raw: string | null, defaultValue: boolean): boolean {
   if (raw === null) return defaultValue;
   const norm = raw.trim().toLowerCase();
@@ -336,6 +509,163 @@ function parseItemsJson<TItem>(raw: string | null): readonly TItem[] | null {
   }
 }
 
+interface AttributeBindingContext<
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+> {
+  readonly config: SimplexWcControllerConfig<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >;
+  readonly live: SimplexSvgController<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  > | null;
+  setRenderer(renderer: SimplexWcRenderer): void;
+  setItemsExplicitly(items: readonly TItem[]): void;
+  setHighlightedIds(ids: Iterable<string> | null): void;
+  setPinnedIds(ids: ReadonlySet<string> | readonly string[] | null): void;
+  syncTimelineSubscription(): void;
+}
+
+type AttributeHandler = <
+  TItem,
+  TContentVisual,
+  TClusterVisual,
+  TTagMeta,
+  TClusterMeta,
+>(
+  ctx: AttributeBindingContext<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  >,
+  raw: string | null,
+) => void;
+
+const ATTRIBUTE_HANDLERS: Record<ObservedAttributeName, AttributeHandler> = {
+  preset: ({ config, live }, raw) => {
+    const parsed = parsePresetAttr(raw) ?? 'geometric';
+    config.preset = parsed;
+    live?.setOptions({ preset: parsed });
+  },
+  theme: ({ config, live }, raw) => {
+    const parsed = parseThemeAttr(raw) ?? 'dark';
+    config.theme = parsed;
+    live?.setOptions({ theme: parsed });
+  },
+  renderer: (ctx, raw) => {
+    if (raw === null || raw === 'svg') ctx.setRenderer('svg');
+  },
+  tooltip: ({ config, live }, raw) => {
+    const enabled = parseBooleanAttr(raw, false);
+    config.tooltip = enabled;
+    live?.setOptions({ tooltip: enabled });
+  },
+  'aria-label': ({ config, live }, raw) => {
+    config.ariaLabel = raw ?? undefined;
+    if (raw !== null) live?.setOptions({ ariaLabel: raw });
+  },
+  'keyboard-navigation': ({ config, live }, raw) => {
+    const enabled = parseBooleanAttr(raw, true);
+    config.keyboardNavigation = enabled;
+    live?.setOptions({ keyboardNavigation: enabled });
+  },
+  'reduced-motion': ({ config, live }, raw) => {
+    const pref = parseReducedMotionAttr(raw);
+    config.reducedMotion = pref;
+    live?.setReducedMotion(pref);
+  },
+  'marquee-selection': ({ config, live }, raw) => {
+    const enabled = parseBooleanAttr(raw, true);
+    config.marqueeSelection = enabled;
+    live?.setOptions({ marqueeSelection: enabled });
+  },
+  'shift-click-selects': ({ config, live }, raw) => {
+    const enabled = parseBooleanAttr(raw, true);
+    config.shiftClickSelects = enabled;
+    live?.setOptions({ shiftClickSelects: enabled });
+  },
+  'show-zoom-breadcrumbs': ({ config, live }, raw) => {
+    const enabled = parseBooleanAttr(raw, true);
+    config.showZoomBreadcrumbs = enabled;
+    live?.setOptions({ showZoomBreadcrumbs: enabled });
+  },
+  'show-hulls': ({ config, live }, raw) => {
+    const enabled = parseBooleanAttr(raw, false);
+    config.showHulls = enabled;
+    live?.setOptions({ showHulls: enabled });
+  },
+  'empty-cluster-behavior': ({ config, live }, raw) => {
+    const behavior = parseEmptyClusterBehaviorAttr(raw) ?? 'normal';
+    config.emptyClusterBehavior = behavior;
+    live?.setOptions({ emptyClusterBehavior: behavior });
+  },
+  'defer-initial-layout': ({ config }, raw) => {
+    config.deferInitialLayout = parseDeferInitialLayoutAttr(raw) ?? false;
+  },
+  'item-filter-mode': ({ config, live }, raw) => {
+    const mode = parseItemFilterModeAttr(raw) ?? 'dim';
+    config.itemFilterMode = mode;
+    live?.setOptions({ itemFilterMode: mode });
+  },
+  'touch-scroll-lock-px': ({ config, live }, raw) => {
+    const px = parseFiniteNumberAttr(raw);
+    config.touchScrollLockPx = px;
+    if (px !== undefined) live?.setOptions({ touchScrollLockPx: px });
+  },
+  'click-tolerance-px': ({ config, live }, raw) => {
+    const px = parseFiniteNumberAttr(raw);
+    config.clickTolerancePx = px;
+    if (px !== undefined) live?.setOptions({ clickTolerancePx: px });
+  },
+  'focus-on-cluster-click': ({ config }, raw) => {
+    config.focusOnClusterClick = parseBooleanAttr(raw, true);
+  },
+  'focus-on-triangle-click': ({ config }, raw) => {
+    config.focusOnTriangleClick = parseBooleanAttr(raw, true);
+  },
+  'relayout-on-font-load': ({ config }, raw) => {
+    config.relayoutOnFontLoad = parseBooleanAttr(raw, true);
+  },
+  timeline: (ctx, raw) => {
+    const enabled = parseBooleanAttr(raw, false);
+    ctx.config.timeline = enabled;
+    if (ctx.live) {
+      ctx.live.setOptions({ timeline: enabled });
+      ctx.syncTimelineSubscription();
+    }
+  },
+  items: (ctx, raw) => {
+    const parsed = parseItemsJson(raw);
+    if (parsed !== null) {
+      ctx.setItemsExplicitly(parsed as never);
+    }
+  },
+  'selected-ids': ({ config, live }, raw) => {
+    const parsed = parseIdListAttr(raw);
+    config.selectedIds = parsed;
+    live?.setSelectedIds(parsed);
+  },
+  'highlighted-ids': (ctx, raw) => {
+    ctx.setHighlightedIds(parseIdListAttr(raw));
+  },
+  'pinned-ids': (ctx, raw) => {
+    ctx.setPinnedIds(parseIdListAttr(raw));
+  },
+};
+
 /**
  * Framework-agnostic Custom Element (`<simplex-topic-graph>`) wrapping `SimplexSvgController`
  * in Light DOM so SVG `getBBox()` measurement, webfonts, CSS inheritance, and SVG/PNG export
@@ -364,78 +694,22 @@ export class SimplexTopicGraphElement<
   private readonly _timelineNotifier: SimplexTimelineNotifier<TItem> =
     createSimplexTimelineNotifier<TItem>();
   private _lastHoverWasActive = false;
+  private _itemsExplicitlySet = false;
 
   // Backed state (works pre-connect, pre-upgrade, and across reconnects)
-  private _items: readonly TItem[] = [];
-  private _itemsExplicitlySet = false;
-  private _getId?: (item: TItem) => string;
-  private _getTags?: (item: TItem) => readonly string[];
-  private _getLabel?: (item: TItem) => string;
-  private _normalizeTag?: (rawTag: string) => string;
-  private _formatTagLabel?: (tag: string) => string;
-  private _resolveTagMeta?: (normalizedTag: string) => TTagMeta | undefined;
-  private _deriveClusterMeta?: (
-    ctx: ClusterDerivationContext<TItem, TTagMeta>,
-  ) => TClusterMeta;
-
-  private _preset: SimplexVisualPreset = 'geometric';
-  private _theme: SimplexTheme = 'dark';
+  private readonly _config: SimplexWcControllerConfig<
+    TItem,
+    TContentVisual,
+    TClusterVisual,
+    TTagMeta,
+    TClusterMeta
+  > = createInitialControllerConfig();
   private _renderer: SimplexWcRenderer = 'svg';
-  private _visualResolver?: VisualResolver<
-    TItem,
-    TContentVisual,
-    TClusterVisual,
-    TTagMeta,
-    TClusterMeta
-  >;
-  private _contentView?: SvgNodeView<TContentVisual>;
-  private _clusterView?: SvgNodeView<TClusterVisual>;
-  private _triangleView?: SvgTriangleView<TItem, TTagMeta, TClusterMeta>;
-  private _edgeView?: SvgEdgeView<TItem, TTagMeta, TClusterMeta>;
-  private _badgeOptions?: PresetBadgeClusterOptions<TItem, TTagMeta, TClusterMeta>;
-  private _getShape?: PresetContentShapeOption<TItem, TTagMeta, TClusterMeta>;
-  private _shapeOptions?: GeometricShapeSvgViewOptions;
-
-  private _meshOptions?: MeshOptions;
-  private _layoutOptions?: LayoutSolverOptions;
-  private _meshStrategy?: SimplexMeshStrategy<TItem>;
-  private _clusteringStrategy?: SimplexClusteringStrategy<TItem, TTagMeta>;
-  private _colorStrategy?: SimplexColorStrategy<TItem, TTagMeta>;
-  private _layoutStrategy?: SimplexLayoutStrategy;
-  private _zoomStrategy?: SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta>;
-
-  private _showHulls = false;
-  private _emptyClusterBehavior: EmptyClusterBehavior = 'normal';
-  private _itemFilter: ItemFilterPredicate<TItem> | null = null;
-  private _itemFilterMode: ItemFilterMode = 'dim';
-  private _showZoomBreadcrumbs = true;
-  private _timeline: boolean | TimelinePlayerOptions<TItem> = false;
-  private _relayoutOnFontLoad = true;
-  private _deferInitialLayout: boolean | DeferInitialLayoutOptions = false;
-  private _touchScrollLockPx?: number;
-  private _clickTolerancePx?: number;
-  private _focusOnClusterClick = true;
-  private _focusOnTriangleClick = true;
-  private _tooltip: SimplexSvgTooltipOption<
-    TItem,
-    TContentVisual,
-    TClusterVisual,
-    TTagMeta,
-    TClusterMeta
-  > = false;
-  private _ariaLabel?: string;
-  private _keyboardNavigation = true;
-  private _reducedMotion: ReducedMotionPreference = 'auto';
-  private _marqueeSelection = true;
-  private _shiftClickSelects = true;
-
-  private _selectedIds: Iterable<string> | null = null;
   private _highlightedIds: Iterable<string> | null = null;
   private _pinnedIds: ReadonlySet<string> | readonly string[] | null = null;
   private _focusedItemId: string | null = null;
   private _focusedClusterUid: string | null = null;
   private _focusedTriangleIndex: number | null = null;
-
   private _userInteractions?: InteractionHandlers<
     TItem,
     TContentVisual,
@@ -493,89 +767,83 @@ export class SimplexTopicGraphElement<
   // ---------------------------------------------------------------------------
 
   get items(): readonly TItem[] {
-    return this._controller ? this._controller.getItems() : this._items;
+    return this._controller ? this._controller.getItems() : this._config.items;
   }
   set items(value: readonly TItem[]) {
-    this._items = Array.isArray(value) ? value : [];
+    this._config.items = Array.isArray(value) ? value : [];
     this._itemsExplicitlySet = true;
-    this._controller?.setItems(this._items);
+    this._controller?.setItems(this._config.items);
   }
 
   get getId(): ((item: TItem) => string) | undefined {
-    return this._getId;
+    return this._config.getId;
   }
   set getId(fn: ((item: TItem) => string) | undefined) {
-    this._getId = fn;
-    if (this._controller) this.remountController();
+    this.setRemountConfig('getId', fn);
   }
 
   get getTags(): ((item: TItem) => readonly string[]) | undefined {
-    return this._getTags;
+    return this._config.getTags;
   }
   set getTags(fn: ((item: TItem) => readonly string[]) | undefined) {
-    this._getTags = fn;
-    if (this._controller) this.remountController();
+    this.setRemountConfig('getTags', fn);
   }
 
   get getLabel(): ((item: TItem) => string) | undefined {
-    return this._getLabel;
+    return this._config.getLabel;
   }
   set getLabel(fn: ((item: TItem) => string) | undefined) {
-    this._getLabel = fn;
+    this._config.getLabel = fn;
     this._controller?.setOptions({ getLabel: fn });
   }
 
   get normalizeTag(): ((rawTag: string) => string) | undefined {
-    return this._normalizeTag;
+    return this._config.normalizeTag;
   }
   set normalizeTag(fn: ((rawTag: string) => string) | undefined) {
-    this._normalizeTag = fn;
-    if (this._controller) this.remountController();
+    this.setRemountConfig('normalizeTag', fn);
   }
 
   get formatTagLabel(): ((tag: string) => string) | undefined {
-    return this._formatTagLabel;
+    return this._config.formatTagLabel;
   }
   set formatTagLabel(fn: ((tag: string) => string) | undefined) {
-    this._formatTagLabel = fn;
-    if (this._controller) this.remountController();
+    this.setRemountConfig('formatTagLabel', fn);
   }
 
   get resolveTagMeta(): ((normalizedTag: string) => TTagMeta | undefined) | undefined {
-    return this._resolveTagMeta;
+    return this._config.resolveTagMeta;
   }
   set resolveTagMeta(fn: ((normalizedTag: string) => TTagMeta | undefined) | undefined) {
-    this._resolveTagMeta = fn;
-    if (this._controller) this.remountController();
+    this.setRemountConfig('resolveTagMeta', fn);
   }
 
   get deriveClusterMeta():
     | ((ctx: ClusterDerivationContext<TItem, TTagMeta>) => TClusterMeta)
     | undefined {
-    return this._deriveClusterMeta;
+    return this._config.deriveClusterMeta;
   }
   set deriveClusterMeta(
     fn: ((ctx: ClusterDerivationContext<TItem, TTagMeta>) => TClusterMeta) | undefined,
   ) {
-    this._deriveClusterMeta = fn;
-    if (this._controller) this.remountController();
+    this.setRemountConfig('deriveClusterMeta', fn);
   }
 
   get preset(): SimplexVisualPreset {
-    return this._preset;
+    return this._config.preset;
   }
   set preset(value: SimplexVisualPreset) {
     if (value !== 'geometric' && value !== 'badges' && value !== 'glyphs') return;
-    this._preset = value;
+    this._config.preset = value;
     this._controller?.setOptions({ preset: value });
   }
 
   get theme(): SimplexTheme {
-    return this._theme;
+    return this._config.theme;
   }
   set theme(value: SimplexTheme) {
     if (value !== 'dark' && value !== 'light') return;
-    this._theme = value;
+    this._config.theme = value;
     this._controller?.setOptions({ theme: value });
   }
 
@@ -583,15 +851,13 @@ export class SimplexTopicGraphElement<
     return this._renderer;
   }
   set renderer(value: SimplexWcRenderer) {
-    if (value === 'svg') {
-      this._renderer = value;
-    }
+    if (value === 'svg') this._renderer = value;
   }
 
   get visualResolver():
     | VisualResolver<TItem, TContentVisual, TClusterVisual, TTagMeta, TClusterMeta>
     | undefined {
-    return this._visualResolver;
+    return this._config.visualResolver;
   }
   set visualResolver(
     value:
@@ -599,179 +865,183 @@ export class SimplexTopicGraphElement<
       | null
       | undefined,
   ) {
-    this._visualResolver = value ?? undefined;
+    this._config.visualResolver = value ?? undefined;
     this._controller?.setOptions({ visualResolver: value ?? null });
   }
 
   get contentView(): SvgNodeView<TContentVisual> | undefined {
-    return this._contentView;
+    return this._config.contentView;
   }
   set contentView(value: SvgNodeView<TContentVisual> | null | undefined) {
-    this._contentView = value ?? undefined;
+    this._config.contentView = value ?? undefined;
     this._controller?.setOptions({ contentView: value ?? null });
   }
 
   get clusterView(): SvgNodeView<TClusterVisual> | undefined {
-    return this._clusterView;
+    return this._config.clusterView;
   }
   set clusterView(value: SvgNodeView<TClusterVisual> | null | undefined) {
-    this._clusterView = value ?? undefined;
+    this._config.clusterView = value ?? undefined;
     this._controller?.setOptions({ clusterView: value ?? null });
   }
 
   get triangleView(): SvgTriangleView<TItem, TTagMeta, TClusterMeta> | undefined {
-    return this._triangleView;
+    return this._config.triangleView;
   }
   set triangleView(value: SvgTriangleView<TItem, TTagMeta, TClusterMeta> | undefined) {
-    this._triangleView = value;
+    this._config.triangleView = value;
     if (value) this._controller?.setOptions({ triangleView: value });
   }
 
   get edgeView(): SvgEdgeView<TItem, TTagMeta, TClusterMeta> | undefined {
-    return this._edgeView;
+    return this._config.edgeView;
   }
   set edgeView(value: SvgEdgeView<TItem, TTagMeta, TClusterMeta> | undefined) {
-    this._edgeView = value;
+    this._config.edgeView = value;
     if (value) this._controller?.setOptions({ edgeView: value });
   }
 
   get badgeOptions():
     | PresetBadgeClusterOptions<TItem, TTagMeta, TClusterMeta>
     | undefined {
-    return this._badgeOptions;
+    return this._config.badgeOptions;
   }
   set badgeOptions(
     value: PresetBadgeClusterOptions<TItem, TTagMeta, TClusterMeta> | undefined,
   ) {
-    this._badgeOptions = value;
+    this._config.badgeOptions = value;
     this._controller?.setOptions({ badgeOptions: value });
   }
 
   get getShape():
     | PresetContentShapeOption<TItem, TTagMeta, TClusterMeta>
     | undefined {
-    return this._getShape;
+    return this._config.getShape;
   }
   set getShape(
     value: PresetContentShapeOption<TItem, TTagMeta, TClusterMeta> | undefined,
   ) {
-    this._getShape = value;
+    this._config.getShape = value;
     this._controller?.setOptions({ getShape: value });
   }
 
   get shapeOptions(): GeometricShapeSvgViewOptions | undefined {
-    return this._shapeOptions;
+    return this._config.shapeOptions;
   }
   set shapeOptions(value: GeometricShapeSvgViewOptions | undefined) {
-    this._shapeOptions = value;
+    this._config.shapeOptions = value;
     this._controller?.setOptions({ shapeOptions: value });
   }
 
   get meshOptions(): MeshOptions | undefined {
-    return this._meshOptions;
+    return this._config.meshOptions;
   }
   set meshOptions(value: MeshOptions | undefined) {
-    this._meshOptions = value;
+    this._config.meshOptions = value;
     if (value) this._controller?.setOptions({ meshOptions: value });
   }
 
   get layoutOptions(): LayoutSolverOptions | undefined {
-    return this._layoutOptions;
+    return this._config.layoutOptions;
   }
   set layoutOptions(value: LayoutSolverOptions | undefined) {
-    this._layoutOptions = value;
+    this._config.layoutOptions = value;
     if (value) this._controller?.setOptions({ layoutOptions: value });
   }
 
   get meshStrategy(): SimplexMeshStrategy<TItem> | undefined {
-    return this._meshStrategy;
+    return this._config.meshStrategy;
   }
   set meshStrategy(value: SimplexMeshStrategy<TItem> | undefined) {
-    this._meshStrategy = value;
+    this._config.meshStrategy = value;
     if (value) this._controller?.setOptions({ meshStrategy: value });
   }
 
   get clusteringStrategy(): SimplexClusteringStrategy<TItem, TTagMeta> | undefined {
-    return this._clusteringStrategy;
+    return this._config.clusteringStrategy;
   }
   set clusteringStrategy(value: SimplexClusteringStrategy<TItem, TTagMeta> | undefined) {
-    this._clusteringStrategy = value;
+    this._config.clusteringStrategy = value;
     if (value) this._controller?.setOptions({ clusteringStrategy: value });
   }
 
   get colorStrategy(): SimplexColorStrategy<TItem, TTagMeta> | undefined {
-    return this._colorStrategy;
+    return this._config.colorStrategy;
   }
   set colorStrategy(value: SimplexColorStrategy<TItem, TTagMeta> | undefined) {
-    this._colorStrategy = value;
+    this._config.colorStrategy = value;
     if (value) this._controller?.setOptions({ colorStrategy: value });
   }
 
   get layoutStrategy(): SimplexLayoutStrategy | undefined {
-    return this._layoutStrategy;
+    return this._config.layoutStrategy;
   }
   set layoutStrategy(value: SimplexLayoutStrategy | undefined) {
-    this._layoutStrategy = value;
+    this._config.layoutStrategy = value;
     if (value) this._controller?.setOptions({ layoutStrategy: value });
   }
 
   get zoomStrategy(): SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta> | undefined {
-    return this._zoomStrategy;
+    return this._config.zoomStrategy;
   }
   set zoomStrategy(
     value: SimplexZoomStrategy<TItem, TTagMeta, TClusterMeta> | undefined,
   ) {
-    this._zoomStrategy = value;
+    this._config.zoomStrategy = value;
     if (value) this._controller?.setOptions({ zoomStrategy: value });
   }
 
   get showHulls(): boolean {
-    return this._showHulls;
+    return this._config.showHulls;
   }
   set showHulls(value: boolean) {
-    this._showHulls = Boolean(value);
-    this._controller?.setOptions({ showHulls: this._showHulls });
+    const enabled = Boolean(value);
+    this._config.showHulls = enabled;
+    this._controller?.setOptions({ showHulls: enabled });
   }
 
   get emptyClusterBehavior(): EmptyClusterBehavior {
-    return this._emptyClusterBehavior;
+    return this._config.emptyClusterBehavior;
   }
   set emptyClusterBehavior(value: EmptyClusterBehavior) {
     if (value !== 'normal' && value !== 'dim' && value !== 'hide') return;
-    this._emptyClusterBehavior = value;
+    this._config.emptyClusterBehavior = value;
     this._controller?.setOptions({ emptyClusterBehavior: value });
   }
 
   get itemFilter(): ItemFilterPredicate<TItem> | null {
-    return this._itemFilter;
+    return this._config.itemFilter;
   }
   set itemFilter(value: ItemFilterPredicate<TItem> | null) {
-    this._itemFilter = value ?? null;
-    this._controller?.setItemFilter(this._itemFilter, { mode: this._itemFilterMode });
+    this._config.itemFilter = value ?? null;
+    this._controller?.setItemFilter(this._config.itemFilter, {
+      mode: this._config.itemFilterMode,
+    });
   }
 
   get itemFilterMode(): ItemFilterMode {
-    return this._itemFilterMode;
+    return this._config.itemFilterMode;
   }
   set itemFilterMode(value: ItemFilterMode) {
     if (value !== 'dim' && value !== 'hide') return;
-    this._itemFilterMode = value;
+    this._config.itemFilterMode = value;
     this._controller?.setOptions({ itemFilterMode: value });
   }
 
   get showZoomBreadcrumbs(): boolean {
-    return this._showZoomBreadcrumbs;
+    return this._config.showZoomBreadcrumbs;
   }
   set showZoomBreadcrumbs(value: boolean) {
-    this._showZoomBreadcrumbs = Boolean(value);
-    this._controller?.setOptions({ showZoomBreadcrumbs: this._showZoomBreadcrumbs });
+    const enabled = Boolean(value);
+    this._config.showZoomBreadcrumbs = enabled;
+    this._controller?.setOptions({ showZoomBreadcrumbs: enabled });
   }
 
   get timeline(): boolean | TimelinePlayerOptions<TItem> {
-    return this._timeline;
+    return this._config.timeline;
   }
   set timeline(value: boolean | TimelinePlayerOptions<TItem>) {
-    this._timeline = value;
+    this._config.timeline = value;
     if (this._controller) {
       this._controller.setOptions({ timeline: value });
       this.syncTimelineSubscription();
@@ -779,47 +1049,47 @@ export class SimplexTopicGraphElement<
   }
 
   get relayoutOnFontLoad(): boolean {
-    return this._relayoutOnFontLoad;
+    return this._config.relayoutOnFontLoad;
   }
   set relayoutOnFontLoad(value: boolean) {
-    this._relayoutOnFontLoad = Boolean(value);
+    this._config.relayoutOnFontLoad = Boolean(value);
   }
 
   get deferInitialLayout(): boolean | DeferInitialLayoutOptions {
-    return this._deferInitialLayout;
+    return this._config.deferInitialLayout;
   }
   set deferInitialLayout(value: boolean | DeferInitialLayoutOptions) {
-    this._deferInitialLayout = value;
+    this._config.deferInitialLayout = value;
   }
 
   get touchScrollLockPx(): number | undefined {
-    return this._touchScrollLockPx;
+    return this._config.touchScrollLockPx;
   }
   set touchScrollLockPx(value: number | undefined) {
-    this._touchScrollLockPx = value;
+    this._config.touchScrollLockPx = value;
     if (value !== undefined) this._controller?.setOptions({ touchScrollLockPx: value });
   }
 
   get clickTolerancePx(): number | undefined {
-    return this._clickTolerancePx;
+    return this._config.clickTolerancePx;
   }
   set clickTolerancePx(value: number | undefined) {
-    this._clickTolerancePx = value;
+    this._config.clickTolerancePx = value;
     if (value !== undefined) this._controller?.setOptions({ clickTolerancePx: value });
   }
 
   get focusOnClusterClick(): boolean {
-    return this._focusOnClusterClick;
+    return this._config.focusOnClusterClick;
   }
   set focusOnClusterClick(value: boolean) {
-    this._focusOnClusterClick = Boolean(value);
+    this._config.focusOnClusterClick = Boolean(value);
   }
 
   get focusOnTriangleClick(): boolean {
-    return this._focusOnTriangleClick;
+    return this._config.focusOnTriangleClick;
   }
   set focusOnTriangleClick(value: boolean) {
-    this._focusOnTriangleClick = Boolean(value);
+    this._config.focusOnTriangleClick = Boolean(value);
   }
 
   get tooltip(): SimplexSvgTooltipOption<
@@ -829,7 +1099,7 @@ export class SimplexTopicGraphElement<
     TTagMeta,
     TClusterMeta
   > {
-    return this._tooltip;
+    return this._config.tooltip;
   }
   set tooltip(
     value: SimplexSvgTooltipOption<
@@ -840,60 +1110,63 @@ export class SimplexTopicGraphElement<
       TClusterMeta
     >,
   ) {
-    this._tooltip = value;
+    this._config.tooltip = value;
     this._controller?.setOptions({ tooltip: value });
   }
 
   override get ariaLabel(): string | null {
-    return this._ariaLabel ?? null;
+    return this._config.ariaLabel ?? null;
   }
   override set ariaLabel(value: string | null) {
-    this._ariaLabel = value ?? undefined;
-    if (this._ariaLabel !== undefined) {
-      this._controller?.setOptions({ ariaLabel: this._ariaLabel });
+    this._config.ariaLabel = value ?? undefined;
+    if (this._config.ariaLabel !== undefined) {
+      this._controller?.setOptions({ ariaLabel: this._config.ariaLabel });
     }
   }
 
   get keyboardNavigation(): boolean {
-    return this._keyboardNavigation;
+    return this._config.keyboardNavigation;
   }
   set keyboardNavigation(value: boolean) {
-    this._keyboardNavigation = Boolean(value);
-    this._controller?.setOptions({ keyboardNavigation: this._keyboardNavigation });
+    const enabled = Boolean(value);
+    this._config.keyboardNavigation = enabled;
+    this._controller?.setOptions({ keyboardNavigation: enabled });
   }
 
   get reducedMotion(): ReducedMotionPreference {
     return this._controller
       ? this._controller.getReducedMotion()
-      : this._reducedMotion;
+      : this._config.reducedMotion;
   }
   set reducedMotion(value: ReducedMotionPreference) {
-    this._reducedMotion = value;
+    this._config.reducedMotion = value;
     this._controller?.setReducedMotion(value);
   }
 
   get marqueeSelection(): boolean {
-    return this._marqueeSelection;
+    return this._config.marqueeSelection;
   }
   set marqueeSelection(value: boolean) {
-    this._marqueeSelection = Boolean(value);
-    this._controller?.setOptions({ marqueeSelection: this._marqueeSelection });
+    const enabled = Boolean(value);
+    this._config.marqueeSelection = enabled;
+    this._controller?.setOptions({ marqueeSelection: enabled });
   }
 
   get shiftClickSelects(): boolean {
-    return this._shiftClickSelects;
+    return this._config.shiftClickSelects;
   }
   set shiftClickSelects(value: boolean) {
-    this._shiftClickSelects = Boolean(value);
-    this._controller?.setOptions({ shiftClickSelects: this._shiftClickSelects });
+    const enabled = Boolean(value);
+    this._config.shiftClickSelects = enabled;
+    this._controller?.setOptions({ shiftClickSelects: enabled });
   }
 
   get selectedIds(): ReadonlySet<string> {
     if (this._controller) return this._controller.getSelectedIds();
-    return this._selectedIds ? new Set(this._selectedIds) : new Set();
+    return this._config.selectedIds ? new Set(this._config.selectedIds) : new Set();
   }
   set selectedIds(value: Iterable<string> | null) {
-    this._selectedIds = value;
+    this._config.selectedIds = value;
     this._controller?.setSelectedIds(value);
   }
 
@@ -975,7 +1248,7 @@ export class SimplexTopicGraphElement<
 
   addItems(items: TItem | readonly TItem[]): void {
     const arr = Array.isArray(items) ? (items as readonly TItem[]) : [items as TItem];
-    this._items = [...this._items, ...arr];
+    this._config.items = [...this._config.items, ...arr];
     this._itemsExplicitlySet = true;
     this._controller?.addItems(items);
   }
@@ -983,7 +1256,7 @@ export class SimplexTopicGraphElement<
   removeItems(ids: string | readonly string[]): void {
     this._controller?.removeItems(ids);
     if (this._controller) {
-      this._items = this._controller.getItems();
+      this._config.items = this._controller.getItems();
     }
   }
 
@@ -1001,72 +1274,19 @@ export class SimplexTopicGraphElement<
     >,
   ): void {
     if (options.items !== undefined) {
-      this._items = options.items;
+      this._config.items = options.items;
       this._itemsExplicitlySet = true;
     }
-    if (options.preset !== undefined) this._preset = options.preset;
-    if (options.theme !== undefined) this._theme = options.theme;
-    if (options.getLabel !== undefined) this._getLabel = options.getLabel;
-    if (options.visualResolver !== undefined) {
-      this._visualResolver = options.visualResolver ?? undefined;
-    }
-    if (options.contentView !== undefined) {
-      this._contentView = options.contentView ?? undefined;
-    }
-    if (options.clusterView !== undefined) {
-      this._clusterView = options.clusterView ?? undefined;
-    }
-    if (options.triangleView !== undefined) this._triangleView = options.triangleView;
-    if (options.edgeView !== undefined) this._edgeView = options.edgeView;
-    if (options.badgeOptions !== undefined) this._badgeOptions = options.badgeOptions;
-    if (options.getShape !== undefined) this._getShape = options.getShape;
-    if (options.shapeOptions !== undefined) this._shapeOptions = options.shapeOptions;
-    if (options.meshOptions !== undefined) this._meshOptions = options.meshOptions;
-    if (options.layoutOptions !== undefined) this._layoutOptions = options.layoutOptions;
-    if (options.meshStrategy !== undefined) this._meshStrategy = options.meshStrategy;
-    if (options.clusteringStrategy !== undefined) {
-      this._clusteringStrategy = options.clusteringStrategy;
-    }
-    if (options.colorStrategy !== undefined) this._colorStrategy = options.colorStrategy;
-    if (options.layoutStrategy !== undefined) this._layoutStrategy = options.layoutStrategy;
-    if (options.zoomStrategy !== undefined) this._zoomStrategy = options.zoomStrategy;
-    if (options.showHulls !== undefined) this._showHulls = options.showHulls;
-    if (options.emptyClusterBehavior !== undefined) {
-      this._emptyClusterBehavior = options.emptyClusterBehavior;
-    }
-    if (options.itemFilter !== undefined) this._itemFilter = options.itemFilter;
-    if (options.itemFilterMode !== undefined) {
-      this._itemFilterMode = options.itemFilterMode;
-    }
-    if (options.showZoomBreadcrumbs !== undefined) {
-      this._showZoomBreadcrumbs = options.showZoomBreadcrumbs;
-    }
-    if (options.timeline !== undefined) this._timeline = options.timeline;
-    if (options.tooltip !== undefined) this._tooltip = options.tooltip;
-    if (options.ariaLabel !== undefined) this._ariaLabel = options.ariaLabel;
-    if (options.keyboardNavigation !== undefined) {
-      this._keyboardNavigation = options.keyboardNavigation;
-    }
-    if (options.reducedMotion !== undefined) this._reducedMotion = options.reducedMotion;
-    if (options.touchScrollLockPx !== undefined) {
-      this._touchScrollLockPx = options.touchScrollLockPx;
-    }
-    if (options.clickTolerancePx !== undefined) {
-      this._clickTolerancePx = options.clickTolerancePx;
-    }
+
+    copyDefinedConfigKeys(this._config, options, DIRECT_CONFIG_UPDATE_KEYS);
+    copyNullableConfigKeys(this._config, options, NULLABLE_CONFIG_UPDATE_KEYS);
+
     if (options.pinnedIds !== undefined) this._pinnedIds = options.pinnedIds;
     if (options.highlightedIds !== undefined) {
       this._highlightedIds = options.highlightedIds;
     }
     if (options.highlightedItems !== undefined) {
       this._highlightedIds = options.highlightedItems;
-    }
-    if (options.selectedIds !== undefined) this._selectedIds = options.selectedIds;
-    if (options.marqueeSelection !== undefined) {
-      this._marqueeSelection = options.marqueeSelection;
-    }
-    if (options.shiftClickSelects !== undefined) {
-      this._shiftClickSelects = options.shiftClickSelects;
     }
     if (options.focusedItemId !== undefined) this._focusedItemId = options.focusedItemId;
     if (options.focusedClusterUid !== undefined) {
@@ -1105,8 +1325,8 @@ export class SimplexTopicGraphElement<
     predicate: ItemFilterPredicate<TItem> | null,
     options?: ItemFilterOptions,
   ): void {
-    this._itemFilter = predicate;
-    if (options?.mode) this._itemFilterMode = options.mode;
+    this._config.itemFilter = predicate;
+    if (options?.mode) this._config.itemFilterMode = options.mode;
     this._controller?.setItemFilter(predicate, options);
   }
 
@@ -1132,7 +1352,7 @@ export class SimplexTopicGraphElement<
   }
 
   setSelectedIds(ids: Iterable<string> | null): void {
-    this._selectedIds = ids;
+    this._config.selectedIds = ids;
     this._controller?.setSelectedIds(ids);
   }
 
@@ -1141,7 +1361,7 @@ export class SimplexTopicGraphElement<
   }
 
   clearSelection(): void {
-    this._selectedIds = null;
+    this._config.selectedIds = null;
     this._controller?.clearSelection();
   }
 
@@ -1243,7 +1463,7 @@ export class SimplexTopicGraphElement<
   }
 
   setReducedMotion(preference: ReducedMotionPreference): void {
-    this._reducedMotion = preference;
+    this._config.reducedMotion = preference;
     this._controller?.setReducedMotion(preference);
   }
 
@@ -1252,7 +1472,7 @@ export class SimplexTopicGraphElement<
   }
 
   isReducedMotionActive(): boolean {
-    return this._controller?.isReducedMotionActive() ?? this._reducedMotion === true;
+    return this._controller?.isReducedMotionActive() ?? this._config.reducedMotion === true;
   }
 
   getViewState(): SimplexViewState | null {
@@ -1327,6 +1547,28 @@ export class SimplexTopicGraphElement<
   // Internal lifecycle, attribute sync & event dispatch
   // ---------------------------------------------------------------------------
 
+  private setRemountConfig<
+    K extends
+      | 'getId'
+      | 'getTags'
+      | 'normalizeTag'
+      | 'formatTagLabel'
+      | 'resolveTagMeta'
+      | 'deriveClusterMeta',
+  >(
+    key: K,
+    value: SimplexWcControllerConfig<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >[K],
+  ): void {
+    this._config[key] = value;
+    if (this._controller) this.remountController();
+  }
+
   private upgradePreExistingProperties(): void {
     const selfRecord = this as unknown as Record<string, unknown>;
     for (const prop of UPGRADEABLE_PROPERTIES) {
@@ -1352,7 +1594,7 @@ export class SimplexTopicGraphElement<
       if (jsonScript?.textContent) {
         const parsed = parseItemsJson<TItem>(jsonScript.textContent);
         if (parsed !== null) {
-          this._items = parsed;
+          this._config.items = parsed;
         }
       }
     }
@@ -1363,153 +1605,35 @@ export class SimplexTopicGraphElement<
     newValue: string | null,
     syncLive = true,
   ): void {
+    const handler = ATTRIBUTE_HANDLERS[name];
+    if (!handler) return;
     const live = syncLive ? this._controller : null;
-    switch (name) {
-      case 'preset': {
-        const parsed = parsePresetAttr(newValue) ?? 'geometric';
-        this._preset = parsed;
-        live?.setOptions({ preset: parsed });
-        break;
-      }
-      case 'theme': {
-        const parsed = parseThemeAttr(newValue) ?? 'dark';
-        this._theme = parsed;
-        live?.setOptions({ theme: parsed });
-        break;
-      }
-      case 'renderer': {
-        if (newValue === null || newValue === 'svg') {
-          this._renderer = 'svg';
-        }
-        break;
-      }
-      case 'tooltip': {
-        const enabled = parseBooleanAttr(newValue, false);
-        this._tooltip = enabled;
-        live?.setOptions({ tooltip: enabled });
-        break;
-      }
-      case 'aria-label': {
-        this._ariaLabel = newValue ?? undefined;
-        if (newValue !== null) {
-          live?.setOptions({ ariaLabel: newValue });
-        }
-        break;
-      }
-      case 'keyboard-navigation': {
-        const enabled = parseBooleanAttr(newValue, true);
-        this._keyboardNavigation = enabled;
-        live?.setOptions({ keyboardNavigation: enabled });
-        break;
-      }
-      case 'reduced-motion': {
-        const pref = parseReducedMotionAttr(newValue);
-        this._reducedMotion = pref;
-        live?.setReducedMotion(pref);
-        break;
-      }
-      case 'marquee-selection': {
-        const enabled = parseBooleanAttr(newValue, true);
-        this._marqueeSelection = enabled;
-        live?.setOptions({ marqueeSelection: enabled });
-        break;
-      }
-      case 'shift-click-selects': {
-        const enabled = parseBooleanAttr(newValue, true);
-        this._shiftClickSelects = enabled;
-        live?.setOptions({ shiftClickSelects: enabled });
-        break;
-      }
-      case 'show-zoom-breadcrumbs': {
-        const enabled = parseBooleanAttr(newValue, true);
-        this._showZoomBreadcrumbs = enabled;
-        live?.setOptions({ showZoomBreadcrumbs: enabled });
-        break;
-      }
-      case 'show-hulls': {
-        const enabled = parseBooleanAttr(newValue, false);
-        this._showHulls = enabled;
-        live?.setOptions({ showHulls: enabled });
-        break;
-      }
-      case 'empty-cluster-behavior': {
-        const behavior = parseEmptyClusterBehaviorAttr(newValue) ?? 'normal';
-        this._emptyClusterBehavior = behavior;
-        live?.setOptions({ emptyClusterBehavior: behavior });
-        break;
-      }
-      case 'defer-initial-layout': {
-        const defer = parseDeferInitialLayoutAttr(newValue) ?? false;
-        this._deferInitialLayout = defer;
-        break;
-      }
-      case 'item-filter-mode': {
-        const mode = parseItemFilterModeAttr(newValue) ?? 'dim';
-        this._itemFilterMode = mode;
-        live?.setOptions({ itemFilterMode: mode });
-        break;
-      }
-      case 'touch-scroll-lock-px': {
-        const px = parseFiniteNumberAttr(newValue);
-        this._touchScrollLockPx = px;
-        if (px !== undefined) live?.setOptions({ touchScrollLockPx: px });
-        break;
-      }
-      case 'click-tolerance-px': {
-        const px = parseFiniteNumberAttr(newValue);
-        this._clickTolerancePx = px;
-        if (px !== undefined) live?.setOptions({ clickTolerancePx: px });
-        break;
-      }
-      case 'focus-on-cluster-click': {
-        this._focusOnClusterClick = parseBooleanAttr(newValue, true);
-        break;
-      }
-      case 'focus-on-triangle-click': {
-        this._focusOnTriangleClick = parseBooleanAttr(newValue, true);
-        break;
-      }
-      case 'relayout-on-font-load': {
-        this._relayoutOnFontLoad = parseBooleanAttr(newValue, true);
-        break;
-      }
-      case 'timeline': {
-        const enabled = parseBooleanAttr(newValue, false);
-        this._timeline = enabled;
-        if (live) {
-          live.setOptions({ timeline: enabled });
-          this.syncTimelineSubscription();
-        }
-        break;
-      }
-      case 'items': {
-        const parsed = parseItemsJson<TItem>(newValue);
-        if (parsed !== null) {
-          this._items = parsed;
+    handler(
+      {
+        config: this._config,
+        live,
+        setRenderer: (renderer) => {
+          this._renderer = renderer;
+        },
+        setItemsExplicitly: (items) => {
+          this._config.items = items;
           this._itemsExplicitlySet = true;
-          live?.setItems(parsed);
-        }
-        break;
-      }
-      case 'selected-ids': {
-        const parsed = parseIdListAttr(newValue);
-        this._selectedIds = parsed;
-        live?.setSelectedIds(parsed);
-        break;
-      }
-      case 'highlighted-ids': {
-        const parsed = parseIdListAttr(newValue);
-        this._highlightedIds = parsed;
-        live?.setHighlightedIds(parsed);
-        break;
-      }
-      case 'pinned-ids': {
-        const parsed = parseIdListAttr(newValue);
-        this._pinnedIds = parsed;
-        live?.setPinnedIds(parsed ?? []);
-        break;
-      }
-    }
+          live?.setItems(items);
+        },
+        setHighlightedIds: (ids) => {
+          this._highlightedIds = ids;
+          live?.setHighlightedIds(ids);
+        },
+        setPinnedIds: (ids) => {
+          this._pinnedIds = ids;
+          live?.setPinnedIds(ids ?? []);
+        },
+        syncTimelineSubscription: () => {
+          this.syncTimelineSubscription();
+        },
+      },
+      newValue,
+    );
   }
 
   private ensureMounted(): void {
@@ -1529,94 +1653,39 @@ export class SimplexTopicGraphElement<
     this.appendChild(stage);
     this._stageEl = stage;
 
-    const options = {
-      items: this._items,
-      getId: this._getId,
-      getTags: this._getTags,
-      getLabel: this._getLabel,
-      normalizeTag: this._normalizeTag,
-      formatTagLabel: this._formatTagLabel,
-      resolveTagMeta: this._resolveTagMeta,
-      deriveClusterMeta: this._deriveClusterMeta,
-      preset: this._preset,
-      theme: this._theme,
-      visualResolver: this._visualResolver,
-      contentView: this._contentView,
-      clusterView: this._clusterView,
-      triangleView: this._triangleView,
-      edgeView: this._edgeView,
-      badgeOptions: this._badgeOptions,
-      getShape: this._getShape,
-      shapeOptions: this._shapeOptions,
-      meshOptions: this._meshOptions,
-      layoutOptions: this._layoutOptions,
-      meshStrategy: this._meshStrategy,
-      clusteringStrategy: this._clusteringStrategy,
-      colorStrategy: this._colorStrategy,
-      layoutStrategy: this._layoutStrategy,
-      zoomStrategy: this._zoomStrategy,
-      showHulls: this._showHulls,
-      emptyClusterBehavior: this._emptyClusterBehavior,
-      itemFilter: this._itemFilter,
-      itemFilterMode: this._itemFilterMode,
-      showZoomBreadcrumbs: this._showZoomBreadcrumbs,
-      timeline: this._timeline,
-      relayoutOnFontLoad: this._relayoutOnFontLoad,
-      deferInitialLayout: this._deferInitialLayout,
-      touchScrollLockPx: this._touchScrollLockPx,
-      clickTolerancePx: this._clickTolerancePx,
-      focusOnClusterClick: this._focusOnClusterClick,
-      focusOnTriangleClick: this._focusOnTriangleClick,
-      tooltip: this._tooltip,
-      ariaLabel: this._ariaLabel,
-      keyboardNavigation: this._keyboardNavigation,
-      reducedMotion: this._reducedMotion,
-      selectedIds: this._selectedIds,
-      marqueeSelection: this._marqueeSelection,
-      shiftClickSelects: this._shiftClickSelects,
+    const ctrl = SimplexSvgController.createFromResolved<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    >(stage, {
+      ...this._config,
       interactions: this.buildComposedInteractions(),
-      onMetricsChange: (metrics: LayoutMetrics) => {
+      onMetricsChange: (metrics) => {
         this.emitEvent('simplex-metrics', metrics);
       },
-      onClustersChange: (
-        clusters: readonly ClusterDescriptor<TItem, TTagMeta, TClusterMeta>[],
-      ) => {
+      onClustersChange: (clusters) => {
         this.emitEvent('simplex-clusters-change', clusters);
       },
-      onZoomStateChange: (state: SimplexZoomState) => {
+      onZoomStateChange: (state) => {
         this.emitEvent('simplex-zoom', state);
       },
-      onSelectionChange: (selectedIds: ReadonlySet<string>) => {
+      onSelectionChange: (selectedIds) => {
         const snapshot = new Set(selectedIds);
-        this._selectedIds = snapshot;
+        this._config.selectedIds = snapshot;
         this.emitEvent<SimplexSelectionChangeDetail>('simplex-selection-change', {
           selectedIds: snapshot,
           ids: Array.from(snapshot).sort(),
         });
       },
-      onLegendChange: (
-        model: SimplexLegendModel<TItem, TTagMeta, TClusterMeta>,
-      ) => {
+      onLegendChange: (model) => {
         this.emitEvent<SimplexLegendModel<TItem, TTagMeta, TClusterMeta>>(
           'simplex-legend-change',
           model,
         );
       },
-    } as unknown as SimplexSvgControllerOptions<
-      TItem,
-      TContentVisual,
-      TClusterVisual,
-      TTagMeta,
-      TClusterMeta
-    >;
-
-    const ctrl = new SimplexSvgController<
-      TItem,
-      TContentVisual,
-      TClusterVisual,
-      TTagMeta,
-      TClusterMeta
-    >(stage, options);
+    });
     this._controller = ctrl;
 
     // Apply initial post-construct highlight/pin/focus states if pre-configured
@@ -1679,6 +1748,28 @@ export class SimplexTopicGraphElement<
     });
   }
 
+  private dispatchHover(
+    userConsumed: boolean | void,
+    detail: SimplexHoverEventDetail<
+      TItem,
+      TContentVisual,
+      TClusterVisual,
+      TTagMeta,
+      TClusterMeta
+    > | null,
+  ): boolean | void {
+    if (detail) {
+      this._lastHoverWasActive = true;
+      const prevented = this.emitCancelableEvent('simplex-hover', detail);
+      return userConsumed === true || prevented;
+    }
+    if (this._lastHoverWasActive) {
+      this._lastHoverWasActive = false;
+      this.emitCancelableEvent('simplex-hover', { kind: null, event: null });
+    }
+    return userConsumed;
+  }
+
   private buildComposedInteractions(): InteractionHandlers<
     TItem,
     TContentVisual,
@@ -1688,69 +1779,21 @@ export class SimplexTopicGraphElement<
   > {
     const user = this._userInteractions;
     return {
-      onContentHover: (ev) => {
-        const userConsumed = user?.onContentHover?.(ev);
-        if (ev) {
-          this._lastHoverWasActive = true;
-          const prevented = this.emitCancelableEvent<
-            SimplexHoverEventDetail<
-              TItem,
-              TContentVisual,
-              TClusterVisual,
-              TTagMeta,
-              TClusterMeta
-            >
-          >('simplex-hover', { kind: 'content', event: ev });
-          return userConsumed === true || prevented;
-        }
-        if (this._lastHoverWasActive) {
-          this._lastHoverWasActive = false;
-          this.emitCancelableEvent('simplex-hover', { kind: null, event: null });
-        }
-        return userConsumed;
-      },
-      onClusterHover: (ev) => {
-        const userConsumed = user?.onClusterHover?.(ev);
-        if (ev) {
-          this._lastHoverWasActive = true;
-          const prevented = this.emitCancelableEvent<
-            SimplexHoverEventDetail<
-              TItem,
-              TContentVisual,
-              TClusterVisual,
-              TTagMeta,
-              TClusterMeta
-            >
-          >('simplex-hover', { kind: 'cluster', event: ev });
-          return userConsumed === true || prevented;
-        }
-        if (this._lastHoverWasActive) {
-          this._lastHoverWasActive = false;
-          this.emitCancelableEvent('simplex-hover', { kind: null, event: null });
-        }
-        return userConsumed;
-      },
-      onTriangleHover: (ev) => {
-        const userConsumed = user?.onTriangleHover?.(ev);
-        if (ev) {
-          this._lastHoverWasActive = true;
-          const prevented = this.emitCancelableEvent<
-            SimplexHoverEventDetail<
-              TItem,
-              TContentVisual,
-              TClusterVisual,
-              TTagMeta,
-              TClusterMeta
-            >
-          >('simplex-hover', { kind: 'triangle', event: ev });
-          return userConsumed === true || prevented;
-        }
-        if (this._lastHoverWasActive) {
-          this._lastHoverWasActive = false;
-          this.emitCancelableEvent('simplex-hover', { kind: null, event: null });
-        }
-        return userConsumed;
-      },
+      onContentHover: (ev) =>
+        this.dispatchHover(
+          user?.onContentHover?.(ev),
+          ev ? { kind: 'content', event: ev } : null,
+        ),
+      onClusterHover: (ev) =>
+        this.dispatchHover(
+          user?.onClusterHover?.(ev),
+          ev ? { kind: 'cluster', event: ev } : null,
+        ),
+      onTriangleHover: (ev) =>
+        this.dispatchHover(
+          user?.onTriangleHover?.(ev),
+          ev ? { kind: 'triangle', event: ev } : null,
+        ),
       onContentClick: user?.onContentClick,
       onClusterClick: user?.onClusterClick,
       onTriangleClick: user?.onTriangleClick,

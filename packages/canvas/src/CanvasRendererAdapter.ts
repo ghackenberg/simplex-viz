@@ -4,7 +4,6 @@ import {
   resolveSimplexThemeBackgroundColor,
   type ConvexGeometry,
   type DefaultTaggedItem,
-  type NodeRenderState,
   type Point2D,
   type SceneFrameSnapshot,
   type SimplexKeyboardFocusTarget,
@@ -88,6 +87,26 @@ function hullRadiusEstimate(hull: ConvexGeometry): number {
   if (hull.kind === 'circle') return hull.radius;
   const bb = getHullBoundingBox(hull, 0, 0, 1);
   return Math.max(Math.abs(bb.minX), Math.abs(bb.maxX), Math.abs(bb.minY), Math.abs(bb.maxY));
+}
+
+function isCanvasDefaultContentVisual(
+  visual: unknown,
+): visual is CanvasDefaultContentVisual {
+  if (typeof visual !== 'object' || visual === null || !('kind' in visual)) {
+    return false;
+  }
+  const kind = (visual as { readonly kind: unknown }).kind;
+  return kind === 'geometric' || kind === 'glyph';
+}
+
+function isCanvasDefaultClusterVisual(
+  visual: unknown,
+): visual is CanvasDefaultClusterVisual {
+  if (typeof visual !== 'object' || visual === null || !('kind' in visual)) {
+    return false;
+  }
+  const kind = (visual as { readonly kind: unknown }).kind;
+  return kind === 'anchor' || kind === 'badge';
 }
 
 function drawConvexHullOutline(
@@ -314,18 +333,17 @@ export class CanvasRendererAdapter<
     let hull: ConvexGeometry;
     if (this.contentRenderer) {
       hull = this.contentRenderer.measureConvexHull(visual, this.ctx);
-    } else {
-      const def = visual as unknown as CanvasDefaultContentVisual;
-      if (def && typeof def === 'object' && def.kind === 'geometric') {
+    } else if (isCanvasDefaultContentVisual(visual)) {
+      if (visual.kind === 'geometric') {
         hull = measureGeometricContentHull(
-          def,
+          visual,
           this.shapeOptions?.strokeWidth ?? SIMPLEX_PRESET_DEFAULTS.canvasStrokeWidth,
         );
-      } else if (def && typeof def === 'object' && def.kind === 'glyph') {
-        hull = { kind: 'circle', radius: Math.max(2, def.radius) };
       } else {
-        hull = { kind: 'circle', radius: SIMPLEX_PRESET_DEFAULTS.canvasGlyphRadius };
+        hull = { kind: 'circle', radius: Math.max(2, visual.radius) };
       }
+    } else {
+      hull = { kind: 'circle', radius: SIMPLEX_PRESET_DEFAULTS.canvasGlyphRadius };
     }
 
     this.contentHullCache.set(cacheKey, hull);
@@ -339,13 +357,10 @@ export class CanvasRendererAdapter<
     let hull: ConvexGeometry;
     if (this.clusterRenderer) {
       hull = this.clusterRenderer.measureConvexHull(visual, this.ctx);
+    } else if (isCanvasDefaultClusterVisual(visual)) {
+      hull = measureDefaultClusterHull(visual, this.ctx);
     } else {
-      const def = visual as unknown as CanvasDefaultClusterVisual;
-      if (def && typeof def === 'object' && (def.kind === 'anchor' || def.kind === 'badge')) {
-        hull = measureDefaultClusterHull(def, this.ctx);
-      } else {
-        hull = { kind: 'circle', radius: 22 };
-      }
+      hull = { kind: 'circle', radius: 22 };
     }
 
     this.clusterHullCache.set(cacheKey, hull);
@@ -520,43 +535,40 @@ export class CanvasRendererAdapter<
         } else {
           drawCustom(node.visual, effectiveAlpha);
         }
-      } else {
-        const defState = node as unknown as NodeRenderState<CanvasDefaultContentVisual>;
-        if (defState.transition) {
-          const p = Math.max(0, Math.min(1, defState.transition.progress));
-          if (p < 0.99) {
-            drawFastContentNode(
-              ctx,
-              defState.transition.from,
-              defState,
-              effectiveAlpha * (1 - p),
-              zoom,
-              simplifiedLod,
-              this.shapeOptions,
-            );
-          }
-          if (p > 0.01) {
-            drawFastContentNode(
-              ctx,
-              defState.transition.to,
-              defState,
-              effectiveAlpha * p,
-              zoom,
-              simplifiedLod,
-              this.shapeOptions,
-            );
-          }
-        } else {
+      } else if (node.transition) {
+        const p = Math.max(0, Math.min(1, node.transition.progress));
+        if (p < 0.99 && isCanvasDefaultContentVisual(node.transition.from)) {
           drawFastContentNode(
             ctx,
-            defState.visual,
-            defState,
-            effectiveAlpha,
+            node.transition.from,
+            node,
+            effectiveAlpha * (1 - p),
             zoom,
             simplifiedLod,
             this.shapeOptions,
           );
         }
+        if (p > 0.01 && isCanvasDefaultContentVisual(node.transition.to)) {
+          drawFastContentNode(
+            ctx,
+            node.transition.to,
+            node,
+            effectiveAlpha * p,
+            zoom,
+            simplifiedLod,
+            this.shapeOptions,
+          );
+        }
+      } else if (isCanvasDefaultContentVisual(node.visual)) {
+        drawFastContentNode(
+          ctx,
+          node.visual,
+          node,
+          effectiveAlpha,
+          zoom,
+          simplifiedLod,
+          this.shapeOptions,
+        );
       }
 
       if (snapshot.showHulls) {
@@ -626,9 +638,8 @@ export class CanvasRendererAdapter<
           simplifiedLod: false,
         });
         ctx.restore();
-      } else {
-        const defState = node as unknown as NodeRenderState<CanvasDefaultClusterVisual>;
-        drawDefaultClusterNode(ctx, defState.visual, defState, effectiveAlpha, zoom);
+      } else if (isCanvasDefaultClusterVisual(node.visual)) {
+        drawDefaultClusterNode(ctx, node.visual, node, effectiveAlpha, zoom);
       }
 
       if (snapshot.showHulls) {
