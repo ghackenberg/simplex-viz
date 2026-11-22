@@ -150,6 +150,11 @@ const structuredData = jsonLd ?? {
       type="application/ld+json"
       set:html={JSON.stringify(structuredData)}
     />
+
+    <script>
+      import { initPlausibleAnalytics } from '../site/analytics';
+      initPlausibleAnalytics();
+    </script>
   </head>
   <body
     class:list={[

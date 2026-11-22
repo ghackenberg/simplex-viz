@@ -36,14 +36,11 @@ import { SITE_META, withBase } from '../site/url';
           </a>
         </p>
 
-        <h2>2. Privacy by Design: Zero Tracking, Zero Cookies, Self-Hosted Assets</h2>
+        <h2>2. Privacy by Design: Zero Cookies &amp; Self-Hosted Assets</h2>
         <p>
-          This project website and documentation portal is pre-rendered as static HTML and operates strictly without invasive tracking:
+          This project website and documentation portal is pre-rendered as static HTML and operates without HTTP cookies or third-party CDN dependencies:
         </p>
         <ul>
-          <li>
-            <strong>No Analytics or Telemetry:</strong> We do not use Google Analytics, tracking pixels, session recording, or fingerprinting scripts.
-          </li>
           <li>
             <strong>No Tracking Cookies:</strong> This website sets zero HTTP cookies.
           </li>
@@ -55,12 +52,74 @@ import { SITE_META, withBase } from '../site/url';
           </li>
         </ul>
 
-        <h2>3. Local Theme Preference (<code>localStorage</code>)</h2>
+        <h2 id="analytics-opt-out">3. Cookieless Web Analytics (Plausible) &amp; Opt-Out</h2>
         <p>
-          When you explicitly switch the color theme (<em>Light</em>, <em>Dark</em>, or <em>System</em>) in the site header, your browser stores the preference string under the key <code>simplex-theme</code> in local browser storage (<code>window.localStorage</code>). This value never leaves your device, is never transmitted over the network, and serves solely to fulfill your requested visual setting across page navigations (§ 165(3) TKG 2021 / Art. 6(1)(f) GDPR).
+          To understand how documentation guides, interactive examples, and engineering notes are used without profiling individual visitors, this website uses the open-source{' '}
+          <a href="https://plausible.io" target="_blank" rel="noreferrer">Plausible Analytics</a>{' '}
+          tracker (<code>@plausible-analytics/tracker</code>), configured for the site identifier{' '}
+          <code>hackenberg.tech/simplex-viz</code> and sending events exclusively to our self-hosted Plausible instance at{' '}
+          <code>https://analytics.mentawise.com</code> (operated by Dr. Georg Hackenberg / Mentawise).
         </p>
+        <ul>
+          <li>
+            <strong>No Cookies &amp; No Personal Profiles:</strong> Plausible sets zero cookies, performs no cross-site tracking or browser fingerprinting, and stores no persistent user identifiers. Page views and aggregated outbound link clicks send only the visited URL path, HTTP referrer, browser/OS family, viewport class, and coarse country/region derived transiently from the IP address using a daily rotating cryptographic salt.
+          </li>
+          <li>
+            <strong>Legal Basis:</strong> Processing is based on our legitimate interest in privacy-preserving statistical evaluation and improving technical documentation (Art. 6(1)(f) GDPR) and operates strictly without accessing non-essential terminal device storage unless you actively opt out (§ 165(3) TKG 2021).
+          </li>
+          <li>
+            <strong>Right to Object (Art. 21 GDPR):</strong> You can exclude your browser from measurement at any time using the control below. Activating the opt-out writes <code>plausible_ignore=true</code> to your browser&rsquo;s <code>localStorage</code> for this origin, immediately preventing any pageview or event requests to <code>analytics.mentawise.com</code>.
+          </li>
+        </ul>
 
-        <h2>4. Server Log Files &amp; Static Hosting</h2>
+        <section
+          aria-labelledby="sv-analytics-optout-heading"
+          class="not-prose my-6 rounded-xl border border-slate-200/90 bg-white p-5 sm:p-6 dark:border-slate-800/90 dark:bg-[#0B0F17]"
+        >
+          <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+              <h3
+                id="sv-analytics-optout-heading"
+                class="text-sm font-semibold tracking-tight text-slate-950 dark:text-white"
+              >
+                Analytics Preference for This Browser
+              </h3>
+              <p
+                id="sv-analytics-status"
+                aria-live="polite"
+                class="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-300"
+              >
+                Status: Checking browser preference…
+              </p>
+            </div>
+
+            <button
+              id="sv-analytics-optout-btn"
+              type="button"
+              class="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white whitespace-nowrap"
+            >
+              Opt out of analytics
+            </button>
+          </div>
+          <p class="mt-3 border-t border-slate-200/80 pt-3 text-[11px] leading-relaxed text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
+            Opting out stores <code>plausible_ignore=true</code> locally in <code>window.localStorage</code> for this origin only. Clearing site data in your browser removes the opt-out flag.
+          </p>
+        </section>
+
+        <h2>4. Local Browser Storage (<code>localStorage</code>)</h2>
+        <p>
+          Local browser storage (<code>window.localStorage</code>) is used strictly for explicit user-initiated preferences and never transmitted over the network (§ 165(3) TKG 2021 / Art. 6(1)(f) GDPR):
+        </p>
+        <ul>
+          <li>
+            <code>simplex-theme</code>: Written only when you actively switch the color theme (<em>Light</em>, <em>Dark</em>, or <em>System</em>) in the site header.
+          </li>
+          <li>
+            <code>plausible_ignore</code>: Written only when you click <em>Opt out of analytics</em> above so that future visits suppress all Plausible Analytics tracking requests.
+          </li>
+        </ul>
+
+        <h2>5. Server Log Files &amp; Static Hosting</h2>
         <p>
           When accessing pages of this static website (hosted via <code>hackenberg.tech</code> / GitHub Pages infrastructure), the delivering web server automatically processes technical HTTP request metadata required to establish a secure TLS connection and transmit static assets:
         </p>
@@ -74,12 +133,12 @@ import { SITE_META, withBase } from '../site/url';
           Processing is carried out on the legal basis of Art. 6(1)(f) GDPR (legitimate interest in secure, reliable, and abuse-resistant technical provision of the online documentation). Log data is not merged with other data sources and is automatically rotated and deleted in accordance with hosting retention schedules.
         </p>
 
-        <h2>5. Direct Contact via Email or Phone</h2>
+        <h2>6. Direct Contact via Email or Phone</h2>
         <p>
           If you contact us by email or telephone, the contact details and message content you provide are processed exclusively for handling your inquiry and any follow-up questions (Art. 6(1)(b) GDPR for pre-contractual/contractual communication or Art. 6(1)(f) GDPR for general technical/open-source inquiries). We do not share this information with third parties without your consent.
         </p>
 
-        <h2>6. External Links</h2>
+        <h2>7. External Links</h2>
         <p>
           This website contains outgoing reference and attribution links to external third-party platforms—including the{' '}
           <a href={SITE_META.repoUrl} target="_blank" rel="noreferrer">GitHub repository</a>,{' '}
@@ -87,7 +146,7 @@ import { SITE_META, withBase } from '../site/url';
           <code>arxiv.org</code>, <code>wikipedia.org</code>, <code>commons.wikimedia.org</code>, and <code>creativecommons.org</code>. No personal data or IP address is transferred to those providers until you actively click an external link, after which the privacy policies of the respective platform operator apply.
         </p>
 
-        <h2>7. Your Rights under GDPR &amp; Supervisory Authority</h2>
+        <h2>8. Your Rights under GDPR &amp; Supervisory Authority</h2>
         <p>
           Under Art. 15–21 GDPR, you have the right at any time to request access to your personal data, rectification, erasure, restriction of processing, data portability, and to object to processing based on Art. 6(1)(f) GDPR.
         </p>
@@ -112,11 +171,18 @@ import { SITE_META, withBase } from '../site/url';
           </p>
           <ul class="mt-3 space-y-2 border-t border-slate-200/80 pt-3 text-slate-600 dark:border-slate-800/80 dark:text-slate-400">
             <li>Cookies set: <strong class="font-mono text-slate-900 dark:text-slate-100">0</strong></li>
-            <li>Analytics / trackers: <strong class="font-mono text-slate-900 dark:text-slate-100">None</strong></li>
+            <li>Analytics: <strong class="font-mono text-slate-900 dark:text-slate-100">Plausible (cookieless)</strong></li>
+            <li>Analytics host: <code class="font-mono">analytics.mentawise.com</code></li>
             <li>External font / media CDNs: <strong class="font-mono text-slate-900 dark:text-slate-100">None (self-hosted)</strong></li>
-            <li>Local storage: <code class="font-mono">simplex-theme</code> only</li>
+            <li>Local storage: <code class="font-mono">simplex-theme</code>, <code class="font-mono">plausible_ignore</code> (opt-out)</li>
           </ul>
           <div class="mt-4 flex flex-col gap-2 border-t border-slate-200/80 pt-3 dark:border-slate-800/80">
+            <a
+              href="#analytics-opt-out"
+              class="font-semibold text-cyan-700 hover:underline dark:text-cyan-300"
+            >
+              Manage analytics opt-out ↓
+            </a>
             <a
               href={withBase('/imprint')}
               class="font-semibold text-cyan-700 hover:underline dark:text-cyan-300"
@@ -137,3 +203,41 @@ import { SITE_META, withBase } from '../site/url';
     </div>
   </div>
 </BaseLayout>
+
+<script>
+  import { isPlausibleOptedOut, setPlausibleOptOut } from '../site/analytics';
+
+  function bindAnalyticsOptOutUi() {
+    const statusEl = document.getElementById('sv-analytics-status');
+    const buttonEl = document.getElementById('sv-analytics-optout-btn');
+    if (!statusEl || !(buttonEl instanceof HTMLButtonElement)) return;
+
+    const renderState = (optedOut: boolean) => {
+      if (optedOut) {
+        statusEl.textContent =
+          'Status: Opted out — Plausible Analytics is disabled in this browser (plausible_ignore=true).';
+        buttonEl.textContent = 'Re-enable analytics';
+        buttonEl.setAttribute('aria-pressed', 'true');
+      } else {
+        statusEl.textContent =
+          'Status: Active — Cookieless pageview measurement is enabled for hackenberg.tech/simplex-viz.';
+        buttonEl.textContent = 'Opt out of analytics';
+        buttonEl.setAttribute('aria-pressed', 'false');
+      }
+    };
+
+    renderState(isPlausibleOptedOut());
+
+    buttonEl.addEventListener('click', () => {
+      const nextOptOut = !isPlausibleOptedOut();
+      const updated = setPlausibleOptOut(nextOptOut);
+      renderState(updated);
+    });
+
+    window.addEventListener('simplex-analytics-change', () => {
+      renderState(isPlausibleOptedOut());
+    });
+  }
+
+  bindAnalyticsOptOutUi();
+</script>

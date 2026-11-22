@@ -13,6 +13,7 @@
         "@fontsource/ibm-plex-mono": "^5.3.0",
         "@fontsource/plus-jakarta-sans": "^5.3.0",
         "@google/genai": "^2.4.0",
+        "@plausible-analytics/tracker": "^0.4.7",
         "@tailwindcss/vite": "^4.3.3",
         "@vitejs/plugin-react": "^6.1.1",
         "astro": "^7.4.12",
@@ -53,13 +54,20 @@
         "woff2-encoder": "^2.0.0",
       },
     },
+    "packages/canvas": {
+      "name": "@simplex-viz/canvas",
+      "version": "1.0.0",
+      "dependencies": {
+        "@simplex-viz/core": "workspace:^",
+      },
+    },
     "packages/core": {
       "name": "@simplex-viz/core",
-      "version": "0.12.0",
+      "version": "1.0.0",
     },
     "packages/react": {
       "name": "@simplex-viz/react",
-      "version": "0.12.0",
+      "version": "1.0.0",
       "dependencies": {
         "@simplex-viz/core": "workspace:^",
         "@simplex-viz/svg": "workspace:^",
@@ -71,14 +79,14 @@
     },
     "packages/svg": {
       "name": "@simplex-viz/svg",
-      "version": "0.12.0",
+      "version": "1.0.0",
       "dependencies": {
         "@simplex-viz/core": "workspace:^",
       },
     },
     "packages/wc": {
       "name": "@simplex-viz/wc",
-      "version": "0.12.0",
+      "version": "1.0.0",
       "dependencies": {
         "@simplex-viz/core": "workspace:^",
         "@simplex-viz/svg": "workspace:^",
@@ -426,6 +434,8 @@
 
     "@oxc-transform-react/binding-win32-x64-msvc": ["@oxc-transform-react/binding-win32-x64-msvc@0.156.0", "", { "os": "win32", "cpu": "x64" }, "sha512-q9prdGO0cgS+fFCsHmW6O8ckf6JS0u3D5DbFbg0Vxsft6cwi1aWI+bnFpi6MaiN3hn3zJF763K8DGl9qOQZ9TA=="],
 
+    "@plausible-analytics/tracker": ["@plausible-analytics/tracker@0.4.7", "", {}, "sha512-majmq1uion4uLo88Tr0eMCMfi7TY00okp3I0Vql9egFaAz6DYCW4bJaV3t5LB3BfcvW5exJpmqzROU0a1b6nAA=="],
+
     "@pnpm/deps.graph-sequencer": ["@pnpm/deps.graph-sequencer@1100.0.1", "", {}, "sha512-pOr5+q1fLYKwFN3LAJuGZEnfXDcQ73zqgDHMtGy+K+uIoUqyY+6MeDCWFwfu+4EFuq76I5EPFofoNAI+Bmmq4A=="],
 
     "@protobufjs/aspromise": ["@protobufjs/aspromise@1.1.2", "", {}, "sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ=="],
@@ -575,6 +585,8 @@
     "@shikijs/types": ["@shikijs/types@4.6.0", "", { "dependencies": { "@shikijs/vscode-textmate": "^10.1.0", "@types/hast": "^3.0.5" } }, "sha512-+ENG1adsKt/X7cRYw1Nl7BEpBmPOjmQ7bR/eGmHuMlT8gtOFf3KEi5l31DJYyAWhW6Y6bjP1plU7FmaxWGENFw=="],
 
     "@shikijs/vscode-textmate": ["@shikijs/vscode-textmate@10.1.0", "", {}, "sha512-cVBuhDQjBZaNMTwBquYfPydrUP+E3hE6oYGasx8h6ZrODIM7/r+gxLDXdd66oszbrggZHEntdE6j+5gYIVyMWQ=="],
+
+    "@simplex-viz/canvas": ["@simplex-viz/canvas@workspace:packages/canvas"],
 
     "@simplex-viz/core": ["@simplex-viz/core@workspace:packages/core"],
 
