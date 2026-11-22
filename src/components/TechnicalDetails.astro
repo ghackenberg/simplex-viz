@@ -1,0 +1,54 @@
+---
+interface Props {
+  title: string;
+  summary?: string;
+  defaultOpen?: boolean;
+}
+
+const { title, summary, defaultOpen = false } = Astro.props;
+---
+
+<details
+  open={defaultOpen}
+  class="group my-6 rounded-xl border border-slate-200/90 bg-slate-50/60 dark:border-slate-800/85 dark:bg-[#0B0F17]"
+>
+  <summary
+    class="not-prose flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-5 py-3.5 text-left select-none transition-colors duration-150 hover:bg-slate-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:hover:bg-slate-900/60 motion-reduce:transition-none [&::-webkit-details-marker]:hidden"
+  >
+    <span class="min-w-0">
+      <span class="block text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+        {title}
+      </span>
+      {
+        summary && (
+          <span class="mt-0.5 block text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+            {summary}
+          </span>
+        )
+      }
+    </span>
+
+    <span class="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-cyan-700 dark:text-cyan-300 whitespace-nowrap">
+      <span class="group-open:hidden">Show details</span>
+      <span class="hidden group-open:inline">Hide details</span>
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 16 16"
+        fill="none"
+        class="h-4 w-4 transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none"
+      >
+        <path
+          d="M4 6l4 4 4-4"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </span>
+  </summary>
+
+  <div class="sv-prose border-t border-slate-200/80 px-5 py-4 text-[14.5px] dark:border-slate-800/80">
+    <slot />
+  </div>
+</details>

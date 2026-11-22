@@ -10,6 +10,14 @@ function stripMdxImportsAndJsxIslands(rawBody: string | undefined): string {
     .replace(/<StrategyDecisionList[\s\S]*?\/>/g, '')
     .replace(/<StrategyDiagram[\s\S]*?\/>/g, '')
     .replace(/<StrategyParameterComparison[\s\S]*?\/>/g, '')
+    .replace(/<TechnicalDetails\b([\s\S]*?)>/g, (_match, attrs: string) => {
+      const titleMatch = /\btitle=(?:"([^"]+)"|'([^']+)')/.exec(attrs);
+      const summaryMatch = /\bsummary=(?:"([^"]+)"|'([^']+)')/.exec(attrs);
+      const title = titleMatch?.[1] ?? titleMatch?.[2] ?? 'Technical Specification';
+      const summary = summaryMatch?.[1] ?? summaryMatch?.[2];
+      return summary ? `### ${title}\n*${summary}*\n` : `### ${title}\n`;
+    })
+    .replace(/<\/TechnicalDetails>/g, '')
     .split('\n')
     .filter((line) => !line.trim().startsWith('import '))
     .filter((line) => !line.includes('<UseCaseMiniAtlas'))

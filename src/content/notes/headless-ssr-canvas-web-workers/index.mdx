@@ -1,0 +1,101 @@
+---
+title: "Scaling Beyond Browser SVG: Zero-DOM SSR, Canvas 2D & Web Workers"
+description: Taking SimplexViz from hundreds of interactive DOM nodes to zero-DOM server rendering (@simplex-viz/svg/ssr), 10,000-node HTML5 Canvas 2D scenes (@simplex-viz/canvas), and zero-copy Web Worker layouts (@simplex-viz/core/worker).
+publishedDate: "2026-11-21"
+author: Dr. Georg Hackenberg
+authorRole: Creator of SimplexViz
+category: Geometry
+featured: false
+summaryPoints:
+  - "@simplex-viz/svg/ssr renders complete overlap-free SVG strings and deterministic badge widths without window or document."
+  - "@simplex-viz/canvas renders 2,000–10,000+ items on a single HiDPI <canvas> with frustum culling, automatic lodThresholdPx LOD, 1:4 drill-down, timelines, and PNG export."
+  - "@simplex-viz/core/worker moves clustering and SAT layout relaxation off the UI thread with AbortSignal cancellation and zero-copy Float32Array transfers."
+---
+
+import TechnicalDetails from '../../../components/TechnicalDetails.astro';
+
+Interactive `<svg>` scene graphs excel when a corpus has a few dozen to a few hundred items: every node inherits CSS variables, supports crisp vector zooming, exposes individual DOM roles, and animates smoothly via standard attributes.
+
+Push past two thousand nodes—or move onto a Node.js server with no DOM—and two bottlenecks appear immediately: **server environments lack `getBBox()`**, and **browser layouts stall when reconciling thousands of SVG elements at 60 FPS**.
+
+Between `0.11` and `0.14`, SimplexViz solved both limits while keeping the exact same clustering, OKLab color mixing, convex SAT guarantee, and `1:4` drill-down model.
+
+## 1. Zero-DOM Server Rendering & Snapshot Export (`@simplex-viz/svg/ssr`)
+
+Many real-world apps want static social preview cards, email digests, printable reports, or zero-JS server-rendered previews without launching a headless Chromium instance.
+
+`@simplex-viz/svg/ssr` renders any dataset or pre-solved `SimplexLayoutSnapshot` straight into a standalone SVG string using zero browser globals. Even `'badges'` labels work deterministically on the server via proportional text-width heuristics (`estimateSsrTextWidth()`) or a custom `measureText` callback when exact server font shaping is required.
+
+On the client side, `SimplexSvgController` pairs with `exportSvg()` (inlining theme backgrounds, padding, and computed styles cleanly while stripping temporary selection marquees) and HiDPI `exportPng()` (`Blob` or `dataUrl` across PNG, JPEG, or WebP).
+
+<TechnicalDetails
+  title="Technical Details: @simplex-viz/svg/ssr & Snapshot Export Contracts"
+  summary="Server-side string rendering API, deterministic hull measurers, and client SVG/PNG serialization options."
+>
+
+- **Server Entrypoint (`@simplex-viz/svg/ssr`)**:
+  - `renderSimplexSvgString(itemsOrSnapshot, options?)`: Accepts raw items or an already-solved `SimplexLayoutSnapshot`. Supports all built-in presets (`'geometric'`, `'glyphs'`, `'badges'`), themes, `itemFilter`, `highlightedIds`, hulls, and custom SVG string hooks (`renderTriangle`, `renderEdge`, `renderCluster`, `renderContent`).
+  - `estimateSsrTextWidth(text, fontSizePx)` and `createSsrPresetHullMeasurers({ measureText? })` replace DOM `getBBox()` on Node.js, Edge runtimes, and static build pipelines (usable alongside `@resvg/resvg-js` for server PNG rasterization).
+- **Client Snapshot Export (`SimplexSvgController` & `handle`)**:
+  - `exportSvg(options?)` (`ExportSvgOptions`): `includeBackground`, `backgroundColor`, `padding`, `width`, `height`, `inlineStyles`, `includeFocusRing`, `title`, `xmlDeclaration`.
+  - `exportPng(options?)` (`ExportPngOptions`): `scale` (default `2`), `format: 'blob' | 'dataUrl'`, `mimeType: 'image/png' | 'image/jpeg' | 'image/webp'`, `quality`.
+  - `resolveThemeBackgroundColor(theme)` resolves canonical canvas backdrops consistently across light and dark modes.
+
+</TechnicalDetails>
+
+## 2. High-Capacity HTML5 Canvas 2D (`@simplex-viz/canvas`)
+
+When an explorer needs to display 3,500 stars or 10,000 embedding vectors smoothly on a laptop or tablet, replacing thousands of SVG DOM nodes with a single HiDPI `<canvas>` drops frame times dramatically.
+
+`@simplex-viz/canvas` implements the Layer-2 rendering contract **independently of `@simplex-viz/svg`**—meaning teams scaling large corpora don't even bundle the SVG view classes:
+
+- **World-Space Frustum Culling**: Before issuing Canvas draw calls, triangles, edges, badges, and items outside the active viewport bounds are skipped cleanly.
+- **Automatic Level-of-Detail (`lodThresholdPx`)**: When zoomed out so an individual glyph or polygon spans fewer pixels than `lodThresholdPx`, `CanvasRendererAdapter` degrades intricate multi-arc shapes or N-gons into fast filled circles or cluster pills—then seamlessly restores full vector geometry as the user zooms in or drills down.
+- **Full Feature Parity**: HiDPI `devicePixelRatio` scaling, continuous pan/zoom and `1:4` drill-down with breadcrumbs, chronological timelines (`formatStepLabel` and headless `subscribeTimeline()`), `Shift+Click`/`Shift+Drag` marquees, WCAG keyboard navigation, custom DOM tooltips, `getLegendModel()`, `getViewState()` / `restoreViewState()`, and zero-serialization native `canvas.toBlob()` PNG export via `exportPng()`.
+
+Try it live on 1,000–3,500 stars in the interactive **Hertzsprung-Russell Stellar Spectral Atlas** example.
+
+## 3. Off-Thread Solving with Zero-Copy Workers (`@simplex-viz/core/worker`)
+
+Drawing fast frames solves rendering; solving heavy clustering and SAT layout relaxation for thousands of items on a background thread keeps scrolling, typing, and hover responsive even while a new dataset settles.
+
+`@simplex-viz/core/worker` provides a tiny versioned RPC layer (`SIMPLEX_WORKER_PROTOCOL_VERSION = 1`) that works identically with browser Web Workers, Node.js `worker_threads`, and an automatic main-thread async fallback in SSR or non-worker environments:
+
+```ts
+import { createSimplexWorkerClient } from '@simplex-viz/core/worker';
+import { renderSimplexSnapshotToCanvas } from '@simplex-viz/canvas';
+
+const worker = createSimplexWorkerClient(
+  () => new Worker(new URL('./solver.worker.ts', import.meta.url), { type: 'module' }),
+);
+
+const { snapshot } = await worker.solve(largeCorpus, {
+  width: 1200,
+  height: 760,
+  layoutStrategy: { kind: 'collision-driven' },
+});
+
+renderSimplexSnapshotToCanvas(canvasEl, snapshot, { theme: 'dark' });
+```
+
+If the user types a new query or changes sliders before an expensive solve finishes, `createSimplexWorkerClient()` automatically supersedes stale in-flight requests—cancelling cleanly via `AbortSignal` without race conditions.
+
+<TechnicalDetails
+  title="Technical Details: Canvas Culling Telemetry, Worker RPC v1 & Headless Timelines"
+  summary="Render telemetry counters, transferable Float32Array protocol rules, pluggable custom worker solvers, and timeline subscription hooks."
+>
+
+- **`@simplex-viz/canvas` API & Telemetry**:
+  - `createSimplexCanvas(container, itemsOrOptions)`, `SimplexCanvasController`, `CanvasRendererAdapter`, `renderSimplexSnapshotToCanvas(canvas, snapshot, options?)`, and `createCanvasPresetVisualResolver(preset, options?)`.
+  - `controller.getRenderStats()` returns `CanvasRenderStats` (`renderedItems`, `culledItems`, `lodSimplifiedItems`, triangle/edge counts) and `onFpsUpdate` emits smoothed frame telemetry during pan/spring loops.
+  - Pluggable hooks: `CanvasNodeRenderer`, `CanvasTriangleRenderer`, `CanvasEdgeRenderer`.
+- **`@simplex-viz/core/worker` Protocol v1**:
+  - `createSimplexWorkerClient(portFactory, options?)` & `attachSimplexWorkerHandler(port, { solver? })` (supporting future Rust/WASM drop-in solvers).
+  - `solveSimplexWorkerRequest()` and `solveSimplexSnapshotAsync()` allow isomorphic async solving with zero code branching between worker-enabled browsers and SSR tests.
+  - Embeddings passed as `Float32Array` are transferred via structured clone `transfer` lists with zero buffer copies, and main-thread `TItem` references are rehydrated cleanly by item ID.
+  - Cancelled requests reject with `SimplexWorkerClientError` identifiable via `isSimplexWorkerCancelledError(err)`.
+- **Headless Timeline Extensions (`formatStepLabel` & `subscribeTimeline`)**:
+  - `formatStepLabel?: (step, index, total) => string` formats timeline HUD pills (e.g., `"2024 Q3"`).
+  - Even when `timeline.showControls` is `false`, `requestAnimationFrame` playback advances automatically while `subscribeTimeline(listener)` on `SimplexSvgController`, `SimplexCanvasController`, `handle`, and `<simplex-topic-graph>` lets external host HUDs drive and mirror playback cleanly.
+
+</TechnicalDetails>

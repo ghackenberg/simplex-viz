@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <!-- Left Panel: @simplex-viz/svg/ssr -->
+  <g>
+    <rect class="sv-panel sv-panel-stroke" x="34" y="64" width="198" height="306" rx="14" fill="#0B111E" stroke="#1E293B" stroke-width="1.6"/>
+    <text class="sv-text-cyan" x="133" y="96" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11.5" font-weight="700" fill="#22D3EE">SSR STRING</text>
+    <polygon class="sv-edge" points="133,136 74,238 192,238" fill="#06B6D4" fill-opacity="0.12" stroke="#22D3EE" stroke-width="1.6"/>
+    <circle class="sv-cutout" cx="122" cy="202" r="10" fill="#06B6D4" stroke="#07090E" stroke-width="2"/>
+    <circle class="sv-cutout" cx="152" cy="216" r="9" fill="#F59E0B" stroke="#07090E" stroke-width="2"/>
+    <text class="sv-ink" x="133" y="286" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11" fill="#94A3B8">&lt;svg xmlns=.../&gt;</text>
+    <text class="sv-ink" x="133" y="308" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="10.5" fill="#64748B">Zero-DOM · Node</text>
+  </g>
+
+  <!-- Center Panel: @simplex-viz/core/worker -->
+  <g>
+    <rect class="sv-panel sv-panel-stroke" x="274" y="96" width="220" height="242" rx="14" fill="#0B111E" stroke="#F59E0B" stroke-width="1.6" stroke-opacity="0.8"/>
+    <text class="sv-text-amber" x="384" y="130" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11.5" font-weight="700" fill="#FBBF24">WORKER RPC v1</text>
+
+    <!-- Zero-Copy Float32Array Lane -->
+    <rect class="sv-subpanel sv-panel-stroke" x="298" y="156" width="172" height="44" rx="8" fill="#07090E" stroke="#334155" stroke-width="1.2"/>
+    <text class="sv-ink" x="384" y="182" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11" font-weight="600" fill="#E2E8F0">Float32Array transfer</text>
+
+    <rect class="sv-subpanel sv-panel-stroke" x="298" y="216" width="172" height="44" rx="8" fill="#07090E" stroke="#334155" stroke-width="1.2"/>
+    <text class="sv-ink" x="384" y="242" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11" font-weight="600" fill="#E2E8F0">SAT Solve + AbortSignal</text>
+
+    <text class="sv-text-amber" x="384" y="302" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="10.5" font-weight="600" fill="#FBBF24">SNAPSHOT → RENDER</text>
+  </g>
+
+  <!-- Arrow Worker -> Canvas -->
+  <line class="sv-stroke-cyan" x1="494" y1="217" x2="532" y2="217" stroke="#22D3EE" stroke-width="2" stroke-dasharray="4 3"/>
+  <polygon points="538,217 528,211 528,223" fill="#22D3EE"/>
+
+  <!-- Right Panel: @simplex-viz/canvas (Frustum Culling + LOD) -->
+  <g>
+    <rect class="sv-panel sv-panel-stroke" x="538" y="64" width="228" height="306" rx="14" fill="#0B111E" stroke="#22D3EE" stroke-width="1.8"/>
+    <text class="sv-text-cyan" x="652" y="96" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11.5" font-weight="700" fill="#22D3EE">CANVAS 2D · 10k+</text>
+
+    <!-- Culled outer points -->
+    <g opacity="0.28">
+      <circle cx="566" cy="136" r="4" fill="#64748B"/>
+      <circle cx="736" cy="142" r="4" fill="#64748B"/>
+      <circle cx="570" cy="316" r="4" fill="#64748B"/>
+      <circle cx="734" cy="310" r="4" fill="#64748B"/>
+    </g>
+
+    <!-- Active Frustum Viewport Box -->
+    <rect x="576" y="148" width="152" height="148" rx="8" fill="#06B6D4" fill-opacity="0.08" stroke="#22D3EE" stroke-width="1.5" stroke-dasharray="5 3"/>
+    <polygon class="sv-edge" points="652,166 594,274 710,274" fill="#06B6D4" fill-opacity="0.12" stroke="#334155" stroke-width="1.3"/>
+
+    <!-- Dense LOD dots inside frustum -->
+    <circle cx="650" cy="204" r="5" fill="#06B6D4"/>
+    <circle cx="636" cy="224" r="4.5" fill="#22D3EE"/>
+    <circle cx="666" cy="226" r="5" fill="#D946EF"/>
+    <circle cx="622" cy="252" r="4.5" fill="#F59E0B"/>
+    <circle cx="648" cy="248" r="5" fill="#A855F7"/>
+    <circle cx="678" cy="256" r="4.5" fill="#F59E0B"/>
+    <circle cx="658" cy="264" r="4" fill="#06B6D4"/>
+
+    <text class="sv-ink" x="652" y="330" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="10.5" font-weight="600" fill="#CBD5E1">Frustum Cull + LOD</text>
+    <text class="sv-ink" x="652" y="350" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="10.5" fill="#64748B">60 FPS · HiDPI PNG</text>
+  </g>
+</svg>

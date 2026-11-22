@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <!-- Version Banner -->
+  <text class="sv-text-cyan" x="400" y="54" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13" font-weight="700" fill="#22D3EE">SIMPLEXVIZ v1.0.0 · MONOREPO BOUNDARIES</text>
+
+  <!-- Layer 3: Framework Bindings -->
+  <g>
+    <rect class="sv-panel sv-panel-stroke" x="110" y="84" width="268" height="74" rx="12" fill="#0B111E" stroke="#D946EF" stroke-width="1.8"/>
+    <text class="sv-text-fuchsia" x="244" y="116" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13" font-weight="700" fill="#E879F9">@simplex-viz/react</text>
+    <text class="sv-ink" x="244" y="139" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="10.5" fill="#94A3B8">React 18/19 · Hooks · JSX</text>
+
+    <rect class="sv-panel sv-panel-stroke" x="422" y="84" width="268" height="74" rx="12" fill="#0B111E" stroke="#10B981" stroke-width="1.8"/>
+    <text x="556" y="116" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13" font-weight="700" fill="#34D399">@simplex-viz/wc</text>
+    <text class="sv-ink" x="556" y="139" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="10.5" fill="#94A3B8">Custom Element · /define</text>
+  </g>
+
+  <!-- Dependency Connectors Layer 3 -> Layer 2 -->
+  <line class="sv-edge" x1="244" y1="158" x2="244" y2="196" stroke="#334155" stroke-width="1.8"/>
+  <line class="sv-edge" x1="556" y1="158" x2="292" y2="196" stroke="#334155" stroke-width="1.6" stroke-dasharray="4 3"/>
+
+  <!-- Layer 2: Peer Renderers -->
+  <g>
+    <rect class="sv-panel sv-panel-stroke" x="110" y="196" width="268" height="74" rx="12" fill="#0B111E" stroke="#06B6D4" stroke-width="1.8"/>
+    <text class="sv-text-cyan" x="244" y="228" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13" font-weight="700" fill="#22D3EE">@simplex-viz/svg</text>
+    <text class="sv-ink" x="244" y="251" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="10.5" fill="#94A3B8">DOM Scene Graph · /ssr</text>
+
+    <rect class="sv-panel sv-panel-stroke" x="422" y="196" width="268" height="74" rx="12" fill="#0B111E" stroke="#F59E0B" stroke-width="1.8"/>
+    <text class="sv-text-amber" x="556" y="228" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="13" font-weight="700" fill="#FBBF24">@simplex-viz/canvas</text>
+    <text class="sv-ink" x="556" y="251" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="10.5" fill="#94A3B8">Canvas 2D · LOD · No SVG Dep</text>
+  </g>
+
+  <!-- Dependency Connectors Layer 2 -> Layer 1 -->
+  <line class="sv-edge" x1="244" y1="270" x2="320" y2="308" stroke="#334155" stroke-width="1.8"/>
+  <line class="sv-edge" x1="556" y1="270" x2="480" y2="308" stroke="#334155" stroke-width="1.8"/>
+
+  <!-- Layer 1: Core + Exclusive Subpaths -->
+  <g>
+    <rect class="sv-panel sv-panel-stroke" x="110" y="308" width="580" height="92" rx="14" fill="#0B111E" stroke="#22D3EE" stroke-width="2"/>
+    <text class="sv-ink" x="400" y="340" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="14" font-weight="700" fill="#F8FAFC">@simplex-viz/core (ES2022 · Zero Deps)</text>
+
+    <rect class="sv-subpanel sv-panel-stroke" x="136" y="354" width="160" height="32" rx="7" fill="#07090E" stroke="#334155" stroke-width="1.2"/>
+    <text class="sv-text-cyan" x="216" y="374" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11" font-weight="600" fill="#22D3EE">. (DOM-Free)</text>
+
+    <rect class="sv-subpanel sv-panel-stroke" x="320" y="354" width="160" height="32" rx="7" fill="#07090E" stroke="#334155" stroke-width="1.2"/>
+    <text class="sv-text-amber" x="400" y="374" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11" font-weight="600" fill="#FBBF24">./worker</text>
+
+    <rect class="sv-subpanel sv-panel-stroke" x="504" y="354" width="160" height="32" rx="7" fill="#07090E" stroke="#334155" stroke-width="1.2"/>
+    <text class="sv-text-fuchsia" x="584" y="374" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11" font-weight="600" fill="#E879F9">./dom</text>
+  </g>
+</svg>

@@ -1,0 +1,94 @@
+---
+title: "SimplexViz 1.0: Five Synchronized Packages & Strict Subpath Boundaries"
+description: Releasing v1.0.0 across @simplex-viz/core, @simplex-viz/svg, @simplex-viz/canvas, @simplex-viz/react, and @simplex-viz/wc—introducing @simplex-viz/core/dom, canonical subpaths, and CI contract enforcement.
+publishedDate: "2026-11-22"
+author: Dr. Georg Hackenberg
+authorRole: Creator of SimplexViz
+category: Release
+featured: true
+summaryPoints:
+  - All five packages (@simplex-viz/core, @simplex-viz/svg, @simplex-viz/canvas, @simplex-viz/react, @simplex-viz/wc) ship in lockstep at v1.0.0 with zero internal circular dependencies.
+  - A new zero-dependency @simplex-viz/core/dom subpath unifies container resizing, ARIA announcers, tooltips, gestures, and zoom math across SVG, Canvas, React, and Web Components while preserving an ES2022 DOM-free root.
+  - Specialized entrypoints (@simplex-viz/core/worker, @simplex-viz/core/dom, @simplex-viz/svg/ssr, @simplex-viz/wc/define) are strictly canonical and verified by automated TypeScript declaration tests in CI.
+---
+
+import TechnicalDetails from '../../../components/TechnicalDetails.astro';
+
+SimplexViz **1.0.0** is live across all five packages of the monorepo: `@simplex-viz/core`, `@simplex-viz/svg`, `@simplex-viz/canvas`, `@simplex-viz/react`, and `@simplex-viz/wc`.
+
+Rather than rushing into `1.0.0` immediately after adding Canvas 2D and Web Components, we spent the final milestone consolidating the architecture so every layer is clean, predictable, and safe to depend on long term.
+
+## 1. Five Synchronized Packages Under One Mental Model
+
+Whether you build with plain HTML, Astro, Vue, Svelte, React 19, Canvas 2D, or Node.js servers, the entire SimplexViz stack now shares one unified vocabulary and synchronized `1.0.0` version:
+
+- **`@simplex-viz/core`**: The zero-dependency, DOM-free `ES2022` engine (hex triangulation, clustering, OKLab color science, convex SAT collision physics, `1:4` drill-down, timelines)—plus opt-in `@simplex-viz/core/worker` and `@simplex-viz/core/dom`.
+- **`@simplex-viz/svg`**: Framework-agnostic interactive SVG scene graph, pluggable node/triangle/edge views, client SVG/PNG snapshot export, and zero-DOM `@simplex-viz/svg/ssr`.
+- **`@simplex-viz/canvas`**: High-capacity HTML5 Canvas 2D renderer for 2,000–10,000+ items at 60 FPS with frustum culling, automatic LOD, and zero dependency on `@simplex-viz/svg`.
+- **`@simplex-viz/react`**: Type-safe React 18/19 `<SimplexTopicGraph />`, headless JSX renderers, edge-flipping JSX tooltips, `useSimplexGraphController()`, and `useSimplexTimeline()`.
+- **`@simplex-viz/wc`**: A dedicated framework-agnostic `<simplex-topic-graph>` Web Component with zero React dependency, Light-DOM CSS/webfont compatibility, inline `<script type="application/json">` support, and SSR-safe `@simplex-viz/wc/define` registration.
+
+## 2. Why We Extracted `@simplex-viz/core/dom` Before 1.0
+
+Once `@simplex-viz/svg`, `@simplex-viz/canvas`, `@simplex-viz/react`, and `@simplex-viz/wc` all matured, a recurring pattern stood out: container measurement, `prefers-reduced-motion` listeners, webfont relayout subscriptions, screen-reader live regions, viewport edge-flipping tooltips, pinch-drill math, keyboard focus stepping, and timeline HUD wiring were duplicated across layers.
+
+Moving browser-DOM code directly into `@simplex-viz/core` root was off the table—it would break our `ES2022` zero-DOM contract for Edge runtimes, Web Workers, and Node SSR.
+
+Instead, we introduced **`@simplex-viz/core/dom`**: a zero-dependency subpath written against purely **structural TypeScript interfaces** (`SimplexDomElementLike`, `SimplexDomDocumentLike`, `SimplexDomWindowLike`). That gives `@simplex-viz/svg`, `@simplex-viz/canvas`, `@simplex-viz/react`, and `@simplex-viz/wc` one shared source of truth—including unified edge-flipping tooltips in `<SimplexTopicGraph />`—while keeping `@simplex-viz/core` clean even under `tsc --skipLibCheck false`.
+
+## 3. Exclusive Canonical Subpaths & Breaking Cleanup
+
+Before `1.0.0`, root packages temporarily re-exported `@simplex-viz/core/worker` and `@simplex-viz/svg/ssr` for convenience. Those root convenience re-exports carried a subtle hazard: importing `@simplex-viz/react` or `@simplex-viz/canvas` could pull worker RPC types or server-only SSR string formatters into unexpected bundles, and `@simplex-viz/wc` needed a strict separation between side-effect-free imports and Custom Element registration.
+
+In `1.0.0`, specialized subpaths are **exclusive canonical entrypoints**, enforced on every commit by `docsContract.test.ts` and `publint`:
+
+- `@simplex-viz/core/worker` (off-thread RPC & async fallback)
+- `@simplex-viz/core/dom` (shared browser/host structural helpers)
+- `@simplex-viz/svg/ssr` (zero-DOM server string renderer)
+- `@simplex-viz/wc/define` (`sideEffects: true` auto-registration of `<simplex-topic-graph>`)
+
+<TechnicalDetails
+  title="Technical Details: Complete Package Matrix, Extracted Helpers & 0.x → 1.0.0 Migration"
+  summary="Full inventory of all nine entrypoints, extracted @simplex-viz/core and @simplex-viz/core/dom APIs, @simplex-viz/wc attributes/events, and canonical import migration snippets."
+>
+
+### Entry Point Matrix (`v1.0.0`)
+
+| Entry Point | Environment | DOM-Free | Side Effects | Root Re-Exported |
+| :--- | :--- | :---: | :---: | :---: |
+| `@simplex-viz/core` | Universal ES2022 / Worker / Node | Yes | No | Root |
+| `@simplex-viz/core/worker` | Web Worker / `worker_threads` / Fallback | Yes | No | Exclusive |
+| `@simplex-viz/core/dom` | Browser / Structural Host | No | No | Exclusive |
+| `@simplex-viz/svg` | Browser DOM | No | No | Root |
+| `@simplex-viz/svg/ssr` | Node.js / Edge / SSR | Yes | No | Exclusive |
+| `@simplex-viz/canvas` | Browser Canvas 2D (no SVG dep) | No | No | Root |
+| `@simplex-viz/react` | React 18 & 19 | No | No | Root |
+| `@simplex-viz/wc` | Browser / SSR-Safe Module | No | No | Root |
+| `@simplex-viz/wc/define` | Browser `CustomElementRegistry` | No | Yes | Exclusive |
+
+### Consolidated Shared Helpers in `@simplex-viz/core` & `@simplex-viz/core/dom`
+
+- **DOM-Free Core Helpers (`@simplex-viz/core`)**: `extractSimplexItemLabel`, `truncateSimplexBadgeTitle`, `resolveClusterBadgeTitle`, `resolveGeometricShapeSpec`, `NAMED_POLYGON_SIDES`, `getHexRelativeLuminance`, `resolveClusterSurfaceColors`, `hexWithAlpha`, `estimateSimplexTextWidth`, `createSimplexTimelineNotifier`, `areSimplexMeshOptionsEqual`, `areSimplexLayoutOptionsEqual`, `areSimplexTimelineOptionsEqual`, `normalizeTimelineLayoutScaleMode`, `wrapClusteringStrategyForTimeline`, `wrapLayoutStrategyForTimeline`.
+- **Structural Host Helpers (`@simplex-viz/core/dom`)**: `resolveSimplexContainer`, `measureSimplexContainer`, `ensureSimplexContainerPositioned`, `observeSimplexContainerResize`, `resolveSimplexReducedMotion`, `subscribeSimplexReducedMotionMedia`, `subscribeSimplexFontLoadRelayout`, `createSimplexSrAnnouncer`, `computeSimplexZoomAnnouncementSignature`, `formatSimplexInteractiveTargetAriaLabel`, `formatSimplexZoomLevelAnnouncement`, `applySimplexTooltipTheme`, `computeSimplexTooltipCoords`, `positionSimplexTooltipElement`, `buildSimplexTooltipContentModel`, `formatSimplexTooltipText`, `resolveSimplexPinchDrillTarget`, `applySimplexPinchDrillTarget`, `resolveSimplexCursorForPoint`, `stepSimplexDrillDownWheelPinch`, `normalizeSimplexMarqueeRect`, `dispatchSimplexDefaultLeftClick`, `isSameSimplexKeyboardTarget`, `toSimplexKeyboardFocusTargetRef`, `resolveNextSimplexKeyboardFocusIndex`, `isSimplexHoverEventConsumed`, `zoomSimplexViewportByFactor`, `toSimplexNormalizedPointerEvent`.
+
+### `@simplex-viz/wc` (`<simplex-topic-graph>`) Contract Summary
+
+- **24 Reactive Attributes**: `preset`, `theme`, `renderer`, `tooltip`, `aria-label`, `keyboard-navigation`, `reduced-motion`, `marquee-selection`, `shift-click-selects`, `show-zoom-breadcrumbs`, `show-hulls`, `empty-cluster-behavior`, `defer-initial-layout`, `item-filter-mode`, `touch-scroll-lock-px`, `click-tolerance-px`, `focus-on-cluster-click`, `focus-on-triangle-click`, `relayout-on-font-load`, `timeline`, `items`, `selected-ids`, `highlighted-ids`, `pinned-ids`.
+- **8 Bubbling & Composed `CustomEvent`s**: `simplex-click`, `simplex-hover`, `simplex-selection-change`, `simplex-zoom`, `simplex-timeline-change`, `simplex-metrics`, `simplex-clusters-change`, `simplex-legend-change`.
+
+### Upgrading from `0.x` to `1.0.0`
+
+Update any worker or SSR imports previously imported from package roots to their canonical subpaths:
+
+```ts
+// Before (0.x convenience re-exports)
+import { createSimplexWorkerClient } from '@simplex-viz/core';
+import { renderSimplexSvgString } from '@simplex-viz/svg';
+import { renderSimplexSvgString as renderFromReact } from '@simplex-viz/react';
+
+// After (1.0.0 canonical subpaths)
+import { createSimplexWorkerClient } from '@simplex-viz/core/worker';
+import { renderSimplexSvgString } from '@simplex-viz/svg/ssr';
+```
+
+</TechnicalDetails>

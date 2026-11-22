@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <!-- Main Equilateral Cell -->
+  <g>
+    <polygon class="sv-edge" points="400,66 190,348 610,348" fill="#06B6D4" fill-opacity="0.08" stroke="#24324A" stroke-width="1.8"/>
+    <line class="sv-edge" x1="295" y1="207" x2="505" y2="207" stroke="#334155" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="4 4"/>
+    <line class="sv-edge" x1="295" y1="207" x2="400" y2="348" stroke="#334155" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="4 4"/>
+    <line class="sv-edge" x1="505" y1="207" x2="400" y2="348" stroke="#334155" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="4 4"/>
+  </g>
+
+  <!-- Filtered-Out Dimmed Items (Anchored at Frozen SAT Coordinates) -->
+  <g opacity="0.24">
+    <circle class="sv-cutout" cx="395" cy="148" r="14" fill="#64748B" stroke="#07090E" stroke-width="2"/>
+    <circle class="sv-cutout" cx="288" cy="285" r="13" fill="#64748B" stroke="#07090E" stroke-width="2"/>
+    <polygon class="sv-cutout" points="484,274 498,286 484,298 470,286" fill="#64748B" stroke="#07090E" stroke-width="2"/>
+  </g>
+
+  <!-- Active Items Inside Shift+Drag Selection Marquee -->
+  <rect x="336" y="182" width="168" height="122" rx="10" fill="#8B5CF6" fill-opacity="0.12" stroke="#8B5CF6" stroke-width="1.8" stroke-dasharray="6 4"/>
+  <text x="420" y="172" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11" font-weight="600" fill="#A78BFA">SHIFT+DRAG MARQUEE</text>
+
+  <!-- Selected Violet-Ring Items -->
+  <circle cx="372" cy="236" r="17" fill="none" stroke="#8B5CF6" stroke-width="2.5"/>
+  <circle class="sv-cutout" cx="372" cy="236" r="12" fill="#06B6D4" stroke="#07090E" stroke-width="2"/>
+
+  <circle cx="432" cy="252" r="17" fill="none" stroke="#8B5CF6" stroke-width="2.5"/>
+  <polygon class="sv-cutout" points="432,238 444,252 432,266 420,252" fill="#F59E0B" stroke="#07090E" stroke-width="2"/>
+
+  <!-- Double-Halo WCAG 2.1 AA Keyboard Focus Ring -->
+  <circle cx="468" cy="222" r="21" fill="none" stroke="#07090E" stroke-width="4.5" opacity="0.85"/>
+  <circle cx="468" cy="222" r="21" fill="none" stroke="#22D3EE" stroke-width="2.2"/>
+  <circle class="sv-cutout" cx="468" cy="222" r="12" fill="#D946EF" stroke="#07090E" stroke-width="2"/>
+
+  <!-- Cluster Vertices -->
+  <circle class="sv-panel" cx="400" cy="66" r="20" fill="#0B111E" stroke="#06B6D4" stroke-width="2.6"/>
+  <text class="sv-ink" x="400" y="71" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="12" font-weight="700" fill="#F8FAFC">C1</text>
+
+  <circle class="sv-panel" cx="190" cy="348" r="20" fill="#0B111E" stroke="#F59E0B" stroke-width="2.6"/>
+  <text class="sv-ink" x="190" y="353" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="12" font-weight="700" fill="#F8FAFC">C2</text>
+
+  <circle class="sv-panel" cx="610" cy="348" r="20" fill="#0B111E" stroke="#D946EF" stroke-width="2.6"/>
+  <text class="sv-ink" x="610" y="353" text-anchor="middle" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="12" font-weight="700" fill="#F8FAFC">C3</text>
+
+  <!-- Bottom Control Strip: Filter Mode + ARIA Live -->
+  <g>
+    <rect class="sv-panel sv-panel-stroke" x="128" y="382" width="544" height="44" rx="10" fill="#0B0F17" stroke="#1E293B" stroke-width="1.6"/>
+    <text class="sv-text-cyan" x="156" y="408" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11.5" font-weight="600" fill="#22D3EE">FILTER: DIM</text>
+    <line class="sv-edge" x1="274" y1="393" x2="274" y2="415" stroke="#334155" stroke-width="1.2"/>
+    <text class="sv-ink" x="294" y="408" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11.5" font-weight="600" fill="#E2E8F0">ARIA: ACTIVE TARGET</text>
+    <line class="sv-edge" x1="476" y1="393" x2="476" y2="415" stroke="#334155" stroke-width="1.2"/>
+    <text class="sv-text-amber" x="496" y="408" font-family="IBM Plex Mono, Noto Sans, monospace" font-size="11.5" font-weight="600" fill="#FBBF24">VIEWSTATE v1</text>
+  </g>
+</svg>

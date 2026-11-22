@@ -1,0 +1,106 @@
+---
+title: "Zero-Relayout Filtering, Mobile Touch Physics & WCAG 2.1 AA"
+description: How SimplexViz solves hidden 0x0 tab mounts, vertical scroll hijacking on touch screens, stable cohort filtering, keyboard accessibility, reduced motion, and shareable deep-link URLs.
+publishedDate: "2026-11-20"
+author: Dr. Georg Hackenberg
+authorRole: Creator of SimplexViz
+category: Architecture
+featured: false
+summaryPoints:
+  - Hidden 0x0 container mounts recover automatically on first layout via ResizeObserver or opt-in deferInitialLayout with zero spring jump.
+  - Touch-scroll direction-locking and peak-displacement click tolerance stop interactive canvases from hijacking vertical mobile scrolling or firing accidental taps after pans.
+  - Zero-relayout itemFilter ('dim' | 'hide') keeps every node anchored while updating visibility, selection marquees, structured legend counts, and WCAG 2.1 AA keyboard navigation in one batch() commit.
+---
+
+import TechnicalDetails from '../../../components/TechnicalDetails.astro';
+
+A spatial visualization can pass every geometric benchmark in a standalone sandbox and still frustrate users the moment it lands inside a real product. Users open pages in background tabs, view dashboards on phones, toggle sidebar filters while comparing clusters, navigate solely by keyboard, or paste a URL to share what they just found.
+
+Across milestones `0.9` through `0.13`, we focused on closing that gap between laboratory demos and production-grade applications.
+
+## 1. Mounting in Hidden Tabs & Scrolling on Phones
+
+Two real-world host behaviors break naive canvas/SVG visualizations almost immediately:
+
+1. **Mounting at `0×0` inside hidden tabs, accordions, or modals.** If a graph initializes before CSS finishes loading or while its parent panel is collapsed (`width === 0, height === 0`), offscreen `getBBox()` measurements cache degenerate zero boxes and initial coordinates collapse around the origin. When the panel finally opens, nodes either stay crushed or snap violently across the screen.
+2. **Trapping vertical page scroll on touch devices.** When a full-width graph fills a mobile screen, a casual downward thumb swipe meant to scroll down the article often gets captured as a pan gesture—leaving the reader stuck inside the widget.
+
+SimplexViz handles both at the controller boundary without requiring host-app hacks:
+
+- **Automatic `0×0` Recovery & `deferInitialLayout`**: Mounting inside a `0×0` host container no longer locks in degenerate hulls. As soon as `ResizeObserver` reports the first non-zero box, cached hulls invalidate and the engine performs a clean `'initial'` viewport solve with zero spring jump. With `deferInitialLayout: true` (or `{ fallbackTimeoutMs }`), you can even skip provisional layout math entirely until the tab becomes visible.
+- **Vertical Touch-Scroll Yielding & Clean Taps**: By setting `touch-action: pan-y` whenever `touchScrollLockPx > 0` (default `8 px`), single-finger vertical swipes scroll the page naturally, while horizontal swipes and two-finger pinches engage the map. Meanwhile, `clickTolerancePx` (default `12 px`) tracks **peak** pointer displacement across a gesture—so dragging out and drifting back to the start point never triggers an accidental node click.
+
+<TechnicalDetails
+  title="Technical Details: Viewport Recovery, Touch Thresholds & Batch Options"
+  summary="Core engine and controller configuration for mount timing, touch-gesture thresholds, shape styling, and atomic option coalescing."
+>
+
+- **Headless Engine (`@simplex-viz/core`)**:
+  - `deferInitialSolve?: boolean` on `SimplexGraphEngineConfig` delays clustering and SAT layout until `engine.reinitializeViewport(width, height)` receives real dimensions.
+  - `engine.batch(fn)` queues nested mutations (items, strategies, filters, viewport, theme) and flushes a single minimal pipeline pass on outermost exit.
+- **SVG & Canvas Controllers (`@simplex-viz/svg`, `@simplex-viz/canvas`)**:
+  - `deferInitialLayout?: boolean | { fallbackTimeoutMs?: number }` skips the provisional `960×620` solve on `0×0` mounts until visibility or fallback expiry.
+  - `touchScrollLockPx` (default `8`, setter `setTouchScrollLockPx()`) controls single-finger scroll lock direction; `clickTolerancePx` (default `12`, setter `setClickTolerancePx()`) measures peak Euclidean displacement across both `free-camera` and `drill-down` modes.
+  - `controller.setOptions(opts)` wraps multi-property runtime updates inside `engine.batch(...)` automatically (used directly by React's atomic prop-sync effect).
+  - `shapeOptions` (`hoverScale`, `hoverRingColor`, `dimmedOpacity`, `strokeColor`, `strokeWidth`) on `GeometricShapeSvgView` and `createPresetViews()` are factored directly into convex hull measurement and preserved across `morph()`.
+
+</TechnicalDetails>
+
+## 2. Filtering Without Moving the Map
+
+In a traditional force-directed graph, hiding half the dataset triggers a fresh layout pass—reshuffling everything on screen and destroying the user's spatial memory of where topics live.
+
+SimplexViz separates **topological coordinates** from **active visibility**:
+
+```ts
+// Dim non-matching items in place or hide them completely—coordinates never drift
+controller.setItemFilter(
+  (item) => item.year >= 1960 && item.tags.includes('sci-fi'),
+  { mode: 'hide' },
+);
+```
+
+Because `itemFilter` runs purely at render and hit-test time without re-clustering or re-solving convex SAT hulls, toggling checkboxes in a faceted sidebar keeps every surviving item pinned to its exact position at `60 fps`. Switching between `'dim'` (muted contextual backdrop) and `'hide'` (suppressing visual presence, hit-testing, and keyboard targets) is instantaneous, and `getLegendModel()` / `onLegendChange` reflect the filtered counts automatically.
+
+## 3. Keyboard Navigation, Cohort Selection & Shareable Links
+
+Visual exploration also needs first-class non-pointer workflows and a way to preserve complex views across reloads:
+
+- **Single-Tabstop WCAG 2.1 AA Navigation**: Rather than dumping hundreds of tab stops into the page, the stage exposes one clean `role="application"` root (`tabindex="0"`) paired with `aria-activedescendant`, `Arrow`/`Home`/`End` traversal across clusters, items, and triangles, zoom-adaptive high-contrast double-halo focus rings, and polite `aria-live="polite"` announcements—plus `reducedMotion: 'auto'` to snap springs immediately when `prefers-reduced-motion: reduce` is active.
+- **Multi-Selection, Linked Views & Deep-Linking**: Hold `Shift` to toggle items or drag a rectangular selection marquee (`marqueeSelection: true`), jump straight to search matches with `focusItem()` or `zoomToItem()`, connect external sidebars via diff-gated `onLegendChange` or custom HTML `SimplexDomTooltipRenderer` objects, and serialize the full view—camera, `zoomPath`, focus, highlights, selection, pins, and active `timelineStep`—with `getViewState()` and `restoreViewState()`.
+
+<TechnicalDetails
+  title="Technical Details: Accessibility Contracts, Selection State & ViewState v1 Schema"
+  summary="Exact keyboard bindings, ARIA metadata hooks, legend diffing, tooltip renderers, and SimplexViewState serialization."
+>
+
+- **Keyboard & Screen-Reader Contract**:
+  - Single root container uses `role="application"`, `tabindex="0"`, `aria-activedescendant`, and deterministic instance-scoped IDs (`ariaIdPrefix` via `SvgAriaMetadataResolver`).
+  - Keys: `ArrowRight`/`ArrowDown` (next target), `ArrowLeft`/`ArrowUp` (previous target), `Home`/`End` (first/last), `Enter`/`Space` (activate/drill), `Shift+Enter`/`Shift+Space` (toggle selection), `Escape` (clear selection or drill up).
+  - Polite announcements live in `.sv-sr-announcer[role="status"][aria-live="polite"]`, deduped across rapid zoom frames.
+  - `reducedMotion`: `'auto' | boolean` (`setReducedMotion()`, `getReducedMotion()`, `isReducedMotionActive()`).
+- **Multi-Selection & Linked Views**:
+  - `selectedIds` (`NodeInteractionState.isSelected`) is orthogonal to `highlightedIds`, `pinnedIds`, and hover/focus states.
+  - `shiftClickSelects` (default `true`) processes `Shift+Click` cohort toggles before invoking consumer `onContentClick` callbacks so detail drawers never swallow multi-selection.
+  - `setHighlightedIds(Iterable<string> | null)`, `focusItem(id, { highlight?, hover?, announce? })`, and `zoomToItem(id, { maxDrillSteps? })` link external search bars and tables directly to canvas/SVG state.
+- **Legend Model & Custom Tooltips**:
+  - `getLegendModel(options?)` / `onLegendChange` emit `SimplexLegendModel` (`entries: SimplexLegendEntry[]`, active/visible item counts, swatches, roles, tags, focus flags), diff-gated inside the engine so unchanged topology/visibility produces zero redundant callbacks.
+  - `SimplexDomTooltipRenderer`: `{ render(target, container), onHide?, className?, unstyled?, pointerEvents? }` caches active target keys and flips cleanly at container edges; string formatters returning `null | undefined | ''` suppress the tooltip container.
+- **Deep-Linking (`SimplexViewState` v1)**:
+  ```ts
+  interface SimplexViewState {
+    version: 1;
+    camera: { x: number; y: number; scale: number };
+    zoomPath: readonly SimplexViewZoomStep[];
+    focusedClusterUid: string | null;
+    focusedTriangleIndex: number | null;
+    focusedItemId: string | null;
+    highlightedIds: readonly string[];
+    selectedIds: readonly string[];
+    pinnedIds: readonly string[];
+    timelineStep?: number;
+  }
+  ```
+  `restoreViewState(state, options?)` snaps immediately by default, replays `zoomPath` cleanly from root, restores active timeline frames when enabled, and ignores stale item/cluster IDs gracefully without throwing.
+
+</TechnicalDetails>
